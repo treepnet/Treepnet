@@ -10,7 +10,7 @@ environment:
 dependencies:
   geolocator: ^13.0.1
   exif: ^3.3.0
-  animations: ^2.0.11
+  animations: ^2.2.0
   app_links: ^6.3.2
   # Android deferred deep link: reads the Play Store install referrer so an
   # invite works even when the app wasn't installed when the link was tapped.
