@@ -1,0 +1,43 @@
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.buildDir = '../build'
+subprojects {
+    // Guard: newer plugins finish evaluating before this root hook runs, and
+    // registering afterEvaluate on an already-evaluated project throws. The
+    // compileSdk<31 override below is legacy anyway — every plugin is 31+ now.
+    if (!project.state.executed) {
+      afterEvaluate { project ->
+        if (project.extensions.findByName("android") != null) {
+            Integer pluginCompileSdk = project.android.compileSdk
+            if (pluginCompileSdk != null && pluginCompileSdk < 31) {
+                project.logger.error(
+                        "Warning: Overriding compileSdk version in Flutter plugin: "
+                                + project.name
+                                + " from "
+                                + pluginCompileSdk
+                                + " to 31 (to work around https://issuetracker.google.com/issues/199180389)."
+                                + "\nIf there is not a new version of " + project.name + ", consider filing an issue against "
+                                + project.name
+                                + " to increase their compileSdk to the latest (otherwise try updating to the latest version)."
+                )
+                project.android {
+                    compileSdk 31
+                }
+            }
+        }
+      }
+    }
+
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+    if (!project.state.executed) {
+      project.evaluationDependsOn(":app")
+    }
+}
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}

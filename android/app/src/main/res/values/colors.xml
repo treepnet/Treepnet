@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The launch screen behind the logo. A layer-list needs a colour
+         resource; it cannot take a literal hex. -->
+    <color name="splash_background">#191919</color>
+</resources>

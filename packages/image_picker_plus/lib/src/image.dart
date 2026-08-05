@@ -1,0 +1,55 @@
+import 'dart:typed_data';
+
+import 'package:cached_memory_image/cached_memory_image.dart';
+import 'package:flutter/material.dart';
+import 'package:image_picker_plus/image_picker_plus.dart';
+
+class MemoryImageDisplay extends StatefulWidget {
+  const MemoryImageDisplay({
+    required this.imageBytes,
+    required this.appTheme,
+    super.key,
+  });
+  final Uint8List imageBytes;
+  final AppTheme appTheme;
+
+  @override
+  State<MemoryImageDisplay> createState() => _NetworkImageDisplayState();
+}
+
+class _NetworkImageDisplayState extends State<MemoryImageDisplay> {
+  @override
+  void didChangeDependencies() {
+    precacheImage(MemoryImage(widget.imageBytes), context);
+    super.didChangeDependencies();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return buildOctoImage();
+  }
+
+  Widget buildOctoImage() {
+    return Container(
+      width: double.infinity,
+      color: widget.appTheme.shimmerBaseColor,
+      child: CachedMemoryImage(
+        uniqueKey: 'app://content/${widget.imageBytes.length}',
+        bytes: widget.imageBytes,
+        errorBuilder: (context, url, error) => buildError(),
+        fit: BoxFit.cover,
+        width: double.infinity,
+      ),
+    );
+  }
+
+  SizedBox buildError() {
+    return SizedBox(
+      width: double.infinity,
+      child: Icon(
+        Icons.warning_amber_rounded,
+        color: widget.appTheme.onSurfaceColor,
+      ),
+    );
+  }
+}

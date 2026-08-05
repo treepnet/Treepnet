@@ -1,0 +1,2 @@
+/home/bozkurt/Desktop/Treepnet/New TreepNet/android/app/.cxx/debug/193g1q3g/armeabi-v7a/CMakeFiles/edit_cache.dir
+/home/bozkurt/Desktop/Treepnet/New TreepNet/android/app/.cxx/debug/193g1q3g/armeabi-v7a/CMakeFiles/rebuild_cache.dir

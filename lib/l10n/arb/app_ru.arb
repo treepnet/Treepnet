@@ -1,0 +1,883 @@
+{
+  "@@locale": "ru",
+  "feedAppBarTitle": "Просмотр ленты",
+  "@feedAppBarTitle": {
+    "description": "Текст для заголовка страницы Просмотр ленты"
+  },
+  "homeNavBarItemLabel": "Лента",
+  "@homeNavBarItemLabel": {
+    "description": "Подсказка при зажатии иконки дом на нижней навигационной панели"
+  },
+  "searchNavBarItemLabel": "Поиск",
+  "@searchNavBarItemLabel": {
+    "description": "Подсказка при зажатии иконки поиск на нижней навигационной панели"
+  },
+  "createMediaNavBarItemLabel": "Создать медиа",
+  "@createMediaNavBarItemLabel": {
+    "description": "Подсказка при зажатии иконки плюс на нижней навигационной панели"
+  },
+  "reelsNavBarItemLabel": "Рилс",
+  "@reelsNavBarItemLabel": {
+    "description": "Подсказка при зажатии иконки файла на нижней навигационной панели"
+  },
+  "profileNavBarItemLabel": "Профиль",
+  "@profileNavBarItemLabel": {
+    "description": "Подсказка при зажатии иконки профиля на нижней навигационной панели"
+  },
+  "originalAudioText": "Оригинальное аудио",
+  "likesText": "Нравится",
+  "discardEditsText": "Сбросить Изменения",
+  "discardText": "Сбросить",
+  "doneText": "Готово",
+  "tapToTypeText": "Нажмите, чтобы печатать...",
+  "uploadText": "Загрузить",
+  "loseAllEditsText": "Если вы вернетесь сейчас, вы потеряете все внесенные вами изменения.",
+  "successfullySavedText": "Успешно сохранено",
+  "saveDraft": "Сохранить черновик",
+  "draftEmpty": "Черновик пустой",
+  "errorText": "Ошибка",
+  "noPostsText": "Постов пока нет",
+  "noPostFoundText": "Пост не найден!",
+  "noChatsText": "Нет чатов!",
+  "startChatText": "Создать чат",
+  "addCommentText": "Добавить комментарий",
+  "deleteCommentText": "Удалить комментарий",
+  "commentDeleteConfirmationText": "Вы уверены что хотите удалить этот комментарий?",
+  "deleteMessageText": "Удалить сообщение",
+  "messageDeleteConfirmationText": "Вы уверены что хотите удалить это сообщение?",
+  "deleteChatText": "Удалить чат",
+  "chatDeleteConfirmationText": "Вы уверены что хотите удалить этот чат?",
+  "deleteReelText": "Удалить видео Reels",
+  "reelDeleteConfirmationText": "Вы уверены что хотите удалить это видео Reels?",
+  "deleteStoryText": "Удалить историю",
+  "storyDeleteConfirmationText": "Вы уверены что хотите удалить эту историю?",
+  "commentText": "Комментарий",
+  "commentsText": "Комментарии",
+  "noCommentsText": "Нет комментариев",
+  "seeAllComments": "Смотреть все коментарии ({count})",
+  "@seeAllComments": {
+    "description": "Текст который показывает кол-во коментариев под данным постом",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "likesCountText": "Нравится: {count}",
+  "@likesCountText": {
+    "description": "Текст который показывает кол-во лайков у данного поста",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "likedByText": "Нравится {userName} {count, plural, =1{} other{и {count} другим}}",
+  "@likedByText": {
+    "placeholders": {
+      "userName": {
+        "type": "String",
+        "example": "emil.zulufov"
+      },
+      "count": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "likeText": "Нравится",
+  "unlikeText": "Не нравится",
+  "likesCountTextShort": "{count}",
+  "@likesCountTextShort": {
+    "description": "TТекст который показывает кол-во лайков у данного поста в коротком формате",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "yourStoryLabel": "Твоя история",
+  "@yourStoryLabel": {
+    "description": "Текст на главной странице под твоей историей"
+  },
+  "postsText": "Посты",
+  "profilePostsAppBarTitle": "Посты",
+  "@profilePostsAppBarTitle": {
+    "description": "Текст для заголовка страницы со всеми публикациями пользователя"
+  },
+  "followUser": "Подписаться",
+  "followingUser": "Вы подписаны",
+  "followersText": "Подписчики",
+  "followingsText": "Подписки",
+  "followersCountText": "{count, plural, other{Подписчики: {count}}}",
+  "@followersCountText": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "followingsCountText": "{count, plural, other{Подписки: {count}}}",
+  "@followingsCountText": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "postsCount": "{count, plural, =1{Пост} few{Поста} other{Постов}}",
+  "@postsCount": {
+    "description": "Текст показыващий кол-во публикаций пользователя",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "followersCount": "{count, plural, =1{Подписчик} few{Подписчика} other{Подписчиков}}",
+  "@followersCount": {
+    "description": "Текст показывающий кол-во подписчиков пользователя",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "optionsText": "Настройки",
+  "viewProfileText": "Посмотреть профиль",
+  "editProfileText": "Редактировать профиль",
+  "editingText": "Редактирование",
+  "editPostText": "Редактировать публикацию",
+  "shareProfileText": "Поделиться профилем",
+  "sharePostText": "Поделиться",
+  "sharePostCaptionHintText": "Добавить сообщение...",
+  "sendText": "Отправить",
+  "sendSeparatelyText": "Отправить отдельно",
+  "addStoryText": "Добавить",
+  "followingsCount": "{count, plural, =1{Подписка} few{Подписки} other{Подписок}}",
+  "@followingsCount": {
+    "description": "Текст показывающий кол-во подписок пользователя",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "sponsoredPostText": "Реклама",
+  "@sponsoredPostText": {
+    "description": "Текст показывает что данный пост был продвинут автором как рекламный"
+  },
+  "visitSponsoredInstagramProfile": "Посетить профиль Treepnet",
+  "visitSponsoredPostAuthorProfileText": "Открыть профиль Treepnet",
+  "@visitSponsoredPostAuthorProfileText": {
+    "description": "Текст показанный на рекламном посте который сподвигает пользователя перейти на профиль автора"
+  },
+  "learnMoreAboutUserPromoText": "Узнать больше",
+  "@learnMoreAboutUserPromoText": {
+    "description": "Текст показанный на промо банере на странице автора"
+  },
+  "visitUserPromoWebsiteText": "Посетить сайт",
+  "@visitUserPromoWebsiteText": {
+    "description": "Текст показанный на промо банере на странице автора"
+  },
+  "cancelFollowingText": "Отменить подписку",
+  "@cancelFollowingText": {
+    "description": "Текст об отмене подписки"
+  },
+  "haveSeenAllRecentPosts": "Вы посмотрели все обновления",
+  "@haveSeenAllRecentPosts": {
+    "description": "Header text shown in divider block when user have seen all recent posts"
+  },
+  "haveSeenAllRecentPostsInPast3Days": "Вы посмотрели все новые публикации за последние 3 дн.",
+  "@haveSeenAllRecentPostsInPast3Days": {
+    "description": "Body text shown in divider block when user have seen all recent posts in past 3 days"
+  },
+  "suggestedForYouText": "Рекомендуемые публикации",
+  "@suggestedForYouText": {
+    "description": "Текст, отображаемый в предлагаемом блоке раздела."
+  },
+  "andText": "и",
+  "othersText": "{count, plural, =0{} other{ещё {count}}}",
+  "@othersText": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "newPostText": "Новая публикация",
+  "newStoryText": "Новая история",
+  "newAvatarImageText": "Новое фото аватара",
+  "writeCaptionText": "Добавить подпись...",
+  "logOutText": "Выйти",
+  "logOutConfirmationText": "Вы уверены что хотите выйти из аккаунта?",
+  "notShowAgainText": "Не показывать снова",
+  "blockPostAuthorText": "Заблокировать автора публикации",
+  "blockAuthorText": "Заблокировать автора",
+  "blockAuthorConfirmationText": "Вы уверены что хотите заблокировать этого автора?",
+  "blockText": "Заблокировать",
+  "refreshText": "Обновить",
+  "noReelsFoundText": "Видео Reels пока нет",
+  "publishText": "Отправить",
+  "searchText": "Поиск",
+  "somethingWentWrongText": "Что-то пошло не так!",
+  "failedToCreateStoryText": "Не удалось создать историю",
+  "successfullyCreatedStoryText": "История успешно создана!",
+  "createText": "Cоздать",
+  "reelText": "Видео Reels",
+  "postText": "Пост",
+  "storyText": "История",
+  "removeText": "Удалить",
+  "removeFollowerText": "Удалить подписчика",
+  "removeFollowerConfirmationText": "Вы уверены что хотите удалить подписчика?",
+  "deletePostText": "Удалить публикацию",
+  "deletePostConfirmationText": "Вы уверены что хотите удальть эту публикацию?",
+  "cancelText": "Отмена",
+  "captionText": "Описание",
+  "noCameraFoundText": "Камера не найдена!",
+  "videoText": "ВИДЕО",
+  "photoText": "ФОТО",
+  "clearImagesText": "Очистить выбранные изображения",
+  "galleryText": "ГАЛЕРЕЯ",
+  "deletingText": "УДАЛИТЬ",
+  "notFoundingCameraText": "Дополнительная камера не найдена",
+  "holdButtonText": "Нажмите и удерживайте, чтобы записать",
+  "noMediaFound": "Галерея пуста",
+  "acceptAllPermissionsText": "Примите все необходимые разрешения!",
+  "addMessageText": "Сообщение",
+  "messageText": "Сообщение",
+  "editPictureText": "Изменить фото",
+  "requiredFieldText": "Это поле обязательно",
+  "passwordLengthErrorText": "Пароль должен содержать минимум {count, plural, =1{{count} символ} other{{count} символа}}",
+  "@passwordLengthErrorText": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "changeText": "Изменить",
+  "changePhotoText": "Изменить фото",
+  "fullNameEditDescription": "Помогите людям найти вашу учетную запись, используя имя, под которым вы известны: полное имя, псевдоним или название компании.\n\nВы можете изменить свое имя только дважды в течение 14 дней.",
+  "usernameEditDescription": "Вы сможете изменить свое имя пользователя обратно на {username} следующие 14 дней.",
+  "@usernameEditDescription": {
+    "placeholders": {
+      "username": {
+        "type": "String",
+        "example": "emil"
+      }
+    }
+  },
+  "profileInfoEditConfirmationText": "Вы уверены что хотите сменить {changeType} на {newUsername} ?",
+  "@profileInfoEditConfirmationText": {
+    "placeholders": {
+      "newUsername": {
+        "type": "String",
+        "example": "jorge"
+      },
+      "changeType": {
+        "type": "String",
+        "example": "username"
+      }
+    }
+  },
+  "profileInfoChangePeriodText": "Вы можете изменять {changeType} только дважды в {count, plural, =1{день} few{{count} дня} other{{count} дней}}.",
+  "@profileInfoChangePeriodText": {
+    "placeholders": {
+      "changeType": {
+        "type": "String",
+        "example": "username"
+      },
+      "count": {
+        "type": "int",
+        "example": "14"
+      }
+    }
+  },
+  "forgotPasswordText": "Забыли пароль?",
+  "recoveryPasswordText": "Восстановление пароля",
+  "orText": "Или",
+  "signInWithText": "Войти через {provider}",
+  "@signInWithText": {
+    "placeholders": {
+      "provider": {
+        "type": "String",
+        "example": "Google"
+      }
+    }
+  },
+  "goBackConfirmationText": "Вы уверены что хотите вернуться назад?",
+  "goBackText": "Вернуться назад",
+  "furtherText": "Далее",
+  "noLastMessagesText": "Нет последних сообщений",
+  "onlineText": "онлайн",
+  "moreText": "Ещё",
+  "noAccountText": "Ещё нет аккаунта?",
+  "alreadyHaveAccountText": "Уже есть аккаунт?",
+  "nameText": "Имя",
+  "usernameText": "Имя пользователя",
+  "forgotPasswordEmailConfirmationText": "Подтверждение учётной записи",
+  "verificationTokenSentText": "Код подтверждения отправлени на почту {email}",
+  "@verificationTokenSentText": {
+    "placeholders": {
+      "email": {
+        "type": "String",
+        "example": "johndale@gmail.com"
+      }
+    }
+  },
+  "emailText": "Почта",
+  "otpText": "Код",
+  "changePasswordText": "Поменять пароль",
+  "passwordText": "Пароль",
+  "newPasswordText": "Новый пароль",
+  "loginText": "Войти",
+  "signUpText": "Зарегестрироваться",
+  "bioText": "Биография",
+  "postUnavailableText": "Пост недоступен",
+  "postUnavailableDescriptionText": "Этот пост недоступен",
+  "editedText": "изменено",
+  "editText": "Редактировать",
+  "deleteText": "Удалить",
+  "replyText": "Ответить",
+  "replyToText": "В ответ {username}",
+  "@replyToText": {
+    "placeholders": {
+      "username": {
+        "type": "String",
+        "example": "emil"
+      }
+    }
+  },
+  "themeText": "Тема",
+  "systemOption": "Системная",
+  "@systemOption": {
+    "description": "The option to use system-wide theme in the theme selector menu"
+  },
+  "lightModeOption": "Светлая",
+  "@lightModeOption": {
+    "description": "The option for light mode in the theme selector menu"
+  },
+  "darkModeOption": "Тёмная",
+  "@darkModeOption": {
+    "description": "The option for dark mode in the theme selector menu"
+  },
+  "languageText": "Язык",
+  "ruOptionText": "Русский",
+  "enOptionText": "Английский",
+  "secondsAgo": "{seconds, plural, =1{{seconds} секунду назад} few{{seconds} секунды назад} other{{seconds} секунд назад}}",
+  "@secondsAgo": {
+    "description": "Секунд назад",
+    "placeholders": {
+      "seconds": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "minutesAgo": "{minutes, plural, =1{{minutes} минуту назад} few{{minutes} минуты назад} other{{minutes} минут назад}}",
+  "@minutesAgo": {
+    "description": "Минут назад",
+    "placeholders": {
+      "minutes": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "hoursAgo": "{hours, plural, =1{{hours} час назад} few{{hours} часа назад} other{{hours} часов назад}}",
+  "@hoursAgo": {
+    "description": "Часов назад",
+    "placeholders": {
+      "hours": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "daysAgo": "{days, plural, =1{{days} день назад} few{{days} дня назад} other{{days} дней назад}}",
+  "@daysAgo": {
+    "description": "Дней назад",
+    "placeholders": {
+      "days": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "weeksAgo": "{weeks, plural, =1{{weeks} неделю назад} few{{weeks} недели назад} other{{weeks} недель назад}}",
+  "@weeksAgo": {
+    "description": "Недель назад",
+    "placeholders": {
+      "weeks": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "monthsAgo": "{months, plural, =1{{months} месяц назад} few{{months} месяца назад} other{{months} месяцев назад}}",
+  "@monthsAgo": {
+    "description": "Месяцев назад",
+    "placeholders": {
+      "months": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "yearsAgo": "{years, plural, =1{{years} год назад} few{{years} года назад} other{{years} лет назад}}",
+  "@yearsAgo": {
+    "description": "Лет назад",
+    "placeholders": {
+      "years": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "networkError": "Произошла сетевая ошибка.\nПроверьте подключение и повторите попытку.",
+  "@networkError": {
+    "description": "Текст, отображаемый при возникновении сетевой ошибки."
+  },
+  "networkErrorButton": "Попробуйте ещё раз",
+  "@networkErrorButton": {
+    "description": "Текст, отображаемый на кнопке обновления при возникновении сетевой ошибки."
+  },
+  "likedByLabel": "Нравится <username>{userName}</username>{and}<count>{count}</count>",
+  "@likedByLabel": {
+    "placeholders": {
+      "userName": {
+        "type": "String",
+        "example": "emil.zulufov"
+      },
+      "and": {
+        "type": "String",
+        "description": "Необязательный placeholder для слова 'и'",
+        "example": "и"
+      },
+      "count": {
+        "type": "String",
+        "example": "1"
+      }
+    }
+  },
+  "privateAccountTitle": "Это закрытый аккаунт",
+  "privateAccountSubtitle": "Подпишитесь на этот аккаунт, чтобы видеть его публикации, истории и карту путешествий.",
+  "signUpDetailsTitle": "Создать аккаунт",
+  "signUpDetailsSubtitle": "Имя пользователя, имя, пароль и дата рождения.",
+  "signUpEmailTitle": "Ваш email",
+  "signUpEmailSubtitle": "Мы отправим код подтверждения на этот адрес.",
+  "signUpCodeTitle": "Введите код",
+  "signUpCodeSubtitle": "Код отправлен на {email}.",
+  "continueText": "Продолжить",
+  "sendCodeText": "Отправить код",
+  "verifyText": "Подтвердить",
+  "backText": "Назад",
+  "birthdayText": "Дата рождения",
+  "fullNameText": "Полное имя",
+  "codeHintText": "Код из {length} цифр",
+  "passwordWeakText": "Слабый",
+  "passwordMediumText": "Средний",
+  "passwordStrongText": "Надёжный",
+  "signUpSelectBirthdayError": "Выберите дату рождения.",
+  "signUpInvalidFieldsError": "Проверьте поля выше.",
+  "signUpUsernameTakenError": "Это имя пользователя занято. Выберите другое.",
+  "signUpInvalidEmailError": "Неверный адрес email.",
+  "signUpInvalidCodeError": "Введите код правильно.",
+  "signUpGenericError": "Произошла ошибка. Попробуйте снова.",
+  "signUpWeakPasswordError": "Выберите более надёжный пароль — от 8 символов: буквы, цифры и символ.",
+  "passwordNeedStrongerText": "Нужен более надёжный пароль.",
+  "genderMaleText": "Мужской",
+  "genderFemaleText": "Женский",
+  "genderNotSayText": "Не указывать",
+  "genderText": "Пол",
+  "linksSectionText": "Ссылки",
+  "aboutYouSectionText": "О себе",
+  "inviteFriendsText": "Пригласить друзей",
+  "inviteHeroTitle": "Пригласите друзей",
+  "inviteHeroSubtitle": "Приведите друзей в Treepnet — отмечайте на карте места, где вы побывали, вместе.",
+  "inviteStepShareTitle": "Поделитесь кодом",
+  "inviteStepShareSub": "Отправьте свой код приглашения друзьям",
+  "inviteStepJoinTitle": "Друг присоединяется",
+  "inviteStepJoinSub": "Он вводит ваш код в приложении",
+  "inviteStepTravelTitle": "Путешествуйте вместе",
+  "inviteStepTravelSub": "Отмечайте свои места на карте",
+  "inviteYourCodeText": "Ваш код приглашения",
+  "inviteCopyMessageText": "Копировать текст приглашения",
+  "inviteCopiedText": "Скопировано",
+  "inviteMessageBody": "Treepnet — отмечайте на карте каждое место, где побывали! Присоединяйтесь и введите мой код приглашения: {code}",
+  "inviteRewardsTitle": "Награды",
+  "inviteRewardsSubtitle": "Приглашайте друзей и открывайте значки. Приглашено друзей: {count}",
+  "inviteRedeemCardText": "Вас пригласили? Введите код",
+  "inviteRedeemDialogTitle": "Введите код приглашения",
+  "inviteRedeemHintText": "Имя пользователя или код друга",
+  "inviteRedeemOkText": "Спасибо! Приглашение принято",
+  "inviteRedeemAlreadyText": "Вас уже пригласили",
+  "inviteRedeemSelfText": "Нельзя пригласить самого себя",
+  "inviteRedeemUnknownText": "Такой код не найден",
+  "inviteRedeemFailedText": "Что-то пошло не так — попробуйте ещё раз",
+  "inviteLinkAcceptedText": "Ссылка-приглашение принята",
+  "@inviteMessageBody": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "@inviteRewardsSubtitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "confirmText": "Подтвердить",
+  "inviteCopyCodeText": "Копировать код",
+  "inviteCodeHelpText": "Друг вводит этот код в разделе «Настройки» → «Пригласить друзей».",
+  "profileLinkCopiedText": "Ссылка на профиль скопирована",
+  "mapPickLocationTitle": "Выберите место",
+  "mapOceanText": "Океан",
+  "mapDragToLandText": "Перетащите метку на сушу",
+  "mapSelectText": "Выбрать",
+  "mapPickCountryText": "Выберите страну",
+  "mapSearchCountryHint": "Поиск страны...",
+  "mapSearchRegionHint": "Поиск региона...",
+  "passportTitle": "Паспорт путешественника",
+  "passportMapSection": "Карта",
+  "passportAchievementsSection": "Достижения",
+  "passportContinentsSection": "Континенты  ·  {visited}/7",
+  "passportRegionsLabel": "Регионы",
+  "passportCountriesLabel": "Страны",
+  "passportContinentsLabel": "Континенты",
+  "passportUnlockedText": "Открыто",
+  "passportNeedRegions": "{count, plural, one{{count} регион} few{{count} региона} other{{count} регионов}}",
+  "passportNeedCountries": "{count, plural, one{{count} страна} few{{count} страны} other{{count} стран}}",
+  "passportNeedContinents": "{count, plural, one{{count} континент} few{{count} континента} other{{count} континентов}}",
+  "badgeFirstStep": "Первый шаг",
+  "badgeTraveller": "Путешественник",
+  "badgeExperienced": "Опытный",
+  "badgeExplorer": "Исследователь",
+  "badgeBorderCrosser": "Через границы",
+  "badgeGlobetrotter": "Путешественник мира",
+  "badgeWorldWanderer": "Странник мира",
+  "badgeLegendary": "Легендарный",
+  "badgeTwoContinents": "Два континента",
+  "badgeThreeContinents": "Три континента",
+  "badgeWholeWorld": "Весь мир",
+  "continentAsia": "Азия",
+  "continentEurope": "Европа",
+  "continentAfrica": "Африка",
+  "continentNorthAmerica": "С. Америка",
+  "continentSouthAmerica": "Ю. Америка",
+  "continentOceania": "Океания",
+  "continentAntarctica": "Антарктида",
+  "@passportContinentsSection": {
+    "placeholders": {
+      "visited": {
+        "type": "int"
+      }
+    }
+  },
+  "@passportNeedRegions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@passportNeedCountries": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@passportNeedContinents": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "passportStampsSection": "Штампы  ·  {count}",
+  "passportEmptyTitle": "Ваш паспорт пока пуст",
+  "passportEmptySubtitle": "Отмечайте регион в публикациях — здесь будут копиться ваш уровень, штампы и достижения. ✈️",
+  "@passportStampsSection": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "travelLevelStart": "Начните путешествие",
+  "travelLevelNew": "Новый путешественник",
+  "travelLevelExplorer": "Исследователь",
+  "travelLevelExperienced": "Опытный путешественник",
+  "travelLevelGlobetrotter": "Путешественник мира",
+  "travelLevelWorldWanderer": "Странник мира",
+  "travelLevelLegendary": "Легендарный путешественник",
+  "passportMaxedText": "Вы достигли высшего уровня! 👑",
+  "passportNextLevelText": "{count, plural, one{{count} страна до следующего уровня} few{{count} страны до следующего уровня} other{{count} стран до следующего уровня}}",
+  "@passportNextLevelText": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "passportLevelLabel": "Уровень",
+  "onboardingSkipText": "Пропустить",
+  "avatarUploadText": "Загрузить фото",
+  "avatarChangeText": "Изменить фото",
+  "avatarRemoveText": "Удалить фото",
+  "avatarRemoveConfirmText": "Удалить фото профиля?",
+  "avatarRemovedText": "Фото удалено",
+  "avatarUpdatedText": "Фото обновлено",
+  "avatarFailedText": "Не удалось обновить фото — попробуйте ещё раз",
+  "locationPostsTitle": "Посты здесь",
+  "locationPostsThisSpot": "Это место",
+  "locationPostsCount": "{count, plural, =0{Пока нет публикаций} one{{count} публикация} few{{count} публикации} other{{count} публикаций}}",
+  "locationAddPostText": "Добавить публикацию здесь",
+  "locationEmptyText": "Отсюда ещё ничего не опубликовано.",
+  "locationWholeRegionText": "Показать весь регион",
+  "@locationPostsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "storyReplyHint": "Отправить сообщение",
+  "storyViewersTitle": "Просмотры",
+  "storyViewsLabel": "{count, plural, =0{Нет просмотров} one{{count} просмотр} few{{count} просмотра} other{{count} просмотров}}",
+  "storyNoViewersText": "Пока нет просмотров",
+  "storyReplySentText": "Ответ отправлен",
+  "storyReplyFailedText": "Не удалось отправить ответ",
+  "@storyViewsLabel": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noStoriesText": "Историй пока нет",
+  "inviteIntroText": "Приглашайте друзей, чтобы проводить время интереснее и получать за это награду.",
+  "inviteRewardRuleText": "За каждые 5 приглашённых вы получите 1 месяц галочки в профиле для теста премиум-подписки.",
+  "inviteYourLinkText": "Ваша ссылка для приглашения друзей",
+  "inviteRegisteredText": "Зарегистрировались по вашей ссылке",
+  "invitePlusOneMonthText": "+1 месяц",
+  "inviteProgressTitle": "Ваш прогресс",
+  "inviteFriendsUnit": "друзей",
+  "inviteMonthsText": "{count, plural, one{{count} месяц} few{{count} месяца} other{{count} месяцев}}",
+  "@inviteMonthsText": {
+    "placeholders": {
+      "count": {
+        "type": "num",
+        "format": "compact"
+      }
+    }
+  },
+  "inviteDaysLeftText": "{count, plural, one{остался {count} день} few{осталось {count} дня} other{осталось {count} дней}}",
+  "@inviteDaysLeftText": {
+    "placeholders": {
+      "count": {
+        "type": "num",
+        "format": "compact"
+      }
+    }
+  },
+  "inviteNeedPostText": "Добавьте хотя бы одну публикацию с локацией — без неё галочка не появится.",
+  "inviteTierExplainText": "В зависимости от числа посещённых городов, добавленных локаций и публикаций вы получите одну из этих галочек. Добавляя новые публикации, вы будете улучшать её по этой последовательности.",
+  "inviteCopyText": "Копировать",
+  "inviteNoDataText": "—",
+  "visitedTitle": "Где вы уже были?",
+  "visitedSubtitle": "Отметьте регионы, где вы были — ваша карта начнётся уже заполненной.",
+  "visitedSearchHint": "Поиск региона или страны",
+  "visitedNearbyTitle": "Ваша страна",
+  "visitedContinueText": "Продолжить",
+  "visitedRevealTitle": "Ваша карта",
+  "visitedRevealRegions": "{count} регионов",
+  "visitedRevealHint": "Публикуйте из новых мест, чтобы улучшить галочку.",
+  "visitedStartText": "Начать",
+  "visitedNothingFound": "Ничего не найдено",
+  "highlightNewText": "Новый",
+  "highlightCreateTitle": "Новый хайлайт",
+  "highlightNameHint": "Название хайлайта",
+  "highlightPickStories": "Выберите истории",
+  "highlightNoStories": "У вас пока нет историй",
+  "highlightSave": "Сохранить",
+  "highlightDeleteTitle": "Удалить хайлайт?",
+  "locationTabPosts": "Посты",
+  "locationTabStories": "Истории",
+  "locationAddText": "Добавить +",
+  "locationNoStoriesText": "Сюда пока не закреплено ни одной истории",
+  "locationPickFromArchiveTitle": "Закрепить историю здесь",
+  "locationArchiveEmptyText": "В архиве пока пусто",
+  "locationStoryPinnedText": "Закреплено в этом месте",
+  "locationUnpinStoryText": "Убрать из этого места",
+  "settingsText": "Настройки",
+  "savedText": "Сохранённое",
+  "archiveText": "Архив",
+  "inviteFriendsText": "Пригласить друзей",
+  "securityText": "Безопасность",
+  "privacyText": "Конфиденциальность",
+  "blockedUsersText": "Заблокированные",
+  "deleteAccountText": "Удалить аккаунт",
+  "confirmPasswordText": "Подтвердите пароль",
+  "accountPasswordText": "Пароль аккаунта",
+  "couldNotIdentifyAccountText": "Не удалось определить ваш аккаунт.",
+  "deleteFailedText": "Ошибка удаления: {error}",
+  "@deleteFailedText": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "retryText": "Повторить",
+  "messageNotSentText": "Сообщение не отправлено",
+  "typingText": "печатает…",
+  "failedToOpenUrlText": "Не удалось открыть ссылку.",
+  "chatsTypeTabText": "Написать",
+  "chatsTabText": "Чаты",
+  "linkText": "Ссылка",
+  "failedToCreatePostText": "Не удалось создать публикацию!",
+  "descriptionText": "Описание",
+  "writeDescriptionHintText": "Напишите описание...",
+  "tagPeopleText": "Отметить людей",
+  "tagPeopleHintText": "@username @friend",
+  "addInformationText": "Добавить информацию",
+  "acceptText": "Принять",
+  "declineText": "Отклонить",
+  "unblockedText": "Разблокировано",
+  "blockedText": "Заблокировано",
+  "unblockText": "Разблокировать",
+  "nameOfLocationText": "Название места",
+  "removeFromSavedText": "Убрать из сохранённого",
+  "blueBadgeText": "Синяя галочка",
+  "darkBlueBadgeText": "Тёмно-синяя галочка",
+  "purpleBadgeText": "Фиолетовая галочка",
+  "pinkBadgeText": "Розовая галочка",
+  "redBadgeText": "Красная галочка",
+  "couldNotReachServerText": "Не удалось подключиться к серверу. Проверьте соединение и попробуйте снова.",
+  "emailAlreadyExistsText": "Пользователь с таким email уже существует.",
+  "usernameOrEmailText": "Имя пользователя или email",
+  "sendCodeText": "Отправить код",
+  "codeText": "Код",
+  "sendCodeAgainText": "Отправить код снова",
+  "backToLoginText": "Назад ко входу",
+  "incorrectCredentialsText": "Неверный email и/или пароль.",
+  "userNotFoundText": "Пользователь с таким email не найден!",
+  "googleLoginFailedText": "Не удалось войти через Google!",
+  "postArchivedText": "Пост архивирован",
+  "storiesText": "Истории",
+  "successfullyCreatedPostText": "Пост создан!",
+  "loggedOutSuccessfullyText": "Вы вышли из аккаунта",
+  "logOutFailedText": "Не удалось выйти",
+  "featureNotAvailableText": "Функция недоступна!",
+  "linkCopiedText": "Ссылка скопирована!",
+  "successfullySharedPostText": "Пост отправлен!",
+  "failedToSharePostText": "Не удалось поделиться публикацией.",
+  "successfullySharedStoryText": "История отправлена!",
+  "failedToShareStoryText": "Не удалось поделиться историей.",
+  "copyLinkText": "Копировать ссылку",
+  "successfullyPinnedText": "Успешно закреплено!",
+  "highlightNameText": "Название подборки",
+  "addLocationText": "Добавить место",
+  "newHighlightText": "Новая подборка",
+  "tryToSignUpText": "Попробуйте зарегистрироваться.",
+  "tryAgainLaterText": "Попробуйте позже.",
+  "internetConnectionErrorText": "Ошибка подключения к интернету!",
+  "checkInternetConnectionText": "Проверьте подключение к интернету и попробуйте снова.",
+  "tryAnotherEmailText": "Попробуйте другой адрес email.",
+  "featureNotAvailableDescriptionText": "Мы стараемся реализовать это как можно скорее.",
+  "linkNoPreviewText": "На странице нет заголовка, описания или ссылки.",
+  "noOneToMessageText": "Некому написать",
+  "noMessagesYetText": "Сообщений пока нет",
+  "sayHiText": "Поздоровайтесь 👋",
+  "discoverPeopleText": "Найти людей",
+  "noSuggestionsText": "Пока нет рекомендаций",
+  "notificationsText": "Уведомления",
+  "noNotificationsText": "Уведомлений пока нет",
+  "noSavedProfilesText": "Нет сохранённых профилей",
+  "savedProfilesHintText": "Откройте профиль, нажмите ⋮ и выберите «Сохранить».",
+  "nothingSavedText": "Пока ничего не сохранено",
+  "savedPostsHintText": "Нажмите на закладку у любой публикации, чтобы сохранить её здесь.",
+  "privateAccountText": "Закрытый аккаунт",
+  "privateAccountDescriptionText": "Только ваши подписчики видят ваши публикации, истории и карту путешествий.",
+  "comingSoonText": "Скоро",
+  "noBlockedUsersText": "Нет заблокированных",
+  "blockedUsersHintText": "Пользователи, которых вы заблокируете, появятся здесь.",
+  "inviteFriendText": "Пригласить друга",
+  "resetPasswordText": "Сброс пароля",
+  "forgotPasswordSubtitleText": "Введите имя пользователя или email, и мы отправим вам код.",
+  "emailedCodeText": "Мы отправили {count}-значный код на вашу почту. Введите его ниже и выберите новый пароль.",
+  "@emailedCodeText": { "placeholders": { "count": { "type": "int" } } },
+  "passwordChangedText": "Пароль изменён",
+  "passwordChangedDescriptionText": "Теперь вы можете войти с новым паролем.",
+  "unblockConfirmationText": "Они снова смогут найти ваш профиль и писать вам.",
+  "blockConfirmationText": "Они не смогут найти ваш профиль или написать вам.",
+  "addLocationAndNameText": "Добавьте место и назовите его",
+  "noLikesYetText": "Пока нет отметок «Нравится»",
+  "deleteAccountWarningText": "Это навсегда удалит ваш аккаунт и всё в нём — публикации, истории, сообщения и профиль. Это действие необратимо.",
+  "passwordManagedText": "Ваш пароль управляется Microsoft",
+  "passwordSecurityDescriptionText": "Treepnet никогда не хранит ваш пароль — он защищён Microsoft.\n\nСмена пароля в приложении пока недоступна.",
+  "errorCompressingVideoText": "Ошибка сжатия видео",
+  "noArchivedStoriesText": "Нет архивных историй",
+  "archiveHintText": "Истории попадают сюда после того, как их 24 часа истекут. Их видите только вы.",
+  "pinStoryText": "Закрепить историю",
+  "birthdayText": "День рождения",
+  "saveText": "Сохранить",
+  "unsaveText": "Убрать",
+  "subscribesText": "Подписки",
+  "copyProfileLinkText": "Скопировать ссылку на профиль",
+  "removedFromSavedText": "Убрано из сохранённого",
+  "removeFromSavedConfirmText": "Убрать @{username} из сохранённых профилей?",
+  "@removeFromSavedConfirmText": { "placeholders": { "username": { "type": "String" } } },
+  "unblockUserTitleText": "Разблокировать @{username}?",
+  "@unblockUserTitleText": { "placeholders": { "username": { "type": "String" } } },
+  "blockUserTitleText": "Заблокировать @{username}?",
+  "@blockUserTitleText": { "placeholders": { "username": { "type": "String" } } },
+  "unblockAuthorText": "Разблокировать автора",
+  "lastSeenMinutesText": "был(а) {count}м назад",
+  "@lastSeenMinutesText": { "placeholders": { "count": { "type": "int" } } },
+  "lastSeenHoursText": "был(а) {count}ч назад",
+  "@lastSeenHoursText": { "placeholders": { "count": { "type": "int" } } },
+  "lastSeenDaysText": "был(а) {count}д назад",
+  "@lastSeenDaysText": { "placeholders": { "count": { "type": "int" } } },
+  "lastSeenAWhileText": "был(а) давно",
+  "blockedThisUserText": "Вы заблокировали этого пользователя. Разблокируйте, чтобы написать.",
+  "cantMessageUserText": "Вы не можете написать этому пользователю.",
+  "notifLikedText": "Понравилась ваша публикация.",
+  "notifCommentedText": "Оставил(а) комментарий к вашей публикации.",
+  "notifCommentedContentText": "Оставил(а) комментарий к вашей публикации: {text}.",
+  "@notifCommentedContentText": { "placeholders": { "text": { "type": "String" } } },
+  "notifFollowedText": "Подписался(ась) на вас.",
+  "notifFollowRequestText": "Хочет подписаться на вас.",
+  "notifMessageText": "Отправил(а) вам сообщение.",
+  "notifMessageContentText": "Отправил(а): {text}.",
+  "@notifMessageContentText": { "placeholders": { "text": { "type": "String" } } },
+  "nowText": "сейчас",
+  "locationText": "Место",
+  "profileText": "Профиль",
+  "unpinStoryText": "Открепить историю",
+  "noStoriesHereText": "Здесь нет историй",
+  "noPostsHereText": "Здесь нет публикаций",
+  "requestedText": "Запрошено",
+  "unknownText": "Неизвестно",
+  "usernameValidationText": "Имя пользователя: 6–16 символов — строчные буквы, цифры, точки и подчёркивания.",
+  "selectCountryText": "Выберите страну",
+  "searchCountryText": "Поиск страны...",
+  "searchRegionText": "Поиск региона...",
+  "nameLocationErrorText": "Назовите место, чтобы продолжить",
+  "networkProblemText": "Проблема с сетью — проверьте подключение и попробуйте снова.",
+  "postedText": "Опубликовано",
+  "postingText": "Публикуется…",
+  "cameraUnavailableText": "Камера недоступна"
+}

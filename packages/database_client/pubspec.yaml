@@ -1,0 +1,29 @@
+name: database_client
+description: A package that manages application database workflow.
+version: 0.1.0+1
+publish_to: none
+
+environment:
+  sdk: ">=3.9.0"
+  flutter: ">=3.35.7"
+
+dependencies:
+  collection: ^1.18.0
+  dio: ^5.9.0
+  env:
+    path: ../env
+  flutter:
+    sdk: flutter
+  jiffy: ^6.3.1
+  powersync_repository:
+    path: ../powersync_repository
+  shared:
+    path: ../shared
+  user_repository:
+    path: ../user_repository
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  mocktail: ^1.0.4
+  very_good_analysis: ^9.0.0

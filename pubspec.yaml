@@ -1,0 +1,135 @@
+name: treepnet
+description: A complete offline-first Flutter Instagram clone with Supabase and PowerSync.
+version: 1.0.0+1
+publish_to: none
+
+environment:
+  sdk: ">=3.9.0"
+  flutter: ">=3.35.7"
+
+dependencies:
+  geolocator: ^13.0.1
+  exif: ^3.3.0
+  animations: ^2.0.11
+  app_links: ^6.3.2
+  # Android deferred deep link: reads the Play Store install referrer so an
+  # invite works even when the app wasn't installed when the link was tapped.
+  android_play_install_referrer: ^0.4.0
+  app_ui:
+    path: packages/app_ui
+  async: ^2.11.0
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+  bloc: ^9.1.0
+  cached_memory_image: ^1.5.0
+  cached_network_image: ^3.4.1
+  # Story camera. Deliberately its own dependency: the story viewfinder is a
+  # separate screen from the New post one, so neither can break the other.
+  # Vendored from pub camera 0.11.0+2 so the plugin can't shift under us.
+  camera:
+    path: packages/camera
+  carousel_slider: ^5.1.1
+  chats_repository:
+    path: packages/chats_repository
+  collection: ^1.18.0
+  database_client:
+    path: packages/database_client
+  env:
+    path: packages/env
+  equatable: ^2.0.7
+  fast_immutable_collections: ^10.2.4
+  # Push notifications (FCM transport only — see PUSH_NOTIFICATIONS_PLAN.md).
+  firebase_core: ^3.8.1
+  firebase_messaging: ^15.1.6
+  flutter_local_notifications: ^18.0.1
+  flex_color_scheme: ^8.3.1
+  flutter:
+    sdk: flutter
+  flutter_animate: ^4.5.2
+  flutter_bloc: ^9.1.1
+  flutter_localizations:
+    sdk: flutter
+  flutter_markdown_plus: ^1.0.5
+  flutter_portal: ^1.1.4
+  flutter_staggered_grid_view: ^0.7.0
+  form_fields:
+    path: packages/form_fields
+  go_router: ^14.2.7
+  google_sign_in: ^6.3.0
+  hydrated_bloc: ^10.1.1
+  insta_blocks:
+    path: packages/insta_blocks
+  instagram_blocks_ui:
+    path: packages/instagram_blocks_ui
+  intl: ^0.20.2
+  inview_notifier_list:
+    git: https://github.com/Gambley1/inview_notifier_list
+  json_annotation: ^4.9.0
+  lottie: ^3.1.2
+  ogp_data_extract: ^0.2.2
+  palette_generator: ^0.3.3+3
+  path_provider: ^2.1.5
+  persistent_storage:
+    path: packages/storage/persistent_storage
+  posthog_flutter: ^4.5.0
+  posts_repository:
+    path: packages/posts_repository
+  powersync_repository:
+    path: packages/powersync_repository
+  scroll_to_index: ^3.0.1
+  scrollable_positioned_list: ^0.3.8
+  search_repository:
+    path: packages/search_repository
+  shared_preferences: ^2.3.2
+  shared:
+    path: packages/shared
+  shimmer: ^3.0.0
+  sliver_tools: ^0.2.12
+  sprung: ^3.0.1
+  stories_editor:
+    path: packages/stories_editor
+  stories_repository:
+    path: packages/stories_repository
+  story_view:
+    path: packages/story_view
+  styled_text:
+    git:
+      ref: 91272c4779123570a642b19f96214adef2e850b4
+      url: https://github.com/Maatteogekko/styled_text_package
+      path: styled_text
+  entra_authentication_client:
+    path: packages/authentication_client/entra_authentication_client
+  timeago: ^3.7.1
+  token_storage:
+    path: packages/authentication_client/token_storage
+  url_launcher: ^6.3.2
+  user_repository:
+    path: packages/user_repository
+  vector_math: ^2.1.4
+  visibility_detector: ^0.4.0+2
+
+dependency_overrides:
+  fading_edge_scrollview: ^4.1.1
+
+dev_dependencies:
+  bloc_test: ^10.0.0
+  build_runner: ^2.6.0
+  build_verify: ^3.1.1
+  flutter_launcher_icons: ^0.14.3
+  flutter_test:
+    sdk: flutter
+  json_serializable: ^6.11.1
+  mocktail: ^1.0.4
+  very_good_analysis: ^9.0.0
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "logo.jpg"
+
+flutter:
+  uses-material-design: true
+  generate: true
+  assets:
+    - assets/geo/world_admin1.min.json
+    - assets/geo/world_countries.min.json

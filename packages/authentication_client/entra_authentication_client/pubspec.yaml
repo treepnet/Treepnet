@@ -1,0 +1,28 @@
+name: entra_authentication_client
+description: A Microsoft Entra External ID (OIDC) implementation of AuthenticationClient.
+version: 0.1.0+1
+publish_to: none
+
+environment:
+  sdk: ">=3.9.0"
+  flutter: ">=3.0.0"
+
+dependencies:
+  authentication_client:
+    path: ../authentication_client
+  dio: ^5.10.0
+  flutter:
+    sdk: flutter
+  flutter_appauth: ^11.0.0
+  flutter_secure_storage: ^10.3.1
+  powersync_repository:
+    path: ../../powersync_repository
+  shared:
+    path: ../../shared
+  token_storage:
+    path: ../token_storage
+
+dev_dependencies:
+  mocktail: ^1.0.4
+  test: ^1.25.5
+  very_good_analysis: ^9.0.0

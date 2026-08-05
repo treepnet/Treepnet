@@ -1,0 +1,31 @@
+name: image_picker_plus
+description: Customization of the gallery display or even camera and video.
+version: 0.5.9
+homepage: https://github.com/AhmedAbdoElhawary/image_picker_plus.git
+
+environment:
+  sdk: ">=2.17.1 <4.0.0"
+  flutter: ">=1.17.0"
+
+dependencies:
+  cached_memory_image: ^1.5.0
+  # The vendored copy. Pub allows only one source per package name, so once the
+  # app took camera from packages/, every dependant has to point at it too.
+  camera:
+    path: ../camera
+  flutter:
+    sdk: flutter
+  image: ^4.3.0
+  image_picker: ^1.1.2
+  insta_assets_crop: ^0.1.2
+  intl: ^0.20.2
+  photo_manager: ^3.5.1
+  shimmer: ^3.0.0
+  video_player: ^2.9.2
+  visibility_detector: ^0.4.0+2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  very_good_analysis: ^9.0.0

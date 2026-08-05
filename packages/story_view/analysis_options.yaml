@@ -1,0 +1,8 @@
+# Vendored third-party package: keep its own loose typing rather than holding it
+# to the app's strict lints. Only our added contentTopPadding is new code.
+analyzer:
+  errors:
+    argument_type_not_assignable: ignore
+    inference_failure_on_untyped_parameter: ignore
+linter:
+  rules:

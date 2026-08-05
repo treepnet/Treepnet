@@ -1,0 +1,97 @@
+# Sync-rule docs: https://docs.powersync.com/usage/sync-rules
+#
+# Privacy model:
+#   * Public social data (profiles, posts, likes, comments, stories, media,
+#     subscriptions) syncs to everyone — this is what powers search, the feed
+#     and discovery, like a public Instagram.
+#   * The signed-in user's id lives in the Entra id token's `oid` claim (its
+#     `sub` is not a plain UUID), so parameter queries read it with
+#     `request.jwt() ->> 'oid'`.
+#   * PRIVATE data (direct messages, conversation participants) is scoped to the
+#     conversations the signed-in user is a participant of, so a device never
+#     downloads other people's DMs. This replaces the old `global_messages` /
+#     `global_participants` buckets, which leaked every chat to every device.
+#
+# Notes on PowerSync limits (learned from validation):
+#   * A parameter query may SELECT from only ONE table — no JOINs. So message
+#     attachments (which need a messages-participants join to scope) sync
+#     globally instead; the media they point at is already public in Blob.
+#   * `blocked_users` is private to the blocker, like their DMs.
+bucket_definitions:
+  global_media:
+    data:
+        - select * from images
+        - select * from videos
+  global_posts:
+    data:
+        - select * from posts
+        - select * from likes
+        - select * from comments
+  global_stories:
+    data:
+        - select * from stories
+  # Which archived stories a traveller pinned to a place — public, like posts.
+  global_location_stories:
+    data:
+        - select * from location_stories
+  global_profiles:
+    data:
+        - select * from profiles
+  global_subscriptions:
+    data:
+        - select * from subscriptions
+  global_attachments:
+    data:
+        - select * from attachments
+  # Story likes are public (a story shows its like count to everyone).
+  global_story_likes:
+    data:
+        - select * from story_likes
+  # Visited regions colour a profile's travel map, so they are public like
+  # posts — every device needs them to render someone else's map.
+  global_visited_regions:
+    data:
+        - select * from visited_regions
+  # Highlights are part of a public profile, like posts.
+  global_story_highlights:
+    data:
+        - select * from story_highlights
+        - select * from story_highlight_items
+  # A user's own conversations: the conversation row, its messages and its
+  # participants — nothing from conversations they are not part of.
+  user_conversations:
+    parameters: select conversation_id from participants where user_id = request.jwt() ->> 'oid'
+    data:
+        - select * from conversations where id = bucket.conversation_id
+        - select * from messages where conversation_id = bucket.conversation_id
+        - select * from participants where conversation_id = bucket.conversation_id
+        - select * from typing_status where conversation_id = bucket.conversation_id
+        - select * from conversation_reads where conversation_id = bucket.conversation_id
+  # Who viewed the signed-in user's own stories — the "seen by" list. Only the
+  # author receives these rows.
+  user_story_views:
+    parameters: select id as story_id from stories where user_id = request.jwt() ->> 'oid'
+    data:
+        - select * from story_views where story_id = bucket.story_id
+  user_saved_posts:
+    parameters: select request.jwt() ->> 'oid' as user_id
+    data:
+        - select * from saved_posts where user_id = bucket.user_id
+  user_archived_posts:
+    parameters: select request.jwt() ->> 'oid' as user_id
+    data:
+        - select * from archived_posts where user_id = bucket.user_id
+  user_blocked_users:
+    parameters: select request.jwt() ->> 'oid' as user_id
+    data:
+        - select * from blocked_users where blocker_id = bucket.user_id
+  # The blocked party also needs their block rows, so the app can present the
+  # blocker as private and block messaging for them.
+  user_blocked_by:
+    parameters: select request.jwt() ->> 'oid' as user_id
+    data:
+        - select * from blocked_users where blocked_id = bucket.user_id
+  user_referrals:
+    parameters: select request.jwt() ->> 'oid' as user_id
+    data:
+        - select * from referrals where referrer_id = bucket.user_id
