@@ -268,6 +268,9 @@ class LocationPostsPage extends StatelessWidget {
       // A region tap has no pin of its own; its centroid is the honest answer.
       lat: lat ?? region.centroidLngLat.dy,
       lng: lng ?? region.centroidLngLat.dx,
+      // This place already has a name (or falls back to the region) — pass it so
+      // the publish screen doesn't demand the location be picked again.
+      name: _title,
     );
     await createPostAt(context, seed);
   }

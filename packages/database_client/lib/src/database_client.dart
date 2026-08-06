@@ -1075,8 +1075,12 @@ SELECT
           .watch(
             '''
 SELECT h.id, h.user_id, h.name, h.cover_url,
+       -- A highlight only holds its OWNER's stories. Count only those, so a
+       -- highlight left with just another user's story (bad legacy data from
+       -- before pinning was owner-gated) reads as empty and is hidden.
        (SELECT COUNT(*) FROM story_highlight_items i
-          WHERE i.highlight_id = h.id) AS story_count
+          JOIN stories s ON s.id = i.story_id
+          WHERE i.highlight_id = h.id AND s.user_id = h.user_id) AS story_count
 FROM story_highlights h
 WHERE h.user_id = ?
 -- Newest activity first: a highlight jumps to the front when a story is added
@@ -1103,8 +1107,11 @@ ORDER BY COALESCE(
 SELECT s.*, p.id as user_id, p.username, p.full_name, p.avatar_url
 FROM story_highlight_items i
 JOIN stories s ON s.id = i.story_id
+JOIN story_highlights h ON h.id = i.highlight_id
 LEFT JOIN profiles p ON p.id = s.user_id
-WHERE i.highlight_id = ?
+-- Play only the highlight owner's own stories; ignore any foreign story that
+-- was pinned in before pinning became owner-only.
+WHERE i.highlight_id = ? AND s.user_id = h.user_id
 ORDER BY i.created_at ASC
 ''',
             parameters: [highlightId],

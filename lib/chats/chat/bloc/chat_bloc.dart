@@ -45,6 +45,12 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
   StreamSubscription<void>? _messagesRealtimeChannel;
   StreamSubscription<DateTime?>? _readSub;
+  /// Coalesces "mark read" writes for a burst of incoming messages into one.
+  Timer? _markReadDebounce;
+  /// Ids marked "seen" in memory — replaces the per-message messages.is_read
+  /// UPDATE, which only fed a local de-dup yet queued a PowerSync upload per
+  /// viewed message that stalled the next download.
+  final Set<String> _readLocally = {};
   final String _currentUserId;
 
   void _onOtherReadAtChanged(
@@ -118,6 +124,10 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       final media = resultMedia.map(Media.fromJson).toList();
       message = Message.fromRow(data, media: media);
     }
+    // Keep the in-memory "seen" flag if this row re-syncs from the server.
+    if (_readLocally.contains(message.id)) {
+      message = message.copyWith(isRead: true);
+    }
     final index = messages.indexWhere((msg) => msg.id == message.id);
     if (index != -1) {
       messages[index] = message;
@@ -143,7 +153,16 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     if (data.isNotEmpty &&
         data['from_id'] != _currentUserId &&
         !isClosed) {
-      add(ChatMarkReadRequested(_currentUserId));
+      // Debounce: a burst of incoming messages collapses into ONE read-mark.
+      // Marking on every single message queued a `conversation_reads` write per
+      // message, and PowerSync holds back the next download checkpoint until each
+      // pending local write round-trips — which serialised message arrival to the
+      // upload latency and made messages appear slowly while the chat was open.
+      // One coalesced mark keeps ✓✓ working without throttling delivery.
+      _markReadDebounce?.cancel();
+      _markReadDebounce = Timer(const Duration(milliseconds: 1500), () {
+        if (!isClosed) add(ChatMarkReadRequested(_currentUserId));
+      });
     }
   }
 
@@ -253,17 +272,23 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     }
   }
 
-  Future<void> _onMessageSeen(
-    ChatMessageSeen event,
-    Emitter<ChatState> emit,
-  ) async {
-    try {
-      await _chatsRepository.readMessage(messageId: event.messageId);
-      emit(state.copyWith(status: ChatStatus.success));
-    } catch (error, stackTrace) {
-      addError(error, stackTrace);
-      emit(state.copyWith(status: ChatStatus.failure));
-    }
+  void _onMessageSeen(ChatMessageSeen event, Emitter<ChatState> emit) {
+    // Mark the bubble seen IN MEMORY only — no DB write. The old `readMessage`
+    // UPDATE-ed messages.is_read, but that write (1) is rejected by RLS on the
+    // server (the reader isn't the message author), (2) is overwritten on the
+    // next sync anyway, and (3) queued a PowerSync upload per viewed message
+    // which stalled the next download — why messages arrived slowly while the
+    // chat was open. is_read only drives the local "already seen" de-dup, so
+    // remembering it here is enough.
+    if (!_readLocally.add(event.messageId)) return;
+    emit(
+      state.copyWith(
+        messages: [
+          for (final m in state.messages)
+            m.id == event.messageId ? m.copyWith(isRead: true) : m,
+        ],
+      ),
+    );
   }
 
   Future<void> _onMarkReadRequested(
@@ -312,6 +337,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
   @override
   Future<void> close() {
+    _markReadDebounce?.cancel();
     unawaited(_messagesRealtimeChannel?.cancel());
     unawaited(_readSub?.cancel());
     return super.close();

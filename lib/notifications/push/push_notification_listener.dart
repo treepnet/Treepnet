@@ -37,6 +37,7 @@ class _PushNotificationListenerState extends State<PushNotificationListener> {
     if (_registered || !mounted) return;
     _registered = true;
     PushNotifications.registerForUser(context.read<UserRepository>());
+    
   }
 
   @override

@@ -217,11 +217,17 @@ class LocationSeed {
     required this.region,
     required this.lat,
     required this.lng,
+    this.name,
   });
 
   final GeoRegion region;
   final double lat;
   final double lng;
+
+  /// The place's display name (e.g. "Kiz Kulesi"), carried so a post added from
+  /// an existing location arrives with its name already filled — otherwise the
+  /// publish screen's required-name check would reject the pre-picked spot.
+  final String? name;
 }
 
 /// Opens the media picker and, once something is chosen, the publish page with
@@ -286,6 +292,9 @@ class _CreatePostPageState extends State<CreatePostPage> {
       _region = seed.region;
       _lat = seed.lat;
       _lng = seed.lng;
+      // Carry the place name through so the required-location check passes for a
+      // post added straight from an existing location (bug: it errored before).
+      _placeName = seed.name;
     }
     _media = selectedFiles
         .map(

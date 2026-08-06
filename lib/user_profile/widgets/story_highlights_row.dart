@@ -29,7 +29,12 @@ class StoryHighlightsRow extends StatelessWidget {
     return StreamBuilder<List<StoryHighlight>>(
       stream: stories.storyHighlightsOf(userId: userId),
       builder: (context, snapshot) {
-        final highlights = snapshot.data ?? const <StoryHighlight>[];
+        // Only highlights that still hold at least one story. A highlight whose
+        // last story was unpinned keeps its row in the DB but has no items, so
+        // it must vanish from the profile rather than show an empty, dead cover.
+        final highlights = (snapshot.data ?? const <StoryHighlight>[])
+            .where((h) => h.storyCount > 0)
+            .toList(growable: false);
         // Nothing to show: keep the profile compact. With the "New" tile gone
         // this now applies to the owner too — an empty row would be a blank
         // gap under the bio.
