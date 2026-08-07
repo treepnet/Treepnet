@@ -453,7 +453,11 @@ class _HighlightRow extends StatelessWidget {
     return StreamBuilder<List<StoryHighlight>>(
       stream: stories.storyHighlightsOf(userId: userId),
       builder: (context, snap) {
-        final highlights = snap.data ?? const <StoryHighlight>[];
+        // Only real highlights that still have stories — mirror the profile
+        // row's filter so emptied/deleted highlights don't show here either.
+        final highlights = (snap.data ?? const <StoryHighlight>[])
+            .where((h) => h.storyCount > 0)
+            .toList();
         final children = <Widget>[
           // The just-named highlight takes the "New highlight" slot (with the
           // story as its cover); tapping it re-opens the name dialog.
