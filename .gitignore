@@ -151,3 +151,8 @@ app.*.map.json
 
 # Figma personal access token (local only, do not commit)
 .figma_token.local
+
+# Local backups and archives
+*.bak
+*.pushbak
+*.zip

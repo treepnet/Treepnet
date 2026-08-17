@@ -55,7 +55,6 @@ dependencies:
   form_fields:
     path: packages/form_fields
   go_router: ^14.2.7
-  google_sign_in: ^6.3.0
   hydrated_bloc: ^10.1.1
   insta_blocks:
     path: packages/insta_blocks
