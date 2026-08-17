@@ -103,6 +103,8 @@ android/app/google-services.json
 **/ios/Runner/GeneratedPluginRegistrant.*
 ios/firebase_app_id_file.json
 ios/Runner/GoogleService-Info.plist
+# Per-flavor Firebase iOS configs (copied into the bundle by a build phase).
+ios/config/*/GoogleService-Info.plist
 
 # Coverage
 coverage/
