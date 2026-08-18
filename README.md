@@ -112,7 +112,8 @@ Distributed under the MIT License. See [MIT License][license_link] for details.
 
 ## 💭 Contact
 
-Project: [TreepNet-social-media](https://github.com/Hikmatbek-dev/TreepNet-social-media)
+- Website: [treepnet.com](https://treepnet.com)
+- Project: [treepnet/Treepnet](https://github.com/treepnet/Treepnet)
 
 [license_badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [license_link]: https://opensource.org/licenses/MIT
