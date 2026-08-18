@@ -55,7 +55,7 @@ dependencies:
   form_fields:
     path: packages/form_fields
   go_router: ^14.2.7
-  hydrated_bloc: ^10.1.1
+  hydrated_bloc: ^11.0.0
   insta_blocks:
     path: packages/insta_blocks
   instagram_blocks_ui:
