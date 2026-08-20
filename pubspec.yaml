@@ -60,7 +60,7 @@ dependencies:
     path: packages/insta_blocks
   instagram_blocks_ui:
     path: packages/instagram_blocks_ui
-  intl: ^0.20.2
+  intl: ^0.20.3
   inview_notifier_list:
     git: https://github.com/Gambley1/inview_notifier_list
   json_annotation: ^4.9.0
