@@ -20,7 +20,7 @@ dependencies:
   async: ^2.11.0
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
-  bloc: ^9.1.0
+  bloc: ^9.2.1
   cached_memory_image: ^1.5.0
   cached_network_image: ^3.4.1
   # Story camera. Deliberately its own dependency: the story viewfinder is a
