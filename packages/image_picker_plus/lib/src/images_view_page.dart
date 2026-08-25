@@ -184,7 +184,9 @@ class _ImagesViewPageState extends State<ImagesViewPage>
         ),
       ),
     );
-    if (result.isAuth) {
+    // `hasAccess` (not `isAuth`) so users who grant *limited* photo access
+    // still see their selected photos instead of being treated as denied.
+    if (result.hasAccess) {
 
       final albums = await PhotoManager.getAssetPathList(
         onlyAll: true,
@@ -232,8 +234,10 @@ class _ImagesViewPageState extends State<ImagesViewPage>
       isMediaReady.value = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => setState(() {}));
     } else {
-      await PhotoManager.requestPermissionExtend();
-      await PhotoManager.openSetting();
+      // Respect the user's decision — do NOT force-open the Settings app
+      // (App Store Guideline 5.1.1(iv)). Show the empty/no-access state; the
+      // user can enable access later from iOS Settings on their own.
+      WidgetsBinding.instance.addPostFrameCallback((_) => noMedia.value = true);
     }
   }
 

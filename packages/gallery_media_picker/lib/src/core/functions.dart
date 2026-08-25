@@ -66,7 +66,8 @@ class GalleryFunctions {
   ) async {
     /// request for device permission
     final result = await PhotoManager.requestPermissionExtend();
-    if (result.isAuth) {
+    // `hasAccess` (not `isAuth`) so *limited* photo access is honoured too.
+    if (result.hasAccess) {
       /// load "recent" album
       await provider.setAssetCount();
       await PhotoManager.startChangeNotify();
@@ -78,9 +79,9 @@ class GalleryFunctions {
         _refreshPathList(setState, provider);
       }
     } else {
-      /// if result is fail, you can call `PhotoManager.openSetting();`
-      /// to open android/ios application's setting to get permission
-      await PhotoManager.openSetting();
+      // Respect the user's decision — do NOT force-open the Settings app
+      // (App Store Guideline 5.1.1(iv)). The gallery stays empty until the
+      // user grants access from iOS Settings on their own.
     }
   }
 
