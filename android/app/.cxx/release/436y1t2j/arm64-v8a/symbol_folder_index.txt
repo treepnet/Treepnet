@@ -1,0 +1,1 @@
+/home/bozkurt/Desktop/Treepnet/New TreepNet/android/app/build/intermediates/cxx/release/436y1t2j/obj/arm64-v8a
