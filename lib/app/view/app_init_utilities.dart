@@ -6,9 +6,14 @@ import 'package:shared/shared.dart';
 import 'package:stories_editor/stories_editor.dart';
 import 'package:styled_text/styled_text.dart';
 
+/// The locale the third-party delegates below were last initialized for.
+/// Guards against re-initializing every frame while still re-running when the
+/// resolved locale actually changes (e.g. the user switches language).
+Locale? _lastInitLocale;
+
 void initUtilities(BuildContext context, Locale locale) {
-  final isSameLocal = Localizations.localeOf(context) == locale;
-  if (isSameLocal) return;
+  if (_lastInitLocale == locale) return;
+  _lastInitLocale = locale;
 
   final l10n = context.l10n;
   final theme = context.theme;

@@ -375,6 +375,7 @@
   "languageText": "Язык",
   "ruOptionText": "Русский",
   "enOptionText": "Английский",
+  "systemDefaultText": "Системный язык",
   "secondsAgo": "{seconds, plural, =1{{seconds} секунду назад} few{{seconds} секунды назад} other{{seconds} секунд назад}}",
   "@secondsAgo": {
     "description": "Секунд назад",

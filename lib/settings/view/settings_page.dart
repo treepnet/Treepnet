@@ -361,14 +361,16 @@ class SettingsLanguagePage extends StatelessWidget {
   /// {@macro settings_language_page}
   const SettingsLanguagePage({super.key});
 
-  static const _languages = <({String label, Locale locale})>[
-    (label: 'English', locale: Locale('en', 'US')),
-    (label: 'Русский', locale: Locale('ru', 'RU')),
-  ];
-
   @override
   Widget build(BuildContext context) {
     final current = context.watch<LocaleBloc>().state;
+    // `null` locale = follow the device language. It's the first option so a
+    // user who never picked a language sees it selected by default.
+    final languages = <({String label, Locale? locale})>[
+      (label: context.l10n.systemDefaultText, locale: null),
+      (label: 'English', locale: const Locale('en', 'US')),
+      (label: 'Русский', locale: const Locale('ru', 'RU')),
+    ];
     return TreepNetAmbientBackground(
       child: AppScaffold(
         backgroundColor: AppColors.transparent,
@@ -382,10 +384,10 @@ class SettingsLanguagePage extends StatelessWidget {
             ),
             child: Column(
               children: [
-                for (final lang in _languages) ...[
+                for (final lang in languages) ...[
                   TreepNetGlassListTile(
                     label: lang.label,
-                    trailing: current.languageCode == lang.locale.languageCode
+                    trailing: _isSelected(current, lang.locale)
                         ? Icon(Icons.check_rounded, color: context.colorScheme.primary)
                         : null,
                     onTap: () {
@@ -403,6 +405,13 @@ class SettingsLanguagePage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Whether [option] is the active selection. `null` [option] is the
+  /// "follow device" entry, active only when the user has made no choice.
+  bool _isSelected(Locale? current, Locale? option) {
+    if (option == null) return current == null;
+    return current?.languageCode == option.languageCode;
   }
 }
 

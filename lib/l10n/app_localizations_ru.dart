@@ -609,6 +609,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get enOptionText => 'Английский';
 
   @override
+  String get systemDefaultText => 'Системный язык';
+
+  @override
   String secondsAgo(int seconds) {
     String _temp0 = intl.Intl.pluralLogic(
       seconds,

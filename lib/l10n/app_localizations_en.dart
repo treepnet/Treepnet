@@ -600,6 +600,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get enOptionText => 'English';
 
   @override
+  String get systemDefaultText => 'System default';
+
+  @override
   String secondsAgo(int seconds) {
     String _temp0 = intl.Intl.pluralLogic(
       seconds,

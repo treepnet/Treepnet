@@ -16,7 +16,10 @@ class AppView extends StatelessWidget {
   Widget build(BuildContext context) {
     final routerConfig = AppRouter(context.read<AppBloc>()).router;
 
-    return BlocBuilder<LocaleBloc, Locale>(
+    // `locale` is null when the user follows the device language; MaterialApp
+    // then resolves the device locale against `supportedLocales` (falling back
+    // to English if the device language isn't supported).
+    return BlocBuilder<LocaleBloc, Locale?>(
       builder: (context, locale) {
         return BlocBuilder<ThemeModeBloc, ThemeMode>(
           builder: (context, themeMode) {
@@ -27,8 +30,14 @@ class AppView extends StatelessWidget {
                 title: 'Treepnet',
                 routerConfig: routerConfig,
                 builder: (context, child) {
+                  // Init third-party delegates for the *resolved* locale (the
+                  // one Localizations actually uses — never null, even when the
+                  // user follows the device language and `locale` is null).
                   WidgetsBinding.instance.addPostFrameCallback(
-                    (_) => initUtilities(context, locale),
+                    (_) => initUtilities(
+                      context,
+                      Localizations.localeOf(context),
+                    ),
                   );
 
                   return MediaQuery(

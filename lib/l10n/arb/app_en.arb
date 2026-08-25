@@ -405,6 +405,7 @@
   "languageText": "Language",
   "ruOptionText": "Russian",
   "enOptionText": "English",
+  "systemDefaultText": "System default",
   "secondsAgo": "{seconds, plural, =1{1 second ago} other{{seconds} seconds ago}}",
   "@secondsAgo": {
     "description": "Represents a text of seconds ago",

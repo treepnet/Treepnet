@@ -15,12 +15,20 @@ class LocaleSelector extends StatelessWidget {
     final l10n = context.l10n;
     final locale = context.select((LocaleBloc bloc) => bloc.state);
 
-    return DropdownButton(
+    return DropdownButton<Locale?>(
       key: const Key('localeSelector_dropdown'),
       onChanged: (locale) =>
           context.read<LocaleBloc>().add(LocaleChanged(locale)),
       value: locale,
       items: [
+        // `null` = follow the device language (default until the user picks).
+        DropdownMenuItem(
+          value: null,
+          child: Text(
+            l10n.systemDefaultText,
+            key: const Key('localeSelector_system_dropdownMenuItem'),
+          ),
+        ),
         DropdownMenuItem(
           value: const Locale('en', 'US'),
           child: Text(

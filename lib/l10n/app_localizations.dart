@@ -1083,6 +1083,12 @@ abstract class AppLocalizations {
   /// **'English'**
   String get enOptionText;
 
+  /// No description provided for @systemDefaultText.
+  ///
+  /// In en, this message translates to:
+  /// **'System default'**
+  String get systemDefaultText;
+
   /// Represents a text of seconds ago
   ///
   /// In en, this message translates to:
