@@ -1,0 +1,15 @@
+{
+  "name": "treepnet-delete-account-func",
+  "version": "1.0.0",
+  "description": "Treepnet backend Functions: web account-deletion + push sender.",
+  "main": "src/functions/*.js",
+  "scripts": {
+    "start": "func start"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.5.0",
+    "google-auth-library": "^9.14.1",
+    "nodemailer": "^6.9.14",
+    "pg": "^8.12.0"
+  }
+}

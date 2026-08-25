@@ -1,0 +1,12 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "AzureWebJobsStorage": "",
+    "PG_CONNECTION_STRING": "postgres://treepadmin:PASSWORD@treepnet-db.postgres.database.azure.com:5432/postgres?sslmode=require",
+    "SMTP_USER": "treepnetofficial@gmail.com",
+    "SMTP_PASS": "your-16-char-gmail-app-password",
+    "ALLOWED_ORIGIN": "https://www.treepnet.com",
+    "CODE_TTL_MIN": "15"
+  }
+}

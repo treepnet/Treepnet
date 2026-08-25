@@ -1,0 +1,6 @@
+# Place at public_html/.htaccess
+# Every /invite/<handle> URL serves the one invite page; the page reads the
+# handle from the path itself.
+RewriteEngine On
+RewriteRule ^invite/?$   /invite/index.html   [L]
+RewriteRule ^invite/[^/]+/?$   /invite/index.html   [L]
