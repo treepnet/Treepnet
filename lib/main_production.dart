@@ -1,5 +1,6 @@
 import 'package:chats_repository/chats_repository.dart';
 import 'package:database_client/database_client.dart';
+import 'package:flutter/foundation.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/bootstrap.dart';
 import 'package:persistent_storage/persistent_storage.dart';
@@ -22,7 +23,15 @@ void main() {
       powerSyncRepository: powerSyncRepository,
     );
     // Restore any persisted Entra session before the app reads the first user.
-    await authenticationClient.restoreSession();
+    // Bounded: the token refresh is a network call, so on a bad connection this
+    // must not block first render — fall through to the (unauthenticated) app.
+    debugPrint('TREEP_BOOT: 9a restoreSession (start)');
+    await authenticationClient.restoreSession().timeout(
+      const Duration(seconds: 10),
+      onTimeout: () =>
+          debugPrint('TREEP_BOOT: restoreSession TIMEOUT — continuing'),
+    );
+    debugPrint('TREEP_BOOT: 9b restoreSession (ok)');
 
     final databaseClient = PowerSyncDatabaseClient(
       powerSyncRepository: powerSyncRepository,
@@ -50,6 +59,15 @@ void main() {
       storage: storiesStorage,
     );
 
+    // Bounded fallback: the user stream emits immediately today, but never let
+    // a future regression here freeze the splash — default to signed-out.
+    debugPrint('TREEP_BOOT: 9c user.first (start)');
+    final currentUser = await userRepository.user.first.timeout(
+      const Duration(seconds: 8),
+      onTimeout: () => User.anonymous,
+    );
+    debugPrint('TREEP_BOOT: 9d user.first (ok)');
+
     return App(
       userRepository: userRepository,
       postsRepository: postsRepository,
@@ -58,7 +76,7 @@ void main() {
       searchRepository: searchRepository,
       mediaUploadQueue: mediaUploadQueue,
       powerSyncRepository: powerSyncRepository,
-      user: await userRepository.user.first,
+      user: currentUser,
     );
   });
 }

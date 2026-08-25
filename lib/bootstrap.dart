@@ -42,24 +42,41 @@ Future<void> bootstrap(
 
   await runZonedGuarded(
     () async {
+      // TEMPORARY startup diagnostics. Each stage prints before it runs; the
+      // LAST "TREEP_BOOT" line seen in the device log (Xcode / Console.app) is
+      // the stage that hung. Remove once the real-device splash hang is fixed.
+      void boot(String stage) => debugPrint('TREEP_BOOT: $stage');
+
+      boot('0 ensureInitialized');
       WidgetsFlutterBinding.ensureInitialized();
 
-
+      boot('1 hydrated storage (start)');
       HydratedBloc.storage = await HydratedStorage.build(
         storageDirectory: kIsWeb
             ? HydratedStorageDirectory.web
             : HydratedStorageDirectory((await getTemporaryDirectory()).path),
       );
+      boot('2 hydrated storage (ok)');
 
       final powerSyncRepository = PowerSyncRepository(env: appFlavor.getEnv);
+      boot('3 powersync.initialize (start)');
       await powerSyncRepository.initialize();
+      boot('4 powersync.initialize (ok)');
 
+      // Firebase Cloud Messaging (push). Push is NOT needed to render the first
+      // screen, so keep it OFF the startup critical path: a slow or hanging
+      // Firebase init on a real device can then never freeze the splash. It
+      // no-ops on a flavor with no Firebase config and swallows its own errors.
+      boot('5 push.initialize (non-blocking, off critical path)');
+      unawaited(
+        PushNotifications.initialize().then(
+          (_) => boot('6 push.initialize (ok, background)'),
+        ),
+      );
 
-      // Firebase Cloud Messaging (push). No-ops on a flavor with no Firebase
-      // config; never blocks startup on failure.
-      await PushNotifications.initialize();
-
+      boot('7 sharedPreferences (start)');
       final sharedPreferences = await SharedPreferences.getInstance();
+      boot('8 sharedPreferences (ok)');
 
       final mediaUploadQueue = MediaUploadQueue(
         db: powerSyncRepository.db(),
@@ -68,6 +85,7 @@ Future<void> bootstrap(
 
       SystemUiOverlayTheme.setPortraitOrientation();
 
+      boot('9 builder + runApp (start)');
       runApp(
         await builder(
           powerSyncRepository,
@@ -75,8 +93,10 @@ Future<void> bootstrap(
           mediaUploadQueue,
         ),
       );
+      boot('10 runApp (done)');
     },
     (error, stack) {
+      debugPrint('TREEP_BOOT: ERROR $error');
       logE(error.toString(), stackTrace: stack);
     },
   );

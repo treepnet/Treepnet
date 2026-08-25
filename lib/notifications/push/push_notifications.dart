@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -35,53 +33,76 @@ class PushNotifications {
     importance: Importance.high,
   );
 
-  static bool _initialised = false;
+  /// The local-notifications plugin (OS display path) is ready. Does NOT need
+  /// Firebase, so the OS can show notifications — including `simctl push` on
+  /// the simulator and any local notification — on every flavor.
+  static bool _localReady = false;
 
-  /// One-time setup: init Firebase, the local-notifications plugin and the
-  /// Android channel, register the background handler and the foreground
-  /// listener. Called from `bootstrap` before the app runs. Safe to call when
-  /// no Firebase config exists for the flavor (staging/prod) — it just no-ops.
+  /// Firebase Cloud Messaging (the remote-push transport) is available. Only
+  /// true on a flavor that has a Firebase config (GoogleService-Info.plist /
+  /// google-services.json). Real remote push needs this AND a real device.
+  static bool _fcmReady = false;
+
+  /// One-time setup. Two independent halves:
+  ///  1. Local notifications + Android channel — no Firebase needed, so the OS
+  ///     display path works on any flavor/device (and on the simulator).
+  ///  2. FCM transport — only when a Firebase config exists; no-ops otherwise.
+  /// Called from `bootstrap`; never throws to the caller.
   static Future<void> initialize() async {
-    if (_initialised) return;
-    try {
-      await Firebase.initializeApp();
-    } catch (error) {
-      // No google-services.json for this flavor (e.g. staging/prod not yet
-      // registered) — skip push entirely rather than crash the app.
-      if (kDebugMode) {
-        // ignore: avoid_print
-        print('PushNotifications: Firebase init skipped: $error');
-      }
-      return;
+    // 1) Local notifications (OS display path) — Firebase-independent.
+    if (!_localReady) {
+      const androidInit = AndroidInitializationSettings('ic_stat_notification');
+      // Don't request iOS permission here — the prompt must appear in-context
+      // (see `registerForUser`), never on app launch.
+      const iosInit = DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      );
+      await _local.initialize(
+        const InitializationSettings(android: androidInit, iOS: iosInit),
+        onDidReceiveNotificationResponse: _onLocalTap,
+      );
+      await _local
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.createNotificationChannel(_channel);
+      _localReady = true;
     }
 
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-
-    const androidInit = AndroidInitializationSettings('ic_stat_notification');
-    await _local.initialize(
-      const InitializationSettings(android: androidInit),
-      onDidReceiveNotificationResponse: _onLocalTap,
-    );
-    await _local
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(_channel);
-
-    // Foreground messages are not auto-displayed by the OS, so draw them.
-    // FirebaseMessaging.onMessage.listen(_showForeground);
-
-    _initialised = true;
+    // 2) FCM transport — remote push. No-ops without a Firebase config.
+    if (!_fcmReady) {
+      try {
+        // Bounded so a hung Firebase init can never keep this future pending.
+        await Firebase.initializeApp().timeout(const Duration(seconds: 10));
+        FirebaseMessaging.onBackgroundMessage(
+          firebaseMessagingBackgroundHandler,
+        );
+        _fcmReady = true;
+      } catch (error) {
+        // No Firebase config for this flavor, or init timed out. Local
+        // notifications still work; there's just no remote-push transport.
+        if (kDebugMode) {
+          // ignore: avoid_print
+          print('PushNotifications: FCM disabled (no Firebase config): $error');
+        }
+      }
+    }
   }
 
   /// Requests the runtime notification permission (Android 13+ / iOS) and saves
   /// the device token to `profiles.push_token`. Call once the user is signed in
   /// so the prompt appears in-context, never on app launch.
   static Future<void> registerForUser(UserRepository userRepository) async {
-    if (!_initialised) return;
-    final messaging = FirebaseMessaging.instance;
+    // In-context OS permission prompt. Uses the local-notifications plugin so
+    // it works even without FCM — the OS can then display notifications
+    // (incl. `simctl push` on the simulator) on any build.
+    await _requestOsPermission();
 
-    // Native, in-context runtime permission prompt.
+    // Remote-push token — only when a Firebase config exists for this flavor.
+    if (!_fcmReady) return;
+    final messaging = FirebaseMessaging.instance;
     await messaging.requestPermission();
 
     final token = await messaging.getToken();
@@ -93,12 +114,27 @@ class PushNotifications {
     messaging.onTokenRefresh.listen((t) => _saveToken(userRepository, t));
   }
 
+  /// Requests the runtime notification permission via the local-notifications
+  /// plugin (iOS + Android 13+). Independent of Firebase.
+  static Future<void> _requestOsPermission() async {
+    await _local
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >()
+        ?.requestPermissions(alert: true, badge: true, sound: true);
+    await _local
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.requestNotificationsPermission();
+  }
+
   /// Clears the stored token so a signed-out device stops receiving pushes.
   /// Call *before* `logOut()` while the user id is still valid.
   static Future<void> disableForUser(UserRepository userRepository) async {
     try {
       await userRepository.updateUser(pushToken: '');
-      await FirebaseMessaging.instance.deleteToken();
+      if (_fcmReady) await FirebaseMessaging.instance.deleteToken();
     } catch (_) {
       // Best-effort; logout must not fail because of this.
     }
