@@ -6,7 +6,7 @@
 #     and discovery, like a public Instagram.
 #   * The signed-in user's id lives in the Entra id token's `oid` claim (its
 #     `sub` is not a plain UUID), so parameter queries read it with
-#     `request.jwt() ->> 'oid'`.
+#     `request.user_id()`.
 #   * PRIVATE data (direct messages, conversation participants) is scoped to the
 #     conversations the signed-in user is a participant of, so a device never
 #     downloads other people's DMs. This replaces the old `global_messages` /
@@ -60,7 +60,7 @@ bucket_definitions:
   # A user's own conversations: the conversation row, its messages and its
   # participants — nothing from conversations they are not part of.
   user_conversations:
-    parameters: select conversation_id from participants where user_id = request.jwt() ->> 'oid'
+    parameters: select conversation_id from participants where user_id = request.user_id()
     data:
         - select * from conversations where id = bucket.conversation_id
         - select * from messages where conversation_id = bucket.conversation_id
@@ -70,28 +70,28 @@ bucket_definitions:
   # Who viewed the signed-in user's own stories — the "seen by" list. Only the
   # author receives these rows.
   user_story_views:
-    parameters: select id as story_id from stories where user_id = request.jwt() ->> 'oid'
+    parameters: select id as story_id from stories where user_id = request.user_id()
     data:
         - select * from story_views where story_id = bucket.story_id
   user_saved_posts:
-    parameters: select request.jwt() ->> 'oid' as user_id
+    parameters: select request.user_id() as user_id
     data:
         - select * from saved_posts where user_id = bucket.user_id
   user_archived_posts:
-    parameters: select request.jwt() ->> 'oid' as user_id
+    parameters: select request.user_id() as user_id
     data:
         - select * from archived_posts where user_id = bucket.user_id
   user_blocked_users:
-    parameters: select request.jwt() ->> 'oid' as user_id
+    parameters: select request.user_id() as user_id
     data:
         - select * from blocked_users where blocker_id = bucket.user_id
   # The blocked party also needs their block rows, so the app can present the
   # blocker as private and block messaging for them.
   user_blocked_by:
-    parameters: select request.jwt() ->> 'oid' as user_id
+    parameters: select request.user_id() as user_id
     data:
         - select * from blocked_users where blocked_id = bucket.user_id
   user_referrals:
-    parameters: select request.jwt() ->> 'oid' as user_id
+    parameters: select request.user_id() as user_id
     data:
         - select * from referrals where referrer_id = bucket.user_id

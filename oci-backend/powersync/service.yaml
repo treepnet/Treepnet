@@ -24,12 +24,14 @@ port: !env PS_PORT
 sync_config:
   path: sync-config.yaml
 
-# Client (app) auth — validate the Entra id token against Entra's JWKS,
-# and require aud == the mobile app's client id.
+# Client (app) auth — validate the Firebase ID token against Firebase's JWKS
+# (PS_JWKS_URL), and require aud == the Firebase project id.
+# (Rollback: PS_JWKS_URL -> Entra JWKS + audience -> the Entra client id below.)
 client_auth:
   jwks_uri: !env PS_JWKS_URL
   audience:
-    - "24510ac4-0d0a-47af-84ef-fd6c79e3ad9c"
+    - "treepnet-1fa8d"
+    # - "24510ac4-0d0a-47af-84ef-fd6c79e3ad9c"  # Entra client id (old)
 
 api:
   tokens:
