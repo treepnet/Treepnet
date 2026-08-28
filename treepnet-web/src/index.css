@@ -1,0 +1,105 @@
+/* ==========================================================================
+   TreepNet — design tokens, taken straight from the Figma design-system
+   "Colors" page (Brand color 1–5 + semantic + text tokens). The app renders
+   its icons green, so green is the in-product interactive accent; the
+   blue→purple→pink brand ramp is the marketing identity. Every component reads
+   these through var(), so the whole site restyles from one place.
+   ========================================================================== */
+:root {
+  /* The shipping app's real palette (app_colors.dart) blended with the Figma
+     brand ramp. Primary accent is app blue #3898EC — the colour of the app's
+     icons and location pins. The map's visited-region shading uses the app's
+     real post-density gradient (blue → purple → pink → red). */
+  --blue: #3898ec;        /* app primary (icons, links, location) */
+  --deep-blue: #2f539b;   /* Figma Brand 2 */
+  --periw: #728fce;       /* Figma Brand 1 */
+  --violet: #6d35c0;      /* Figma Brand 3 */
+  --pink: #f535aa;        /* Figma Brand 4 */
+  --red: #b21807;         /* Figma Brand 5 */
+  --gold: #ffc93d;
+  --cyan: #5bb8e8;
+
+  /* map post-density scale (real app _colorForCount) */
+  --d1: #5bb8e8; --d2: #1e7fe0; --d3: #a020c7; --d4: #ed2a93; --d5: #e01b24;
+  --ocean: #2b2f33;
+
+  --bg: #17181a;
+  --bg-2: #1c1c1e;
+  --surface: #201e1e;     /* app background */
+  --card: rgba(255, 255, 255, 0.045);
+  --card-border: rgba(255, 255, 255, 0.09);
+  --glass: rgba(255, 255, 255, 0.12);
+  --input: #414141;
+
+  --text: #ffffff;
+  --muted: #9a9c9c;
+  --border-soft: #5f685b;
+  --radius: 20px;
+
+  --grad: linear-gradient(120deg, var(--blue), var(--violet) 55%, var(--pink));
+  --grad-btn: linear-gradient(120deg, var(--blue), var(--violet));
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60vw 60vw at 10% -8%, rgba(56, 152, 236, 0.18), transparent 60%),
+    radial-gradient(55vw 55vw at 95% 8%, rgba(109, 53, 192, 0.18), transparent 60%),
+    radial-gradient(60vw 60vw at 50% 112%, rgba(245, 53, 170, 0.10), transparent 60%);
+}
+a { color: inherit; text-decoration: none; }
+img { max-width: 100%; }
+
+.wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+.gradient-text {
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.eyebrow {
+  color: var(--blue);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+.pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 15px; border-radius: 999px;
+  background: var(--card); border: 1px solid var(--card-border);
+  font-size: 13px; color: var(--muted);
+}
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 13px 24px; border-radius: 14px; font-weight: 700; font-size: 15px;
+  border: none; cursor: pointer; transition: transform .15s, box-shadow .2s; font-family: inherit;
+}
+.btn-primary { background: #fff; color: #000; box-shadow: 0 8px 26px rgba(255, 255, 255, 0.15); }
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 14px 34px rgba(255, 255, 255, 0.25); }
+.btn-ghost { background: var(--card); border: 1px solid var(--card-border); color: var(--text); }
+.btn-ghost:hover { background: rgba(255, 255, 255, .09); }
+
+section { padding: 76px 0; scroll-margin-top: 68px; }
+.section-head { text-align: center; max-width: 660px; margin: 0 auto 52px; }
+.section-head h2 { font-size: 39px; font-weight: 820; letter-spacing: -1px; margin: 10px 0 14px; }
+.section-head p { color: var(--muted); font-size: 17px; }
+@media (max-width: 720px) { .section-head h2 { font-size: 30px; } }
+
+.reveal { opacity: 0; transform: translateY(24px); transition: opacity .7s, transform .7s; }
+.reveal.in { opacity: 1; transform: none; }

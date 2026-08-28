@@ -1,0 +1,61 @@
+.imap { position: relative; margin-top: 30px; }
+.imap-vp {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  overflow: hidden;
+  border-radius: 18px;
+  background: radial-gradient(120% 90% at 55% 30%, #20262c, #14161a 78%);
+  border: 1px solid var(--card-border);
+  touch-action: none;
+  user-select: none;
+}
+.imap-layer { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
+.imap-base { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.imap-ov { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+
+.imap-prov { cursor: pointer; }
+.imap-prov path { transition: fill-opacity .15s; }
+.imap-prov:hover path { fill-opacity: 1; }
+.imap-prov.sel path { filter: drop-shadow(0 0 4px rgba(255, 255, 255, .6)); }
+
+/* zoom controls */
+.imap-ctrl { position: absolute; top: 12px; right: 12px; display: flex; flex-direction: column; gap: 6px; z-index: 3; }
+.imap-ctrl button {
+  width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--card-border);
+  background: rgba(20, 22, 26, .82); backdrop-filter: blur(8px); color: var(--text);
+  font-size: 20px; font-weight: 700; cursor: pointer; display: grid; place-items: center; transition: background .15s;
+}
+.imap-ctrl button:hover { background: rgba(56, 152, 236, .28); }
+.imap-reset { font-size: 16px !important; }
+
+.imap-hint {
+  position: absolute; left: 12px; bottom: 12px; z-index: 3;
+  padding: 7px 12px; border-radius: 10px; font-size: 12.5px; color: var(--muted);
+  background: rgba(20, 22, 26, .72); backdrop-filter: blur(8px); border: 1px solid var(--card-border);
+  pointer-events: none;
+}
+
+/* selected-province info card */
+.imap-info {
+  position: absolute; right: 12px; bottom: 12px; z-index: 4; min-width: 210px;
+  padding: 16px 18px; border-radius: 16px;
+  background: rgba(20, 22, 26, .9); backdrop-filter: blur(12px); border: 1px solid var(--card-border);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .45); display: flex; flex-direction: column; gap: 3px;
+  animation: imapPop .2s ease;
+}
+@keyframes imapPop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.imap-close { position: absolute; top: 8px; right: 10px; background: none; border: none; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; }
+.imap-close:hover { color: var(--text); }
+.imap-info-eye { font-size: 11px; font-weight: 700; letter-spacing: .3px; }
+.imap-info b { font-size: 21px; font-weight: 820; letter-spacing: -.4px; }
+.imap-info-admin { font-size: 13px; color: var(--muted); }
+.imap-info-count { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.imap-info-count b { font-size: 20px; }
+
+@media (max-width: 720px) {
+  .imap-vp { aspect-ratio: 3 / 2; }
+  .imap-info { min-width: 160px; padding: 13px 15px; }
+  .imap-info b { font-size: 18px; }
+  .imap-hint { font-size: 11px; }
+}

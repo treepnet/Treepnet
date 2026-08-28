@@ -1,0 +1,84 @@
+.lmap { position: relative; margin-top: 30px; }
+.lmap-canvas {
+  width: 100%;
+  height: 540px;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+  background:
+    radial-gradient(70% 60% at 78% 18%, rgba(56, 152, 236, .12), transparent 60%),
+    radial-gradient(60% 60% at 20% 88%, rgba(109, 53, 192, .12), transparent 60%),
+    radial-gradient(120% 100% at 55% 35%, #232a31, #14171b 80%);
+}
+/* Leaflet fills the container; keep the ocean dark (no external tiles). */
+.leaflet-container { background: transparent !important; font-family: inherit; outline: none; }
+
+/* Famous provinces glow (SVG layer). Each tier glows in its own colour, so the
+   map reads as living points of light rather than flat patches. */
+.lmap-prov { cursor: pointer; transition: fill-opacity .15s; }
+.lmap-prov:hover { fill-opacity: 1 !important; }
+.lmap-t1 { filter: drop-shadow(0 0 5px #5bb8e8); }
+.lmap-t2 { filter: drop-shadow(0 0 5px #1e7fe0); }
+.lmap-t3 { filter: drop-shadow(0 0 6px #a020c7); }
+.lmap-t4 { filter: drop-shadow(0 0 6px #ed2a93); }
+.lmap-t5 { filter: drop-shadow(0 0 7px #e01b24); }
+.lmap-prov:hover.lmap-t1 { filter: drop-shadow(0 0 10px #5bb8e8); }
+.lmap-prov:hover.lmap-t2 { filter: drop-shadow(0 0 10px #1e7fe0); }
+.lmap-prov:hover.lmap-t3 { filter: drop-shadow(0 0 12px #a020c7); }
+.lmap-prov:hover.lmap-t4 { filter: drop-shadow(0 0 12px #ed2a93); }
+.lmap-prov:hover.lmap-t5 { filter: drop-shadow(0 0 13px #e01b24); }
+.lmap-prov.sel { filter: drop-shadow(0 0 12px #fff) drop-shadow(0 0 6px #fff); }
+
+/* zoom control restyle */
+.lmap .leaflet-control-zoom { border: none; margin: 12px; box-shadow: none; }
+.lmap .leaflet-control-zoom a {
+  width: 38px; height: 38px; line-height: 38px; border-radius: 10px !important; margin-bottom: 6px;
+  background: rgba(20, 22, 26, .85); backdrop-filter: blur(8px); color: var(--text);
+  border: 1px solid var(--card-border); font-size: 20px; font-weight: 700;
+}
+.lmap .leaflet-control-zoom a:hover { background: rgba(56, 152, 236, .28); }
+
+.lmap-loading {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 12px;
+  color: var(--muted); font-size: 15px; z-index: 5; pointer-events: none;
+}
+.lmap-spin { width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid rgba(255,255,255,.15); border-top-color: var(--blue); animation: lmapspin .8s linear infinite; }
+@keyframes lmapspin { to { transform: rotate(360deg); } }
+
+.lmap-legend {
+  position: absolute; top: 12px; left: 12px; z-index: 500; display: flex; flex-direction: column; gap: 5px;
+  padding: 11px 13px; border-radius: 12px; background: rgba(20, 22, 26, .78); backdrop-filter: blur(8px);
+  border: 1px solid var(--card-border);
+}
+.lmap-legend-h { font-size: 11px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+.lmap-legend span { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--muted); }
+.lmap-legend i { width: 11px; height: 11px; border-radius: 3px; }
+
+.lmap-hint {
+  position: absolute; left: 12px; bottom: 12px; z-index: 500;
+  padding: 7px 12px; border-radius: 10px; font-size: 12.5px; color: var(--muted);
+  background: rgba(20, 22, 26, .74); backdrop-filter: blur(8px); border: 1px solid var(--card-border); pointer-events: none;
+}
+
+.lmap-info {
+  position: absolute; right: 12px; bottom: 12px; z-index: 600; min-width: 220px;
+  padding: 16px 18px; border-radius: 16px; background: rgba(20, 22, 26, .92); backdrop-filter: blur(12px);
+  border: 1px solid var(--card-border); box-shadow: 0 16px 40px rgba(0, 0, 0, .5);
+  display: flex; flex-direction: column; gap: 3px; animation: lmapPop .2s ease;
+}
+@keyframes lmapPop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.lmap-close { position: absolute; top: 8px; right: 10px; background: none; border: none; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; }
+.lmap-close:hover { color: var(--text); }
+.lmap-info-eye { font-size: 11px; font-weight: 700; letter-spacing: .3px; }
+.lmap-info b { font-size: 21px; font-weight: 820; letter-spacing: -.4px; }
+.lmap-info-admin { font-size: 13px; color: var(--muted); }
+.lmap-info-count { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.lmap-info-count b { font-size: 20px; }
+
+@media (max-width: 720px) {
+  .lmap-canvas { height: 420px; }
+  .lmap-info { min-width: 165px; padding: 13px 15px; }
+  .lmap-info b { font-size: 18px; }
+  .lmap-legend { padding: 9px 10px; }
+  .lmap-hint { font-size: 11px; }
+}

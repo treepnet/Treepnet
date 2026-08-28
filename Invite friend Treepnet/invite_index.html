@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TreepNet — Taklif</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:#191919; color:#fff; min-height:100vh;
+    display:flex; align-items:center; justify-content:center; text-align:center; padding:24px;
+  }
+  .card { max-width:360px; }
+  .logo {
+    width:88px; height:88px; border-radius:24px; margin:0 auto 24px;
+    background:linear-gradient(135deg,#728FCE,#6D35C0 55%,#F535AA);
+    display:grid; place-items:center; font-size:44px; font-weight:800;
+  }
+  h1 { font-size:24px; font-weight:700; margin-bottom:8px; }
+  p { color:#A0A0A0; font-size:15px; line-height:1.55; margin-bottom:28px; }
+  .btn {
+    display:inline-block; width:100%; padding:15px; border-radius:14px;
+    background:#fff; color:#000; font-weight:700; font-size:16px; text-decoration:none;
+  }
+  .hint { margin-top:16px; font-size:13px; color:#687575; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">T</div>
+    <h1>TreepNet'ga qo'shiling</h1>
+    <p>Sizni TreepNet'ga taklif qilishdi — sayohatlaringizni xaritaga aylantiruvchi ijtimoiy tarmoq.</p>
+    <a class="btn" id="cta" href="#">Ilovani ochish</a>
+    <p class="hint" id="hint">Yo'naltirilmoqda…</p>
+  </div>
+
+<script>
+(function () {
+  // Handle from the path: /invite/<handle>
+  var parts = location.pathname.split('/').filter(Boolean);
+  var idx = parts.indexOf('invite');
+  var handle = (idx !== -1 && parts[idx + 1]) ? parts[idx + 1] : '';
+
+  // Android package is final. iOS id is filled once the app is on the App Store.
+  var ANDROID_PACKAGE = 'com.treepnet.application';
+  var IOS_APP_ID = '';           // e.g. 'id1234567890'
+  var IOS_APP_URL = IOS_APP_ID ? ('https://apps.apple.com/app/' + IOS_APP_ID) : '';
+
+  var ua = navigator.userAgent || '';
+  var isAndroid = /android/i.test(ua);
+  var isIOS = /iphone|ipad|ipod/i.test(ua);
+
+  // Play Store URL carries the invite in the install referrer, so a fresh
+  // install still credits the referrer (read by android_play_install_referrer).
+  var referrer = encodeURIComponent('treepnet_invite=' + handle);
+  var playUrl = 'https://play.google.com/store/apps/details?id=' +
+                ANDROID_PACKAGE + '&referrer=' + referrer;
+
+  // If the app is installed, the App Link / custom scheme opens it directly;
+  // this page only runs when the browser fell through to the web.
+  var appDeepLink = 'treepnet://invite/' + handle;
+
+  var cta = document.getElementById('cta');
+  var hint = document.getElementById('hint');
+  var storeUrl = isIOS ? (IOS_APP_URL || '#') : playUrl;
+
+  cta.href = storeUrl;
+  cta.textContent = isIOS ? 'App Store' : 'Google Play';
+
+  // Try to open the app first; fall back to the store after a moment.
+  if (isAndroid || isIOS) {
+    var now = Date.now();
+    window.location.href = appDeepLink;
+    setTimeout(function () {
+      // Still here → app not installed → go to the store.
+      if (Date.now() - now < 2000 && storeUrl !== '#') {
+        window.location.href = storeUrl;
+      } else {
+        hint.textContent = '';
+      }
+    }, 1200);
+  } else {
+    hint.textContent = 'Ilovani telefonda oching.';
+  }
+})();
+</script>
+</body>
+</html>

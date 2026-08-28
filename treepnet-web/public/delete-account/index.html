@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#070a11" />
+  <link rel="icon" type="image/jpeg" href="/logo.jpg" />
+  <title>Delete your account — Treepnet</title>
+  <meta name="description" content="Delete your Treepnet account and its data. Enter your username, confirm with the code sent to your email." />
+  <meta name="robots" content="noindex" />
+  <style>
+    :root {
+      --blue: #3898ec;
+      --violet: #6d35c0;
+      --pink: #f535aa;
+      --red: #e01b24;
+      --bg: #17181a;
+      --card: rgba(255, 255, 255, 0.045);
+      --card-border: rgba(255, 255, 255, 0.09);
+      --input: #262626;
+      --input-border: rgba(255,255,255,0.14);
+      --text: #ffffff;
+      --muted: #9a9c9c;
+      --radius: 20px;
+      --grad: linear-gradient(120deg, var(--blue), var(--violet) 55%, var(--pink));
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.6;
+      -webkit-font-smoothing: antialiased; min-height: 100vh;
+    }
+    body::before {
+      content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(60vw 60vw at 10% -8%, rgba(56,152,236,0.16), transparent 60%),
+        radial-gradient(55vw 55vw at 95% 6%, rgba(109,53,192,0.16), transparent 60%);
+    }
+    .wrap { max-width: 520px; margin: 0 auto; padding: 40px 22px 80px; }
+    header { display: flex; align-items: center; gap: 14px; margin-bottom: 26px; }
+    header img { width: 44px; height: 44px; border-radius: 12px; object-fit: cover; }
+    header .brand { font-size: 20px; font-weight: 800; }
+    h1 {
+      font-size: clamp(26px, 6vw, 38px); font-weight: 800; line-height: 1.12; margin-bottom: 10px;
+      background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .lead { color: #cfd0d0; margin-bottom: 8px; }
+    .warn { color: var(--muted); font-size: 14px; margin-bottom: 26px; }
+    .card { background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius); padding: 22px 22px 24px; }
+    label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
+    input {
+      width: 100%; padding: 14px 16px; font-size: 16px; color: #fff;
+      background: var(--input); border: 1px solid var(--input-border); border-radius: 14px; outline: none;
+    }
+    input:focus { border-color: var(--blue); }
+    button {
+      width: 100%; margin-top: 18px; padding: 15px; font-size: 16px; font-weight: 700;
+      border: none; border-radius: 14px; cursor: pointer; color: #fff;
+    }
+    button.primary { background: var(--grad); }
+    button.danger { background: var(--red); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .msg { margin-top: 16px; font-size: 14px; padding: 12px 14px; border-radius: 12px; display: none; }
+    .msg.show { display: block; }
+    .msg.err { background: rgba(224,27,36,0.14); color: #ff9a9a; }
+    .msg.ok { background: rgba(56,152,236,0.14); color: #9ecbff; }
+    .step2 { display: none; }
+    .step2.show { display: block; }
+    .hint { font-size: 13px; color: var(--muted); margin-top: 10px; }
+    .back { display: inline-block; margin-top: 22px; color: var(--muted); font-size: 14px; text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    a { color: var(--blue); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <img src="/logo.jpg" alt="Treepnet logo" />
+      <span class="brand">Treepnet</span>
+    </header>
+
+    <h1>Delete your account</h1>
+    <p class="lead">Permanently delete your Treepnet account and its data — your profile, posts, stories, comments, likes and messages.</p>
+    <p class="warn">This action cannot be undone. You can also delete your account from the app: <strong>Settings → Delete account</strong>.</p>
+
+    <div class="card">
+      <!-- Step 1: username -> send code -->
+      <div class="step1">
+        <label for="username">Your username</label>
+        <input id="username" type="text" autocomplete="username" placeholder="e.g. ra.adams" autocapitalize="none" spellcheck="false" />
+        <button class="primary" id="sendBtn">Send confirmation code</button>
+        <p class="hint">A 6-digit code will be sent to the email linked to this account.</p>
+      </div>
+
+      <!-- Step 2: code -> delete -->
+      <div class="step2" id="step2">
+        <label for="code">Confirmation code</label>
+        <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code" maxlength="6" />
+        <button class="danger" id="deleteBtn">Delete my account permanently</button>
+        <p class="hint">Enter the code we emailed you, then confirm deletion.</p>
+      </div>
+
+      <div class="msg" id="msg"></div>
+    </div>
+
+    <a class="back" href="/">← Back to treepnet.com</a>
+  </div>
+
+  <script>
+  (function () {
+    // Azure Function base URL. REPLACE with the deployed function app URL,
+    // e.g. 'https://treepnet-func.azurewebsites.net/api'.
+    var API_BASE = 'https://treepnet-delete-func.azurewebsites.net/api';
+
+    var usernameEl = document.getElementById('username');
+    var codeEl = document.getElementById('code');
+    var sendBtn = document.getElementById('sendBtn');
+    var deleteBtn = document.getElementById('deleteBtn');
+    var step2 = document.getElementById('step2');
+    var msg = document.getElementById('msg');
+
+    function show(text, kind) {
+      msg.textContent = text;
+      msg.className = 'msg show ' + kind;
+    }
+    function hideMsg() { msg.className = 'msg'; }
+
+    async function post(path, body) {
+      var res = await fetch(API_BASE + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      var data = {};
+      try { data = await res.json(); } catch (e) {}
+      if (!res.ok) throw new Error(data.error || 'Request failed. Please try again.');
+      return data;
+    }
+
+    sendBtn.addEventListener('click', async function () {
+      var username = usernameEl.value.trim().toLowerCase();
+      if (!username) { show('Please enter your username.', 'err'); return; }
+      hideMsg(); sendBtn.disabled = true; sendBtn.textContent = 'Sending…';
+      try {
+        await post('/request-code', { username: username });
+        step2.classList.add('show');
+        show('If an account exists for that username, a confirmation code has been sent to its email.', 'ok');
+      } catch (e) {
+        show(e.message, 'err');
+      } finally {
+        sendBtn.disabled = false; sendBtn.textContent = 'Send confirmation code';
+      }
+    });
+
+    deleteBtn.addEventListener('click', async function () {
+      var username = usernameEl.value.trim().toLowerCase();
+      var code = codeEl.value.trim();
+      if (code.length < 4) { show('Please enter the code from your email.', 'err'); return; }
+      if (!confirm('Permanently delete your Treepnet account? This cannot be undone.')) return;
+      hideMsg(); deleteBtn.disabled = true; deleteBtn.textContent = 'Deleting…';
+      try {
+        await post('/confirm', { username: username, code: code });
+        document.querySelector('.step1').style.display = 'none';
+        step2.style.display = 'none';
+        show('Your account has been deleted. We’re sorry to see you go.', 'ok');
+      } catch (e) {
+        show(e.message, 'err');
+        deleteBtn.disabled = false; deleteBtn.textContent = 'Delete my account permanently';
+      }
+    });
+  })();
+  </script>
+</body>
+</html>
