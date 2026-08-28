@@ -1,0 +1,9 @@
+# Secrets and generated files — NEVER commit these.
+.env
+functions/fcm-service-account.json
+postgrest/jwks.json
+
+# Database dumps and runtime state.
+*.dump
+caddy_data/
+caddy_config/

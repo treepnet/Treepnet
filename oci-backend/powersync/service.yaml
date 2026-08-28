@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://unpkg.com/@powersync/service-schema@latest/json-schema/powersync-config.json
+# PowerSync self-hosted config for TreepNet (OCI ARM). `!env PS_*` = env var.
+
+telemetry:
+  disable_telemetry_sharing: true
+
+# Source database (the app data) — replicated via logical replication.
+replication:
+  connections:
+    - type: postgresql
+      uri: !env PS_DATA_SOURCE_URI
+      sslmode: disable # internal docker network
+
+# Sync bucket storage — a separate database in the same Postgres.
+storage:
+  type: postgresql
+  uri: !env PS_STORAGE_SOURCE_URI
+  sslmode: disable
+
+# API server port (internal; nginx terminates TLS in front).
+port: !env PS_PORT
+
+# Sync rules (bucket_definitions).
+sync_config:
+  path: sync-config.yaml
+
+# Client (app) auth — validate the Entra id token against Entra's JWKS,
+# and require aud == the mobile app's client id.
+client_auth:
+  jwks_uri: !env PS_JWKS_URL
+  audience:
+    - "24510ac4-0d0a-47af-84ef-fd6c79e3ad9c"
+
+api:
+  tokens:
+    - !env PS_ADMIN_TOKEN

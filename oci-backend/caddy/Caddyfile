@@ -1,0 +1,16 @@
+# Automatic HTTPS (Let's Encrypt). Custom subdomains are primary; the sslip.io
+# hostnames are kept as a fallback. Each label gets its own cert (HTTP/TLS-ALPN
+# on ports 80/443). Cloudflare/registrar DNS must point these at 130.61.138.104
+# with proxy OFF (DNS only).
+
+sync.treepnet.com, sync.130-61-138-104.sslip.io {
+	reverse_proxy powersync:80
+}
+
+api.treepnet.com, rest.130-61-138-104.sslip.io {
+	# Web "Delete account" backend (prefix stripped -> service sees /api/*).
+	handle_path /delete-account/* {
+		reverse_proxy deleteaccount:4000
+	}
+	reverse_proxy postgrest:3000
+}

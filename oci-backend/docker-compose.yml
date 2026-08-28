@@ -1,0 +1,136 @@
+name: treepnet
+
+networks:
+  treepnet:
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
+
+services:
+  caddy:
+    image: caddy:2
+    container_name: treepnet-caddy
+    restart: unless-stopped
+    depends_on:
+      - powersync
+      - postgrest
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - treepnet
+
+
+  postgres:
+    image: postgres:16
+    container_name: treepnet-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POWERSYNC_PG_USER: ${POWERSYNC_PG_USER}
+      POWERSYNC_PG_PASSWORD: ${POWERSYNC_PG_PASSWORD}
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=10
+      - -c
+      - max_wal_senders=10
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    networks:
+      - treepnet
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  powersync:
+    image: journeyapps/powersync-service:latest
+    container_name: treepnet-powersync
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["start", "-r", "unified"]
+    volumes:
+      - ./powersync:/config:ro
+    environment:
+      POWERSYNC_CONFIG_PATH: /config/service.yaml
+      NODE_OPTIONS: --max-old-space-size=1000
+      PS_DATA_SOURCE_URI: postgresql://${POWERSYNC_PG_USER}:${POWERSYNC_PG_PASSWORD}@postgres:5432/treepnet
+      PS_STORAGE_SOURCE_URI: postgresql://${POWERSYNC_PG_USER}:${POWERSYNC_PG_PASSWORD}@postgres:5432/powersync_storage
+      PS_PORT: "80"
+      PS_JWKS_URL: https://treepnet.ciamlogin.com/51c579e4-0e9f-4921-b96d-49470969c035/discovery/v2.0/keys
+      PS_ADMIN_TOKEN: ${POWERSYNC_ADMIN_TOKEN}
+    ports:
+      - "127.0.0.1:8080:80"
+    networks:
+      - treepnet
+
+  postgrest:
+    image: postgrest/postgrest:latest
+    container_name: treepnet-postgrest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgresql://authenticator:${AUTHENTICATOR_PASSWORD}@postgres:5432/treepnet
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: authenticated
+      PGRST_JWT_SECRET: "@/config/jwks.json"
+      PGRST_JWT_AUD: 24510ac4-0d0a-47af-84ef-fd6c79e3ad9c
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_SERVER_PORT: "3000"
+    volumes:
+      - ./postgrest/jwks.json:/config/jwks.json:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - treepnet
+
+  pushworker:
+    build: ./functions/push-worker
+    container_name: treepnet-pushworker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PG_CONNECTION_STRING: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      FCM_PROJECT_ID: treepnet-1fa8d
+      FCM_SERVICE_ACCOUNT_FILE: /secrets/fcm-service-account.json
+    volumes:
+      - ./functions/fcm-service-account.json:/secrets/fcm-service-account.json:ro
+    networks:
+      - treepnet
+
+  deleteaccount:
+    build: ./functions/delete-account
+    container_name: treepnet-deleteaccount
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PG_CONNECTION_STRING: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SMTP_USER: treepnetofficial@gmail.com
+      SMTP_PASS: ${SMTP_PASS}
+      ALLOWED_ORIGIN: https://treepnet.com
+      PORT: "4000"
+    networks:
+      - treepnet
