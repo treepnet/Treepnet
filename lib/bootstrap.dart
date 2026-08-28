@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer';
 
 import 'package:app_ui/app_ui.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:hydrated_bloc/hydrated_bloc.dart';
@@ -62,6 +63,19 @@ Future<void> bootstrap(
       boot('3 powersync.initialize (start)');
       await powerSyncRepository.initialize();
       boot('4 powersync.initialize (ok)');
+
+      // Firebase must be up BEFORE the auth client (built in `builder`) touches
+      // FirebaseAuth, and before push. Awaited + bounded so a hang can't freeze
+      // the splash; it no-ops if a flavor has no Firebase config.
+      boot('4b firebase.initializeApp (start)');
+      try {
+        if (Firebase.apps.isEmpty) {
+          await Firebase.initializeApp().timeout(const Duration(seconds: 10));
+        }
+        boot('4b firebase.initializeApp (ok)');
+      } catch (error) {
+        boot('4b firebase.initializeApp SKIPPED: $error');
+      }
 
       // Firebase Cloud Messaging (push). Push is NOT needed to render the first
       // screen, so keep it OFF the startup critical path: a slow or hanging
