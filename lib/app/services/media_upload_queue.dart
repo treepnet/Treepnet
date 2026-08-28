@@ -214,14 +214,14 @@ class MediaUploadQueue {
       return;
     }
 
-    final storage = shared.AzureBlobStorage.instance.from(task.bucket);
+    final storage = shared.MediaStorage.instance.from(task.bucket);
     final bytes = await mediaFile.readAsBytes();
 
     shared.logI('MediaUploadQueue: Uploading media for task ${task.id}...');
     await storage.uploadBinary(
       task.remotePath,
       bytes,
-      fileOptions: shared.AzureFileOptions(
+      fileOptions: shared.MediaFileOptions(
         contentType: task.contentType,
         cacheControl: '9000000',
       ),
@@ -237,7 +237,7 @@ class MediaUploadQueue {
         await storage.uploadBinary(
           task.firstFrameRemotePath!,
           firstFrameBytes,
-          fileOptions: const shared.AzureFileOptions(
+          fileOptions: const shared.MediaFileOptions(
             contentType: 'image/jpeg',
             cacheControl: '9000000',
           ),

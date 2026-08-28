@@ -121,7 +121,7 @@ class UserProfileAvatar extends StatelessWidget {
         ? null
         : await PickImage().imageBytes(file: compressedFile);
     final bytes = compressedBytes ?? selectedFile.selectedByte;
-    final avatarsStorage = AzureBlobStorage.instance.from('avatars');
+    final avatarsStorage = MediaStorage.instance.from('avatars');
 
     final fileExt = file.path.split('.').last.toLowerCase();
     final fileName = '${DateTime.now().toIso8601String()}.$fileExt';
@@ -129,7 +129,7 @@ class UserProfileAvatar extends StatelessWidget {
     await avatarsStorage.uploadBinary(
       filePath,
       bytes,
-      fileOptions: AzureFileOptions(
+      fileOptions: MediaFileOptions(
         contentType: 'image/$fileExt',
         cacheControl: '360000',
       ),

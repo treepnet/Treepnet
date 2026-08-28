@@ -3439,14 +3439,14 @@ WHERE user_id = ?1 AND story_id = ?2 AND region_iso = ?3
     required File imageFile,
     required Uint8List imageBytes,
   }) async {
-    final stories = AzureBlobStorage.instance.from('stories');
+    final stories = MediaStorage.instance.from('stories');
     final imageExtension = imageFile.path.split('.').last.toLowerCase();
     final imagePath = '$storyId/image';
 
     await stories.uploadBinary(
       imagePath,
       imageBytes,
-      fileOptions: AzureFileOptions(
+      fileOptions: MediaFileOptions(
         contentType: 'image/$imageExtension',
         cacheControl: '9000000',
       ),

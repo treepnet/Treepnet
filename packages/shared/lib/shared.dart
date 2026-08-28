@@ -7,4 +7,4 @@ export 'package:insta_blocks/insta_blocks.dart';
 
 export 'src/config/config.dart';
 export 'src/models/models.dart';
-export 'src/storage/azure_blob_storage.dart';
+export 'src/storage/media_storage.dart';

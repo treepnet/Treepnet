@@ -99,7 +99,7 @@ class FeedPageController extends ChangeNotifier {
           ),
         );
 
-    late final storage = AzureBlobStorage.instance.from('posts');
+    late final storage = MediaStorage.instance.from('posts');
 
     final queue = _context.read<MediaUploadQueue>();
 
@@ -133,7 +133,7 @@ class FeedPageController extends ChangeNotifier {
         await storage.uploadBinary(
           mediaPath,
           attachment.bytes!,
-          fileOptions: AzureFileOptions(
+          fileOptions: MediaFileOptions(
             contentType: attachment.mediaType!.mimeType,
             cacheControl: '9000000',
           ),
@@ -145,7 +145,7 @@ class FeedPageController extends ChangeNotifier {
           await storage.uploadBinary(
             firstFramePath,
             firstFrame,
-            fileOptions: AzureFileOptions(
+            fileOptions: MediaFileOptions(
               contentType: attachment.mediaType!.mimeType,
               cacheControl: '9000000',
             ),
@@ -237,7 +237,7 @@ class FeedPageController extends ChangeNotifier {
           await storage.uploadBinary(
             mediaPath,
             bytes,
-            fileOptions: AzureFileOptions(
+            fileOptions: MediaFileOptions(
               contentType: '${!isVideo ? 'image' : 'video'}/$mediaExtension',
               cacheControl: '9000000',
             ),
@@ -250,7 +250,7 @@ class FeedPageController extends ChangeNotifier {
             await storage.uploadBinary(
               firstFramePath,
               convertedBytes,
-              fileOptions: AzureFileOptions(
+              fileOptions: MediaFileOptions(
                 contentType: 'video/$mediaExtension',
                 cacheControl: '9000000',
               ),
