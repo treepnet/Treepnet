@@ -134,3 +134,23 @@ services:
       PORT: "4000"
     networks:
       - treepnet
+
+  authservice:
+    build: ./functions/auth-service
+    container_name: treepnet-authservice
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PG_CONNECTION_STRING: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      FIREBASE_SERVICE_ACCOUNT_FILE: /secrets/fcm-service-account.json
+      SMTP_USER: treepnetofficial@gmail.com
+      SMTP_PASS: ${SMTP_PASS}
+      # Called by the mobile app (no browser), so CORS is not a concern here.
+      ALLOWED_ORIGIN: "*"
+      PORT: "4100"
+    volumes:
+      - ./functions/fcm-service-account.json:/secrets/fcm-service-account.json:ro
+    networks:
+      - treepnet

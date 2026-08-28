@@ -12,5 +12,9 @@ api.treepnet.com, rest.130-61-138-104.sslip.io {
 	handle_path /delete-account/* {
 		reverse_proxy deleteaccount:4000
 	}
+	# Auth (custom-token bridge; prefix stripped -> service sees /login etc.).
+	handle_path /auth/* {
+		reverse_proxy authservice:4100
+	}
 	reverse_proxy postgrest:3000
 }
