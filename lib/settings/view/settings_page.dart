@@ -1,5 +1,5 @@
 import 'package:app_ui/app_ui.dart';
-import 'package:entra_authentication_client/entra_authentication_client.dart';
+import 'package:firebase_authentication_client/firebase_authentication_client.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

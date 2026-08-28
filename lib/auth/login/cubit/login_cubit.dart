@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:bloc/bloc.dart';
 import 'package:form_fields/form_fields.dart';
-import 'package:entra_authentication_client/entra_authentication_client.dart';
+import 'package:firebase_authentication_client/firebase_authentication_client.dart';
 import 'package:user_repository/user_repository.dart';
 
 part 'login_state.dart';

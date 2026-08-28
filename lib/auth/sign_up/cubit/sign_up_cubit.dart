@@ -1,9 +1,9 @@
 
 import 'package:bloc/bloc.dart';
-import 'package:entra_authentication_client/entra_authentication_client.dart'
+import 'package:firebase_authentication_client/firebase_authentication_client.dart'
     show
-        EntraAuthApiException,
-        EntraAuthenticationClient,
+        AuthServiceError,
+        FirebaseAuthenticationClient,
         SignUpWithPasswordFailure;
 import 'package:equatable/equatable.dart';
 import 'package:form_fields/form_fields.dart';
@@ -241,7 +241,7 @@ class SignUpCubit extends Cubit<SignupState> {
       // The password only reaches Entra now, so its verdict lands on this
       // screen. Send people back to the field they must actually change —
       // Microsoft also refuses passwords that merely look strong.
-      if (EntraAuthenticationClient.isPasswordProblem(e)) {
+      if (FirebaseAuthenticationClient.isPasswordProblem(e)) {
         addError(e, stackTrace);
         emit(
           state.copyWith(
@@ -300,8 +300,8 @@ class SignUpCubit extends Cubit<SignupState> {
   /// Renders an error from the identity service as text worth showing.
   String _describe(Object e) {
     final inner = e is SignUpWithPasswordFailure ? e.error : e;
-    if (inner is EntraAuthApiException) {
-      return EntraAuthenticationClient.friendlyMessage(inner);
+    if (inner is AuthServiceError) {
+      return FirebaseAuthenticationClient.friendlyMessage(inner);
     }
     return inner.toString();
   }

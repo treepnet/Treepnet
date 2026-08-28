@@ -7,7 +7,7 @@ import 'package:posts_repository/posts_repository.dart';
 import 'package:search_repository/search_repository.dart';
 import 'package:shared/shared.dart';
 import 'package:stories_repository/stories_repository.dart';
-import 'package:entra_authentication_client/entra_authentication_client.dart';
+import 'package:firebase_authentication_client/firebase_authentication_client.dart';
 import 'package:user_repository/user_repository.dart';
 
 void main() {
@@ -18,10 +18,10 @@ void main() {
   ) async {
 
 
-    final authenticationClient = EntraAuthenticationClient(
+    final authenticationClient = FirebaseAuthenticationClient(
       powerSyncRepository: powerSyncRepository,
     );
-    // Restore any persisted Entra session before the app reads the first user.
+    // Restore any persisted Firebase session before the app reads the first user.
     await authenticationClient.restoreSession();
 
     final databaseClient = PowerSyncDatabaseClient(

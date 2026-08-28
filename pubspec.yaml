@@ -98,6 +98,8 @@ dependencies:
       path: styled_text
   entra_authentication_client:
     path: packages/authentication_client/entra_authentication_client
+  firebase_authentication_client:
+    path: packages/authentication_client/firebase_authentication_client
   timeago: ^3.7.1
   token_storage:
     path: packages/authentication_client/token_storage
