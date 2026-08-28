@@ -23,12 +23,12 @@ final List<RegExp> fatalResponseCodes = [
   RegExp(r'^42501$'),
 ];
 
-/// Self-hosted PostgREST (in front of Azure Postgres), served over HTTPS by
-/// Azure Container Apps. Replaces Supabase's auto REST API: reads come from
-/// PowerSync, writes and RPCs go here, authorised with the Entra id token.
+/// Self-hosted PostgREST, served over HTTPS by Caddy on the OCI ARM server.
+/// Replaces Supabase's auto REST API: reads come from PowerSync, writes and
+/// RPCs go here, authorised with the Entra id token. (Old app versions still
+/// point at the Azure Container Apps URL; this is the Oracle stack.)
 // TODO(treepnet): move to env alongside the other endpoints.
-const _postgrestUrl =
-    'https://treepnet-postgrest-https.delightfulpebble-1e3b7a49.polandcentral.azurecontainerapps.io';
+const _postgrestUrl = 'https://api.treepnet.com';
 
 class SupabaseConnector extends PowerSyncBackendConnector {
   /// {@macro supabase_connector}
