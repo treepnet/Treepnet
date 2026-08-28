@@ -192,10 +192,12 @@ async function signupVerify(res, b) {
       return fail(res, 409, 'That username is already taken.', 'username_taken');
     }
     const inserted = await client.query(
+      // full_name is NOT NULL, so keep the empty string rather than nulling it
+      // (the sign-up form doesn't collect a name; the user sets it later).
       `insert into profiles(id, email, full_name, username, birthday)
          values (gen_random_uuid(), $1, $2, $3, $4)
        returning id`,
-      [email, fullName || null, username, birthday],
+      [email, fullName, username, birthday],
     );
     const uid = inserted.rows[0].id;
     const hash = await bcrypt.hash(password, BCRYPT_COST);
@@ -210,6 +212,7 @@ async function signupVerify(res, b) {
     return send(res, 200, { token, userId: uid });
   } catch (e) {
     await client.query('rollback').catch(() => {});
+    console.error('auth-service /signup/verify error:', e);
     return fail(res, 500, 'Something went wrong. Please try again.');
   } finally {
     client.release();
