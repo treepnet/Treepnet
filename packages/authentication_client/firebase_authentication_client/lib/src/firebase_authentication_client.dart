@@ -289,6 +289,24 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
     }
   }
 
+  @override
+  Future<void> deleteAuthUser() async {
+    try {
+      // Clear the session first so the UI routes away before the DB is wiped.
+      EntraSession.instance.clear();
+      try {
+        await _auth.currentUser?.delete();
+      } on FirebaseAuthException {
+        // Couldn't delete the Firebase user (e.g. requires-recent-login). The
+        // account's data is already gone server-side, so signing out is enough.
+        await _auth.signOut();
+      }
+      await _powerSyncRepository.db().disconnectAndClear();
+    } catch (error, stackTrace) {
+      Error.throwWithStackTrace(LogOutFailure(error), stackTrace);
+    }
+  }
+
   // --- Helpers ------------------------------------------------------------
 
   Future<void> _signInWithCustomToken(String? token) async {

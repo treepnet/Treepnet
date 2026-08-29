@@ -96,8 +96,6 @@ dependencies:
       ref: 91272c4779123570a642b19f96214adef2e850b4
       url: https://github.com/Maatteogekko/styled_text_package
       path: styled_text
-  entra_authentication_client:
-    path: packages/authentication_client/entra_authentication_client
   firebase_authentication_client:
     path: packages/authentication_client/firebase_authentication_client
   timeago: ^3.7.1

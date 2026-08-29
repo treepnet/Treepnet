@@ -5,8 +5,7 @@ import 'package:dio/dio.dart';
 ///
 /// Carries the machine-readable [code] (e.g. `invalid_credentials`,
 /// `password_too_short`, `username_taken`) alongside a human-friendly
-/// [message] the UI can show directly. Mirrors the role Entra's
-/// `EntraAuthApiException` played, so the sign-up cubit can tell a password
+/// [message] the UI can show directly, so the sign-up cubit can tell a password
 /// problem (which belongs on the password screen) apart from other failures.
 /// {@endtemplate}
 class AuthServiceError implements Exception {

@@ -6,6 +6,16 @@
 const http = require('http');
 const { Pool } = require('pg');
 const nodemailer = require('nodemailer');
+const admin = require('firebase-admin');
+
+// Firebase Admin — so deleting an account also removes its Firebase Auth user
+// (uid == the profile UUID). Signs locally with the service-account key.
+admin.initializeApp({
+  credential: admin.credential.cert(
+    require(process.env.FIREBASE_SERVICE_ACCOUNT_FILE ||
+      '/secrets/fcm-service-account.json'),
+  ),
+});
 
 const pool = new Pool({
   connectionString: process.env.PG_CONNECTION_STRING,
@@ -108,6 +118,13 @@ async function confirm(res, body) {
       return send(res, 400, { error: 'Invalid code.' });
     }
     await pool.query('select delete_account_by_id($1)', [user.id]);
+    // Best-effort: remove the Firebase Auth user (uid == profile id). The
+    // account is already gone from the DB, so don't fail the request if this
+    // does (e.g. the user was never created in Firebase).
+    await admin
+      .auth()
+      .deleteUser(user.id)
+      .catch((e) => console.error('firebase deleteUser failed:', e.message));
     await pool.query('delete from account_deletion_codes where email = $1', [user.email]);
     return send(res, 200, { ok: true });
   } catch (e) {

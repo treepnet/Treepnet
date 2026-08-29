@@ -413,7 +413,8 @@ class UserRepository implements UserBaseRepository {
     // Verify the password by re-authenticating; this throws on a wrong one.
     await logInWithPassword(email: email, password: password);
     await _databaseClient.deleteAccount();
-    await logOut();
+    // Remove the auth-provider user too (and sign out), not just sign out.
+    await _authenticationClient.deleteAuthUser();
   }
 
   @override

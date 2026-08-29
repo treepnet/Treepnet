@@ -5,9 +5,8 @@ import 'package:treepnet/l10n/l10n.dart';
 /// {@template security_page}
 /// Settings → Security.
 ///
-/// Credentials live in Microsoft Entra, not in Treepnet, so there is no
-/// in-app password form: the account password is changed from the hosted
-/// sign-in page via its "Forgot password?" link.
+/// There is no in-app password form yet: the account password is changed via
+/// the "Forgot password?" flow on the sign-in screen.
 /// {@endtemplate}
 class SecurityPage extends StatelessWidget {
   /// {@macro security_page}

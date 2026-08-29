@@ -56,10 +56,9 @@ class SettingsPage extends StatelessWidget {
     if (confirmed != true || !context.mounted) return;
 
     // Hand the auth client the *username*, exactly as the normal login screen
-    // does — it resolves the handle to the account's canonical Entra email
-    // itself. The profile's `email` field can be stale or differ from the
-    // sign-in address, and passing it straight to re-auth fails with
-    // AADSTS50126 ("invalid username or password") even on a correct password.
+    // does — the auth-service resolves the handle to the account's email
+    // itself, so re-auth matches sign-in even if the profile's `email` field
+    // differs.
     final user = context.read<AppBloc>().state.user;
     final identifier = (user.username != null && user.username!.isNotEmpty)
         ? user.username!

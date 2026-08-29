@@ -129,10 +129,13 @@ services:
         condition: service_healthy
     environment:
       PG_CONNECTION_STRING: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      FIREBASE_SERVICE_ACCOUNT_FILE: /secrets/fcm-service-account.json
       SMTP_USER: treepnetofficial@gmail.com
       SMTP_PASS: ${SMTP_PASS}
       ALLOWED_ORIGIN: https://treepnet.com
       PORT: "4000"
+    volumes:
+      - ./functions/fcm-service-account.json:/secrets/fcm-service-account.json:ro
     networks:
       - treepnet
 

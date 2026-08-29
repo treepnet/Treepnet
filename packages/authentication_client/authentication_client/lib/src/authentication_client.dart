@@ -257,4 +257,10 @@ abstract class AuthenticationClient {
   ///
   /// Throws a [LogOutFailure] if an exception occurs.
   Future<void> logOut();
+
+  /// Deletes the currently authenticated identity from the auth provider and
+  /// ends the session (emitting [AuthenticationUser.anonymous]). Called after
+  /// the account's data has been removed server-side, so it is best-effort:
+  /// falls back to a plain sign-out if the delete cannot complete.
+  Future<void> deleteAuthUser();
 }
