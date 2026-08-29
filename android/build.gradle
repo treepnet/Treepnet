@@ -29,6 +29,20 @@ subprojects {
                     compileSdk 31
                 }
             }
+            // Align every plugin module's JVM target to 17. Some plugins
+            // (photo_manager et al.) default to Java 8, which clashes with
+            // Kotlin 17 -> "Inconsistent JVM-target compatibility" build error.
+            project.android {
+                compileOptions {
+                    sourceCompatibility JavaVersion.VERSION_17
+                    targetCompatibility JavaVersion.VERSION_17
+                }
+            }
+            project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+                kotlinOptions {
+                    jvmTarget = "17"
+                }
+            }
         }
       }
     }
