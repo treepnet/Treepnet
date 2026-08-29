@@ -2730,13 +2730,13 @@ abstract class AppLocalizations {
   /// No description provided for @passwordManagedText.
   ///
   /// In en, this message translates to:
-  /// **'Your password is managed by Microsoft'**
+  /// **'Your password is kept secure'**
   String get passwordManagedText;
 
   /// No description provided for @passwordSecurityDescriptionText.
   ///
   /// In en, this message translates to:
-  /// **'Treepnet never stores your password — it is kept secure by Microsoft.\n\nPassword changes are not available in the app yet.'**
+  /// **'Your password is stored securely and never shown in plain text.\n\nTo change it, use \"Forgot password?\" on the sign-in screen.'**
   String get passwordSecurityDescriptionText;
 
   /// No description provided for @errorCompressingVideoText.

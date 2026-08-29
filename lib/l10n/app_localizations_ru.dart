@@ -1631,11 +1631,11 @@ class AppLocalizationsRu extends AppLocalizations {
       'Это навсегда удалит ваш аккаунт и всё в нём — публикации, истории, сообщения и профиль. Это действие необратимо.';
 
   @override
-  String get passwordManagedText => 'Ваш пароль управляется Microsoft';
+  String get passwordManagedText => 'Ваш пароль надёжно защищён';
 
   @override
   String get passwordSecurityDescriptionText =>
-      'Treepnet никогда не хранит ваш пароль — он защищён Microsoft.\n\nСмена пароля в приложении пока недоступна.';
+      'Ваш пароль хранится в защищённом виде и никогда не отображается открыто.\n\nЧтобы изменить его, используйте «Забыли пароль?» на экране входа.';
 
   @override
   String get errorCompressingVideoText => 'Ошибка сжатия видео';

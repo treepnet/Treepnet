@@ -1602,11 +1602,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'This permanently deletes your account and everything in it — posts, stories, messages and profile. This cannot be undone.';
 
   @override
-  String get passwordManagedText => 'Your password is managed by Microsoft';
+  String get passwordManagedText => 'Your password is kept secure';
 
   @override
   String get passwordSecurityDescriptionText =>
-      'Treepnet never stores your password — it is kept secure by Microsoft.\n\nPassword changes are not available in the app yet.';
+      'Your password is stored securely and never shown in plain text.\n\nTo change it, use \"Forgot password?\" on the sign-in screen.';
 
   @override
   String get errorCompressingVideoText => 'Error compressing video';
