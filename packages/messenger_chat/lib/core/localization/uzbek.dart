@@ -1,0 +1,37 @@
+part of messenger_chat;
+
+final class _Uzbek {
+  static const Map<String, String> texts = <String, String>{
+    'online': 'Onlayn',
+    'connecting': 'Ulanmoqda...',
+    'today': 'Bugun',
+    'yesterday': 'Kecha',
+    'recordCancel': '🎤 Bekor qilindi',
+    'swipToLeft': '⬅️ O‘ngdan chapga suring',
+    'toSendAudio': 'Audio yuborish uchun bosib turishingiz kerak',
+    'cantDownloadImage': 'Rasmni yuklab bo‘lmadi',
+    'cancel': 'Bekor qilish',
+    'takePhoto': 'Suratga olish',
+    'uploadFile': 'Fayl yuklash',
+    'uploadWitGallery': 'Galereyadan yuklash',
+    'socketConnectionNot': 'Socket ulanish mavjud emas',
+    'writeHere': 'Shu yerga yozing...',
+    'cancelRecording': 'Bekor qilish',
+    'noAppFound': 'Hujjatni ochadigan dastur topilmadi',
+    'fileOpenError': 'Faylni ochishda xatolik yuz berdi',
+    'noMessages': "Hozircha suhbatlar yo'q",
+    'somethingWentWrong': 'Xatolik yuz berdi',
+    'retry': 'Qayta urinish',
+    'photo': 'Rasm',
+    'video': 'Video',
+    'voiceMessage': 'Ovozli xabar',
+    'file': 'Fayl',
+    'typingVoice': 'ovozli xabar yozmoqda...',
+    'typingPhoto': 'rasm tanlamoqda...',
+    'typingVideo': 'video tanlamoqda...',
+    'typingFile': 'fayl tanlamoqda...',
+    'typing': 'yozmoqda...',
+    'offline': 'oflayn',
+    'lastSeen': 'oxirgi marta',
+};
+}

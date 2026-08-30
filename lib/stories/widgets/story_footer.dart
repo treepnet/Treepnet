@@ -1,12 +1,11 @@
 import 'package:app_ui/app_ui.dart';
-import 'package:chats_repository/chats_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:insta_blocks/insta_blocks.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart';
 import 'package:shared/shared.dart';
 import 'package:stories_repository/stories_repository.dart';
 import 'package:treepnet/app/app.dart';
+import 'package:treepnet/chat/chat.dart';
 import 'package:treepnet/feed/post/widgets/share_post.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:user_repository/user_repository.dart';
@@ -124,23 +123,14 @@ class _StoryFooterState extends State<StoryFooter> with WidgetsBindingObserver {
     if (text.isEmpty || _sending) return;
     setState(() => _sending = true);
     try {
-      final chats = context.read<ChatsRepository>();
-      final chatId = await chats.createChat(
-        userId: widget.viewer.id,
-        participantId: widget.author.id,
-      );
-      await chats.sendMessage(
-        chatId: chatId,
-        sender: widget.viewer,
-        receiver: widget.author,
-        message: Message(
-          message: text,
-          sender: PostAuthor.confirmed(
-            id: widget.viewer.id,
-            avatarUrl: widget.viewer.avatarUrl,
-            username: widget.viewer.displayUsername,
-          ),
-        ),
+      await shareTextToUser(
+        context,
+        peerUuid: widget.author.id,
+        peerName: widget.author.displayFullName,
+        peerAvatarUrl: (widget.author.avatarUrl?.isNotEmpty ?? false)
+            ? widget.author.avatarUrl
+            : null,
+        text: text,
       );
       if (!mounted) return;
       _replyController.clear();

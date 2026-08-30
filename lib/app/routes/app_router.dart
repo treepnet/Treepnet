@@ -7,8 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/auth/auth.dart';
-import 'package:treepnet/chats/chat/chat.dart';
-import 'package:treepnet/chats/view/chats_page.dart';
+import 'package:treepnet/chat/chat.dart';
 import 'package:treepnet/feed/post/post.dart';
 import 'package:treepnet/feed/view/feed_page.dart';
 import 'package:treepnet/home/home.dart';
@@ -73,29 +72,6 @@ class AppRouter {
                 props: props ?? const UserProfileProps.build(),
               ),
             ),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  return SharedAxisTransition(
-                    animation: animation,
-                    secondaryAnimation: secondaryAnimation,
-                    transitionType: SharedAxisTransitionType.horizontal,
-                    child: child,
-                  );
-                },
-          );
-        },
-      ),
-      GoRoute(
-        path: AppRoutes.chat.path!,
-        name: AppRoutes.chat.name,
-        parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) {
-          final chatId = state.pathParameters['chat_id']!;
-          final props = state.extra! as ChatProps;
-
-          return CustomTransitionPage(
-            key: state.pageKey,
-            child: ChatPage(chatId: chatId, chat: props.chat),
             transitionsBuilder:
                 (context, animation, secondaryAnimation, child) {
                   return SharedAxisTransition(
@@ -247,7 +223,7 @@ class AppRouter {
                 pageBuilder: (context, state) {
                   return CustomTransitionPage(
                     key: state.pageKey,
-                    child: const ChatsPage(),
+                    child: const ChatInboxPage(),
                     transitionsBuilder:
                         (context, animation, secondaryAnimation, child) {
                           return FadeTransition(

@@ -1,5 +1,5 @@
 import 'package:app_ui/app_ui.dart';
-import 'package:chats_repository/chats_repository.dart';
+import 'package:treepnet/chat/chat.dart';
 import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -120,31 +120,24 @@ class _SharPostState extends State<SharePostView> with SafeSetStateMixin {
   Future<void> _send() async {
     final selected = _selectedUsers.value.toList();
     if (selected.isEmpty) return;
-    final user = context.read<AppBloc>().state.user;
-    final sender = PostAuthor(
-      id: user.id,
-      avatarUrl: user.avatarUrl ?? '',
-      username: user.displayUsername,
-    );
+    final link = 'https://treepnet.com/post/${widget.block.id}';
 
     toggleLoadingIndeterminate();
     try {
-      await Future.wait(
-        selected.map(
-          (receiver) => Future.microtask(() {
-            if (!mounted) return;
-            context.read<PostBloc>().add(
-              PostShareRequested(
-                sender: user,
-                receiver: receiver,
-                postAuthor: widget.block.author,
-                sharedPostMessage: Message(sender: sender),
-                message: null,
-              ),
-            );
-          }),
-        ),
-      );
+      // Phase 1: share the post as a deep link over the new chat backend.
+      // Phase 2 upgrades this to a rich post card (shared by reference).
+      for (final receiver in selected) {
+        if (!mounted) return;
+        await shareTextToUser(
+          context,
+          peerUuid: receiver.id,
+          peerName: receiver.displayFullName,
+          peerAvatarUrl: (receiver.avatarUrl?.isNotEmpty ?? false)
+              ? receiver.avatarUrl
+              : null,
+          text: link,
+        );
+      }
       if (mounted) context.pop();
       openSnackbar(
         SnackbarMessage.success(title: context.l10n.successfullySharedPostText),
@@ -381,34 +374,24 @@ class _ShareStoryState extends State<ShareStoryView> with SafeSetStateMixin {
   Future<void> _send() async {
     final selected = _selectedUsers.value.toList();
     if (selected.isEmpty) return;
-    final viewer = widget.viewer;
-    final sender = PostAuthor.confirmed(
-      id: viewer.id,
-      avatarUrl: viewer.avatarUrl,
-      username: viewer.displayUsername,
-    );
+    final link = 'https://treepnet.com/story/${widget.storyId}';
 
     toggleLoadingIndeterminate();
     try {
-      final chats = context.read<ChatsRepository>();
-      // One DM per recipient carrying the story link — the same delivery the
-      // reply bar uses, so it lands in the existing chat.
-      await Future.wait(
-        selected.map((receiver) async {
-          final chatId = await chats.createChat(
-            userId: viewer.id,
-            participantId: receiver.id,
-          );
-          await chats.sendMessage(
-            chatId: chatId,
-            sender: viewer,
-            receiver: receiver,
-            // Send the story itself (rendered as a tappable preview in chat),
-            // not a plain link.
-            message: Message(sharedStoryId: widget.storyId, sender: sender),
-          );
-        }),
-      );
+      // Phase 1: share the story as a deep link over the new chat backend.
+      // Phase 2 upgrades this to a rich story card (shared by reference).
+      for (final receiver in selected) {
+        if (!mounted) return;
+        await shareTextToUser(
+          context,
+          peerUuid: receiver.id,
+          peerName: receiver.displayFullName,
+          peerAvatarUrl: (receiver.avatarUrl?.isNotEmpty ?? false)
+              ? receiver.avatarUrl
+              : null,
+          text: link,
+        );
+      }
       if (mounted) context.pop();
       openSnackbar(
         SnackbarMessage.success(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:app_ui/app_ui.dart';
 import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:flutter/material.dart';
@@ -6,7 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:posts_repository/posts_repository.dart';
 import 'package:shared/shared.dart';
 import 'package:treepnet/app/app.dart';
-import 'package:treepnet/chats/chat/chat.dart';
+import 'package:treepnet/chat/chat.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:user_repository/user_repository.dart';
 
@@ -81,20 +83,15 @@ class _NotificationTile extends StatelessWidget {
     if (item.actorId.isEmpty) return;
     // Message notifications open the conversation; the rest open the actor's
     // profile.
-    if (item.type == NotificationType.message && item.postId != null) {
-      context.pushNamed(
-        AppRoutes.chat.name,
-        pathParameters: {'chat_id': item.postId!},
-        extra: ChatProps(
-          chat: ChatInbox(
-            id: item.postId!,
-            participant: User(
-              id: item.actorId,
-              username: item.actorUsername,
-              avatarUrl: item.actorAvatarUrl,
-              fullName: item.actorFullName,
-            ),
-          ),
+    if (item.type == NotificationType.message) {
+      unawaited(
+        openChat(
+          context,
+          peerUuid: item.actorId,
+          peerName: (item.actorFullName?.isNotEmpty ?? false)
+              ? item.actorFullName!
+              : item.actorUsername,
+          peerAvatarUrl: item.actorAvatarUrl,
         ),
       );
       return;

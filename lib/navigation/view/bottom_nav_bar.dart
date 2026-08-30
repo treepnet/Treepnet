@@ -1,8 +1,5 @@
 import 'package:app_ui/app_ui.dart';
-import 'package:chats_repository/chats_repository.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:treepnet/app/bloc/app_bloc.dart';
 import 'package:treepnet/feed/feed.dart';
 import 'package:treepnet/feed/post/video/video.dart';
 import 'package:treepnet/home/home.dart';
@@ -108,44 +105,16 @@ class BottomNavBar extends StatelessWidget {
   }
 }
 
-/// The Chat tab icon with a live unread-messages count badge.
-class _ChatTabIcon extends StatefulWidget {
+/// The Chat tab icon.
+///
+/// The unread-count badge is deferred to chat-migration Phase 2, which will
+/// feed it from the new backend's conversation list. Until then this is a plain
+/// passthrough (the old PowerSync `unreadMessagesCount` source is gone).
+class _ChatTabIcon extends StatelessWidget {
   const _ChatTabIcon({required this.child});
 
   final Widget child;
 
   @override
-  State<_ChatTabIcon> createState() => _ChatTabIconState();
-}
-
-class _ChatTabIconState extends State<_ChatTabIcon> {
-  late final Stream<int> _unread;
-
-  @override
-  void initState() {
-    super.initState();
-    final userId = context.read<AppBloc>().state.user.id;
-    _unread = context.read<ChatsRepository>().unreadMessagesCount(
-      userId: userId,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<int>(
-      stream: _unread,
-      builder: (context, snapshot) {
-        final count = snapshot.data ?? 0;
-        return Badge.count(
-          count: count,
-          isLabelVisible: count > 0,
-          // White pill, black number — the default red-on-white badge was the
-          // only saturated colour left in the bar.
-          backgroundColor: AppColors.white,
-          textColor: AppColors.black,
-          child: widget.child,
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => child;
 }

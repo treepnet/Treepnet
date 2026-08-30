@@ -1,10 +1,9 @@
 import 'package:app_ui/app_ui.dart';
-import 'package:chats_repository/chats_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
-import 'package:treepnet/chats/chat/chat.dart';
+import 'package:treepnet/chat/chat.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/settings/view/referral_page.dart';
 import 'package:treepnet/stories/stories.dart';
@@ -315,22 +314,12 @@ class _MessageUserButton extends StatelessWidget {
   const _MessageUserButton();
 
   Future<void> _openChat(BuildContext context) async {
-    final currentUserId = context.read<AppBloc>().state.user.id;
     final participant = context.read<UserProfileBloc>().state.user;
-    if (participant.isAnonymous || participant.id == currentUserId) return;
-
-    final chatId = await context.read<ChatsRepository>().createChat(
-      userId: currentUserId,
-      participantId: participant.id,
-    );
-    if (!context.mounted) return;
-
-    await context.pushNamed(
-      AppRoutes.chat.name,
-      pathParameters: {'chat_id': chatId},
-      extra: ChatProps(
-        chat: ChatInbox(id: chatId, participant: participant),
-      ),
+    await openChat(
+      context,
+      peerUuid: participant.id,
+      peerName: participant.displayFullName,
+      peerAvatarUrl: participant.hasAvatar ? participant.avatarUrl : null,
     );
   }
 

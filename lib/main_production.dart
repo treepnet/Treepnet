@@ -1,4 +1,3 @@
-import 'package:chats_repository/chats_repository.dart';
 import 'package:database_client/database_client.dart';
 import 'package:flutter/foundation.dart';
 import 'package:treepnet/app/app.dart';
@@ -52,8 +51,6 @@ void main() {
 
     final postsRepository = PostsRepository(databaseClient: databaseClient);
 
-    final chatsRepository = ChatsRepository(databaseClient: databaseClient);
-
     final storiesRepository = StoriesRepository(
       databaseClient: databaseClient,
       storage: storiesStorage,
@@ -71,7 +68,6 @@ void main() {
     return App(
       userRepository: userRepository,
       postsRepository: postsRepository,
-      chatsRepository: chatsRepository,
       storiesRepository: storiesRepository,
       searchRepository: searchRepository,
       mediaUploadQueue: mediaUploadQueue,

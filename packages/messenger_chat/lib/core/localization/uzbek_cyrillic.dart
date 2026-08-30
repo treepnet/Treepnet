@@ -1,0 +1,37 @@
+part of messenger_chat;
+
+final class _UzbekCyrillic {
+  static const Map<String, String> texts = {
+    'online': 'Онлайн',
+    'connecting': 'Уланмоқда...',
+    'today': 'Бугун',
+    'yesterday': 'Кеча',
+    'recordCancel': '🎤 Бекор қилинди',
+    'swipToLeft': '⬅️ Ўнгдан чапга суринг',
+    'toSendAudio': 'Аудио юбориш учун босиб туришингиз керак',
+    'cantDownloadImage': 'Расмни юклаб бўлмади',
+    'cancel': 'Бекор қилиш',
+    'takePhoto': 'Суратга олиш',
+    'uploadFile': 'Файл юклаш',
+    'uploadWitGallery': 'Галереядан юклаш',
+    'socketConnectionNot': 'Сокет уланиши мавжуд эмас',
+    'writeHere': 'Шу ерга ёзинг...',
+    'cancelRecording': 'Бекор қилиш',
+    'noAppFound': 'Ҳужжатни очадиган даstур топилмади',
+    'fileOpenError': 'Файлни очишда хатолик юз берди',
+      'noMessages': 'Ҳозирча суҳбатлар йўқ',
+    'somethingWentWrong': 'Хатолик юз берди',
+    'retry': 'Қайта уриниш',
+    'photo': 'Расм',
+    'video': 'Видео',
+    'voiceMessage': 'Овозли хабар',
+    'file': 'Файл',
+    'typingVoice': 'овозли хабар ёзмоқда...',
+    'typingPhoto': 'расм танламоқда...',
+    'typingVideo': 'видео танламоқда...',
+    'typingFile': 'файл танламоқда...',
+    'typing': 'ёзмоқда...',
+    'offline': 'офлайн',
+    'lastSeen': 'охирги марта',
+};
+}

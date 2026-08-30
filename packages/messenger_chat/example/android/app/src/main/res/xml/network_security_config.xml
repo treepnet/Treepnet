@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Lokal backend HTTPS'siz ishlaydi (adb reverse orqali 127.0.0.1:3000,
+         Android emulyatorda 10.0.2.2:3000). Faqat shu manzillar uchun ochiq
+         HTTP ga ruxsat beriladi; qolgan barcha domenlarda cleartext bloklangan
+         holicha qoladi. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

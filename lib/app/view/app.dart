@@ -1,5 +1,4 @@
 import 'package:app_ui/app_ui.dart';
-import 'package:chats_repository/chats_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
@@ -38,7 +37,6 @@ class App extends StatelessWidget {
     required this.user,
     required this.userRepository,
     required this.postsRepository,
-    required this.chatsRepository,
     required this.storiesRepository,
     required this.searchRepository,
     required this.mediaUploadQueue,
@@ -49,7 +47,6 @@ class App extends StatelessWidget {
   final User user;
   final UserRepository userRepository;
   final PostsRepository postsRepository;
-  final ChatsRepository chatsRepository;
   final StoriesRepository storiesRepository;
   final SearchRepository searchRepository;
   final MediaUploadQueue mediaUploadQueue;
@@ -65,7 +62,6 @@ class App extends StatelessWidget {
       providers: [
         RepositoryProvider.value(value: userRepository),
         RepositoryProvider.value(value: postsRepository),
-        RepositoryProvider.value(value: chatsRepository),
         RepositoryProvider.value(value: storiesRepository),
         RepositoryProvider.value(value: searchRepository),
         RepositoryProvider.value(value: mediaUploadQueue),

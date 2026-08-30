@@ -3,7 +3,7 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:treepnet/chats/chats.dart';
+import 'package:treepnet/chat/chat.dart';
 import 'package:treepnet/feed/post/video/video.dart';
 import 'package:treepnet/home/home.dart';
 import 'package:treepnet/navigation/navigation.dart';
@@ -177,7 +177,7 @@ class _HomeViewState extends State<HomeView> {
                           onBackButtonTap: () => HomeProvider().animateToPage(1),
                         )
                       : const Scaffold(body: SizedBox()),
-                  2 => const ChatsPage(),
+                  2 => const ChatInboxPage(),
                   _ => AppScaffold(
                     body: widget.navigationShell,
                     bottomNavigationBar: BottomNavBar(

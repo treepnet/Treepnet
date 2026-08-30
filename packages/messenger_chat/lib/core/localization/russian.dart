@@ -1,0 +1,37 @@
+part of messenger_chat;
+
+final class _Russian {
+  static const Map<String, String> texts = {
+    'online': 'Онлайн',
+    'connecting': 'Подключение...',
+    'today': 'Сегодня',
+    'yesterday': 'Вчера',
+    'recordCancel': '🎤 Запись отменена',
+    'swipToLeft': '⬅️ Проведите справа налево',
+    'toSendAudio': 'Чтобы отправить аудио, удерживайте кнопку',
+    'cantDownloadImage': 'Не удалось скачать изображение',
+    'cancel': 'Отмена',
+    'takePhoto': 'Сделать фото',
+    'uploadFile': 'Загрузить файл',
+    'uploadWitGallery': 'Загрузить из галереи',
+    'socketConnectionNot': 'Нет соединения с сокетом',
+    'writeHere': 'Напишите здесь...',
+    'cancelRecording': 'Отмена',
+    'noAppFound': 'Программа для открытия документа не найдена',
+    'fileOpenError': 'Произошла ошибка при открытии файла',
+      'noMessages': 'Пока нет чатов',
+    'somethingWentWrong': 'Произошла ошибка',
+    'retry': 'Повторить',
+    'photo': 'Фото',
+    'video': 'Видео',
+    'voiceMessage': 'Голосовое сообщение',
+    'file': 'Файл',
+    'typingVoice': 'записывает голосовое...',
+    'typingPhoto': 'выбирает фото...',
+    'typingVideo': 'выбирает видео...',
+    'typingFile': 'выбирает файл...',
+    'typing': 'печатает...',
+    'offline': 'не в сети',
+    'lastSeen': 'был(а)',
+};
+}

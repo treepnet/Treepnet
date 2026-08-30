@@ -1,0 +1,37 @@
+part of messenger_chat;
+
+final class _English {
+  static const Map<String, String> texts = {
+    'online': 'Online',
+    'connecting': 'Connecting...',
+    'today': 'Today',
+    'yesterday': 'Yesterday',
+    'recordCancel': '🎤 Canceled',
+    'swipToLeft': '⬅️ Swipe left',
+    'toSendAudio': 'Hold to send audio',
+    'cantDownloadImage': "Couldn't download image",
+    'cancel': 'Cancel',
+    'takePhoto': 'Take photo',
+    'uploadFile': 'Upload file',
+    'uploadWitGallery': 'Upload from gallery',
+    'socketConnectionNot': 'No socket connection',
+    'writeHere': 'Write here...',
+    'cancelRecording': 'Cancel',
+    'noAppFound': 'No app found to open this document',
+    'fileOpenError': 'An error occurred while opening the file',
+      'noMessages': 'No chats yet',
+    'somethingWentWrong': 'Something went wrong',
+    'retry': 'Retry',
+    'photo': 'Photo',
+    'video': 'Video',
+    'voiceMessage': 'Voice message',
+    'file': 'File',
+    'typingVoice': 'is recording a voice message...',
+    'typingPhoto': 'is picking a photo...',
+    'typingVideo': 'is picking a video...',
+    'typingFile': 'is picking a file...',
+    'typing': 'is typing...',
+    'offline': 'offline',
+    'lastSeen': 'last seen',
+};
+}
