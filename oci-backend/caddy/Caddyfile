@@ -18,3 +18,10 @@ api.treepnet.com, rest.130-61-138-104.sslip.io {
 	}
 	reverse_proxy postgrest:3000
 }
+
+# Messenger chat backend — REST (/chat/dm/*) + Socket.IO (/socket.io, WebSocket
+# upgrade handled automatically by reverse_proxy). Add the treepnet.com A-record
+# for chat.treepnet.com; the sslip.io host works without DNS in the meantime.
+chat.treepnet.com, chat.130-61-138-104.sslip.io {
+	reverse_proxy chatbackend:3000
+}

@@ -7,6 +7,7 @@ volumes:
   pgdata:
   caddy_data:
   caddy_config:
+  chat_uploads:
 
 services:
   caddy:
@@ -156,5 +157,28 @@ services:
       PORT: "4100"
     volumes:
       - ./functions/fcm-service-account.json:/secrets/fcm-service-account.json:ro
+    networks:
+      - treepnet
+
+  # Self-hosted 1:1 messenger backend (Node + Socket.IO + Prisma). Its own `chat`
+  # database on the same Postgres. Behind Caddy at chat.treepnet.com (WebSocket).
+  # Code lives in a separate repo, placed at ./chatbackend on the server
+  # (gitignored here). Mobile app authenticates via x-uuid = profile UUID.
+  chatbackend:
+    build: ./chatbackend
+    container_name: treepnet-chatbackend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      APP_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/chat
+      CORS_ORIGIN: "*"
+      PORT: "3000"
+      UPLOAD_DIR: uploads
+    volumes:
+      - chat_uploads:/app/uploads
     networks:
       - treepnet

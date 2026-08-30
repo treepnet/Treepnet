@@ -7,3 +7,6 @@ postgrest/jwks.json
 *.dump
 caddy_data/
 caddy_config/
+
+# Chat backend — separate repo (SirojiddinBoltayev/messenger-chat-backend), deployed to server
+chatbackend/
