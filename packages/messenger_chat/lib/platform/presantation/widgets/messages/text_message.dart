@@ -91,6 +91,15 @@ class _TextMessageState extends State<_TextMessage> {
     final isAdmin = widget.message.isFromPeer;
     final style = widget.messageStyle;
 
+    // App-provided shared-content card (e.g. a shared post/story sent as a
+    // sentinel-encoded text message). When the app returns a widget for this
+    // content, render it instead of the plain text bubble.
+    final shared = _ChatRuntime.instance.sharedMessageBuilder?.call(
+      context,
+      widget.message.content.content,
+    );
+    if (shared != null) return shared;
+
     return Container(
       constraints: const BoxConstraints(maxWidth: 300),
       decoration: BoxDecoration(

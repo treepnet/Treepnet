@@ -46,12 +46,14 @@ class MessengerChat extends StatefulWidget {
     required ChatUser me,
     ChatFeatures? features,
     ChatLanguage? lang,
+    SharedMessageBuilder? sharedMessageBuilder,
   }) async {
     WidgetsFlutterBinding.ensureInitialized();
     _ChatRuntime.instance.configure(
       transport: transport,
       me: me,
       features: features,
+      sharedMessageBuilder: sharedMessageBuilder,
     );
     _ChatLocalizations.instance.initialize(lang);
   }

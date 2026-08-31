@@ -18,6 +18,12 @@ class _ChatRuntime {
   final ValueNotifier<ChatUser?> peerNotifier = ValueNotifier<ChatUser?>(null);
   ChatFeatures _features = const ChatFeatures();
 
+  /// Ilova bergan maxsus xabar (masalan, ulashilgan post/story) chizuvchisi.
+  /// Matn xabari uchun `null` bo'lmagan widget qaytarsa, oddiy matn o'rniga
+  /// o'sha chiziladi. Tarmoq/model o'zgarmaydi - xabar oddiy matn bo'lib
+  /// qoladi, faqat ko'rinishi boshqacha.
+  SharedMessageBuilder? sharedMessageBuilder;
+
   /// Ilova bergan transport.
   ///
   /// [MessengerChat.init] chaqirilmagan bo'lsa - dasturchi xatosi, shuning
@@ -57,10 +63,12 @@ class _ChatRuntime {
     required ChatTransport transport,
     required ChatUser me,
     ChatFeatures? features,
+    SharedMessageBuilder? sharedMessageBuilder,
   }) {
     if (features != null) _features = features;
     _transport = transport;
     _me = me;
+    this.sharedMessageBuilder = sharedMessageBuilder;
   }
 
   void setPeer(ChatUser? value) {
@@ -84,6 +92,7 @@ class _ChatRuntime {
     _transport = null;
     _me = null;
     _peer = null;
+    sharedMessageBuilder = null;
     peerNotifier.value = null;
   }
 }

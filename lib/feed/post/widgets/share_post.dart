@@ -120,12 +120,12 @@ class _SharPostState extends State<SharePostView> with SafeSetStateMixin {
   Future<void> _send() async {
     final selected = _selectedUsers.value.toList();
     if (selected.isEmpty) return;
-    final link = 'https://treepnet.com/post/${widget.block.id}';
+    final shareRef = encodePostShare(widget.block.id);
 
     toggleLoadingIndeterminate();
     try {
-      // Phase 1: share the post as a deep link over the new chat backend.
-      // Phase 2 upgrades this to a rich post card (shared by reference).
+      // Shared by reference: only the post id travels (a sentinel text), so no
+      // media is duplicated. The chat thread renders it as a rich post card.
       for (final receiver in selected) {
         if (!mounted) return;
         await shareTextToUser(
@@ -135,7 +135,7 @@ class _SharPostState extends State<SharePostView> with SafeSetStateMixin {
           peerAvatarUrl: (receiver.avatarUrl?.isNotEmpty ?? false)
               ? receiver.avatarUrl
               : null,
-          text: link,
+          text: shareRef,
         );
       }
       if (mounted) context.pop();
@@ -374,12 +374,12 @@ class _ShareStoryState extends State<ShareStoryView> with SafeSetStateMixin {
   Future<void> _send() async {
     final selected = _selectedUsers.value.toList();
     if (selected.isEmpty) return;
-    final link = 'https://treepnet.com/story/${widget.storyId}';
+    final shareRef = encodeStoryShare(widget.storyId);
 
     toggleLoadingIndeterminate();
     try {
-      // Phase 1: share the story as a deep link over the new chat backend.
-      // Phase 2 upgrades this to a rich story card (shared by reference).
+      // Shared by reference: only the story id travels (a sentinel text). The
+      // chat thread renders it as a story card.
       for (final receiver in selected) {
         if (!mounted) return;
         await shareTextToUser(
@@ -389,7 +389,7 @@ class _ShareStoryState extends State<ShareStoryView> with SafeSetStateMixin {
           peerAvatarUrl: (receiver.avatarUrl?.isNotEmpty ?? false)
               ? receiver.avatarUrl
               : null,
-          text: link,
+          text: shareRef,
         );
       }
       if (mounted) context.pop();

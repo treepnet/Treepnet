@@ -1,5 +1,14 @@
 part of messenger_chat;
 
+/// Ilova beradigan maxsus xabar chizuvchisi.
+///
+/// Har bir matn xabari chizilishdan oldin chaqiriladi. `null` qaytarsa - oddiy
+/// matn chiziladi; widget qaytarsa - o'sha widget matn o'rniga chiziladi.
+/// Ilova bu orqali maxsus formatdagi matnlarni (masalan ulashilgan post/story
+/// havolasini) chiroyli kartochka qilib ko'rsatadi. [content] - xabar matni.
+typedef SharedMessageBuilder =
+    Widget? Function(BuildContext context, String content);
+
 /// Xabar turi. Plagin UI ni shunga qarab tanlaydi.
 enum ChatMessageKind { text, photo, video, voice, file }
 
