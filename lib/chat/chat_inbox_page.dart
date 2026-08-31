@@ -40,7 +40,7 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
     final me = context.read<AppBloc>().state.user;
     await ChatSession.instance.ensureStarted(
       myUuid: me.id,
-      myName: me.displayFullName,
+      myName: me.displayUsername,
       myAvatarUrl: me.hasAvatar ? me.avatarUrl : null,
     );
   }
@@ -271,9 +271,10 @@ class _TypeListState extends State<_TypeList> {
 
   @override
   Widget build(BuildContext context) {
-    // Hide people we already have a conversation with.
+    // Hide only people we've actually exchanged a message with — a person
+    // opened-but-not-messaged stays here until something is written.
     final existing = ChatSession.instance.isStarted
-        ? ChatSession.instance.listTransport.peerUuids
+        ? ChatSession.instance.listTransport.messagedPeerUuids
         : const <String>{};
 
     return FutureBuilder<List<User>>(
@@ -338,7 +339,7 @@ class _TypeListState extends State<_TypeList> {
               onTap: () => openChat(
                 context,
                 peerUuid: user.id,
-                peerName: user.displayFullName,
+                peerName: user.displayUsername,
                 peerAvatarUrl: user.hasAvatar ? user.avatarUrl : null,
               ),
             );
@@ -463,6 +464,9 @@ class _ChatsListState extends State<_ChatsList> {
 
     final conversations =
         _map.values
+            // Only conversations with an actual message — a freshly opened but
+            // empty one stays out of Chats until something is written.
+            .where((c) => c.lastMessage.isNotEmpty)
             .where(
               (c) =>
                   widget.query.isEmpty ||

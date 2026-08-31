@@ -318,7 +318,7 @@ class _MessageUserButton extends StatelessWidget {
     await openChat(
       context,
       peerUuid: participant.id,
-      peerName: participant.displayFullName,
+      peerName: participant.displayUsername,
       peerAvatarUrl: participant.hasAvatar ? participant.avatarUrl : null,
     );
   }

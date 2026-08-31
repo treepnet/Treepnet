@@ -131,7 +131,7 @@ class _SharPostState extends State<SharePostView> with SafeSetStateMixin {
         await shareTextToUser(
           context,
           peerUuid: receiver.id,
-          peerName: receiver.displayFullName,
+          peerName: receiver.displayUsername,
           peerAvatarUrl: (receiver.avatarUrl?.isNotEmpty ?? false)
               ? receiver.avatarUrl
               : null,
@@ -385,7 +385,7 @@ class _ShareStoryState extends State<ShareStoryView> with SafeSetStateMixin {
         await shareTextToUser(
           context,
           peerUuid: receiver.id,
-          peerName: receiver.displayFullName,
+          peerName: receiver.displayUsername,
           peerAvatarUrl: (receiver.avatarUrl?.isNotEmpty ?? false)
               ? receiver.avatarUrl
               : null,

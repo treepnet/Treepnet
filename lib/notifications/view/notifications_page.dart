@@ -88,9 +88,7 @@ class _NotificationTile extends StatelessWidget {
         openChat(
           context,
           peerUuid: item.actorId,
-          peerName: (item.actorFullName?.isNotEmpty ?? false)
-              ? item.actorFullName!
-              : item.actorUsername,
+          peerName: item.actorUsername,
           peerAvatarUrl: item.actorAvatarUrl,
         ),
       );

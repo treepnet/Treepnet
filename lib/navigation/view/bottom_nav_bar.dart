@@ -134,7 +134,7 @@ class _ChatTabIconState extends State<_ChatTabIcon> {
       unawaited(
         ChatSession.instance.ensureStarted(
           myUuid: me.id,
-          myName: me.displayFullName,
+          myName: me.displayUsername,
           myAvatarUrl: me.hasAvatar ? me.avatarUrl : null,
         ),
       );

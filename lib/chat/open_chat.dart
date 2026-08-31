@@ -69,7 +69,7 @@ Future<void> openChat(
   try {
     await session.ensureStarted(
       myUuid: me.id,
-      myName: me.displayFullName,
+      myName: me.displayUsername,
       myAvatarUrl: me.hasAvatar ? me.avatarUrl : null,
     );
     opened = await session.openConversation(
@@ -111,7 +111,7 @@ Future<bool> shareTextToUser(
   final session = ChatSession.instance;
   await session.ensureStarted(
     myUuid: me.id,
-    myName: me.displayFullName,
+    myName: me.displayUsername,
     myAvatarUrl: me.hasAvatar ? me.avatarUrl : null,
   );
   await session.sendText(

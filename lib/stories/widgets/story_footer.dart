@@ -126,7 +126,7 @@ class _StoryFooterState extends State<StoryFooter> with WidgetsBindingObserver {
       await shareTextToUser(
         context,
         peerUuid: widget.author.id,
-        peerName: widget.author.displayFullName,
+        peerName: widget.author.displayUsername,
         peerAvatarUrl: (widget.author.avatarUrl?.isNotEmpty ?? false)
             ? widget.author.avatarUrl
             : null,
