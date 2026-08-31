@@ -5,6 +5,23 @@ import 'package:treepnet/app/bloc/app_bloc.dart';
 import 'package:treepnet/chat/backend/dm_transports.dart';
 import 'package:treepnet/chat/chat_session.dart';
 import 'package:treepnet/chat/chat_thread_screen.dart';
+import 'package:user_repository/user_repository.dart';
+
+/// Whether either side has blocked the other — used to gate messaging
+/// app-side (the chat backend doesn't know about blocks). Reads the current
+/// value of the reactive `blocked_users` streams.
+Future<bool> _blockedEitherWay(
+  BuildContext context, {
+  required String meId,
+  required String peerUuid,
+}) async {
+  final repo = context.read<UserRepository>();
+  final results = await Future.wait([
+    repo.isBlocked(userId: meId, otherUserId: peerUuid).first,
+    repo.isBlocked(userId: peerUuid, otherUserId: meId).first,
+  ]);
+  return results.any((blocked) => blocked);
+}
 
 /// Maps the app's current locale to the plugin's language enum.
 ChatLanguage chatLanguageFor(BuildContext context) {
@@ -36,6 +53,15 @@ Future<void> openChat(
   final lang = chatLanguageFor(context);
   final messenger = ScaffoldMessenger.of(context);
   final navigator = Navigator.of(context, rootNavigator: true);
+
+  // App-level block gate: you can't message someone you blocked, or who
+  // blocked you.
+  if (await _blockedEitherWay(context, meId: me.id, peerUuid: peerUuid)) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Bu foydalanuvchi bilan yozishib bo‘lmaydi')),
+    );
+    return;
+  }
 
   ({String conversationId, ChatUser peer}) opened;
   try {
@@ -76,6 +102,9 @@ Future<bool> shareTextToUser(
 }) async {
   final me = context.read<AppBloc>().state.user;
   if (me.isAnonymous || peerUuid.isEmpty || peerUuid == me.id) return false;
+  if (await _blockedEitherWay(context, meId: me.id, peerUuid: peerUuid)) {
+    return false;
+  }
 
   final session = ChatSession.instance;
   await session.ensureStarted(

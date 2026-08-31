@@ -1,5 +1,10 @@
+import 'dart:async';
+
 import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:treepnet/app/bloc/app_bloc.dart';
+import 'package:treepnet/chat/chat.dart';
 import 'package:treepnet/feed/feed.dart';
 import 'package:treepnet/feed/post/video/video.dart';
 import 'package:treepnet/home/home.dart';
@@ -105,16 +110,50 @@ class BottomNavBar extends StatelessWidget {
   }
 }
 
-/// The Chat tab icon.
+/// The Chat tab icon with a live unread-messages badge.
 ///
-/// The unread-count badge is deferred to chat-migration Phase 2, which will
-/// feed it from the new backend's conversation list. Until then this is a plain
-/// passthrough (the old PowerSync `unreadMessagesCount` source is gone).
-class _ChatTabIcon extends StatelessWidget {
+/// Also the app-wide trigger that starts the chat session right after login:
+/// the nav bar is present whenever the user is authenticated, so starting here
+/// connects the socket and warms the conversation list so the badge is live
+/// even before the inbox is first opened.
+class _ChatTabIcon extends StatefulWidget {
   const _ChatTabIcon({required this.child});
 
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => child;
+  State<_ChatTabIcon> createState() => _ChatTabIconState();
+}
+
+class _ChatTabIconState extends State<_ChatTabIcon> {
+  @override
+  void initState() {
+    super.initState();
+    final me = context.read<AppBloc>().state.user;
+    if (!me.isAnonymous) {
+      unawaited(
+        ChatSession.instance.ensureStarted(
+          myUuid: me.id,
+          myName: me.displayFullName,
+          myAvatarUrl: me.hasAvatar ? me.avatarUrl : null,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: ChatSession.instance.unreadTotal,
+      builder: (context, count, _) => Badge.count(
+        count: count,
+        isLabelVisible: count > 0,
+        // White pill, black number — the default red-on-white badge was the
+        // only saturated colour left in the bar.
+        backgroundColor: AppColors.white,
+        textColor: AppColors.black,
+        child: widget.child,
+      ),
+    );
+  }
 }

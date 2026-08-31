@@ -3,7 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:messenger_chat/messenger_chat.dart';
 import 'package:treepnet/app/bloc/app_bloc.dart';
 import 'package:treepnet/chat/chat_session.dart';
+import 'package:treepnet/chat/new_chat_screen.dart';
 import 'package:treepnet/chat/open_chat.dart';
+import 'package:user_repository/user_repository.dart';
 
 /// The chat inbox (conversation list), backed by the messenger_chat plugin.
 ///
@@ -54,6 +56,20 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
 
   void _retry() => setState(() => _bootstrap = _start());
 
+  /// Opens people search; on selection, opens the chat with that user.
+  Future<void> _newChat() async {
+    final user = await Navigator.of(context, rootNavigator: true).push<User>(
+      MaterialPageRoute(builder: (_) => const NewChatScreen()),
+    );
+    if (user == null || !mounted) return;
+    await openChat(
+      context,
+      peerUuid: user.id,
+      peerName: user.displayFullName,
+      peerAvatarUrl: user.hasAvatar ? user.avatarUrl : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: _background,
@@ -69,6 +85,13 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
           fontWeight: FontWeight.w600,
         ),
       ),
+      actions: [
+        IconButton(
+          onPressed: _newChat,
+          icon: const Icon(Icons.edit_outlined, color: Colors.white),
+          tooltip: 'Yangi suhbat',
+        ),
+      ],
     ),
     body: FutureBuilder<void>(
       future: _bootstrap,

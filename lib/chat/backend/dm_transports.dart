@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:messenger_chat/messenger_chat.dart';
 
 import 'package:treepnet/chat/backend/dm_api.dart';
@@ -209,6 +210,17 @@ class DmListTransport implements ChatListTransport {
   /// The list's current state — we update it from incoming events.
   final Map<String, ChatConversation> _conversations = {};
 
+  /// Total unread across all conversations, for the nav-bar badge. Updated
+  /// whenever [_conversations] changes.
+  final ValueNotifier<int> unreadTotal = ValueNotifier<int>(0);
+
+  void _recomputeUnread() {
+    unreadTotal.value = _conversations.values.fold<int>(
+      0,
+      (sum, c) => sum + c.unreadCount,
+    );
+  }
+
   @override
   Stream<ChatListEvent> get events => _events.stream;
 
@@ -237,6 +249,7 @@ class DmListTransport implements ChatListTransport {
                 : current.unreadCount + 1,
           );
           _conversations[updated.id] = updated;
+          _recomputeUnread();
           _events.add(ChatConversationUpserted(updated));
 
         case DmReadEvent(:final conversationId):
@@ -247,6 +260,7 @@ class DmListTransport implements ChatListTransport {
             lastMessageIsRead: true,
           );
           _conversations[conversationId] = updated;
+          _recomputeUnread();
           _events.add(ChatConversationUpserted(updated));
 
         case DmPresenceEvent(:final userId, :final isOnline, :final lastSeen):
@@ -288,6 +302,7 @@ class DmListTransport implements ChatListTransport {
     for (final conversation in conversations) {
       _conversations[conversation.id] = conversation;
     }
+    _recomputeUnread();
 
     return ChatConversationPage(
       conversations: conversations,
@@ -335,6 +350,7 @@ class DmListTransport implements ChatListTransport {
   Future<void> dispose() async {
     await _subscription?.cancel();
     _subscription = null;
+    unreadTotal.dispose();
     await _events.close();
     await api.dispose();
   }

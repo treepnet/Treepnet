@@ -5,4 +5,5 @@ library;
 export 'chat_inbox_page.dart';
 export 'chat_session.dart';
 export 'chat_thread_screen.dart';
+export 'new_chat_screen.dart';
 export 'open_chat.dart';

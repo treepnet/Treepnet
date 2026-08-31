@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:messenger_chat/messenger_chat.dart';
 
 import 'package:treepnet/chat/backend/chat_backend_config.dart';
@@ -29,6 +31,12 @@ class ChatSession {
 
   /// Display name of the current user, shown as the "me" side of a thread.
   String _myName = '';
+
+  /// Total unread across all conversations, for the nav-bar badge. Stable
+  /// across the session (mirrors the current list transport), so widgets can
+  /// bind to it once.
+  final ValueNotifier<int> unreadTotal = ValueNotifier<int>(0);
+  VoidCallback? _unreadListener;
 
   DmApi get api => _api!;
   DmListTransport get listTransport => _listTransport!;
@@ -68,7 +76,25 @@ class ChatSession {
     _myUuid = myUuid;
     _myName = myName;
     _api = api;
-    _listTransport = DmListTransport(api: api, myUserId: _myUserId);
+    final list = DmListTransport(api: api, myUserId: _myUserId);
+    _listTransport = list;
+
+    // Mirror the transport's unread into the stable session notifier.
+    _unreadListener = () => unreadTotal.value = list.unreadTotal.value;
+    list.unreadTotal.addListener(_unreadListener!);
+
+    // Warm up in the background so the badge is populated and real-time
+    // updates arrive app-wide, even before the inbox is opened. Best-effort.
+    unawaited(_warmUp(list));
+  }
+
+  Future<void> _warmUp(DmListTransport list) async {
+    try {
+      await list.connect();
+      await list.loadConversations(page: 1, size: 50);
+    } catch (_) {
+      // Badge stays at its last value; the inbox will retry on open.
+    }
   }
 
   /// Opens (or finds) the 1:1 conversation with [peerUuid] and returns its id
@@ -130,11 +156,17 @@ class ChatSession {
 
   /// Tears down the connection (logout / user switch).
   Future<void> stop() async {
+    final listener = _unreadListener;
+    if (listener != null) {
+      _listTransport?.unreadTotal.removeListener(listener);
+      _unreadListener = null;
+    }
     await _listTransport?.dispose();
     _listTransport = null;
     _api = null;
     _myUuid = '';
     _myUserId = '';
     _myName = '';
+    unreadTotal.value = 0;
   }
 }
