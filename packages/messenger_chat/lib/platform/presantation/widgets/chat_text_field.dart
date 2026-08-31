@@ -446,8 +446,11 @@ class _ChatTextFieldState extends State<_ChatTextField> {
                     alignment: Alignment.bottomRight,
                     clipBehavior: Clip.none,
                     children: [
-                      if (!(widget.config?.voiceIsBlock ?? false))
-                        Padding(
+                      // The send button must always be available for text; only
+                      // the mic (empty-text fallback) is gated on voice being
+                      // enabled. Previously this `if` hid BOTH, so text-only
+                      // mode (ChatFeatures voice:false) had no way to send.
+                      Padding(
                           padding: const EdgeInsets.only(left: 8, bottom: 2),
                           child: ValueListenableBuilder<TextEditingValue>(
                             valueListenable: widget.controller!,
@@ -530,6 +533,8 @@ class _ChatTextFieldState extends State<_ChatTextField> {
                                           ),
                                         ),
                                       )
+                                    : (widget.config?.voiceIsBlock ?? false)
+                                    ? const SizedBox.shrink()
                                     : _MicButton(
                                         key: const ValueKey('mic'),
                                         voiceController: widget.voiceController,
