@@ -47,6 +47,10 @@ class DmChatTransport implements ChatTransport {
           if (message.conversationId != conversationId) return;
           _events.add(ChatMessageReceived(_toIncoming(message)));
 
+        case DmMessageUpdatedEvent(:final message)
+            when message.conversationId == conversationId:
+          _events.add(ChatMessageUpdated(_toIncoming(message)));
+
         case DmTypingEvent(:final isTyping, :final contentType)
             when event.conversationId == conversationId:
           _events.add(
@@ -185,6 +189,16 @@ class DmChatTransport implements ChatTransport {
       api.markRead(conversationId: conversationId, messageId: messageId);
 
   @override
+  Future<void> editMessage({
+    required String messageId,
+    required String content,
+  }) async => api.edit(messageId: messageId, content: content);
+
+  @override
+  Future<void> deleteMessage({required String messageId}) async =>
+      api.deleteMessage(messageId: messageId);
+
+  @override
   Future<void> dispose() async {
     await _subscription?.cancel();
     _subscription = null;
@@ -206,6 +220,8 @@ class DmChatTransport implements ChatTransport {
     sentAt: m.date,
     clientKey: m.key,
     isRead: m.isRead,
+    isEdited: m.isEdited,
+    isDeleted: m.isDeleted,
     replyTo: m.replyToId == null
         ? null
         : ChatReplyInfo(

@@ -47,6 +47,8 @@ class ChatIncomingMessage {
     this.isRead = false,
     this.senderName,
     this.replyTo,
+    this.isEdited = false,
+    this.isDeleted = false,
   });
 
   /// Serverdagi barqaror identifikator.
@@ -88,6 +90,12 @@ class ChatIncomingMessage {
 
   /// Bu xabar javob bo'lsa - javob berilgan xabarning iqtibosi.
   final ChatReplyInfo? replyTo;
+
+  /// Xabar tahrirlanganmi (yonida "tahrirlangan" yorlig'i ko'rsatiladi).
+  final bool isEdited;
+
+  /// Xabar o'chirilganmi - o'rniga "xabar o'chirildi" ko'rsatiladi.
+  final bool isDeleted;
 }
 
 /// Tarixning bitta sahifasi.
@@ -159,6 +167,13 @@ sealed class ChatTransportEvent {
 /// Yangi xabar keldi (o'zimiz yuborgan xabarning tasdig'i ham shu orqali keladi).
 class ChatMessageReceived extends ChatTransportEvent {
   const ChatMessageReceived(this.message);
+  final ChatIncomingMessage message;
+}
+
+/// Mavjud xabar yangilandi (tahrirlandi yoki o'chirildi). Plagin uni
+/// identifikatori bo'yicha topib almashtiradi (yangi qo'shmaydi).
+class ChatMessageUpdated extends ChatTransportEvent {
+  const ChatMessageUpdated(this.message);
   final ChatIncomingMessage message;
 }
 
@@ -241,6 +256,16 @@ abstract class ChatTransport {
 
   /// Xabarlarni o'qilgan deb belgilaydi. [messageId] berilmasa - hammasi.
   Future<void> markRead({String? messageId});
+
+  /// O'z xabaringizni tahrirlaydi. Natija [ChatMessageUpdated] bilan keladi.
+  Future<void> editMessage({
+    required String messageId,
+    required String content,
+  });
+
+  /// O'z xabaringizni o'chiradi (soft-delete). Natija [ChatMessageUpdated]
+  /// bilan keladi (`isDeleted = true`).
+  Future<void> deleteMessage({required String messageId});
 
   /// Kiruvchi hodisalar oqimi.
   Stream<ChatTransportEvent> get events;

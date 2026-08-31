@@ -7,6 +7,7 @@ class _MessageList extends StatefulWidget {
     this.bottomPaddingNotifier,
     this.hasAppBar = false,
     this.onReply,
+    this.onLongPress,
   });
 
   final ChatMessageStyle messageStyle;
@@ -16,6 +17,9 @@ class _MessageList extends StatefulWidget {
 
   /// Xabarga swipe qilinganda javob rejimini yoqadi.
   final void Function(_MessageModel message)? onReply;
+
+  /// Xabarga uzoq bosilganda amallar menyusini ochadi.
+  final void Function(_MessageModel message)? onLongPress;
 
   @override
   State<_MessageList> createState() => _MessageListState();
@@ -202,6 +206,9 @@ class _MessageListState extends State<_MessageList> {
                               enabled:
                                   widget.onReply != null && !message.isLocal,
                               onReply: () => widget.onReply?.call(message),
+                              onLongPress: message.isLocal
+                                  ? null
+                                  : () => widget.onLongPress?.call(message),
                               child: _ChatBubble(
                                 isAdmin: message.isFromPeer,
                                 message: message,
@@ -232,11 +239,13 @@ class _SwipeToReply extends StatefulWidget {
   const _SwipeToReply({
     required this.child,
     required this.onReply,
+    this.onLongPress,
     this.enabled = true,
   });
 
   final Widget child;
   final VoidCallback onReply;
+  final VoidCallback? onLongPress;
   final bool enabled;
 
   @override
@@ -256,6 +265,7 @@ class _SwipeToReplyState extends State<_SwipeToReply> {
 
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
+      onLongPress: widget.onLongPress,
       onHorizontalDragUpdate: (details) {
         setState(() {
           _dx = (_dx + details.delta.dx).clamp(0.0, _maxDrag);

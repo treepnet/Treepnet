@@ -63,6 +63,15 @@ class _ChatSocket {
           cubit.addMessage(model);
         }
 
+      case ChatMessageUpdated(:final message):
+        // Tahrirlangan/o'chirilgan xabar - id/kalit bo'yicha topib almashtiramiz.
+        cubit.updateMessage(
+          _MessageModel.fromIncoming(
+            message,
+            myId: _ChatRuntime.instance.me.id,
+          ),
+        );
+
       case ChatTypingChanged(:final isTyping, :final kind):
         cubit.typing(
           isTyping: isTyping,
@@ -149,6 +158,25 @@ class _ChatSocket {
       await _transport?.markRead(messageId: messageId);
     } catch (e) {
       _ChatLogger.print('markRead yuborilmadi: $e');
+    }
+  }
+
+  static Future<void> editMessage({
+    required String messageId,
+    required String content,
+  }) async {
+    try {
+      await _transport?.editMessage(messageId: messageId, content: content);
+    } catch (e) {
+      _ChatLogger.print('editMessage yuborilmadi: $e');
+    }
+  }
+
+  static Future<void> deleteMessage({required String messageId}) async {
+    try {
+      await _transport?.deleteMessage(messageId: messageId);
+    } catch (e) {
+      _ChatLogger.print('deleteMessage yuborilmadi: $e');
     }
   }
 

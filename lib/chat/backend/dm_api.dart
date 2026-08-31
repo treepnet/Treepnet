@@ -90,6 +90,14 @@ class DmApi {
     socket.on('dm.newMessage', (data) {
       if (data is Map) _events.add(DmMessageEvent(DmMessage.fromJson(data)));
     });
+    void onUpdated(dynamic data) {
+      if (data is Map) {
+        _events.add(DmMessageUpdatedEvent(DmMessage.fromJson(data)));
+      }
+    }
+
+    socket.on('dm.messageEdited', onUpdated);
+    socket.on('dm.messageDeleted', onUpdated);
     socket.on('dm.typing', (data) {
       if (data is! Map) return;
       _events.add(
@@ -175,6 +183,12 @@ class DmApi {
         if (messageId != null) 'messageId': messageId,
       });
 
+  void edit({required String messageId, required String content}) =>
+      _socket?.emit('dm.edit', {'messageId': messageId, 'content': content});
+
+  void deleteMessage({required String messageId}) =>
+      _socket?.emit('dm.delete', {'messageId': messageId});
+
   /// Absolute URL — the server returns media paths relative to its origin.
   String absolute(String path) {
     if (path.isEmpty) return '';
@@ -203,6 +217,8 @@ class DmMessage {
       contentType = json['contentType']?.toString() ?? 'text',
       key = json['key']?.toString(),
       isRead = json['isRead'] == true,
+      isEdited = json['isEdited'] == true,
+      isDeleted = json['isDeleted'] == true,
       svg = json['svg']?.toString(),
       png = json['png']?.toString(),
       duration = json['duration']?.toString(),
@@ -220,6 +236,8 @@ class DmMessage {
   final String contentType;
   final String? key;
   final bool isRead;
+  final bool isEdited;
+  final bool isDeleted;
   final String? svg;
 
   /// Video thumbnail URL.
@@ -248,6 +266,12 @@ sealed class DmEvent {
 
 class DmMessageEvent extends DmEvent {
   const DmMessageEvent(this.message);
+  final DmMessage message;
+}
+
+/// An existing message was edited or deleted (carries the updated snapshot).
+class DmMessageUpdatedEvent extends DmEvent {
+  const DmMessageUpdatedEvent(this.message);
   final DmMessage message;
 }
 

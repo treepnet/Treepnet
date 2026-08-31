@@ -100,6 +100,38 @@ class _TextMessageState extends State<_TextMessage> {
     );
     if (shared != null) return shared;
 
+    if (widget.message.isDeleted) {
+      final base = isAdmin
+          ? style.adminMessageTextStyle
+          : style.clientMessageTextStyle;
+      return Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.85,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(
+          color: isAdmin
+              ? style.adminMessageBackgroundColor
+              : style.clientMessageBackgroundColor,
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.block, size: 14, color: Colors.white54),
+            const SizedBox(width: 6),
+            Text(
+              'Xabar o‘chirildi',
+              style: base.copyWith(
+                fontStyle: FontStyle.italic,
+                color: Colors.white54,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       constraints: BoxConstraints(
         maxWidth: MediaQuery.of(context).size.width * 0.85,
@@ -284,6 +316,17 @@ class _TextMessageState extends State<_TextMessage> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (widget.message.isEdited) ...[
+                  Text(
+                    'tahrirlangan',
+                    style:
+                        (isAdmin
+                                ? style.adminMessageTimeTextStyle
+                                : style.clientMessageTimeTextStyle)
+                            .copyWith(fontStyle: FontStyle.italic),
+                  ),
+                  const SizedBox(width: 6),
+                ],
                 Text(
                   widget.message.time,
 

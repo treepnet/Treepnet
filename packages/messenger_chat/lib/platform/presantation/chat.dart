@@ -273,6 +273,10 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
   final ValueNotifier<_MessageModel?> _replyingTo =
       ValueNotifier<_MessageModel?>(null);
 
+  /// Tahrirlanayotgan xabar. `null` bo'lsa - tahrir rejimi o'chiq.
+  final ValueNotifier<_MessageModel?> _editingMessage =
+      ValueNotifier<_MessageModel?>(null);
+
   String _baseUrl = '';
 
   @override
@@ -353,6 +357,20 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
 
     final message = _controller.text;
     _controller.clear();
+
+    // Tahrir rejimida bo'lsa - yangi xabar emas, mavjud xabarni yangilaymiz.
+    final editing = _editingMessage.value;
+    if (editing != null) {
+      _editingMessage.value = null;
+      if (editing.content.content != message) {
+        _cubit?.updateMessage(
+          editing.copyWith(content: Message(content: message), isEdited: true),
+        );
+        await _ChatSocket.editMessage(messageId: editing.id, content: message);
+      }
+      _focusNode.requestFocus();
+      return;
+    }
 
     // Javob rejimida bo'lsa - iqtibosni ilova qilamiz, so'ng rejimni yopamiz.
     final replyModel = _replyingTo.value;
@@ -443,16 +461,101 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
     _bottomPaddingNotifier.dispose();
     _showScrollDownNotifier.dispose();
     _replyingTo.dispose();
+    _editingMessage.dispose();
     super.dispose();
   }
 
   /// Swipe orqali javob berish rejimini yoqadi.
   void _startReply(_MessageModel message) {
+    _editingMessage.value = null;
     _replyingTo.value = message;
     _focusNode.requestFocus();
   }
 
   void _cancelReply() => _replyingTo.value = null;
+
+  /// Xabarni tahrirlash rejimini yoqadi (matnni maydonga oldindan qo'yadi).
+  void _startEdit(_MessageModel message) {
+    _replyingTo.value = null;
+    _editingMessage.value = message;
+    _controller
+      ..text = message.content.content
+      ..selection = TextSelection.collapsed(
+        offset: message.content.content.length,
+      );
+    _focusNode.requestFocus();
+  }
+
+  void _cancelEdit() {
+    _editingMessage.value = null;
+    _controller.clear();
+  }
+
+  /// O'z xabaringizni o'chirish (tasdiqlash bilan).
+  Future<void> _deleteMessage(_MessageModel message) async {
+    if (message.id.isEmpty) return;
+    await _ChatSocket.deleteMessage(messageId: message.id);
+  }
+
+  /// Xabarga uzoq bosilganda amallar menyusini ochadi.
+  void _onMessageMenu(_MessageModel message) {
+    if (message.isDeleted) return;
+    final canModify = message.isMine && !message.id.isEmpty;
+    final isText = message.contentType == _ContentType.text;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xff222222),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.reply, color: Colors.white),
+              title: Text(
+                'Javob',
+                style: const TextStyle(color: Colors.white),
+              ),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _startReply(message);
+              },
+            ),
+            if (canModify && isText)
+              ListTile(
+                leading: const Icon(Icons.edit_outlined, color: Colors.white),
+                title: Text(
+                  'Tahrirlash',
+                  style: const TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _startEdit(message);
+                },
+              ),
+            if (canModify)
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline,
+                  color: Color(0xffEE1D23),
+                ),
+                title: Text(
+                  'O‘chirish',
+                  style: const TextStyle(color: Color(0xffEE1D23)),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  unawaited(_deleteMessage(message));
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
   /// Iqtibosda ko'rsatiladigan qisqa matn (media uchun yorliq).
   static String _replyPreview(_MessageModel m) => switch (m.contentType) {
@@ -510,6 +613,7 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
                 hasAppBar: widget.chatAppBarStyle != null,
                 listScrollController: _listScrollController,
                 onReply: _startReply,
+                onLongPress: _onMessageMenu,
               ),
             ),
 
@@ -642,6 +746,17 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
                           onCancel: _cancelReply,
                         ),
                       ),
+                      // Edit preview bar
+                      ValueListenableBuilder<_MessageModel?>(
+                        valueListenable: _editingMessage,
+                        builder: (context, editing, _) => _ReplyPreviewBar(
+                          message: editing,
+                          messageStyle: widget.messageStyle,
+                          previewOf: _replyPreview,
+                          onCancel: _cancelEdit,
+                          isEdit: true,
+                        ),
+                      ),
                       // Input field
                       ValueListenableBuilder<bool>(
                         valueListenable: _showEmojiNotifier,
@@ -735,12 +850,16 @@ class _ReplyPreviewBar extends StatelessWidget {
     required this.messageStyle,
     required this.previewOf,
     required this.onCancel,
+    this.isEdit = false,
   });
 
   final _MessageModel? message;
   final ChatMessageStyle messageStyle;
   final String Function(_MessageModel) previewOf;
   final VoidCallback onCancel;
+
+  /// `true` bo'lsa - tahrirlash rejimi (javob emas): boshqa ikona va sarlavha.
+  final bool isEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -764,7 +883,11 @@ class _ReplyPreviewBar extends StatelessWidget {
                 child: Row(
                   children: [
                     const SizedBox(width: 8),
-                    const Icon(Icons.reply, size: 18, color: Color(0xff728FCE)),
+                    Icon(
+                      isEdit ? Icons.edit_outlined : Icons.reply,
+                      size: 18,
+                      color: const Color(0xff728FCE),
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Column(
@@ -772,9 +895,12 @@ class _ReplyPreviewBar extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            m.isMine
-                                ? _ChatRuntime.instance.me.name
-                                : (_ChatRuntime.instance.peer?.name ?? ''),
+                            isEdit
+                                ? 'Tahrirlash'
+                                : (m.isMine
+                                      ? _ChatRuntime.instance.me.name
+                                      : (_ChatRuntime.instance.peer?.name ??
+                                            '')),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(

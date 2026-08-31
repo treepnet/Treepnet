@@ -19,6 +19,8 @@ class _MessageModel extends Equatable {
     this.width,
     this.height,
     this.replyTo,
+    this.isEdited = false,
+    this.isDeleted = false,
   });
 
   /// Transportdan kelgan xabarni UI modeliga aylantiradi.
@@ -50,6 +52,8 @@ class _MessageModel extends Equatable {
     isRead: message.isRead,
     uploadProgress: 0,
     replyTo: message.replyTo,
+    isEdited: message.isEdited,
+    isDeleted: message.isDeleted,
   );
 
   /// Serverdagi identifikator. Bo'sh satr - xabar hali yuborilmagan
@@ -79,6 +83,9 @@ class _MessageModel extends Equatable {
   /// Bu xabar javob bo'lsa - javob berilgan xabarning iqtibosi.
   final ChatReplyInfo? replyTo;
 
+  final bool isEdited;
+  final bool isDeleted;
+
   _MessageModel copyWith({
     String? id,
     Message? content,
@@ -97,6 +104,8 @@ class _MessageModel extends Equatable {
     bool? sendMessage,
     double? uploadProgress,
     ChatReplyInfo? replyTo,
+    bool? isEdited,
+    bool? isDeleted,
   }) => _MessageModel(
     id: id ?? this.id,
     width: width ?? this.width,
@@ -115,6 +124,8 @@ class _MessageModel extends Equatable {
     sendMessage: sendMessage ?? this.sendMessage,
     uploadProgress: uploadProgress ?? this.uploadProgress,
     replyTo: replyTo ?? this.replyTo,
+    isEdited: isEdited ?? this.isEdited,
+    isDeleted: isDeleted ?? this.isDeleted,
   );
 
   /// Hali yuborilmagan (optimistik) xabar uchun asos.
@@ -174,6 +185,8 @@ class _MessageModel extends Equatable {
     time,
     voiceWave,
     replyTo?.messageId,
+    isEdited,
+    isDeleted,
   ];
 }
 
