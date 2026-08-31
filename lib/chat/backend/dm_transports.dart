@@ -229,6 +229,14 @@ class DmListTransport implements ChatListTransport {
   /// The list's current state — we update it from incoming events.
   final Map<String, ChatConversation> _conversations = {};
 
+  /// Peer's app-side profile uuid per conversation id. The plugin's [ChatUser]
+  /// only carries the backend numeric id, but block checks need the app uuid —
+  /// so we keep it here from the conversation payload.
+  final Map<String, String> _peerUuidById = {};
+
+  /// The app-side profile uuid of the conversation's peer, if known.
+  String? peerUuidOf(String conversationId) => _peerUuidById[conversationId];
+
   /// Total unread across all conversations, for the nav-bar badge. Updated
   /// whenever [_conversations] changes.
   final ValueNotifier<int> unreadTotal = ValueNotifier<int>(0);
@@ -345,8 +353,14 @@ class DmListTransport implements ChatListTransport {
     final last = json['lastMessage'] as Map?;
     final message = last == null ? null : DmMessage.fromJson(last);
 
+    final id = json['id']?.toString() ?? '';
+    final peerUuid = peer?['uuid']?.toString();
+    if (peerUuid != null && peerUuid.isNotEmpty) {
+      _peerUuidById[id] = peerUuid;
+    }
+
     return ChatConversation(
-      id: json['id']?.toString() ?? '',
+      id: id,
       peer: ChatUser(
         id: peer?['id']?.toString() ?? '',
         name: peer?['name']?.toString() ?? '',

@@ -123,17 +123,41 @@ Future<bool> shareTextToUser(
 }
 
 /// Opens a conversation the inbox already resolved (id + peer known), skipping
-/// the create/find round-trip.
+/// the create/find round-trip. Still applies the block gate: the peer's app
+/// uuid comes from the list transport (the plugin's [ChatUser] only carries the
+/// backend id).
 Future<void> openConversationScreen(
   BuildContext context, {
   required String conversationId,
   required ChatUser peer,
-}) => _pushThread(
-  Navigator.of(context, rootNavigator: true),
-  conversationId: conversationId,
-  peer: peer,
-  lang: chatLanguageFor(context),
-);
+}) async {
+  final session = ChatSession.instance;
+  final peerUuid = session.isStarted
+      ? session.listTransport.peerUuidOf(conversationId)
+      : null;
+
+  if (peerUuid != null && peerUuid.isNotEmpty) {
+    final me = context.read<AppBloc>().state.user;
+    final messenger = ScaffoldMessenger.of(context);
+    if (!me.isAnonymous &&
+        await _blockedEitherWay(context, meId: me.id, peerUuid: peerUuid)) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Bu foydalanuvchi bilan yozishib bo‘lmaydi'),
+        ),
+      );
+      return;
+    }
+  }
+
+  if (!context.mounted) return;
+  await _pushThread(
+    Navigator.of(context, rootNavigator: true),
+    conversationId: conversationId,
+    peer: peer,
+    lang: chatLanguageFor(context),
+  );
+}
 
 /// Configures the plugin for [conversationId], pushes the thread, and releases
 /// the plugin's per-conversation resources when the thread is popped.
