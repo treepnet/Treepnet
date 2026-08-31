@@ -178,7 +178,11 @@ services:
       CORS_ORIGIN: "*"
       PORT: "3000"
       UPLOAD_DIR: uploads
+      # FCM push: reuse the stack's existing service account (Firebase project
+      # treepnet-1fa8d, shared with pushworker).
+      FCM_SERVICE_ACCOUNT: /app/fcm-service-account.json
     volumes:
       - chat_uploads:/app/uploads
+      - ./functions/fcm-service-account.json:/app/fcm-service-account.json:ro
     networks:
       - treepnet

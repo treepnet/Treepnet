@@ -189,6 +189,16 @@ class DmApi {
   void deleteMessage({required String messageId}) =>
       _socket?.emit('dm.delete', {'messageId': messageId});
 
+  /// Registers this device's FCM token with the chat backend so the peer's
+  /// messages arrive as push notifications when the app is closed.
+  Future<void> registerDeviceToken({
+    required String token,
+    required String platform,
+  }) => dio.post<Map<String, dynamic>>(
+    '/chat/dm/device-token',
+    data: {'token': token, 'platform': platform},
+  );
+
   /// Absolute URL — the server returns media paths relative to its origin.
   String absolute(String path) {
     if (path.isEmpty) return '';

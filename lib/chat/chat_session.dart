@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:messenger_chat/messenger_chat.dart';
 
@@ -86,6 +87,29 @@ class ChatSession {
     // Warm up in the background so the badge is populated and real-time
     // updates arrive app-wide, even before the inbox is opened. Best-effort.
     unawaited(_warmUp(list));
+    unawaited(_registerPushToken());
+  }
+
+  StreamSubscription<String>? _tokenRefreshSub;
+
+  /// Registers this device's FCM token with the chat backend so messages push
+  /// while the app is closed. Best-effort — push just won't work if it fails.
+  Future<void> _registerPushToken() async {
+    try {
+      final platform = Platform.operatingSystem;
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null && token.isNotEmpty) {
+        await _api?.registerDeviceToken(token: token, platform: platform);
+      }
+      _tokenRefreshSub ??= FirebaseMessaging.instance.onTokenRefresh.listen((t) {
+        unawaited(
+          _api?.registerDeviceToken(token: t, platform: platform) ??
+              Future<void>.value(),
+        );
+      });
+    } catch (_) {
+      // Firebase not configured on this build / no APNs token yet — ignore.
+    }
   }
 
   Future<void> _warmUp(DmListTransport list) async {
@@ -156,6 +180,8 @@ class ChatSession {
 
   /// Tears down the connection (logout / user switch).
   Future<void> stop() async {
+    await _tokenRefreshSub?.cancel();
+    _tokenRefreshSub = null;
     final listener = _unreadListener;
     if (listener != null) {
       _listTransport?.unreadTotal.removeListener(listener);
