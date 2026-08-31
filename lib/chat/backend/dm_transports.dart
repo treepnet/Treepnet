@@ -253,6 +253,10 @@ class DmListTransport implements ChatListTransport {
   /// The app-side profile uuid of the conversation's peer, if known.
   String? peerUuidOf(String conversationId) => _peerUuidById[conversationId];
 
+  /// App-side uuids of every peer we already have a conversation with — used to
+  /// hide them from the "new chat" (Type) recommendations.
+  Set<String> get peerUuids => _peerUuidById.values.toSet();
+
   /// Total unread across all conversations, for the nav-bar badge. Updated
   /// whenever [_conversations] changes.
   final ValueNotifier<int> unreadTotal = ValueNotifier<int>(0);
