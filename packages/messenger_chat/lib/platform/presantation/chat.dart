@@ -268,6 +268,11 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
     false,
   );
 
+  /// Javob berilayotgan xabar (swipe orqali tanlanadi). `null` bo'lsa - oddiy
+  /// yangi xabar.
+  final ValueNotifier<_MessageModel?> _replyingTo =
+      ValueNotifier<_MessageModel?>(null);
+
   String _baseUrl = '';
 
   @override
@@ -349,6 +354,17 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
     final message = _controller.text;
     _controller.clear();
 
+    // Javob rejimida bo'lsa - iqtibosni ilova qilamiz, so'ng rejimni yopamiz.
+    final replyModel = _replyingTo.value;
+    final replyInfo = replyModel == null
+        ? null
+        : ChatReplyInfo(
+            messageId: replyModel.id,
+            content: _replyPreview(replyModel),
+            senderId: replyModel.senderId,
+          );
+    _replyingTo.value = null;
+
     final key = DateTime.now().millisecondsSinceEpoch.toString();
     _cubit?.addMessage(
       _MessageModel.initial.copyWith(
@@ -356,6 +372,7 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
         date: DateTime.now().toIso8601String(),
         key: key,
         status: MessageStatus.sending,
+        replyTo: replyInfo,
       ),
     );
 
@@ -367,6 +384,7 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
         clientKey: key,
         kind: ChatMessageKind.text,
         content: message,
+        replyTo: replyInfo,
       ),
       onError: (_) {
         _cubit?.updateMessage(
@@ -424,8 +442,26 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
     _isEmojiModeNotifier.dispose();
     _bottomPaddingNotifier.dispose();
     _showScrollDownNotifier.dispose();
+    _replyingTo.dispose();
     super.dispose();
   }
+
+  /// Swipe orqali javob berish rejimini yoqadi.
+  void _startReply(_MessageModel message) {
+    _replyingTo.value = message;
+    _focusNode.requestFocus();
+  }
+
+  void _cancelReply() => _replyingTo.value = null;
+
+  /// Iqtibosda ko'rsatiladigan qisqa matn (media uchun yorliq).
+  static String _replyPreview(_MessageModel m) => switch (m.contentType) {
+    _ContentType.photo => '📷 Rasm',
+    _ContentType.video => '🎬 Video',
+    _ContentType.voice => '🎤 Ovozli xabar',
+    _ContentType.document => '📎 Fayl',
+    _ => m.content.content,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -473,6 +509,7 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
                 bottomPaddingNotifier: _bottomPaddingNotifier,
                 hasAppBar: widget.chatAppBarStyle != null,
                 listScrollController: _listScrollController,
+                onReply: _startReply,
               ),
             ),
 
@@ -595,6 +632,16 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
                           );
                         },
                       ),
+                      // Reply preview bar
+                      ValueListenableBuilder<_MessageModel?>(
+                        valueListenable: _replyingTo,
+                        builder: (context, replyingTo, _) => _ReplyPreviewBar(
+                          message: replyingTo,
+                          messageStyle: widget.messageStyle,
+                          previewOf: _replyPreview,
+                          onCancel: _cancelReply,
+                        ),
+                      ),
                       // Input field
                       ValueListenableBuilder<bool>(
                         valueListenable: _showEmojiNotifier,
@@ -676,6 +723,91 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Composer ustidagi javob-iqtibosi paneli. Swipe orqali javob tanlanganda
+/// ko'rinadi.
+class _ReplyPreviewBar extends StatelessWidget {
+  const _ReplyPreviewBar({
+    required this.message,
+    required this.messageStyle,
+    required this.previewOf,
+    required this.onCancel,
+  });
+
+  final _MessageModel? message;
+  final ChatMessageStyle messageStyle;
+  final String Function(_MessageModel) previewOf;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final m = message;
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 180),
+      alignment: Alignment.bottomCenter,
+      child: m == null
+          ? const SizedBox(width: double.infinity)
+          : Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 2),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: const Border(
+                    left: BorderSide(color: Color(0xff728FCE), width: 3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 8),
+                    const Icon(Icons.reply, size: 18, color: Color(0xff728FCE)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            m.isMine
+                                ? _ChatRuntime.instance.me.name
+                                : (_ChatRuntime.instance.peer?.name ?? ''),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xff728FCE),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                          Text(
+                            previewOf(m),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(
+                        Icons.close,
+                        size: 18,
+                        color: Colors.white54,
+                      ),
+                      onPressed: onCancel,
+                    ),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 }

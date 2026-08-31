@@ -171,12 +171,17 @@ class _ChatSocket {
     'content': message.content,
     'duration': message.duration,
     'size': message.size,
+    if (message.replyTo != null) 'replyToId': message.replyTo!.messageId,
+    if (message.replyTo != null) 'replyToContent': message.replyTo!.content,
+    if (message.replyTo != null) 'replyToSenderId': message.replyTo!.senderId,
   };
 
   static ChatOutgoingMessage? _decode(Map<dynamic, dynamic> data) {
     final key = data['key'] as String?;
     final content = data['content'] as String?;
     if (key == null || content == null) return null;
+
+    final replyToId = data['replyToId'] as String?;
 
     return ChatOutgoingMessage(
       clientKey: key,
@@ -187,6 +192,13 @@ class _ChatSocket {
       content: content,
       duration: data['duration'] as String?,
       size: data['size'] as String?,
+      replyTo: replyToId == null
+          ? null
+          : ChatReplyInfo(
+              messageId: replyToId,
+              content: (data['replyToContent'] as String?) ?? '',
+              senderId: (data['replyToSenderId'] as String?) ?? '',
+            ),
     );
   }
 }

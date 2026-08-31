@@ -130,6 +130,12 @@ class _TextMessageState extends State<_TextMessage> {
                     ),
                   ),
                 ),
+                if (widget.message.replyTo != null)
+                  _QuotedReply(
+                    reply: widget.message.replyTo!,
+                    isAdmin: isAdmin,
+                    style: style,
+                  ),
                 LayoutBuilder(
                   builder: (context, constraints) {
                     const timeWidgetWidth = 70.0;
@@ -303,6 +309,68 @@ class _TextMessageState extends State<_TextMessage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Bubble ichidagi iqtibos - bu xabar qaysi xabarga javob ekanini ko'rsatadi.
+class _QuotedReply extends StatelessWidget {
+  const _QuotedReply({
+    required this.reply,
+    required this.isAdmin,
+    required this.style,
+  });
+
+  final ChatReplyInfo reply;
+  final bool isAdmin;
+  final ChatMessageStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    final base = isAdmin
+        ? style.adminMessageTextStyle
+        : style.clientMessageTextStyle;
+    final author = reply.senderId == _ChatRuntime.instance.me.id
+        ? _ChatRuntime.instance.me.name
+        : (_ChatRuntime.instance.peer?.name ?? '');
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(8),
+          border: const Border(
+            left: BorderSide(color: Colors.white70, width: 2.5),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (author.isNotEmpty)
+              Text(
+                author,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: base.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            Text(
+              reply.content,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: base.copyWith(
+                fontSize: 12,
+                color: (base.color ?? Colors.white).withValues(alpha: 0.85),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

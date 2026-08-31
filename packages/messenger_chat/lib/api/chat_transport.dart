@@ -12,6 +12,25 @@ typedef SharedMessageBuilder =
 /// Xabar turi. Plagin UI ni shunga qarab tanlaydi.
 enum ChatMessageKind { text, photo, video, voice, file }
 
+/// Javob berilayotgan xabarning qisqa nusxasi (iqtibos). Xabar bilan birga
+/// saqlanadi, shuning uchun eski xabar yuklanmagan bo'lsa ham iqtibos ko'rinadi.
+class ChatReplyInfo {
+  const ChatReplyInfo({
+    required this.messageId,
+    required this.content,
+    required this.senderId,
+  });
+
+  /// Javob berilayotgan xabarning serverdagi identifikatori.
+  final String messageId;
+
+  /// Uning matni (yoki media uchun qisqa yorliq).
+  final String content;
+
+  /// Uni kim yuborgani - iqtibosda "Siz" yoki suhbatdosh ismini ko'rsatish uchun.
+  final String senderId;
+}
+
 /// Transportdan kelgan (yoki tarixdan yuklangan) bitta xabar.
 class ChatIncomingMessage {
   const ChatIncomingMessage({
@@ -27,6 +46,7 @@ class ChatIncomingMessage {
     this.size,
     this.isRead = false,
     this.senderName,
+    this.replyTo,
   });
 
   /// Serverdagi barqaror identifikator.
@@ -65,6 +85,9 @@ class ChatIncomingMessage {
 
   /// Guruh suhbatlarida jo'natuvchi ismi. 1:1 da kerak emas.
   final String? senderName;
+
+  /// Bu xabar javob bo'lsa - javob berilgan xabarning iqtibosi.
+  final ChatReplyInfo? replyTo;
 }
 
 /// Tarixning bitta sahifasi.
@@ -87,6 +110,7 @@ class ChatOutgoingMessage {
     this.thumbnailUrl,
     this.duration,
     this.size,
+    this.replyTo,
   });
 
   /// Plagin yaratadigan noyob kalit. Server uni `clientKey` sifatida qaytarsa,
@@ -103,6 +127,9 @@ class ChatOutgoingMessage {
 
   final String? duration;
   final String? size;
+
+  /// Bu xabar javob bo'lsa - javob berilayotgan xabarning iqtibosi.
+  final ChatReplyInfo? replyTo;
 }
 
 /// Fayl yuklash natijasi.

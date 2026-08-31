@@ -136,6 +136,9 @@ class DmApi {
     String? png,
     String? duration,
     String? size,
+    String? replyToId,
+    String? replyToContent,
+    String? replyToSenderId,
   }) {
     final socket = _socket;
     if (socket == null || !socket.connected) {
@@ -150,6 +153,9 @@ class DmApi {
       if (png != null) 'png': png,
       if (duration != null) 'duration': duration,
       if (size != null) 'size': size,
+      if (replyToId != null) 'replyToId': replyToId,
+      if (replyToContent != null) 'replyToContent': replyToContent,
+      if (replyToSenderId != null) 'replyToSenderId': replyToSenderId,
     });
   }
 
@@ -201,6 +207,9 @@ class DmMessage {
       png = json['png']?.toString(),
       duration = json['duration']?.toString(),
       size = json['size']?.toString(),
+      replyToId = json['replyToId']?.toString(),
+      replyToContent = json['replyToContent']?.toString(),
+      replyToSenderId = json['replyToSenderId']?.toString(),
       date =
           DateTime.tryParse(json['date']?.toString() ?? '') ?? DateTime.now();
 
@@ -217,6 +226,11 @@ class DmMessage {
   final String? png;
   final String? duration;
   final String? size;
+
+  /// Reply snapshot (denormalised on the server). Null = not a reply.
+  final String? replyToId;
+  final String? replyToContent;
+  final String? replyToSenderId;
   final DateTime date;
 
   ChatMessageKind get kind => switch (contentType) {

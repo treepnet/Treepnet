@@ -6,12 +6,16 @@ class _MessageList extends StatefulWidget {
     required this.listScrollController,
     this.bottomPaddingNotifier,
     this.hasAppBar = false,
+    this.onReply,
   });
 
   final ChatMessageStyle messageStyle;
   final ScrollController listScrollController;
   final ValueListenable<double>? bottomPaddingNotifier;
   final bool hasAppBar;
+
+  /// Xabarga swipe qilinganda javob rejimini yoqadi.
+  final void Function(_MessageModel message)? onReply;
 
   @override
   State<_MessageList> createState() => _MessageListState();
@@ -194,15 +198,20 @@ class _MessageListState extends State<_MessageList> {
                                 message.id,
                               );
                             },
-                            child: _ChatBubble(
-                              isAdmin: message.isFromPeer,
-                              message: message,
-                              config: state.config,
-                              showDate: showDate,
-                              showSenderName: showSenderName,
-                              showPeerAvatar: showPeerAvatar,
-                              date: date,
-                              messageStyle: widget.messageStyle,
+                            child: _SwipeToReply(
+                              enabled:
+                                  widget.onReply != null && !message.isLocal,
+                              onReply: () => widget.onReply?.call(message),
+                              child: _ChatBubble(
+                                isAdmin: message.isFromPeer,
+                                message: message,
+                                config: state.config,
+                                showDate: showDate,
+                                showSenderName: showSenderName,
+                                showPeerAvatar: showPeerAvatar,
+                                date: date,
+                                messageStyle: widget.messageStyle,
+                              ),
                             ),
                           ),
                         ),
@@ -214,4 +223,71 @@ class _MessageListState extends State<_MessageList> {
             ),
     ),
   );
+}
+
+/// Xabarni o'ngga surib javob berish (Telegram/WhatsApp uslubi). Gorizontal
+/// suring: chegaradan o'tsa - javob rejimi yoqiladi. Vertikal scroll ta'sir
+/// qilmaydi (faqat gorizontal drag ushlanadi).
+class _SwipeToReply extends StatefulWidget {
+  const _SwipeToReply({
+    required this.child,
+    required this.onReply,
+    this.enabled = true,
+  });
+
+  final Widget child;
+  final VoidCallback onReply;
+  final bool enabled;
+
+  @override
+  State<_SwipeToReply> createState() => _SwipeToReplyState();
+}
+
+class _SwipeToReplyState extends State<_SwipeToReply> {
+  static const double _maxDrag = 80;
+  static const double _threshold = 52;
+
+  double _dx = 0;
+  bool _triggered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.enabled) return widget.child;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragUpdate: (details) {
+        setState(() {
+          _dx = (_dx + details.delta.dx).clamp(0.0, _maxDrag);
+          if (_dx >= _threshold && !_triggered) {
+            _triggered = true;
+            HapticFeedback.selectionClick();
+          }
+        });
+      },
+      onHorizontalDragEnd: (_) {
+        if (_dx >= _threshold) widget.onReply();
+        setState(() {
+          _dx = 0;
+          _triggered = false;
+        });
+      },
+      child: Stack(
+        alignment: Alignment.centerLeft,
+        children: [
+          Positioned(
+            left: 16,
+            child: Opacity(
+              opacity: (_dx / _threshold).clamp(0.0, 1.0),
+              child: const Icon(Icons.reply, color: Color(0xff728FCE)),
+            ),
+          ),
+          Transform.translate(
+            offset: Offset(_dx, 0),
+            child: widget.child,
+          ),
+        ],
+      ),
+    );
+  }
 }

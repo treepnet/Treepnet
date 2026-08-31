@@ -18,6 +18,7 @@ class _MessageModel extends Equatable {
     this.uploadProgress,
     this.width,
     this.height,
+    this.replyTo,
   });
 
   /// Transportdan kelgan xabarni UI modeliga aylantiradi.
@@ -48,6 +49,7 @@ class _MessageModel extends Equatable {
     contentType: _ContentType.fromKind(message.kind),
     isRead: message.isRead,
     uploadProgress: 0,
+    replyTo: message.replyTo,
   );
 
   /// Serverdagi identifikator. Bo'sh satr - xabar hali yuborilmagan
@@ -74,6 +76,9 @@ class _MessageModel extends Equatable {
   final bool? sendMessage;
   final double? uploadProgress;
 
+  /// Bu xabar javob bo'lsa - javob berilgan xabarning iqtibosi.
+  final ChatReplyInfo? replyTo;
+
   _MessageModel copyWith({
     String? id,
     Message? content,
@@ -91,6 +96,7 @@ class _MessageModel extends Equatable {
     bool? isRead,
     bool? sendMessage,
     double? uploadProgress,
+    ChatReplyInfo? replyTo,
   }) => _MessageModel(
     id: id ?? this.id,
     width: width ?? this.width,
@@ -108,6 +114,7 @@ class _MessageModel extends Equatable {
     isRead: isRead ?? this.isRead,
     sendMessage: sendMessage ?? this.sendMessage,
     uploadProgress: uploadProgress ?? this.uploadProgress,
+    replyTo: replyTo ?? this.replyTo,
   );
 
   /// Hali yuborilmagan (optimistik) xabar uchun asos.
@@ -166,6 +173,7 @@ class _MessageModel extends Equatable {
     uploadProgress,
     time,
     voiceWave,
+    replyTo?.messageId,
   ];
 }
 

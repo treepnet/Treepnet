@@ -118,6 +118,9 @@ class DmChatTransport implements ChatTransport {
     key: message.clientKey,
     duration: message.duration,
     size: message.size,
+    replyToId: message.replyTo?.messageId,
+    replyToContent: message.replyTo?.content,
+    replyToSenderId: message.replyTo?.senderId,
   );
 
   @override
@@ -203,6 +206,13 @@ class DmChatTransport implements ChatTransport {
     sentAt: m.date,
     clientKey: m.key,
     isRead: m.isRead,
+    replyTo: m.replyToId == null
+        ? null
+        : ChatReplyInfo(
+            messageId: m.replyToId!,
+            content: m.replyToContent ?? '',
+            senderId: m.replyToSenderId ?? '',
+          ),
   );
 }
 
