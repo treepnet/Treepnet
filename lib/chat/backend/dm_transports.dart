@@ -5,6 +5,15 @@ import 'package:flutter/foundation.dart';
 import 'package:messenger_chat/messenger_chat.dart';
 
 import 'package:treepnet/chat/backend/dm_api.dart';
+import 'package:treepnet/chat/chat_share_ref.dart';
+
+/// Inbox last-message preview text. Renders a share sentinel as a friendly
+/// label instead of the raw `treepnet:share:...` string.
+String _previewText(String content) => switch (parseSharedRef(content)?.kind) {
+  SharedRefKind.post => '📷 Post',
+  SharedRefKind.story => '📖 Story',
+  _ => content,
+};
 
 /// Transport for a single conversation.
 ///
@@ -238,7 +247,7 @@ class DmListTransport implements ChatListTransport {
           final isMine = message.senderId == myUserId;
           final updated = current.copyWith(
             lastMessage: message.kind == ChatMessageKind.text
-                ? message.content
+                ? _previewText(message.content)
                 : '',
             lastMessageKind: message.kind,
             lastMessageAt: message.date,
@@ -334,7 +343,7 @@ class DmListTransport implements ChatListTransport {
         avatarUrl: peer?['avatar']?.toString(),
       ),
       lastMessage: message?.kind == ChatMessageKind.text
-          ? (message?.content ?? '')
+          ? _previewText(message?.content ?? '')
           : '',
       lastMessageKind: message?.kind ?? ChatMessageKind.text,
       lastMessageAt:
