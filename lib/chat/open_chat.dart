@@ -4,6 +4,7 @@ import 'package:messenger_chat/messenger_chat.dart';
 import 'package:treepnet/app/bloc/app_bloc.dart';
 import 'package:treepnet/chat/backend/dm_transports.dart';
 import 'package:treepnet/chat/chat_session.dart';
+import 'package:treepnet/chat/chat_theme.dart';
 import 'package:treepnet/chat/chat_thread_screen.dart';
 import 'package:treepnet/chat/shared_message_card.dart';
 import 'package:user_repository/user_repository.dart';
@@ -175,7 +176,7 @@ Future<void> _pushThread(
       myUserId: session.myUserId,
     ),
     me: ChatUser(id: session.myUserId, name: session.myName),
-    features: const ChatFeatures.textOnly(),
+    features: ChatTheme.features,
     lang: lang,
     // Renders shared post/story sentinel messages as rich cards.
     sharedMessageBuilder: buildSharedMessage,

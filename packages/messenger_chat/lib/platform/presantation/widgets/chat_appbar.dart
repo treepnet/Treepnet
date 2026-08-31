@@ -11,7 +11,7 @@ class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) => AppBar(
     automaticallyImplyLeading: false,
-    toolbarHeight: 56.0,
+    toolbarHeight: 60.0,
     backgroundColor: Colors.transparent,
     scrolledUnderElevation: 0,
     elevation: 0,
@@ -187,7 +187,7 @@ class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
   );
 
   @override
-  Size get preferredSize => const Size(double.infinity, 56);
+  Size get preferredSize => const Size(double.infinity, 60);
 }
 
 /// Suhbatdosh avatari. Rasm bo'lmasa ismning bosh harflari chiziladi.

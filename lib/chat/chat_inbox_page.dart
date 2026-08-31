@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:messenger_chat/messenger_chat.dart';
 import 'package:treepnet/app/bloc/app_bloc.dart';
 import 'package:treepnet/chat/chat_session.dart';
+import 'package:treepnet/chat/chat_theme.dart';
 import 'package:treepnet/chat/new_chat_screen.dart';
 import 'package:treepnet/chat/open_chat.dart';
 import 'package:user_repository/user_repository.dart';
@@ -18,24 +19,8 @@ class ChatInboxPage extends StatefulWidget {
 }
 
 class _ChatInboxPageState extends State<ChatInboxPage> {
-  static const _background = Color(0xff191919);
-
-  static const _listStyle = ChatListStyle(
-    backgroundColor: _background,
-    avatarBackgroundColor: Color(0xff414141),
-    titleTextStyle: TextStyle(
-      color: Colors.white,
-      fontSize: 16,
-      fontWeight: FontWeight.w600,
-    ),
-    previewTextStyle: TextStyle(color: Color(0xff9AA6A6), fontSize: 14),
-    timeTextStyle: TextStyle(color: Color(0xff687575), fontSize: 12),
-    unreadBadgeColor: Color(0xff728FCE),
-    readIconColor: Color(0xff728FCE),
-    unreadIconColor: Color(0xff687575),
-    onlineColor: Color(0xff4CAF50),
-    dividerColor: Color(0xff2A2A2A),
-  );
+  static const _background = ChatTheme.background;
+  static const _listStyle = ChatTheme.listStyle;
 
   Future<void>? _bootstrap;
 

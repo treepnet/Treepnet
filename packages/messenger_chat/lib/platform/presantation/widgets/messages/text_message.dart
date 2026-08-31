@@ -101,12 +101,14 @@ class _TextMessageState extends State<_TextMessage> {
     if (shared != null) return shared;
 
     return Container(
-      constraints: const BoxConstraints(maxWidth: 300),
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.85,
+      ),
       decoration: BoxDecoration(
         color: isAdmin
             ? style.adminMessageBackgroundColor
             : style.clientMessageBackgroundColor,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(22),
       ),
       child: Stack(
         children: [

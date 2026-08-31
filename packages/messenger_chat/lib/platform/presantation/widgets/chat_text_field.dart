@@ -79,7 +79,7 @@ class _ChatTextFieldState extends State<_ChatTextField> {
               children: [
                 Flexible(
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(32),
                     child: _MaybeBlur(
                       filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                       child: Container(
@@ -91,7 +91,7 @@ class _ChatTextFieldState extends State<_ChatTextField> {
                                     ? _surfaceColor(Colors.white, 0.6)
                                     : _surfaceColor(Colors.black, 0.4))
                               : widget.style.inputFillColor,
-                          borderRadius: BorderRadius.circular(24),
+                          borderRadius: BorderRadius.circular(32),
                           border: Border.all(
                             color:
                                 (Theme.of(context).brightness ==
