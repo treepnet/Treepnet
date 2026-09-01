@@ -114,10 +114,14 @@ abstract class UserBaseRepository {
   Future<List<User>> getFollowers({String? userId});
 
   /// Returns a list of followings of the user identified by [userId].
-  Future<List<User>> getFollowings({String? userId});
+  ///
+  /// [limit] caps how many are fetched (for scroll pagination); null = all.
+  Future<List<User>> getFollowings({String? userId, int? limit});
 
   /// Broadcasts a list of followers of the user identified by [userId].
-  Stream<List<User>> followers({required String userId});
+  ///
+  /// [limit] caps the reactive window (for scroll pagination); null = all.
+  Stream<List<User>> followers({required String userId, int? limit});
 
   /// Looks up into a database a returns users associated with the provided
   /// [query].
@@ -2173,10 +2177,14 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
   }
 
   @override
-  Stream<List<User>> followers({required String userId}) async* {
+  Stream<List<User>> followers({required String userId, int? limit}) async* {
+    // `limit` caps the reactive window so a huge follower list isn't fetched
+    // (one profile query PER follower) all at once. Null = all (unchanged for
+    // other callers). Growing the limit re-subscribes with a wider window.
     final streamResult = _powerSyncRepository.db().watch(
-      'SELECT subscriber_id FROM subscriptions WHERE subscribed_to_id = ? ',
-      parameters: [userId],
+      'SELECT subscriber_id FROM subscriptions WHERE subscribed_to_id = ? '
+      '${limit != null ? 'LIMIT ?' : ''}',
+      parameters: [userId, if (limit != null) limit],
     );
     await for (final result in streamResult) {
       final followers = <User>[];
@@ -2200,10 +2208,13 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
   }
 
   @override
-  Future<List<User>> getFollowings({String? userId}) async {
+  Future<List<User>> getFollowings({String? userId, int? limit}) async {
+    // `limit` caps how many followings are fetched (one profile query each);
+    // null = all. Callers grow the limit for scroll pagination.
     final followingsUserId = await _powerSyncRepository.db().getAll(
-      'SELECT subscribed_to_id FROM subscriptions WHERE subscriber_id = ? ',
-      [userId ?? currentUserId],
+      'SELECT subscribed_to_id FROM subscriptions WHERE subscriber_id = ? '
+      '${limit != null ? 'LIMIT ?' : ''}',
+      [userId ?? currentUserId, if (limit != null) limit],
     );
     if (followingsUserId.isEmpty) return [];
 

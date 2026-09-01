@@ -36,10 +36,16 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
     );
     on<UserProfileUpdateRequested>(_onUserProfileUpdateRequested);
     on<UserProfileFetchFollowersRequested>(_onFollowersFetch);
-    on<UserProfileFetchFollowingsRequested>(_onFollowingsFetch);
+    // restartable: growing the window re-dispatches with a bigger limit; only
+    // the latest window's result should win (a stale wider/narrower fetch must
+    // not overwrite it).
+    on<UserProfileFetchFollowingsRequested>(
+      _onFollowingsFetch,
+      transformer: restartable(),
+    );
     on<UserProfileFollowersSubscriptionRequested>(
       _onFollowersSubscriptionRequested,
-      transformer: throttleDroppable(),
+      transformer: restartable(),
     );
     on<UserProfileFollowUserRequested>(_onFollowUser);
     on<UserProfileRemoveFollowerRequested>(
@@ -173,7 +179,10 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
     Emitter<UserProfileState> emit,
   ) async {
     try {
-      final followings = await _userRepository.getFollowings(userId: _userId);
+      final followings = await _userRepository.getFollowings(
+        userId: _userId,
+        limit: event.limit,
+      );
       emit(state.copyWith(followings: followings));
     } catch (error, stackTrace) {
       addError(error, stackTrace);
@@ -185,7 +194,7 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
     Emitter<UserProfileState> emit,
   ) async {
     await emit.forEach(
-      _userRepository.followers(userId: _userId),
+      _userRepository.followers(userId: _userId, limit: event.limit),
       onData: (followers) => state.copyWith(followers: followers),
     );
   }

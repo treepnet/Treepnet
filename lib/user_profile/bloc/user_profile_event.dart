@@ -69,13 +69,19 @@ final class UserProfileFetchFollowersRequested extends UserProfileEvent {
 }
 
 final class UserProfileFetchFollowingsRequested extends UserProfileEvent {
-  const UserProfileFetchFollowingsRequested({this.userId});
+  const UserProfileFetchFollowingsRequested({this.userId, this.limit});
 
   final String? userId;
+
+  /// Reactive-window size for scroll pagination; null = all.
+  final int? limit;
 }
 
 final class UserProfileFollowersSubscriptionRequested extends UserProfileEvent {
-  const UserProfileFollowersSubscriptionRequested();
+  const UserProfileFollowersSubscriptionRequested({this.limit});
+
+  /// Reactive-window size for scroll pagination; null = all.
+  final int? limit;
 }
 
 final class UserProfileFollowUserRequested extends UserProfileEvent {

@@ -434,8 +434,8 @@ class UserRepository implements UserBaseRepository {
       _databaseClient.getFollowers(userId: userId);
 
   @override
-  Future<List<User>> getFollowings({String? userId}) =>
-      _databaseClient.getFollowings(userId: userId);
+  Future<List<User>> getFollowings({String? userId, int? limit}) =>
+      _databaseClient.getFollowings(userId: userId, limit: limit);
 
   @override
   Future<void> follow({
@@ -578,6 +578,6 @@ class UserRepository implements UserBaseRepository {
       _databaseClient.suggestedUsers(limit: limit);
 
   @override
-  Stream<List<User>> followers({required String userId}) =>
-      _databaseClient.followers(userId: userId);
+  Stream<List<User>> followers({required String userId, int? limit}) =>
+      _databaseClient.followers(userId: userId, limit: limit);
 }

@@ -11,12 +11,36 @@ class UserProfileFollowings extends StatefulWidget {
 
 class _UserProfileFollowingsState extends State<UserProfileFollowings>
     with AutomaticKeepAliveClientMixin {
+  static const _pageSize = 20;
+
+  /// Window size; grows by [_pageSize] when the user scrolls to the end so a
+  /// huge following list isn't fetched (one profile query each) all at once.
+  int _limit = _pageSize;
+  int _requestedLimit = _pageSize;
+
   @override
   void initState() {
     super.initState();
+    _request();
+  }
+
+  void _request() {
     context.read<UserProfileBloc>().add(
-      const UserProfileFetchFollowingsRequested(),
+      UserProfileFetchFollowingsRequested(limit: _limit),
     );
+  }
+
+  /// Called when the last loaded tile is built (user reached the end); widens
+  /// the window on the next frame if more may exist.
+  void _maybeGrow(int loaded) {
+    if (loaded >= _limit && _requestedLimit == _limit) {
+      _requestedLimit = _limit + _pageSize;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _limit = _requestedLimit;
+        _request();
+      });
+    }
   }
 
   @override
@@ -37,6 +61,7 @@ class _UserProfileFollowingsState extends State<UserProfileFollowings>
         SliverList.builder(
           itemCount: followings.length,
           itemBuilder: (context, index) {
+            if (index >= followings.length - 1) _maybeGrow(followings.length);
             final user = followings[index];
             return UserProfileListTile(user: user, follower: false);
           },
