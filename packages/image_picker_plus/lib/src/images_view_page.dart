@@ -71,6 +71,13 @@ class _ImagesViewPageState extends State<ImagesViewPage>
   final ValueNotifier<List<FutureBuilder<Uint8List?>>> _mediaList =
       ValueNotifier(<FutureBuilder<Uint8List?>>[]);
 
+  /// The backing photo-library assets, index-aligned with [_mediaList] and
+  /// [allMedia]. Full files are resolved lazily from these (see [_resolveFile])
+  /// instead of up front — resolving every asset's original on iOS exports it
+  /// from the Photos library (and can pull from iCloud), which blocked the
+  /// grid.
+  final List<AssetEntity> _assets = <AssetEntity>[];
+
   final ValueNotifier<List<File?>> allMedia = ValueNotifier(<File?>[]);
   final ValueNotifier<List<double?>> scaleOfCropsKeys =
       ValueNotifier(<double?>[]);
@@ -215,20 +222,30 @@ class _ImagesViewPageState extends State<ImagesViewPage>
         }
         return;
       }
+      // Build ONLY the (lazy) thumbnails here. The full-resolution File of each
+      // asset is deliberately NOT resolved up front: on iOS `AssetEntity.file`
+      // exports the original from the Photos library (and may download it from
+      // iCloud), so resolving all 60 per page sequentially blocked the grid for
+      // ~10s. Files are resolved on demand in [_resolveFile] when a tile is
+      // actually tapped/selected; the grid renders immediately from thumbnails.
       final temp = <FutureBuilder<Uint8List?>>[];
-      final mediaTemp = <File?>[];
-
       for (var i = 0; i < media.length; i++) {
-        final gridViewImage = getImageGallery(media, i);
-        final image = await highQualityImage(media, i);
-        temp.add(gridViewImage);
-        mediaTemp.add(image);
+        temp.add(getImageGallery(media, i));
       }
+      _assets.addAll(media);
       _mediaList.value.addAll(temp);
-      allMedia.value.addAll(mediaTemp);
-      if (selectedMedia.value == allMedia.value[0] ||
-          selectedMedia.value == null) {
-        selectedMedia.value = allMedia.value[0];
+      allMedia.value.addAll(
+        List<File?>.filled(media.length, null, growable: true),
+      );
+
+      // Resolve just the FIRST asset so the crop preview has something to show
+      // and single-select keeps its "first image pre-selected" behaviour. One
+      // export — cheap — and only on the first page.
+      if (currentPageValue == 0 &&
+          selectedMedia.value == null &&
+          _assets.isNotEmpty) {
+        final first = await _resolveFile(0);
+        if (first != null) selectedMedia.value = first;
       }
       currentPage.value++;
       isMediaReady.value = true;
@@ -283,8 +300,52 @@ class _ImagesViewPageState extends State<ImagesViewPage>
     return futureBuilder;
   }
 
-  Future<File?> highQualityImage(List<AssetEntity> media, int i) async =>
-      media[i].file;
+  /// Resolves (and caches) the full-resolution [File] for the asset at [index].
+  ///
+  /// This is the ONLY place `AssetEntity.file` is called, and only for tiles
+  /// the user actually interacts with — so the expensive iOS Photos export
+  /// happens per selection instead of for every tile up front. The resolved
+  /// file is written back into [allMedia] so a second call is free and,
+  /// crucially, so selection equality (the same [File] instance lands in
+  /// `multiSelectedMedia`) keeps working.
+  Future<File?> _resolveFile(int index) async {
+    if (index < 0 || index >= _assets.length) return null;
+    final cached = index < allMedia.value.length ? allMedia.value[index] : null;
+    if (cached != null) return cached;
+    final file = await _assets[index].file;
+    if (file != null && index < allMedia.value.length) {
+      allMedia.value[index] = file;
+    }
+    return file;
+  }
+
+  /// Tap on a tile: resolve its file lazily, then run the normal select logic.
+  Future<void> _handleTap(int index) async {
+    final image = await _resolveFile(index);
+    if (image == null || !mounted) return;
+    onTapImage(image, widget.multiSelectedMedia.value, index);
+  }
+
+  /// Long-press release on a tile — mirrors the original inline handler, but
+  /// resolves the file first (see [_resolveFile]).
+  Future<void> _handleLongPressUp(int index) async {
+    final image = await _resolveFile(index);
+    if (image == null || !mounted) return;
+    if (widget.multiSelectionMode.value) {
+      selectionImageCheck(
+        image,
+        widget.multiSelectedMedia.value,
+        index,
+        enableCopy: true,
+      );
+      expandImageView.value = false;
+      moveAwayHeight.value = 0;
+      enableVerticalTapping.value = false;
+      noPaddingForGridView.value = true;
+    } else {
+      onTapImage(image, widget.multiSelectedMedia.value, index);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -625,28 +686,31 @@ class _ImagesViewPageState extends State<ImagesViewPage>
               valueListenable: widget.multiSelectedMedia,
               builder: (context, List<File> selectedImagesValue, child) {
                 final mediaList = mediaListValue[index];
-                final image = allImagesValue[index];
-                if (image != null) {
-                  final imageSelected = selectedImagesValue.contains(image);
-                  final multiImages = selectedImagesValue;
+                // The File may be null until this tile is tapped (resolved
+                // lazily). The tile still renders from its thumbnail; only the
+                // File-dependent overlays (selection blur, multi-select badge)
+                // wait for a resolved File.
+                final image = index < allImagesValue.length
+                    ? allImagesValue[index]
+                    : null;
+                final imageSelected =
+                    image != null && selectedImagesValue.contains(image);
 
-                  return Stack(
-                    children: [
-                      gestureDetector(image, index, mediaList),
-                      if (selectedImageValue == image)
-                        gestureDetector(image, index, blurContainer()),
+                return Stack(
+                  children: [
+                    gestureDetector(index, mediaList),
+                    if (image != null && selectedImageValue == image)
+                      gestureDetector(index, blurContainer()),
+                    if (image != null)
                       MultiSelectionMode(
                         appTheme: widget.appTheme,
                         image: image,
                         multiSelectionMode: widget.multiSelectionMode,
                         imageSelected: imageSelected,
-                        multiSelectedImage: multiImages,
+                        multiSelectedImage: selectedImagesValue,
                       ),
-                    ],
-                  );
-                } else {
-                  return const SizedBox.shrink();
-                }
+                  ],
+                );
               },
             );
           },
@@ -663,7 +727,7 @@ class _ImagesViewPageState extends State<ImagesViewPage>
     );
   }
 
-  Widget gestureDetector(File image, int index, Widget childWidget) {
+  Widget gestureDetector(int index, Widget childWidget) {
     return AnimatedBuilder(
       animation: Listenable.merge([
         widget.multiSelectionMode,
@@ -673,30 +737,13 @@ class _ImagesViewPageState extends State<ImagesViewPage>
       builder: (context, child) {
         return GestureDetector(
           key: ValueKey(index),
-          onTap: () =>
-              onTapImage(image, widget.multiSelectedMedia.value, index),
+          onTap: () => _handleTap(index),
           onLongPress: () {
             if (widget.multiSelection) {
               widget.multiSelectionMode.value = true;
             }
           },
-          onLongPressUp: () {
-            if (widget.multiSelectionMode.value) {
-              selectionImageCheck(
-                image,
-                widget.multiSelectedMedia.value,
-                index,
-                enableCopy: true,
-              );
-              expandImageView.value = false;
-              moveAwayHeight.value = 0;
-
-              enableVerticalTapping.value = false;
-              noPaddingForGridView.value = true;
-            } else {
-              onTapImage(image, widget.multiSelectedMedia.value, index);
-            }
-          },
+          onLongPressUp: () => _handleLongPressUp(index),
           child: childWidget,
         );
       },
