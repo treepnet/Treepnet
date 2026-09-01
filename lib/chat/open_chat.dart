@@ -149,6 +149,26 @@ Future<void> openConversationScreen(
   required ChatUser peer,
 }) async {
   final session = ChatSession.instance;
+
+  // Guarantee our own backend id is resolved before the thread renders. The
+  // plugin decides which side each message sits on (and whether it counts as
+  // unread) by comparing that id against the message's sender — so if the
+  // session hadn't finished starting (empty id), every message, our own
+  // included, would drop onto the peer side. The inbox normally warms the
+  // session first, but this closes the race when it hasn't.
+  if (session.myUserId.isEmpty) {
+    final me = context.read<AppBloc>().state.user;
+    if (!me.isAnonymous) {
+      final repo = context.read<UserRepository>();
+      await session.ensureStarted(
+        myUuid: me.id,
+        myName: await currentChatName(repo, me),
+        myAvatarUrl: me.hasAvatar ? me.avatarUrl : null,
+      );
+    }
+  }
+  if (!context.mounted) return;
+
   final peerUuid = session.isStarted
       ? session.listTransport.peerUuidOf(conversationId)
       : null;

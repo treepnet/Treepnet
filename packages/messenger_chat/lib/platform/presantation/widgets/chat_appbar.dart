@@ -128,9 +128,14 @@ class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
                       final isConnecting =
                           status == ChatConnectionStatus.connecting;
 
-                      // Ulanish tayyor bo'lsa - suhbatdoshning haqiqiy
-                      // holatini ko'rsatamiz, aks holda o'z ulanishimizni.
-                      if (status == ChatConnectionStatus.connected) {
+                      // Ulanish tayyor bo'lsa - suhbatdoshning haqiqiy holatini
+                      // ko'rsatamiz. Ulanayotgan paytda ham suhbatdoshning
+                      // ochilishда REST'дан seed qilingan oxirgi holatini
+                      // ko'rsatamiz - ekran ochilганда bir zumга "ulanish yo'q"
+                      // chaqnab, keyin online bo'lishининг o'rniga. Faqat
+                      // haqiqiy uzilish (disconnected/error) ogohlantiradi.
+                      if (status == ChatConnectionStatus.connected ||
+                          status == ChatConnectionStatus.connecting) {
                         return ValueListenableBuilder<ChatUser?>(
                           valueListenable: _ChatRuntime.instance.peerNotifier,
                           builder: (context, livePeer, __) =>
