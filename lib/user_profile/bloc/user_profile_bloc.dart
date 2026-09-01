@@ -56,20 +56,23 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
 
   bool get isOwner => _userId == _userRepository.currentUserId;
 
-  Stream<List<PostBlock>> userPosts({bool small = true}) {
+  Stream<List<PostBlock>> userPosts({bool small = true, int? limit}) {
     if (small) {
       return _postsRepository
-          .postsOf(userId: _userId)
+          .postsOf(userId: _userId, limit: limit)
           .map((posts) => posts.map((e) => e.toPostSmallBlock).toList());
     }
     return _postsRepository
-        .postsOf(userId: _userId)
+        .postsOf(userId: _userId, limit: limit)
         .map((posts) => posts.map((e) => e.toPostLargeBlock).toList());
   }
 
   /// The owner's posts as raw [Post]s (not blocks) — the grid needs these so a
   /// tapped tile scrolls through only this profile's posts, not everyone's.
-  Stream<List<Post>> userPostsRaw() => _postsRepository.postsOf(userId: _userId);
+  ///
+  /// [limit] caps the reactive window for scroll pagination (null = all).
+  Stream<List<Post>> userPostsRaw({int? limit}) =>
+      _postsRepository.postsOf(userId: _userId, limit: limit);
 
   Future<void> _onUserProfileSubscriptionRequested(
     UserProfileSubscriptionRequested event,

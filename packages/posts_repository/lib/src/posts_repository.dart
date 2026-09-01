@@ -131,8 +131,8 @@ class PostsRepository implements PostsBaseRepository {
       _databaseClient.postsAmountOf(userId: userId);
 
   @override
-  Stream<List<Post>> postsOf({String? userId}) =>
-      _databaseClient.postsOf(userId: userId);
+  Stream<List<Post>> postsOf({String? userId, int? limit}) =>
+      _databaseClient.postsOf(userId: userId, limit: limit);
 
   @override
   Stream<List<Post>> postsInRegion({

@@ -367,7 +367,9 @@ abstract class PostsBaseRepository {
   Future<Post?> updatePost({required String id, String? caption});
 
   /// Returns the stream of real-time posts of the current user.
-  Stream<List<Post>> postsOf({String? userId});
+  ///
+  /// [limit] caps the reactive window (for scroll pagination); null = all posts.
+  Stream<List<Post>> postsOf({String? userId, int? limit});
 
   /// Posts by [userId] placed in the ISO 3166-2 region [iso].
   Stream<List<Post>> postsInRegion({required String userId, required String iso});
@@ -1498,12 +1500,16 @@ posts.user_id = ?
   }
 
   @override
-  Stream<List<Post>> postsOf({String? userId}) {
+  Stream<List<Post>> postsOf({String? userId, int? limit}) {
     if (currentUserId == null) return const Stream.empty();
     assert(
       userId != null && currentUserId != null,
       'Both given `userId` and `currentUserId` cannot be null',
     );
+    // `limit` caps the reactive window so a prolific profile doesn't load and
+    // decode its entire post history at once. Null keeps the old unbounded
+    // behaviour for callers that don't paginate. The watch stays live — growing
+    // the limit re-subscribes with a larger window.
     return _powerSyncRepository
         .db()
         .watch(
@@ -1516,11 +1522,15 @@ SELECT
   p.full_name as full_name
 FROM
   posts
-  left join profiles p on posts.user_id = p.id 
+  left join profiles p on posts.user_id = p.id
 WHERE user_id = ?
 ORDER BY created_at DESC
+${limit != null ? 'LIMIT ?' : ''}
       ''',
-          parameters: [userId ?? currentUserId],
+          parameters: [
+            userId ?? currentUserId,
+            if (limit != null) limit,
+          ],
         )
         .asyncMap(
           (result) async {

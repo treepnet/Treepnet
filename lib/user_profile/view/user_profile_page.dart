@@ -364,8 +364,46 @@ class PostsPage extends StatefulWidget {
 
 class _PostsPageState extends State<PostsPage>
     with AutomaticKeepAliveClientMixin {
+  // Grid is 3 columns; 7 rows a page keeps the reactive window small so a
+  // prolific profile doesn't load and decode its whole post history on open.
+  static const _pageSize = 21;
+
+  /// Current reactive-window size. Grows by [_pageSize] each time the user
+  /// scrolls to the end of what's loaded (the last tile is built).
+  int _limit = _pageSize;
+
+  /// The window we've already asked to grow to — guards against scheduling the
+  /// same growth twice while one is pending.
+  int _requestedLimit = _pageSize;
+
+  /// Memoised stream so ordinary rebuilds don't re-subscribe the watch; only a
+  /// change in [_limit] creates a new (wider) window.
+  Stream<List<Post>>? _stream;
+  int _streamLimit = -1;
+
   @override
   bool get wantKeepAlive => true;
+
+  Stream<List<Post>> _postsStream(UserProfileBloc bloc) {
+    if (_stream == null || _streamLimit != _limit) {
+      _streamLimit = _limit;
+      _stream = bloc.userPostsRaw(limit: _limit);
+    }
+    return _stream!;
+  }
+
+  /// Called from the grid's [itemBuilder] when the last loaded tile is built —
+  /// i.e. the user has scrolled to the end of the current window. Widens it on
+  /// the next frame (setState during build is illegal) if more may exist.
+  void _maybeGrow(int loadedCount) {
+    final hasMore = loadedCount >= _limit;
+    if (hasMore && _requestedLimit == _limit) {
+      _requestedLimit = _limit + _pageSize;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _limit = _requestedLimit);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -384,7 +422,8 @@ class _PostsPageState extends State<PostsPage>
           initialData: const <Post>[],
           // Raw posts (not blocks): passed as feedPosts so a tapped tile
           // scrolls through only this profile's posts — not everyone's.
-          stream: bloc.userPostsRaw(),
+          // Windowed (paginated) — see [_postsStream] / [_maybeGrow].
+          stream: _postsStream(bloc),
           comparator: const ListEquality<Post>().equals,
           builder: (context, posts) {
             if (posts.isEmpty && widget.sponsoredPost == null) {
@@ -403,6 +442,12 @@ class _PostsPageState extends State<PostsPage>
                 ),
                 itemCount: widget.sponsoredPost != null ? 1 : posts.length,
                 itemBuilder: (context, index) {
+                  // Reached the end of the loaded window → widen it. Only for
+                  // the real (non-sponsored) grid.
+                  if (widget.sponsoredPost == null &&
+                      index >= posts.length - 1) {
+                    _maybeGrow(posts.length);
+                  }
                   final block = widget.sponsoredPost ??
                       posts[index].toPostSmallBlock;
                   final multiMedia = block.media.length > 1;
