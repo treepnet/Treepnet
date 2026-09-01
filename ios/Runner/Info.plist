@@ -65,6 +65,8 @@
 	<string>Treepnet saves the photos and stories you create to your photo library so you can keep the moments you share.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Treepnet needs access to your photos so you can choose images to share as posts and stories, and pin them to places on your travel map.</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>Treepnet accesses your media library only to browse and choose photos to share; it does not play or use your music.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>
