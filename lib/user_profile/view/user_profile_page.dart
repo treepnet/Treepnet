@@ -646,7 +646,10 @@ class UserProfileActions extends StatelessWidget {
   Widget build(BuildContext context) {
     return Tappable.faded(
       onTap: () => _showMenu(context),
-      child: Icon(Icons.adaptive.more_outlined, size: AppSize.iconSizeMedium),
+      // Always the vertical kebab (⋮), matching every other 3-dot menu in the
+      // app (chat header, post, story). `Icons.adaptive.more` rendered it
+      // horizontal (⋯) on iOS, which looked sideways next to the rest.
+      child: const Icon(Icons.more_vert, size: AppSize.iconSizeMedium),
     );
   }
 }

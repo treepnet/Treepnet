@@ -118,18 +118,32 @@ class _StoryFooterState extends State<StoryFooter> with WidgetsBindingObserver {
 
   /// Sends the reply as a direct message — the same thing Instagram does, so
   /// it reuses the existing chat rather than a separate story-comment table.
+  ///
+  /// Two messages travel, in order: first the story itself (as a share
+  /// sentinel, rendered as a rich story card the peer can tap to open), then
+  /// the typed reply beneath it — so the chat shows the story being replied to,
+  /// not just an orphan line of text.
   Future<void> _sendReply() async {
     final text = _replyController.text.trim();
     if (text.isEmpty || _sending) return;
     setState(() => _sending = true);
+    final peerAvatar = (widget.author.avatarUrl?.isNotEmpty ?? false)
+        ? widget.author.avatarUrl
+        : null;
     try {
       await shareTextToUser(
         context,
         peerUuid: widget.author.id,
         peerName: widget.author.displayUsername,
-        peerAvatarUrl: (widget.author.avatarUrl?.isNotEmpty ?? false)
-            ? widget.author.avatarUrl
-            : null,
+        peerAvatarUrl: peerAvatar,
+        text: encodeStoryShare(widget.story.id),
+      );
+      if (!mounted) return;
+      await shareTextToUser(
+        context,
+        peerUuid: widget.author.id,
+        peerName: widget.author.displayUsername,
+        peerAvatarUrl: peerAvatar,
         text: text,
       );
       if (!mounted) return;
