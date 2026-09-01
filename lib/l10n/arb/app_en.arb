@@ -908,7 +908,18 @@
   "@lastSeenDaysText": { "placeholders": { "count": { "type": "int" } } },
   "lastSeenAWhileText": "last seen a while ago",
   "blockedThisUserText": "You've blocked this user. Unblock to send a message.",
-  "cantMessageUserText": "You can't message this user.",
+  "cantMessageUserText": "You can't message this user because they've blocked you.",
+  "openPostText": "Open post",
+  "postUnavailableText": "Post unavailable",
+  "storyUnavailableText": "Story unavailable",
+  "couldNotOpenChatText": "Couldn't open the chat",
+  "couldNotDeleteChatText": "Couldn't delete the chat",
+  "locationsCountText": "{count, plural, =1{1 location} other{{count} locations}}",
+  "@locationsCountText": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
   "notifLikedText": "Liked your post.",
   "notifCommentedText": "Left a comment on your post.",
   "notifCommentedContentText": "Left a comment on your post: {text}.",

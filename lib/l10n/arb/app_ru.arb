@@ -854,7 +854,18 @@
   "@lastSeenDaysText": { "placeholders": { "count": { "type": "int" } } },
   "lastSeenAWhileText": "был(а) давно",
   "blockedThisUserText": "Вы заблокировали этого пользователя. Разблокируйте, чтобы написать.",
-  "cantMessageUserText": "Вы не можете написать этому пользователю.",
+  "cantMessageUserText": "Вы не можете написать этому пользователю, так как он вас заблокировал.",
+  "openPostText": "Открыть пост",
+  "postUnavailableText": "Пост недоступен",
+  "storyUnavailableText": "История недоступна",
+  "couldNotOpenChatText": "Не удалось открыть чат",
+  "couldNotDeleteChatText": "Не удалось удалить чат",
+  "locationsCountText": "{count, plural, one{{count} Локация} other{{count} Локаций}}",
+  "@locationsCountText": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
   "notifLikedText": "Понравилась ваша публикация.",
   "notifCommentedText": "Оставил(а) комментарий к вашей публикации.",
   "notifCommentedContentText": "Оставил(а) комментарий к вашей публикации: {text}.",

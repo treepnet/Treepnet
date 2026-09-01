@@ -368,6 +368,15 @@ class DmListTransport implements ChatListTransport {
     );
   }
 
+  /// Deletes a conversation on the backend and drops it from the inbox.
+  Future<void> deleteConversation(String conversationId) async {
+    await api.dio.delete<void>('/chat/dm/conversations/$conversationId');
+    _conversations.remove(conversationId);
+    _peerUuidById.remove(conversationId);
+    _recomputeUnread();
+    _events.add(ChatConversationRemoved(conversationId));
+  }
+
   Future<void> _refreshOne(String conversationId) async {
     try {
       final page = await loadConversations(page: 1, size: 30);
@@ -396,6 +405,10 @@ class DmListTransport implements ChatListTransport {
         id: peer?['id']?.toString() ?? '',
         name: peer?['name']?.toString() ?? '',
         avatarUrl: peer?['avatar']?.toString(),
+        // Seed live status from REST so opening from the inbox shows the peer's
+        // current online state immediately, not just after a presence event.
+        isOnline: peer?['isOnline'] == true,
+        lastSeen: DateTime.tryParse(peer?['lastSeen']?.toString() ?? ''),
       ),
       lastMessage: message?.kind == ChatMessageKind.text
           ? _previewText(message?.content ?? '')

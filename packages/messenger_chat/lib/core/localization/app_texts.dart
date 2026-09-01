@@ -54,4 +54,9 @@ mixin _AppTexts {
   static String get typing => _translate('typing');
   static String get offline => _translate('offline');
   static String get lastSeen => _translate('lastSeen');
+  static String get reply => _translate('reply');
+  static String get edit => _translate('edit');
+  static String get delete => _translate('delete');
+  static String get messageDeleted => _translate('messageDeleted');
+  static String get edited => _translate('edited');
 }

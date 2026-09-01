@@ -33,14 +33,51 @@ class DmApi {
   /// Display name and avatar of the current user. Sent as `x-name` / `x-avatar`
   /// so the backend can populate this user's row — otherwise the peer would see
   /// only a device name. Written server-side only when non-empty.
-  final String? userName;
-  final String? userAvatar;
+  ///
+  /// Mutable because the very first `ensureStarted` (from the nav bar, at
+  /// startup) can fire before the profile's username has synced into AppBloc,
+  /// sending `x-name: Unknown`; [refreshIdentity] updates it once the real
+  /// username is known so the peer stops seeing "Unknown".
+  String? userName;
+  String? userAvatar;
 
   late final Dio dio = Dio(BaseOptions(baseUrl: baseUrl, headers: _headers));
 
   io.Socket? _socket;
   final _events = StreamController<DmEvent>.broadcast();
   Completer<void>? _connecting;
+
+  /// Updates the current user's name/avatar mid-session and re-announces it to
+  /// the backend (which upserts the row on the next authenticated request).
+  /// No-op when nothing meaningfully improves — a blank or "Unknown" name never
+  /// overwrites a real one.
+  void refreshIdentity({String? name, String? avatar}) {
+    var changed = false;
+    if (name != null &&
+        name.isNotEmpty &&
+        name != 'Unknown' &&
+        name != userName) {
+      userName = name;
+      dio.options.headers['x-name'] = name;
+      changed = true;
+    }
+    if (avatar != null && avatar.isNotEmpty && avatar != userAvatar) {
+      userAvatar = avatar;
+      dio.options.headers['x-avatar'] = avatar;
+      changed = true;
+    }
+    if (!changed) return;
+    // Touch an authenticated endpoint so the backend re-upserts our row with
+    // the corrected name. Best-effort — the next real request would carry it
+    // anyway now that the header is updated.
+    unawaited(
+      dio.get<Map<String, dynamic>>('/chat/dm/me').catchError(
+        (_) => Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(path: '/chat/dm/me'),
+        ),
+      ),
+    );
+  }
 
   Map<String, String> get _headers => {
     'x-uuid': myUuid,
@@ -59,7 +96,15 @@ class DmApi {
   /// Connects the socket once; repeated calls await the same connection.
   Future<void> connect() {
     final existing = _connecting;
-    if (existing != null) return existing.future;
+    if (existing != null) {
+      // Already connected once. If the socket has since dropped (app was
+      // backgrounded / went idle), nudge a reconnect so reopening a thread or
+      // the inbox brings it back — socket.io keeps retrying on its own, this
+      // just hastens it.
+      final current = _socket;
+      if (current != null && current.disconnected) current.connect();
+      return existing.future;
+    }
 
     final completer = Completer<void>();
     _connecting = completer;
@@ -149,9 +194,15 @@ class DmApi {
     String? replyToSenderId,
   }) {
     final socket = _socket;
-    if (socket == null || !socket.connected) {
-      throw StateError('Socket ulanmagan');
+    if (socket == null) {
+      throw StateError('Socket mavjud emas');
     }
+    // Don't drop the message when the socket is momentarily disconnected
+    // (backgrounded / idle / mid-reconnect): socket.io buffers emits made while
+    // disconnected and flushes them on reconnect, so the message sends itself
+    // once the connection is back instead of getting stuck as "pending". Nudge
+    // the reconnect along.
+    if (socket.disconnected) socket.connect();
     socket.emit('dm.send', {
       'conversationId': conversationId,
       'content': content,

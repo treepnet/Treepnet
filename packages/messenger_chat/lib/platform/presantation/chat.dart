@@ -10,6 +10,10 @@ class MessengerChat extends StatefulWidget {
     required this.peer,
     required this.lang,
     this.chatAppBarStyle,
+    this.appBarTrailing,
+    this.appBarAvatar,
+    this.onTitleTap,
+    this.composerOverride,
     super.key,
   });
 
@@ -21,6 +25,20 @@ class MessengerChat extends StatefulWidget {
   final ChatMessageStyle messageStyle;
   final ChatTextFieldStyle chatTextFieldStyle;
   final ChatAppBarStyle? chatAppBarStyle;
+
+  /// App-provided trailing widget for the header (e.g. an overflow ⋮ menu).
+  final Widget? appBarTrailing;
+
+  /// App-provided header avatar (e.g. one with a story ring + its own tap).
+  /// Replaces the default peer avatar when non-null.
+  final Widget? appBarAvatar;
+
+  /// Tapping the peer's name in the header (e.g. open their profile).
+  final VoidCallback? onTitleTap;
+
+  /// App-provided widget shown INSTEAD of the input composer (e.g. a "you
+  /// blocked this user" notice). When null, the normal composer is shown.
+  final Widget? composerOverride;
 
   static const MethodChannel _channel = MethodChannel('messenger_chat');
 
@@ -47,6 +65,7 @@ class MessengerChat extends StatefulWidget {
     ChatFeatures? features,
     ChatLanguage? lang,
     SharedMessageBuilder? sharedMessageBuilder,
+    String? Function(String content)? sharedReplyPreview,
   }) async {
     WidgetsFlutterBinding.ensureInitialized();
     _ChatRuntime.instance.configure(
@@ -54,6 +73,7 @@ class MessengerChat extends StatefulWidget {
       me: me,
       features: features,
       sharedMessageBuilder: sharedMessageBuilder,
+      sharedReplyPreview: sharedReplyPreview,
     );
     _ChatLocalizations.instance.initialize(lang);
   }
@@ -474,6 +494,19 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
 
   void _cancelReply() => _replyingTo.value = null;
 
+  /// Inserts an emoji at the cursor (or appends it) from the quick emoji row.
+  void _insertEmoji(String emoji) {
+    final text = _controller.text;
+    final sel = _controller.selection;
+    final start = sel.start >= 0 ? sel.start : text.length;
+    final end = sel.end >= 0 ? sel.end : text.length;
+    final newText = text.replaceRange(start, end, emoji);
+    _controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: start + emoji.length),
+    );
+  }
+
   /// Xabarni tahrirlash rejimini yoqadi (matnni maydonga oldindan qo'yadi).
   void _startEdit(_MessageModel message) {
     _replyingTo.value = null;
@@ -516,7 +549,7 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
             ListTile(
               leading: const Icon(Icons.reply, color: Colors.white),
               title: Text(
-                'Javob',
+                _AppTexts.reply,
                 style: const TextStyle(color: Colors.white),
               ),
               onTap: () {
@@ -528,7 +561,7 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
               ListTile(
                 leading: const Icon(Icons.edit_outlined, color: Colors.white),
                 title: Text(
-                  'Tahrirlash',
+                  _AppTexts.edit,
                   style: const TextStyle(color: Colors.white),
                 ),
                 onTap: () {
@@ -543,7 +576,7 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
                   color: Color(0xffEE1D23),
                 ),
                 title: Text(
-                  'O‘chirish',
+                  _AppTexts.delete,
                   style: const TextStyle(color: Color(0xffEE1D23)),
                 ),
                 onTap: () {
@@ -563,7 +596,10 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
     _ContentType.video => '🎬 Video',
     _ContentType.voice => '🎤 Ovozli xabar',
     _ContentType.document => '📎 Fayl',
-    _ => m.content.content,
+    // Shared post/story sentinels → a friendly label, via the app hook.
+    _ =>
+      _ChatRuntime.instance.sharedReplyPreview?.call(m.content.content) ??
+          m.content.content,
   };
 
   @override
@@ -577,7 +613,13 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
         extendBodyBehindAppBar: widget.chatAppBarStyle != null,
         backgroundColor: widget.chatDecoration.backgroundColor,
         appBar: widget.chatAppBarStyle != null
-            ? _ChatAppBar(style: widget.chatAppBarStyle!, peer: widget.peer)
+            ? _ChatAppBar(
+                style: widget.chatAppBarStyle!,
+                peer: widget.peer,
+                trailing: widget.appBarTrailing,
+                avatar: widget.appBarAvatar,
+                onTitleTap: widget.onTitleTap,
+              )
             : null,
         body: Stack(
           children: [
@@ -659,9 +701,7 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
                                 child: Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: const Color(
-                                      0xff1064FF,
-                                    ).withValues(alpha: 0.65),
+                                    color: const Color(0xff414141),
                                     shape: BoxShape.circle,
                                     border: Border.all(
                                       color: Colors.white.withValues(
@@ -700,7 +740,14 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
                   return true;
                 },
                 child: SizeChangedLayoutNotifier(
-                  child: Column(
+                  // App-provided override (e.g. a "you blocked this user"
+                  // notice) fully replaces the composer when present.
+                  child: widget.composerOverride != null
+                      ? KeyedSubtree(
+                          key: _bottomAreaKey,
+                          child: widget.composerOverride!,
+                        )
+                      : Column(
                     key: _bottomAreaKey,
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -715,22 +762,14 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
                                 left: 16,
                                 bottom: 8,
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    '${state.typingName} typing',
-                                    style: widget
-                                        .messageStyle.adminMessageTimeTextStyle
-                                        .copyWith(fontSize: 12),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  _TypingIndicator(
-                                    dotColor: widget.messageStyle
-                                            .adminMessageTimeTextStyle.color ??
-                                        Colors.grey,
-                                  ),
-                                ],
+                              child: Text(
+                                _AppTexts.typing,
+                                style: widget
+                                    .messageStyle.adminMessageTimeTextStyle
+                                    .copyWith(
+                                      fontSize: 12,
+                                      color: Colors.white,
+                                    ),
                               ),
                             ),
                           );
@@ -757,6 +796,9 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
                           isEdit: true,
                         ),
                       ),
+                      // Quick emoji row above the input (like the app's post
+                      // comment box) — replaces the in-input emoji toggle.
+                      _QuickEmojiBar(onTap: _insertEmoji),
                       // Input field
                       ValueListenableBuilder<bool>(
                         valueListenable: _showEmojiNotifier,
@@ -877,7 +919,7 @@ class _ReplyPreviewBar extends StatelessWidget {
                   color: Colors.white.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
                   border: const Border(
-                    left: BorderSide(color: Color(0xff728FCE), width: 3),
+                    left: BorderSide(color: Colors.white, width: 3),
                   ),
                 ),
                 child: Row(
@@ -886,7 +928,7 @@ class _ReplyPreviewBar extends StatelessWidget {
                     Icon(
                       isEdit ? Icons.edit_outlined : Icons.reply,
                       size: 18,
-                      color: const Color(0xff728FCE),
+                      color: Colors.white,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -904,7 +946,7 @@ class _ReplyPreviewBar extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: Color(0xff728FCE),
+                              color: Colors.white,
                               fontWeight: FontWeight.w600,
                               fontSize: 12,
                             ),
@@ -934,6 +976,38 @@ class _ReplyPreviewBar extends StatelessWidget {
                 ),
               ),
             ),
+    );
+  }
+}
+
+/// A fixed row of quick emojis shown just above the input — tapping one inserts
+/// it into the message field. Mirrors the app's post-comment box.
+class _QuickEmojiBar extends StatelessWidget {
+  const _QuickEmojiBar({required this.onTap});
+
+  final ValueChanged<String> onTap;
+
+  static const _emojis = ['🩷', '🙌', '🔥', '👏', '😢', '😍', '😮', '😂'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          for (final emoji in _emojis)
+            _GeneralEffectsButton(
+              onTap: () => onTap(emoji),
+              constraints: const BoxConstraints(),
+              borderRadius: BorderRadius.circular(20),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Text(emoji, style: const TextStyle(fontSize: 26)),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

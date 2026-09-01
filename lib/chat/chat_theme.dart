@@ -51,7 +51,7 @@ abstract final class ChatTheme {
     ),
     dateSeparatorTextStyle: TextStyle(
       fontFamily: fontFamily,
-      color: secondary,
+      color: Colors.white,
       fontSize: 12,
       fontWeight: FontWeight.w500,
     ),
@@ -81,7 +81,8 @@ abstract final class ChatTheme {
     inputFillColor: bubble,
     inputBackgroundColor: Colors.transparent,
     inputCursorColor: Colors.white,
-    sendBackgroundColor: accent,
+    // Flat grey send button (#414141) — matches the bubbles, not a blue accent.
+    sendBackgroundColor: bubble,
     sendIconColor: Colors.white,
     closeIconColor: Colors.white,
     enabledBorderColor: Colors.transparent,
@@ -123,8 +124,9 @@ abstract final class ChatTheme {
       color: secondary,
       fontSize: 12,
     ),
-    typingTextColor: accent,
-    onlineColor: online,
+    // Online + typing indicators in white (was green/blue).
+    typingTextColor: Colors.white,
+    onlineColor: Colors.white,
     offlineColor: secondary,
   );
 

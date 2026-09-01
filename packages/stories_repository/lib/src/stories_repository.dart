@@ -98,6 +98,11 @@ class StoriesRepository extends StoriesBaseRepository {
   }) =>
       _databaseClient.getStories(userId: userId, includeAuthor: includeAuthor);
 
+  /// The single story identified by [id] (with its author), or `null` if it no
+  /// longer exists — used to render a story shared into a chat.
+  Future<Story?> getStoryBy({required String id}) =>
+      _databaseClient.getStoryBy(id: id);
+
   /// Every story the user has posted, newest first — the Archive. Author only.
   /// A story appears here as soon as it is uploaded, not once it expires.
   Stream<List<Story>> archivedStoriesOf({required String userId}) =>

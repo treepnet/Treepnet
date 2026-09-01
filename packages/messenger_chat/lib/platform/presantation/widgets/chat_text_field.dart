@@ -390,49 +390,8 @@ class _ChatTextFieldState extends State<_ChatTextField> {
                                 },
                               ),
                             ),
-                            // Emoji Toggle Button
-                            ValueListenableBuilder<_VoiceServiceData>(
-                              valueListenable: widget.voiceController.audioData,
-                              builder: (_, data, __) => _AnimatedVisible(
-                                visible: !data.isRecording,
-                                child: Container(
-                                  height: 44,
-                                  alignment: Alignment.center,
-                                  child: _GeneralEffectsButton(
-                                    onTap: () async {
-                                      if (widget.isEmojiMode) {
-                                        widget.focusNode.requestFocus();
-                                        // Picker remains showEmoji=true (frozen under keyboard)
-                                        widget.onEmojiToggled?.call(
-                                          false,
-                                          true,
-                                        );
-                                      } else {
-                                        widget.focusNode.unfocus();
-                                        // Small delay to allow keyboard to start closing,
-                                        // picker takes over explicit mode immediately
-                                        await Future.delayed(
-                                          const Duration(milliseconds: 50),
-                                        );
-                                        widget.onEmojiToggled?.call(true, true);
-                                      }
-                                    },
-                                    constraints: const BoxConstraints(),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(10.0),
-                                      child: Icon(
-                                        widget.isEmojiMode
-                                            ? ChatIcons.keyboard
-                                            : ChatIcons.smile,
-                                        color: widget.style.attachmentIconColor
-                                            .withOpacity(0.7),
-                                        size: 20,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
+                            // Emoji toggle removed — the app shows a fixed quick
+                            // emoji row above the input instead (see _Chat).
                           ],
                         ),
                       ),
@@ -486,6 +445,9 @@ class _ChatTextFieldState extends State<_ChatTextField> {
                                               width: 42,
                                               height: 42,
                                               decoration: BoxDecoration(
+                                                // A provided colour is used as-is
+                                                // (solid) — only the built-in
+                                                // default stays translucent.
                                                 color:
                                                     (widget
                                                                 .style
@@ -500,10 +462,7 @@ class _ChatTextFieldState extends State<_ChatTextField> {
                                                       ).withValues(alpha: 0.65)
                                                     : widget
                                                           .style
-                                                          .sendBackgroundColor!
-                                                          .withValues(
-                                                            alpha: 0.65,
-                                                          ),
+                                                          .sendBackgroundColor!,
                                                 shape: BoxShape.circle,
                                                 border: Border.all(
                                                   color:

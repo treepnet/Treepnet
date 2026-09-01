@@ -2850,8 +2850,38 @@ abstract class AppLocalizations {
   /// No description provided for @cantMessageUserText.
   ///
   /// In en, this message translates to:
-  /// **'You can\'t message this user.'**
+  /// **'You can\'t message this user because they\'ve blocked you.'**
   String get cantMessageUserText;
+
+  /// No description provided for @openPostText.
+  ///
+  /// In en, this message translates to:
+  /// **'Open post'**
+  String get openPostText;
+
+  /// No description provided for @storyUnavailableText.
+  ///
+  /// In en, this message translates to:
+  /// **'Story unavailable'**
+  String get storyUnavailableText;
+
+  /// No description provided for @couldNotOpenChatText.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t open the chat'**
+  String get couldNotOpenChatText;
+
+  /// No description provided for @couldNotDeleteChatText.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t delete the chat'**
+  String get couldNotDeleteChatText;
+
+  /// No description provided for @locationsCountText.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 location} other{{count} locations}}'**
+  String locationsCountText(int count);
 
   /// No description provided for @notifLikedText.
   ///

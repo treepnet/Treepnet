@@ -55,7 +55,17 @@ class ChatSession {
     required String myName,
     String? myAvatarUrl,
   }) async {
-    if (startedFor(myUuid)) return;
+    if (startedFor(myUuid)) {
+      // Already connected for this user. The first call often comes from the
+      // nav bar at startup, before the profile username has synced — so a later
+      // call (opening the inbox / a chat) may carry the real username. Push it
+      // through so the peer stops seeing "Unknown".
+      if (myName.isNotEmpty && myName != 'Unknown' && myName != _myName) {
+        _myName = myName;
+      }
+      _api?.refreshIdentity(name: myName, avatar: myAvatarUrl);
+      return;
+    }
     await stop();
 
     final deviceId = await MessengerChat.getDeviceId();
@@ -143,14 +153,22 @@ class ChatSession {
     final id = response.data?['id']?.toString() ?? '';
     final peerJson = response.data?['peer'] as Map?;
     final resolvedAvatar = peerJson?['avatar']?.toString();
+    // Prefer the app-supplied username (always passed from the caller) over the
+    // backend's stored name: a peer who has never opened chat has a cold-start
+    // row that can read "Unknown" or a stale full name. We know the real
+    // username here, so the thread header always shows it.
+    final backendName = peerJson?['name']?.toString() ?? '';
     final peer = ChatUser(
       id: peerJson?['id']?.toString() ?? '',
-      name: (peerJson?['name']?.toString().isNotEmpty ?? false)
-          ? peerJson!['name'].toString()
-          : peerName,
+      name: peerName.isNotEmpty ? peerName : backendName,
       avatarUrl: (resolvedAvatar != null && resolvedAvatar.isNotEmpty)
           ? resolvedAvatar
           : peerAvatarUrl,
+      // Seed the peer's live status from the REST payload — otherwise the
+      // header shows "offline" until the peer happens to toggle presence
+      // (they could already be online before we opened the chat).
+      isOnline: peerJson?['isOnline'] == true,
+      lastSeen: DateTime.tryParse(peerJson?['lastSeen']?.toString() ?? ''),
     );
     return (conversationId: id, peer: peer);
   }

@@ -6,7 +6,9 @@ import 'package:treepnet/chat/backend/dm_transports.dart';
 import 'package:treepnet/chat/chat_session.dart';
 import 'package:treepnet/chat/chat_theme.dart';
 import 'package:treepnet/chat/chat_thread_screen.dart';
+import 'package:treepnet/chat/chat_share_ref.dart';
 import 'package:treepnet/chat/shared_message_card.dart';
+import 'package:treepnet/l10n/l10n.dart';
 import 'package:user_repository/user_repository.dart';
 
 /// Whether either side has blocked the other — used to gate messaging
@@ -25,15 +27,32 @@ Future<bool> _blockedEitherWay(
   return results.any((blocked) => blocked);
 }
 
+/// Resolves the current user's real username for the chat backend.
+///
+/// `AppBloc.state.user` is the AUTH user (id/email) and often has no username —
+/// its [User.displayUsername] falls back to "Unknown", which is then what peers
+/// see as the sender. The app profile (from the local DB) does carry the
+/// username, so fall back to it whenever the auth user's name is missing.
+Future<String> currentChatName(UserRepository repo, User me) async {
+  final direct = me.displayUsername;
+  if (direct.isNotEmpty && direct != 'Unknown') return direct;
+  try {
+    final profile = await repo.profile(id: me.id).first;
+    final resolved = profile.displayUsername;
+    if (resolved.isNotEmpty && resolved != 'Unknown') return resolved;
+  } catch (_) {
+    // Profile not synced yet — keep the fallback; refreshIdentity will retry.
+  }
+  return direct;
+}
+
 /// Maps the app's current locale to the plugin's language enum.
 ChatLanguage chatLanguageFor(BuildContext context) {
+  // The app ships only Russian + English (locale follows the system / the
+  // user's app-language choice); the chat mirrors it — Russian for `ru`,
+  // English for everything else. No Uzbek.
   final code = Localizations.localeOf(context).languageCode;
-  return switch (code) {
-    'ru' => ChatLanguage.russian,
-    'en' => ChatLanguage.english,
-    'oz' => ChatLanguage.uzbekCyrillic,
-    _ => ChatLanguage.uzbek,
-  };
+  return code == 'ru' ? ChatLanguage.russian : ChatLanguage.english;
 }
 
 /// Opens (or creates) the 1:1 conversation with the given peer and pushes the
@@ -55,21 +74,18 @@ Future<void> openChat(
   final lang = chatLanguageFor(context);
   final messenger = ScaffoldMessenger.of(context);
   final navigator = Navigator.of(context, rootNavigator: true);
+  final repo = context.read<UserRepository>();
+  final couldNotOpen = context.l10n.couldNotOpenChatText;
 
-  // App-level block gate: you can't message someone you blocked, or who
-  // blocked you.
-  if (await _blockedEitherWay(context, meId: me.id, peerUuid: peerUuid)) {
-    messenger.showSnackBar(
-      const SnackBar(content: Text('Bu foydalanuvchi bilan yozishib bo‘lmaydi')),
-    );
-    return;
-  }
-
+  // Blocking no longer prevents OPENING the thread — you can read the history
+  // and the composer is replaced by a "blocked" notice inside (see
+  // ChatThreadScreen). Only actual sending is gated, app-side.
+  final myName = await currentChatName(repo, me);
   ({String conversationId, ChatUser peer}) opened;
   try {
     await session.ensureStarted(
       myUuid: me.id,
-      myName: me.displayUsername,
+      myName: myName,
       myAvatarUrl: me.hasAvatar ? me.avatarUrl : null,
     );
     opened = await session.openConversation(
@@ -78,9 +94,7 @@ Future<void> openChat(
       peerAvatarUrl: peerAvatarUrl,
     );
   } catch (_) {
-    messenger.showSnackBar(
-      const SnackBar(content: Text('Suhbatni ochib bo‘lmadi')),
-    );
+    messenger.showSnackBar(SnackBar(content: Text(couldNotOpen)));
     return;
   }
 
@@ -88,6 +102,7 @@ Future<void> openChat(
     navigator,
     conversationId: opened.conversationId,
     peer: opened.peer,
+    peerUuid: peerUuid,
     lang: lang,
   );
 }
@@ -104,6 +119,7 @@ Future<bool> shareTextToUser(
 }) async {
   final me = context.read<AppBloc>().state.user;
   if (me.isAnonymous || peerUuid.isEmpty || peerUuid == me.id) return false;
+  final repo = context.read<UserRepository>();
   if (await _blockedEitherWay(context, meId: me.id, peerUuid: peerUuid)) {
     return false;
   }
@@ -111,7 +127,7 @@ Future<bool> shareTextToUser(
   final session = ChatSession.instance;
   await session.ensureStarted(
     myUuid: me.id,
-    myName: me.displayUsername,
+    myName: await currentChatName(repo, me),
     myAvatarUrl: me.hasAvatar ? me.avatarUrl : null,
   );
   await session.sendText(
@@ -124,9 +140,9 @@ Future<bool> shareTextToUser(
 }
 
 /// Opens a conversation the inbox already resolved (id + peer known), skipping
-/// the create/find round-trip. Still applies the block gate: the peer's app
-/// uuid comes from the list transport (the plugin's [ChatUser] only carries the
-/// backend id).
+/// the create/find round-trip. The peer's app uuid comes from the list
+/// transport (the plugin's [ChatUser] only carries the backend id) so the
+/// thread can resolve block state.
 Future<void> openConversationScreen(
   BuildContext context, {
   required String conversationId,
@@ -137,25 +153,11 @@ Future<void> openConversationScreen(
       ? session.listTransport.peerUuidOf(conversationId)
       : null;
 
-  if (peerUuid != null && peerUuid.isNotEmpty) {
-    final me = context.read<AppBloc>().state.user;
-    final messenger = ScaffoldMessenger.of(context);
-    if (!me.isAnonymous &&
-        await _blockedEitherWay(context, meId: me.id, peerUuid: peerUuid)) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Bu foydalanuvchi bilan yozishib bo‘lmaydi'),
-        ),
-      );
-      return;
-    }
-  }
-
-  if (!context.mounted) return;
   await _pushThread(
     Navigator.of(context, rootNavigator: true),
     conversationId: conversationId,
     peer: peer,
+    peerUuid: peerUuid ?? '',
     lang: chatLanguageFor(context),
   );
 }
@@ -166,6 +168,7 @@ Future<void> _pushThread(
   NavigatorState navigator, {
   required String conversationId,
   required ChatUser peer,
+  required String peerUuid,
   required ChatLanguage lang,
 }) async {
   final session = ChatSession.instance;
@@ -180,12 +183,19 @@ Future<void> _pushThread(
     lang: lang,
     // Renders shared post/story sentinel messages as rich cards.
     sharedMessageBuilder: buildSharedMessage,
+    // Reply quotes / previews show "📷 Post" instead of the raw sentinel.
+    sharedReplyPreview: sharedContentPreview,
   );
 
   try {
     await navigator.push(
       MaterialPageRoute<void>(
-        builder: (_) => ChatThreadScreen(peer: peer, lang: lang),
+        builder: (_) => ChatThreadScreen(
+          peer: peer,
+          peerUuid: peerUuid,
+          conversationId: conversationId,
+          lang: lang,
+        ),
       ),
     );
   } finally {

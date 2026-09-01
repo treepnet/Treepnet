@@ -245,7 +245,7 @@ class _AuthorLocationCount extends StatelessWidget {
         final count = snapshot.data?.length ?? 0;
         if (count == 0) return const SizedBox.shrink();
         return Text(
-          count == 1 ? '1 location' : '$count locations',
+          context.l10n.locationsCountText(count),
           style: context.bodySmall?.copyWith(color: AppColors.textSecondary),
         );
       },

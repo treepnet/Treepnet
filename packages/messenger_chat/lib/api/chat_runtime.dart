@@ -24,6 +24,11 @@ class _ChatRuntime {
   /// qoladi, faqat ko'rinishi boshqacha.
   SharedMessageBuilder? sharedMessageBuilder;
 
+  /// Ilova bergan reply/quote matni formatlovchi: ulashilgan post/story kabi
+  /// maxsus xabar uchun qisqa yorliq ("📷 Post") qaytaradi, oddiy matn uchun
+  /// null. Reply-iqtibosda xom `treepnet:share:...` matn o'rniga ishlatiladi.
+  String? Function(String content)? sharedReplyPreview;
+
   /// Ilova bergan transport.
   ///
   /// [MessengerChat.init] chaqirilmagan bo'lsa - dasturchi xatosi, shuning
@@ -64,11 +69,13 @@ class _ChatRuntime {
     required ChatUser me,
     ChatFeatures? features,
     SharedMessageBuilder? sharedMessageBuilder,
+    String? Function(String content)? sharedReplyPreview,
   }) {
     if (features != null) _features = features;
     _transport = transport;
     _me = me;
     this.sharedMessageBuilder = sharedMessageBuilder;
+    this.sharedReplyPreview = sharedReplyPreview;
   }
 
   void setPeer(ChatUser? value) {
@@ -93,6 +100,7 @@ class _ChatRuntime {
     _me = null;
     _peer = null;
     sharedMessageBuilder = null;
+    sharedReplyPreview = null;
     peerNotifier.value = null;
   }
 }

@@ -33,5 +33,10 @@ final class _Russian {
     'typing': 'печатает...',
     'offline': 'не в сети',
     'lastSeen': 'был(а)',
+    'reply': 'Ответить',
+    'edit': 'Изменить',
+    'delete': 'Удалить',
+    'messageDeleted': 'Сообщение удалено',
+    'edited': 'изменено',
 };
 }

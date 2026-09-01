@@ -515,6 +515,10 @@ abstract class StoriesBaseRepository {
     bool includeAuthor = true,
   });
 
+  /// The single story identified by [id] (with its author), or `null` if it no
+  /// longer exists. Not filtered by expiry, so a shared story still resolves.
+  Future<Story?> getStoryBy({required String id});
+
   /// The user's expired stories — everything past its 24h window, newest
   /// first. Only ever shown to the author.
   Stream<List<Story>> archivedStoriesOf({required String userId});
@@ -3334,6 +3338,21 @@ ORDER BY s.created_at ASC
         parameters: [userId],
       )
       .map((event) => event.safeMap(Story.fromJson).toList(growable: false));
+
+  @override
+  Future<Story?> getStoryBy({required String id}) async {
+    final row = await _powerSyncRepository.db().getOptional(
+      '''
+SELECT s.*, p.id as user_id, p.username, p.full_name, p.avatar_url
+FROM stories s
+  LEFT JOIN profiles p ON s.user_id = p.id
+WHERE s.id = ?
+''',
+      [id],
+    );
+    if (row == null) return null;
+    return Story.fromJson(row);
+  }
 
   @override
   Stream<List<Story>> archivedStoriesOf({required String userId}) =>

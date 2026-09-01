@@ -1677,7 +1677,31 @@ class AppLocalizationsEn extends AppLocalizations {
       'You\'ve blocked this user. Unblock to send a message.';
 
   @override
-  String get cantMessageUserText => 'You can\'t message this user.';
+  String get cantMessageUserText =>
+      'You can\'t message this user because they\'ve blocked you.';
+
+  @override
+  String get openPostText => 'Open post';
+
+  @override
+  String get storyUnavailableText => 'Story unavailable';
+
+  @override
+  String get couldNotOpenChatText => 'Couldn\'t open the chat';
+
+  @override
+  String get couldNotDeleteChatText => 'Couldn\'t delete the chat';
+
+  @override
+  String locationsCountText(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count locations',
+      one: '1 location',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get notifLikedText => 'Liked your post.';

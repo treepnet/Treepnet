@@ -289,7 +289,7 @@ class _SwipeToReplyState extends State<_SwipeToReply> {
             left: 16,
             child: Opacity(
               opacity: (_dx / _threshold).clamp(0.0, 1.0),
-              child: const Icon(Icons.reply, color: Color(0xff728FCE)),
+              child: const Icon(Icons.reply, color: Colors.white),
             ),
           ),
           Transform.translate(

@@ -33,5 +33,10 @@ final class _English {
     'typing': 'is typing...',
     'offline': 'offline',
     'lastSeen': 'last seen',
+    'reply': 'Reply',
+    'edit': 'Edit',
+    'delete': 'Delete',
+    'messageDeleted': 'Message deleted',
+    'edited': 'edited',
 };
 }

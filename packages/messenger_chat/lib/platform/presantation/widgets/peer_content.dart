@@ -105,21 +105,25 @@ class _PeerBubbleAvatar extends StatelessWidget {
         fit: BoxFit.cover,
         width: 36,
         height: 36,
-        errorWidget: (_, __, ___) => _initials(),
-        placeholder: (_, __) => _initials(),
+        errorWidget: (_, __, ___) => _placeholder(),
+        placeholder: (_, __) => _placeholder(),
       );
     }
-    return _initials();
+    return _placeholder();
   }
 
-  Widget _initials() => Center(
-    child: Text(
-      peer?.initials ?? '?',
-      style: TextStyle(
-        color: fallbackColor,
-        fontWeight: FontWeight.w600,
-        fontSize: 14,
-      ),
+  // Default avatar when there's no photo — the app-wide default photo (white
+  // circle + shared profile_photo.png), matching the inbox avatars (was the
+  // peer's initials).
+  Widget _placeholder() => Container(
+    color: Colors.white,
+    alignment: Alignment.center,
+    child: Image.asset(
+      'assets/images/profile_photo.png',
+      package: 'messenger_chat',
+      fit: BoxFit.cover,
+      width: 36,
+      height: 36,
     ),
   );
 }

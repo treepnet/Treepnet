@@ -37,3 +37,13 @@ SharedRef? parseSharedRef(String content) {
   if (kind == null || id.isEmpty) return null;
   return SharedRef(kind: kind, id: id);
 }
+
+/// A short label for a shared post/story sentinel, used in reply quotes and
+/// inbox previews. Returns `null` for plain text (so callers fall back to the
+/// raw content).
+String? sharedContentPreview(String content) =>
+    switch (parseSharedRef(content)?.kind) {
+      SharedRefKind.post => '📷 Post',
+      SharedRefKind.story => '📖 Story',
+      _ => null,
+    };

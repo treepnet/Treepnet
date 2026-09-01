@@ -10,6 +10,7 @@ import 'package:treepnet/feed/post/video/video.dart';
 import 'package:treepnet/home/home.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:go_router/go_router.dart';
+import 'package:user_repository/user_repository.dart';
 
 /// {@template main_bottom_navigation_bar}
 /// Bottom navigation bar of the application. It contains the [navigationShell]
@@ -131,11 +132,14 @@ class _ChatTabIconState extends State<_ChatTabIcon> {
     super.initState();
     final me = context.read<AppBloc>().state.user;
     if (!me.isAnonymous) {
+      final repo = context.read<UserRepository>();
       unawaited(
-        ChatSession.instance.ensureStarted(
-          myUuid: me.id,
-          myName: me.displayUsername,
-          myAvatarUrl: me.hasAvatar ? me.avatarUrl : null,
+        currentChatName(repo, me).then(
+          (name) => ChatSession.instance.ensureStarted(
+            myUuid: me.id,
+            myName: name,
+            myAvatarUrl: me.hasAvatar ? me.avatarUrl : null,
+          ),
         ),
       );
     }

@@ -4,6 +4,7 @@ import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart';
+import 'package:treepnet/stories/widgets/user_stories_avatar.dart';
 import 'package:messenger_chat/messenger_chat.dart';
 import 'package:treepnet/app/bloc/app_bloc.dart';
 import 'package:treepnet/chat/chat_session.dart';
@@ -38,9 +39,10 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
 
   Future<void> _start() async {
     final me = context.read<AppBloc>().state.user;
+    final repo = context.read<UserRepository>();
     await ChatSession.instance.ensureStarted(
       myUuid: me.id,
-      myName: me.displayUsername,
+      myName: await currentChatName(repo, me),
       myAvatarUrl: me.hasAvatar ? me.avatarUrl : null,
     );
   }
@@ -73,6 +75,7 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
         child: SafeArea(
           bottom: false,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _TopTabs(currentTab: _tab, onChanged: _goToTab),
               _SearchField(
@@ -96,7 +99,10 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
                       onPageChanged: (page) => setState(() => _tab = page),
                       children: [
                         _TypeList(query: _query, userId: userId),
-                        _ChatsList(query: _query),
+                        _ChatsList(
+                          query: _query,
+                          onStartChat: () => _goToTab(0),
+                        ),
                       ],
                     );
                   },
@@ -322,20 +328,10 @@ class _TypeListState extends State<_TypeList> {
           ),
           itemBuilder: (context, index) {
             final user = users[index];
-            return ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: UserProfileAvatar(
-                avatarUrl: user.avatarUrl,
-                isLarge: false,
-                radius: 22,
-                enableBorder: false,
-              ),
-              title: Text(
-                user.displayUsername,
-                style: context.bodyLarge?.copyWith(
-                  fontWeight: AppFontWeight.semiBold,
-                ),
-              ),
+            return _PersonRow(
+              avatarUrl: user.avatarUrl,
+              author: user,
+              title: user.displayUsername,
               onTap: () => openChat(
                 context,
                 peerUuid: user.id,
@@ -353,9 +349,12 @@ class _TypeListState extends State<_TypeList> {
 /// "Chats" tab: existing conversations from the shared list transport, filtered
 /// by the search query and kept live via the transport's events.
 class _ChatsList extends StatefulWidget {
-  const _ChatsList({required this.query});
+  const _ChatsList({required this.query, this.onStartChat});
 
   final String query;
+
+  /// Jumps to the "Type" tab from the empty-state button.
+  final VoidCallback? onStartChat;
 
   @override
   State<_ChatsList> createState() => _ChatsListState();
@@ -483,12 +482,7 @@ class _ChatsListState extends State<_ChatsList> {
           });
 
     if (conversations.isEmpty) {
-      return Center(
-        child: Text(
-          context.l10n.noChatsText,
-          style: context.bodyMedium?.copyWith(color: AppColors.textSecondary),
-        ),
-      );
+      return _ChatsEmpty(onStartChat: widget.onStartChat);
     }
 
     return ListView.separated(
@@ -532,42 +526,78 @@ class _ConversationTile extends StatelessWidget {
         '${dt.month.toString().padLeft(2, '0')}';
   }
 
+  /// Long-press → confirm → delete the whole conversation (both sides).
+  Future<void> _confirmDelete(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final couldNotDelete = context.l10n.couldNotDeleteChatText;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: ChatTheme.bubble,
+        title: Text(
+          dialogContext.l10n.deleteChatText,
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          dialogContext.l10n.chatDeleteConfirmationText,
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(dialogContext.l10n.cancelText),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              dialogContext.l10n.deleteText,
+              style: const TextStyle(color: Color(0xffE5484D)),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !ChatSession.instance.isStarted) return;
+    try {
+      await ChatSession.instance.listTransport.deleteConversation(
+        conversation.id,
+      );
+    } catch (_) {
+      messenger.showSnackBar(SnackBar(content: Text(couldNotDelete)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final unread = conversation.unreadCount;
     final preview = _preview();
 
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
+    // Resolve the peer's app uuid so the avatar can show their story ring
+    // (the ChatUser only carries the backend id).
+    final peerUuid = ChatSession.instance.isStarted
+        ? ChatSession.instance.listTransport.peerUuidOf(conversation.id)
+        : null;
+    final author = (peerUuid != null && peerUuid.isNotEmpty)
+        ? User(
+            id: peerUuid,
+            username: conversation.peer.name,
+            avatarUrl: conversation.peer.avatarUrl,
+          )
+        : null;
+
+    return _PersonRow(
+      avatarUrl: conversation.peer.avatarUrl,
+      author: author,
+      title: conversation.peer.name,
+      subtitle: preview.isEmpty ? null : preview,
       onTap: () => openConversationScreen(
         context,
         conversationId: conversation.id,
         peer: conversation.peer,
       ),
-      leading: UserProfileAvatar(
-        avatarUrl: conversation.peer.avatarUrl,
-        isLarge: false,
-        radius: 22,
-        enableBorder: false,
-      ),
-      title: Text(
-        conversation.peer.name,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: context.bodyLarge?.copyWith(fontWeight: AppFontWeight.semiBold),
-      ),
-      subtitle: preview.isEmpty
-          ? null
-          : Text(
-              preview,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: context.bodyMedium?.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
+      onLongPress: () => _confirmDelete(context),
       trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (unread > 0)
@@ -597,6 +627,175 @@ class _ConversationTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The empty "Chats" state — a large chat glyph, a title and a button that
+/// jumps to the "Type" tab (matching the old chat design).
+class _ChatsEmpty extends StatelessWidget {
+  const _ChatsEmpty({this.onStartChat});
+
+  final VoidCallback? onStartChat;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Transform.flip(
+              flipX: true,
+              child: Assets.icons.chatCircle.svg(
+                height: 86,
+                width: 86,
+                colorFilter: const ColorFilter.mode(
+                  AppColors.white,
+                  BlendMode.srcIn,
+                ),
+              ),
+            ),
+            const Gap.v(AppSpacing.sm),
+            Text(
+              context.l10n.noChatsText,
+              style: context.headlineLarge?.copyWith(
+                fontWeight: AppFontWeight.semiBold,
+                color: AppColors.white,
+              ),
+            ),
+            if (onStartChat != null) ...[
+              const Gap.v(AppSpacing.md),
+              Tappable.scaled(
+                onTap: onStartChat,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xlg,
+                    vertical: AppSpacing.md,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF414141),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    context.l10n.startChatText,
+                    style: context.labelLarge?.copyWith(
+                      color: AppColors.white,
+                      fontWeight: AppFontWeight.semiBold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A single inbox row (person or conversation), laid out with an explicit
+/// [Row] instead of [ListTile].
+///
+/// [ListTile] measures its own intrinsic width and asserts when a `leading`
+/// widget ends up as wide as the tile — which is exactly what happened inside
+/// the swipeable [PageView] on some Android devices, blanking the whole page.
+/// A plain Row with a fixed-size avatar and an [Expanded] text column is
+/// immune to that and always lays out against the width it is given.
+class _PersonRow extends StatelessWidget {
+  const _PersonRow({
+    required this.avatarUrl,
+    required this.title,
+    required this.onTap,
+    this.subtitle,
+    this.trailing,
+    this.onLongPress,
+    this.author,
+  });
+
+  final String? avatarUrl;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+  final Widget? trailing;
+  final VoidCallback? onLongPress;
+
+  /// When set, the avatar shows the app-wide story ring for this user. The
+  /// avatar itself stays non-interactive (wrapped in [IgnorePointer]) so the
+  /// row's own tap — opening the chat — still wins.
+  final User? author;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tappable(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      backgroundColor: Colors.transparent,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 44,
+              height: 44,
+              child: author != null
+                  ? UserStoriesAvatar(
+                      author: author!,
+                      isLarge: false,
+                      radius: 20,
+                      withAdaptiveBorder: false,
+                      // Only the WHITE (unseen) ring in chat — no grey "seen"
+                      // ring.
+                      enableInactiveBorder: false,
+                      // Tapping the avatar opens an unseen story; with no
+                      // (unseen) story it falls through to opening the chat,
+                      // same as tapping the rest of the row.
+                      onAvatarTap: (_) => onTap(),
+                    )
+                  : UserProfileAvatar(
+                      avatarUrl: avatarUrl,
+                      isLarge: false,
+                      radius: 22,
+                      enableBorder: false,
+                    ),
+            ),
+            const Gap.h(AppSpacing.md),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.bodyLarge?.copyWith(
+                      fontWeight: AppFontWeight.semiBold,
+                    ),
+                  ),
+                  if (subtitle != null && subtitle!.isNotEmpty) ...[
+                    const Gap.v(AppSpacing.xxs),
+                    Text(
+                      subtitle!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.bodyMedium?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (trailing != null) ...[
+              const Gap.h(AppSpacing.sm),
+              trailing!,
+            ],
+          ],
+        ),
       ),
     );
   }

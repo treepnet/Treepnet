@@ -1706,7 +1706,31 @@ class AppLocalizationsRu extends AppLocalizations {
       'Вы заблокировали этого пользователя. Разблокируйте, чтобы написать.';
 
   @override
-  String get cantMessageUserText => 'Вы не можете написать этому пользователю.';
+  String get cantMessageUserText =>
+      'Вы не можете написать этому пользователю, так как он вас заблокировал.';
+
+  @override
+  String get openPostText => 'Открыть пост';
+
+  @override
+  String get storyUnavailableText => 'История недоступна';
+
+  @override
+  String get couldNotOpenChatText => 'Не удалось открыть чат';
+
+  @override
+  String get couldNotDeleteChatText => 'Не удалось удалить чат';
+
+  @override
+  String locationsCountText(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Локаций',
+      one: '$count Локация',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get notifLikedText => 'Понравилась ваша публикация.';
