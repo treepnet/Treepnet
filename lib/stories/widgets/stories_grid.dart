@@ -40,19 +40,66 @@ class StoriesGridView extends StatelessWidget {
   }
 }
 
-class _Grid extends StatelessWidget {
+class _Grid extends StatefulWidget {
   const _Grid({required this.hasOwnStories, required this.currentUser});
 
   final bool hasOwnStories;
   final User currentUser;
 
   @override
+  State<_Grid> createState() => _GridState();
+}
+
+class _GridState extends State<_Grid> {
+  final _controller = ScrollController();
+
+  /// Captured once so the scroll listener never does a `context` lookup (it can
+  /// fire while the widget is being torn down).
+  StoriesBloc? _bloc;
+  bool _growing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_onScroll);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _bloc = context.read<StoriesBloc>();
+  }
+
+  @override
+  void dispose() {
+    _controller
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  /// Near the end of the grid → widen the story-haver window, but only while
+  /// it's full, so it stops once every haver is loaded.
+  void _onScroll() {
+    if (!_controller.hasClients || _growing) return;
+    final position = _controller.position;
+    if (position.pixels < position.maxScrollExtent - 300) return;
+    final bloc = _bloc;
+    if (bloc == null || bloc.state.users.length < bloc.storyLimit) return;
+    _growing = true;
+    bloc.add(const StoriesFetchUserFollowingsStories(grow: true));
+    Future<void>.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) _growing = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return BlocBuilder<StoriesBloc, StoriesState>(
       builder: (context, state) {
         final users = [
-          if (hasOwnStories) currentUser,
-          ...state.users.where((u) => u.id != currentUser.id),
+          if (widget.hasOwnStories) widget.currentUser,
+          ...state.users.where((u) => u.id != widget.currentUser.id),
         ];
 
         return Stack(
@@ -74,11 +121,15 @@ class _Grid extends StatelessWidget {
                     const StoriesFetchUserFollowingsStories(),
                   );
                   context.read<UserStoriesBloc>().add(
-                    UserStoriesSubscriptionRequested(currentUser.id),
+                    UserStoriesSubscriptionRequested(widget.currentUser.id),
                   );
                   await Future<void>.delayed(const Duration(milliseconds: 600));
                 },
                 child: GridView.builder(
+                  controller: _controller,
+                  // Always overscrollable so pull-to-refresh works even when the
+                  // few story cards fit the screen without needing to scroll.
+                  physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.md,
                     AppSpacing.sm,

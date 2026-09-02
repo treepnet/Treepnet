@@ -8,7 +8,11 @@ sealed class StoriesEvent extends Equatable {
 }
 
 final class StoriesFetchUserFollowingsStories extends StoriesEvent {
-  const StoriesFetchUserFollowingsStories();
+  const StoriesFetchUserFollowingsStories({this.grow = false});
+
+  /// Widen the story-haver window by one page (the carousel scrolled to its
+  /// end). False = the initial subscription.
+  final bool grow;
 }
 
 final class StoriesStorySeen extends StoriesEvent {
