@@ -12,9 +12,7 @@ part 'stories_state.dart';
 class StoriesBloc extends Bloc<StoriesEvent, StoriesState> {
   StoriesBloc({
     required StoriesRepository storiesRepository,
-    required UserRepository userRepository,
   }) : _storiesRepository = storiesRepository,
-       _userRepository = userRepository,
        super(const StoriesState.initial()) {
     on<StoriesFetchUserFollowingsStories>(
       _onStoriesFetchUserFollowingsStories,
@@ -27,7 +25,6 @@ class StoriesBloc extends Bloc<StoriesEvent, StoriesState> {
   }
 
   final StoriesRepository _storiesRepository;
-  final UserRepository _userRepository;
 
   /// Subscribes to the stories of everyone the user follows and keeps the list
   /// ordered for as long as this bloc lives.
@@ -41,22 +38,15 @@ class StoriesBloc extends Bloc<StoriesEvent, StoriesState> {
     Emitter<StoriesState> emit,
   ) async {
     try {
-      final followings = await _userRepository.getFollowings();
-      if (followings.isEmpty) {
-        return emit(
-          state.copyWith(users: const [], status: StoriesStatus.success),
-        );
-      }
-      await emit.forEach<List<List<Story>>>(
-        _storiesRepository.mergedStoriesOfAll(
-          followings.map((user) => user.id).toList(),
-        ),
-        onData: (feeds) {
-          final withStories = <(User, List<Story>)>[];
-          for (var i = 0; i < followings.length && i < feeds.length; i++) {
-            if (feeds[i].isNotEmpty) withStories.add((followings[i], feeds[i]));
-          }
-          withStories.sort((a, b) => compareStoryAuthors(a.$2, b.$2));
+      // Bounded to followings who actually have an active story (resolved by a
+      // single reactive query), so the tray no longer opens a live feed and
+      // fetches a profile for EVERY followed user. Still live: a new/expired
+      // story re-emits the author set.
+      await emit.forEach<List<(User, List<Story>)>>(
+        _storiesRepository.followingStoriesFeed(),
+        onData: (pairs) {
+          final withStories = [...pairs]
+            ..sort((a, b) => compareStoryAuthors(a.$2, b.$2));
           return state.copyWith(
             users: withStories.map((entry) => entry.$1).toList(),
             status: StoriesStatus.success,

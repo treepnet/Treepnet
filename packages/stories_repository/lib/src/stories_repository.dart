@@ -184,6 +184,43 @@ class StoriesRepository extends StoriesBaseRepository {
           authorIds.map((id) => mergedStories(authorId: id)),
         );
 
+  /// The stories tray as `(author, stories)` pairs — bounded to the followings
+  /// who CURRENTLY have an active story, found via one reactive query, instead
+  /// of opening a live feed (and fetching a profile) for every followed user.
+  ///
+  /// Stays live: posting or expiring a story re-emits the author set, which
+  /// re-subscribes. Only those authors' profiles are fetched. Empty when nobody
+  /// followed has an active story.
+  Stream<List<(User, List<Story>)>> followingStoriesFeed() => Rx.switchLatest(
+    _databaseClient
+        .followingsWithActiveStories()
+        // Only re-fetch profiles / re-subscribe when the author SET actually
+        // changes (a story merely being seen re-emits the same set).
+        .distinct(
+          (a, b) => const SetEquality<String>().equals(a.toSet(), b.toSet()),
+        )
+        .map((authorIds) {
+          if (authorIds.isEmpty) {
+            return Stream.value(const <(User, List<Story>)>[]);
+          }
+          // Fetch just these authors' profiles, then keep their live stories.
+          return Stream.fromFuture(
+            _databaseClient.profilesByIds(authorIds),
+          ).asyncExpand((users) {
+            final byId = {for (final user in users) user.id: user};
+            return mergedStoriesOfAll(authorIds).map((feeds) {
+              final pairs = <(User, List<Story>)>[];
+              for (var i = 0; i < authorIds.length && i < feeds.length; i++) {
+                final user = byId[authorIds[i]];
+                if (user == null || feeds[i].isEmpty) continue;
+                pairs.add((user, feeds[i]));
+              }
+              return pairs;
+            });
+          });
+        }),
+  );
+
   /// Updates in-memory [story] as seen.
   Future<void> setUserStorySeen({
     required Story story,

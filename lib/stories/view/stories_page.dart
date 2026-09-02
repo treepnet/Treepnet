@@ -29,7 +29,6 @@ class StoriesPage extends StatelessWidget {
         BlocProvider(
           create: (context) => StoriesBloc(
             storiesRepository: context.read<StoriesRepository>(),
-            userRepository: context.read<UserRepository>(),
           ),
         ),
         // The story viewer sits on the root navigator, outside Home's provider,

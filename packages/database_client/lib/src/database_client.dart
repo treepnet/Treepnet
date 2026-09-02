@@ -636,6 +636,15 @@ abstract class DatabaseClient
   /// arguments. Irreversible.
   Future<void> deleteAccount();
 
+  /// The ids of the current user's followings who CURRENTLY have a non-expired
+  /// story. Reactive — re-emits when a story is posted or expires. Lets the
+  /// stories tray subscribe only to authors who actually have a story instead
+  /// of opening a live feed (and fetching a profile) for every followed user.
+  Stream<List<String>> followingsWithActiveStories({String? userId});
+
+  /// Fetches the profiles for [ids] in one query. Empty [ids] → empty list.
+  Future<List<User>> profilesByIds(List<String> ids);
+
   /// Watches the messages of a conversation and invokes [callback] with a
   /// per-row change (new/old record) each time a message is inserted, updated
   /// or deleted — driven by PowerSync's reactive local database.
@@ -2177,6 +2186,18 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
   }
 
   @override
+  Future<List<User>> profilesByIds(List<String> ids) async {
+    if (ids.isEmpty) return const [];
+    final placeholders = List.filled(ids.length, '?').join(', ');
+    final result = await _powerSyncRepository.db().getAll(
+      'SELECT id, avatar_url, username, full_name '
+      'FROM profiles WHERE id IN ($placeholders)',
+      ids,
+    );
+    return result.safeMap(User.fromJson).toList(growable: false);
+  }
+
+  @override
   Stream<List<User>> followers({required String userId, int? limit}) async* {
     // `limit` caps the reactive window so a huge follower list isn't fetched
     // (one profile query PER follower) all at once. Null = all (unchanged for
@@ -3359,6 +3380,25 @@ ORDER BY s.created_at ASC
         parameters: [userId],
       )
       .map((event) => event.safeMap(Story.fromJson).toList(growable: false));
+
+  @override
+  Stream<List<String>> followingsWithActiveStories({String? userId}) =>
+      _powerSyncRepository
+          .db()
+          .watch(
+            '''
+SELECT DISTINCT s.user_id AS user_id
+FROM stories s
+  INNER JOIN subscriptions f ON f.subscribed_to_id = s.user_id
+WHERE f.subscriber_id = ? AND s.expires_at > current_timestamp
+''',
+            parameters: [userId ?? currentUserId],
+          )
+          .map(
+            (rows) => rows
+                .map((row) => row['user_id'] as String)
+                .toList(growable: false),
+          );
 
   @override
   Future<Story?> getStoryBy({required String id}) async {

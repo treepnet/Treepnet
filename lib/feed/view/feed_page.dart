@@ -52,7 +52,6 @@ class FeedPageState extends State<FeedPage> with RouteAware {
     return BlocProvider(
       create: (context) => StoriesBloc(
         storiesRepository: context.read<StoriesRepository>(),
-        userRepository: context.read<UserRepository>(),
       )..add(const StoriesFetchUserFollowingsStories()),
       child: const FeedView(),
     );
