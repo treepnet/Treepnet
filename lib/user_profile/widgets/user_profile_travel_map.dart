@@ -9,7 +9,7 @@ import 'package:treepnet/map/map.dart';
 /// The map fills the tab. It used to be pinned to a fixed height at the top,
 /// which left dead space underneath once the profile header collapsed and the
 /// tab grew.
-class UserProfileTravelMap extends StatelessWidget {
+class UserProfileTravelMap extends StatefulWidget {
   const UserProfileTravelMap({required this.userId, super.key});
 
   /// Breathing room so the map doesn't touch the panel edges.
@@ -17,11 +17,24 @@ class UserProfileTravelMap extends StatelessWidget {
 
   final String userId;
 
+  @override
+  State<UserProfileTravelMap> createState() => _UserProfileTravelMapState();
+}
+
+class _UserProfileTravelMapState extends State<UserProfileTravelMap>
+    with AutomaticKeepAliveClientMixin {
   /// Captured once; see [VisitedRegionsPage] — a per-build future resets the map.
   static final Future<void> _geoReady = GeoRegions.instance.load();
 
+  // Keep the map alive across profile tab switches. Rebuilding it on every
+  // return from the Posts tab re-subscribed its streams and re-fit the camera,
+  // which is the stutter you see switching Posts → Map.
+  @override
+  bool get wantKeepAlive => true;
+
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final postsRepository = context.read<PostsRepository>();
     // Story points are reverse-geocoded below, which needs the region polygons
     // in memory. `load()` caches, so this resolves instantly after the first
@@ -34,11 +47,11 @@ class UserProfileTravelMap extends StatelessWidget {
 
   Widget _buildMap(BuildContext context, PostsRepository postsRepository) {
     return StreamBuilder<Map<String, int>>(
-      stream: postsRepository.visitedRegionCountsOf(userId: userId),
+      stream: postsRepository.visitedRegionCountsOf(userId: widget.userId),
       builder: (context, regionSnap) {
         final visited = regionSnap.data ?? const <String, int>{};
         return StreamBuilder<List<({double lat, double lng, String? name})>>(
-          stream: postsRepository.visitedPointsOf(userId: userId),
+          stream: postsRepository.visitedPointsOf(userId: widget.userId),
           builder: (context, pointSnap) {
             final postPoints =
                 pointSnap.data ??
@@ -46,7 +59,7 @@ class UserProfileTravelMap extends StatelessWidget {
             // Story locations also drop a pin — and they persist here even
             // after the 24h story has expired.
             return StreamBuilder<List<({double lat, double lng, String? name})>>(
-              stream: postsRepository.storyPointsOf(userId: userId),
+              stream: postsRepository.storyPointsOf(userId: widget.userId),
               builder: (context, storySnap) {
                 final storyPoints = storySnap.data ?? const [];
                 final points = <({double lat, double lng, String? name})>[
@@ -54,7 +67,7 @@ class UserProfileTravelMap extends StatelessWidget {
                   ...storyPoints,
                 ];
                 return Padding(
-                  padding: const EdgeInsets.all(_inset),
+                  padding: const EdgeInsets.all(UserProfileTravelMap._inset),
                   child: TravelMap(
                     visitedCounts: _withStoryRegions(visited, storyPoints),
                     points: points,
@@ -64,7 +77,7 @@ class UserProfileTravelMap extends StatelessWidget {
                     height: double.infinity,
                     onTargetTap: (target) => LocationPostsPage.push(
                       context,
-                      userId: userId,
+                      userId: widget.userId,
                       regionIso: target.region.iso,
                       regionName: target.region.name,
                       // The name the author gave this spot — the heading of the
