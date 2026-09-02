@@ -98,7 +98,6 @@ class _LikerTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final avatar = user.avatarUrl;
-    final me = context.read<UserRepository>().currentUserId;
     return ListTile(
       onTap: () => context.pushNamed(
         AppRoutes.userProfile.name,
@@ -125,49 +124,6 @@ class _LikerTile extends StatelessWidget {
         user.displayFullName,
         style: context.textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
       ),
-      // No follow button for the current user's own row.
-      trailing: user.id == me ? null : _FollowButton(userId: user.id),
-    );
-  }
-}
-
-class _FollowButton extends StatelessWidget {
-  const _FollowButton({required this.userId});
-
-  final String userId;
-
-  @override
-  Widget build(BuildContext context) {
-    final repo = context.read<UserRepository>();
-    return StreamBuilder<bool>(
-      stream: repo.followingStatus(userId: userId),
-      initialData: false,
-      builder: (context, snapshot) {
-        final following = snapshot.data ?? false;
-        if (following) {
-          return OutlinedButton(
-            onPressed: () => repo.unfollow(unfollowId: userId),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: context.colorScheme.onSurface,
-              side: const BorderSide(color: AppColors.divider),
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              minimumSize: const Size(0, 34),
-            ),
-            child: Text(context.l10n.followingUser),
-          );
-        }
-        return ElevatedButton(
-          onPressed: () => repo.follow(followToId: userId),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.blue,
-            foregroundColor: AppColors.white,
-            elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xlg),
-            minimumSize: const Size(0, 34),
-          ),
-          child: Text(context.l10n.followUser),
-        );
-      },
     );
   }
 }
