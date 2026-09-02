@@ -3548,8 +3548,7 @@ WHERE user_id = ?1 AND story_id = ?2 AND region_iso = ?3
 SELECT up.id, up.username, up.full_name, up.avatar_url
 FROM profiles up
 INNER JOIN likes l ON up.id = l.user_id
-INNER JOIN posts p ON l.post_id = p.id
-WHERE p.post_id ?
+WHERE l.post_id = ?
 LIMIT ? OFFSET ?
 ''',
       [postId, limit, offset],
