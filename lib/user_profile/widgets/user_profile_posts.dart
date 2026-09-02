@@ -24,18 +24,67 @@ class UserProfilePosts extends StatefulWidget {
 }
 
 class _UserProfilePostsState extends State<UserProfilePosts> {
+  static const _pageSize = 30;
+
   late ItemScrollController _itemScrollController;
   late ItemPositionsListener _itemPositionsListener;
   late ScrollOffsetController _scrollOffsetController;
   late ScrollOffsetListener _scrollOffsetListener;
 
+  /// Captured ONCE here, so the scroll listener (which can fire while the page
+  /// is being torn down) never does a `context` lookup on a deactivated widget.
+  late final UserProfileBloc _bloc;
+
+  /// Reactive window over the profile's posts. Starts wide enough to include
+  /// the tapped post (`widget.index` is its position in the full list) plus a
+  /// page ahead, then grows by [_pageSize] as the user scrolls to the end —
+  /// so a prolific profile isn't loaded and decoded whole.
+  int _limit = _pageSize;
+  int _requestedLimit = _pageSize;
+  Stream<List<PostBlock>>? _stream;
+  int _streamLimit = -1;
+
   @override
   void initState() {
     super.initState();
+    _bloc = context.read<UserProfileBloc>();
     _itemScrollController = ItemScrollController();
     _itemPositionsListener = ItemPositionsListener.create();
     _scrollOffsetController = ScrollOffsetController();
     _scrollOffsetListener = ScrollOffsetListener.create();
+    _limit = widget.index + _pageSize;
+    _requestedLimit = _limit;
+    _itemPositionsListener.itemPositions.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _itemPositionsListener.itemPositions.removeListener(_onScroll);
+    super.dispose();
+  }
+
+  Stream<List<PostBlock>> _postsStream() {
+    if (_stream == null || _streamLimit != _limit) {
+      _streamLimit = _limit;
+      _stream = _bloc.userPosts(small: false, limit: _limit);
+    }
+    return _stream!;
+  }
+
+  /// Widens the window when the user nears the end of what's loaded. Uses only
+  /// captured fields — no `context` — so it's safe to fire during teardown.
+  void _onScroll() {
+    final positions = _itemPositionsListener.itemPositions.value;
+    if (positions.isEmpty) return;
+    final maxIndex = positions
+        .map((p) => p.index)
+        .reduce((a, b) => a > b ? a : b);
+    if (maxIndex >= _limit - 5 && _requestedLimit == _limit) {
+      _requestedLimit = _limit + _pageSize;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _limit = _requestedLimit);
+      });
+    }
   }
 
   @override
@@ -50,7 +99,7 @@ class _UserProfilePostsState extends State<UserProfilePosts> {
         slivers: [
           UserProfilePostsAppBar(userId: widget.userId),
           StreamBuilder<List<PostBlock>>(
-            stream: context.read<UserProfileBloc>().userPosts(small: false),
+            stream: _postsStream(),
             builder: (context, snapshot) {
               final blocks = snapshot.data;
 
