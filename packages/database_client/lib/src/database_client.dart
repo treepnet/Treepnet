@@ -594,7 +594,9 @@ abstract class StoriesBaseRepository {
 
   /// The people who have viewed [storyId], most recent first. Only the story's
   /// author receives these rows (enforced by the sync rules).
-  Stream<List<User>> storyViewersOf({required String storyId});
+  ///
+  /// [limit] caps the reactive window for scroll pagination; null = all.
+  Stream<List<User>> storyViewersOf({required String storyId, int? limit});
 
   /// Toggles a like by [userId] on the story [storyId].
   Future<void> likeStory({required String storyId, required String userId});
@@ -3302,7 +3304,7 @@ DELETE FROM stories WHERE id = ?
           .map((rows) => (rows.first['c'] as int?) ?? 0);
 
   @override
-  Stream<List<User>> storyViewersOf({required String storyId}) =>
+  Stream<List<User>> storyViewersOf({required String storyId, int? limit}) =>
       _powerSyncRepository
           .db()
           .watch(
@@ -3311,8 +3313,9 @@ SELECT p.* FROM story_views sv
   JOIN profiles p ON p.id = sv.user_id
 WHERE sv.story_id = ?
 ORDER BY sv.created_at DESC
+${limit != null ? 'LIMIT ?' : ''}
 ''',
-            parameters: [storyId],
+            parameters: [storyId, if (limit != null) limit],
           )
           .map((rows) => rows.map(User.fromJson).toList(growable: false));
 

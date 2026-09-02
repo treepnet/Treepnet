@@ -518,18 +518,59 @@ class _ShareIconPainter extends CustomPainter {
 }
 
 /// Bottom sheet listing everyone who viewed the story.
-class _ViewersSheet extends StatelessWidget {
+class _ViewersSheet extends StatefulWidget {
   const _ViewersSheet({required this.storyId});
 
   final String storyId;
 
   @override
+  State<_ViewersSheet> createState() => _ViewersSheetState();
+}
+
+class _ViewersSheetState extends State<_ViewersSheet> {
+  static const _pageSize = 30;
+
+  /// Reactive window over the viewers — a viral story can have thousands, so
+  /// only [_limit] are fetched; it widens by [_pageSize] as the list scrolls to
+  /// its end (they're ordered newest-first, so growing adds older viewers).
+  int _limit = _pageSize;
+  int _requestedLimit = _pageSize;
+  Stream<List<User>>? _stream;
+  int _streamLimit = -1;
+
+  late final StoriesRepository _stories;
+
+  @override
+  void initState() {
+    super.initState();
+    _stories = context.read<StoriesRepository>();
+  }
+
+  Stream<List<User>> _viewersStream() {
+    if (_stream == null || _streamLimit != _limit) {
+      _streamLimit = _limit;
+      _stream = _stories.storyViewersOf(storyId: widget.storyId, limit: _limit);
+    }
+    return _stream!;
+  }
+
+  /// Called from the list's [itemBuilder] when the last loaded row is built —
+  /// widens the window on the next frame if it's full (there may be more).
+  void _maybeGrow(int loaded) {
+    if (loaded >= _limit && _requestedLimit == _limit) {
+      _requestedLimit = _limit + _pageSize;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _limit = _requestedLimit);
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final stories = context.read<StoriesRepository>();
     return SizedBox(
       height: MediaQuery.sizeOf(context).height * 0.6,
       child: StreamBuilder<List<User>>(
-        stream: stories.storyViewersOf(storyId: storyId),
+        stream: _viewersStream(),
         builder: (context, snap) {
           final viewers = snap.data;
           return Column(
@@ -596,8 +637,11 @@ class _ViewersSheet extends StatelessWidget {
                     }
                     return ListView.builder(
                       itemCount: viewers.length,
-                      itemBuilder: (context, i) =>
-                          _ViewerTile(user: viewers[i]),
+                      itemBuilder: (context, i) {
+                        // Reached the end of the window → widen it.
+                        if (i >= viewers.length - 1) _maybeGrow(viewers.length);
+                        return _ViewerTile(user: viewers[i]);
+                      },
                     );
                   },
                 ),

@@ -74,8 +74,8 @@ class StoriesRepository extends StoriesBaseRepository {
       _databaseClient.storyViewsCountOf(storyId: storyId);
 
   /// The people who have viewed [storyId] (author-only, per sync rules).
-  Stream<List<User>> storyViewersOf({required String storyId}) =>
-      _databaseClient.storyViewersOf(storyId: storyId);
+  Stream<List<User>> storyViewersOf({required String storyId, int? limit}) =>
+      _databaseClient.storyViewersOf(storyId: storyId, limit: limit);
 
   /// Toggles a like by [userId] on [storyId].
   Future<void> likeStory({required String storyId, required String userId}) =>
