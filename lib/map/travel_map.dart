@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:app_ui/app_ui.dart';
@@ -129,24 +130,63 @@ class _TravelMapState extends State<TravelMap> {
   double _zoom = _homeZoom;
   LatLngBounds? _bounds;
 
-  /// Points whose posts have been opened. A seen pin dims to [_seenPinColor];
-  /// unopened pins stay white. Persisted, so it survives a relaunch.
-  final _seenPoints = <String>{};
+  /// How many posts + stories each pin held the last time the user opened it.
+  /// A pin is "unseen" (white) while its *current* count exceeds this — i.e. new
+  /// content was added since it was last opened. Persisted across relaunches.
+  final _seenCounts = <String, int>{};
 
-  static const _seenStoreKey = 'treepnet_seen_map_pins';
+  /// Legacy boolean "seen" keys written before counts were tracked. On first
+  /// sight we snapshot their current count into [_seenCounts] so upgrading
+  /// doesn't flash every previously-opened pin back to white.
+  final _legacySeen = <String>{};
+
+  static const _seenStoreKey = 'treepnet_seen_map_pins'; // legacy List<String>
+  static const _seenCountsKey = 'treepnet_seen_map_counts'; // JSON {key: count}
 
   static String _pointKey(double lat, double lng) => '$lat,$lng';
 
   Future<void> _loadSeenPoints() async {
     final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getStringList(_seenStoreKey);
-    if (stored == null || stored.isEmpty || !mounted) return;
-    _safeSetState(() => _seenPoints.addAll(stored));
+    final legacy = prefs.getStringList(_seenStoreKey);
+    final raw = prefs.getString(_seenCountsKey);
+    if (!mounted) return;
+    _safeSetState(() {
+      if (legacy != null) _legacySeen.addAll(legacy);
+      if (raw != null && raw.isNotEmpty) {
+        (json.decode(raw) as Map<String, dynamic>).forEach(
+          (k, v) => _seenCounts[k] = (v as num).toInt(),
+        );
+      }
+      // Force the pin memo (below) to recompute counts + seed legacy now that
+      // the stored state has arrived.
+      _pinLabelsKey = '';
+    });
   }
 
-  Future<void> _rememberSeenPoint(String key) async {
+  Future<void> _persistSeenCounts() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_seenStoreKey, _seenPoints.toList());
+    await prefs.setString(_seenCountsKey, json.encode(_seenCounts));
+  }
+
+  /// True when [key] has no content newer than the last time it was opened.
+  bool _isPinSeen(String key) {
+    final seen = _seenCounts[key];
+    if (seen == null) return _legacySeen.contains(key);
+    return seen >= (_pinCounts[key] ?? 0);
+  }
+
+  /// Snapshots legacy-seen pins to their current count so they stay dimmed
+  /// until genuinely new content arrives, then drops them from the legacy set.
+  void _seedLegacySeen() {
+    if (_legacySeen.isEmpty) return;
+    var changed = false;
+    for (final k in _pinCounts.keys.toList()) {
+      if (_legacySeen.remove(k) && !_seenCounts.containsKey(k)) {
+        _seenCounts[k] = _pinCounts[k]!;
+        changed = true;
+      }
+    }
+    if (changed) unawaited(_persistSeenCounts());
   }
 
   /// A pin dims to this once you have opened the posts behind it.
@@ -429,9 +469,15 @@ class _TravelMapState extends State<TravelMap> {
     // Opening a pin's posts marks it seen — it dims, and stays dimmed.
     if (hit != null) {
       final key = _pointKey(hit.lat, hit.lng);
-      if (_seenPoints.add(key)) {
+      // Opening a pin shows all of its content, so catch its seen count up to
+      // whatever it holds now. New posts/stories later push the count higher
+      // and the pin goes white again.
+      final current = _pinCounts[key] ?? 1;
+      if (_seenCounts[key] != current) {
+        _seenCounts[key] = current;
+        _legacySeen.remove(key);
         _safeSetState(() {});
-        unawaited(_rememberSeenPoint(key));
+        unawaited(_persistSeenCounts());
       }
     }
   }
@@ -469,10 +515,13 @@ class _TravelMapState extends State<TravelMap> {
     return typed;
   }
 
-  // Reverse-geocoding a pin is too costly to repeat on every pan frame, so
-  // memoize the computed labels until the points or the language change.
+  // Reverse-geocoding a pin (and counting content per pin) is too costly to
+  // repeat on every pan frame, so memoize until the points or language change.
   String _pinLabelsKey = '';
   Map<String, String> _pinLabels = {};
+
+  /// How many points (posts + stories) currently sit at each pin coordinate.
+  Map<String, int> _pinCounts = {};
 
   List<Marker> _pinMarkers(String lang) {
     final key =
@@ -484,6 +533,12 @@ class _TravelMapState extends State<TravelMap> {
         for (final p in widget.points)
           _pointKey(p.lat, p.lng): _pinLabel(p, lang),
       };
+      _pinCounts = <String, int>{};
+      for (final p in widget.points) {
+        final k = _pointKey(p.lat, p.lng);
+        _pinCounts[k] = (_pinCounts[k] ?? 0) + 1;
+      }
+      _seedLegacySeen();
     }
     return [
       for (final p in widget.points)
@@ -501,8 +556,9 @@ class _TravelMapState extends State<TravelMap> {
               children: [
                 Icon(
                   Icons.location_on,
-                  // White until you open its posts, then it dims to #414141.
-                  color: _seenPoints.contains(_pointKey(p.lat, p.lng))
+                  // White while it has content you haven't opened yet (new pin,
+                  // or new posts/stories added since); dims once you've seen all.
+                  color: _isPinSeen(_pointKey(p.lat, p.lng))
                       ? _seenPinColor
                       : AppColors.white,
                   size: 26,
