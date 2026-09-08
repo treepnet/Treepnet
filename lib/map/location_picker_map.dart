@@ -125,7 +125,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
 
   /// Country and province names, sized to the region they sit on — the same
   /// treatment the profile map uses so the two read alike.
-  List<Marker> _regionLabels() {
+  List<Marker> _regionLabels(String lang) {
     if (!_zoom.isFinite) return const [];
     final geo = GeoRegions.instance;
     final ppd = 256 * math.pow(2, _zoom) / 360;
@@ -138,7 +138,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
       markers.add(
         _label(
           LatLng(c.center.dy, c.center.dx),
-          c.name.toUpperCase(),
+          c.localizedName(lang).toUpperCase(),
           width: span.clamp(40, 150).toDouble(),
           height: (span * 0.5).clamp(16, 44).toDouble(),
           color: AppColors.white,
@@ -156,7 +156,10 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
         markers.add(
           _label(
             LatLng(region.centroidLngLat.dy, region.centroidLngLat.dx),
-            region.name,
+            // displayName (not name): matches the search dropdown, so a
+            // province shows "Washington Region" / «Московская область»
+            // instead of a second bare "Washington".
+            region.localizedDisplayName(lang),
             width: w.clamp(36, 140).toDouble(),
             height: (b.height * ppd * 0.7).clamp(14, 34).toDouble(),
             color: const Color(0xFFDCE6FF),
@@ -256,8 +259,13 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     }
     final matches = <GeoRegion>[];
     for (final region in GeoRegions.instance.allRegions) {
+      // Match source + English + Russian names (region and country) so search
+      // works in either script regardless of the app language.
       if (region.name.toLowerCase().startsWith(query) ||
-          region.countryName.toLowerCase().startsWith(query)) {
+          region.nameEn.toLowerCase().startsWith(query) ||
+          region.nameRu.toLowerCase().startsWith(query) ||
+          region.countryName.toLowerCase().startsWith(query) ||
+          region.countryNameRu.toLowerCase().startsWith(query)) {
         matches.add(region);
         if (matches.length >= _maxSuggestions) break;
       }
@@ -276,7 +284,9 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     // Keep what was picked visible in the box — clearing it made the screen
     // look like the search had been thrown away. displayName so a province
     // shows as "Tashkent Region", matching the dropdown and the map.
-    _searchController.text = region.displayName;
+    _searchController.text = region.localizedDisplayName(
+      Localizations.localeOf(context).languageCode,
+    );
     _safeSetState(() => _suggestions = const []);
     _controller.move(_spotInside(region), 6);
   }
@@ -499,7 +509,11 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                       simplificationTolerance: 0,
                     ),
                   // Country / province names, same as the profile map.
-                  MarkerLayer(markers: _regionLabels()),
+                  MarkerLayer(
+                    markers: _regionLabels(
+                      Localizations.localeOf(context).languageCode,
+                    ),
+                  ),
                   MarkerLayer(
                     markers: [
                       for (final p in _myPoints)
@@ -696,7 +710,9 @@ class _SearchResults extends StatelessWidget {
                         // displayName, not name: a province that shares a city's
                         // name reads "Tashkent Region" so the two entries are
                         // told apart, exactly as the map labels them.
-                        region.displayName,
+                        region.localizedDisplayName(
+                          Localizations.localeOf(context).languageCode,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -706,7 +722,9 @@ class _SearchResults extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      region.countryName,
+                      region.localizedCountryName(
+                        Localizations.localeOf(context).languageCode,
+                      ),
                       style: const TextStyle(
                         color: AppColors.grey,
                         fontSize: 12,

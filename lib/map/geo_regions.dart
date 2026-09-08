@@ -16,28 +16,73 @@ class GeoRegion {
     required this.countryCode,
     required this.countryName,
     required Map<String, dynamic> geometry,
+    this.nameEn = '',
+    this.nameRu = '',
+    this.countryNameRu = '',
   }) : _geometry = geometry;
 
   /// ISO 3166-2 code, e.g. `TR-34`.
   final String iso;
 
-  /// Display name of the region, e.g. `Istanbul`.
+  /// Primary/source display name of the region, e.g. `Istanbul` (the field the
+  /// app shipped with before localization). Kept as the ultimate fallback.
   final String name;
+
+  /// Localized region names (Natural Earth `name_en` / `name_ru`). Empty only
+  /// for the rare source gap — always fall back through [localizedName].
+  final String nameEn;
+  final String nameRu;
 
   /// ISO 3166-1 alpha-2 country code, e.g. `TR`.
   final String countryCode;
 
-  /// Display name of the country, e.g. `Turkey`.
+  /// Display name of the country, e.g. `Turkey` (English/source).
   final String countryName;
+
+  /// Russian country name, e.g. `Турция`. Empty falls back to [countryName].
+  final String countryNameRu;
 
   /// Whether this region shares its [name] with a smaller one in the same
   /// country — a province named after its capital, like Tashkent or Moscow.
   /// Set once at load time by [GeoRegions._markNameClashes].
   bool sharesNameWithCity = false;
 
+  /// For a [sharesNameWithCity] province: whether its Russian name is the same
+  /// word as the city's (so RU needs a "(регион)" suffix). False when `name_ru`
+  /// already disambiguates on its own (e.g. «Московская область»). Set in
+  /// [GeoRegions._markNameClashes].
+  bool ruSameAsCity = false;
+
   /// What to print on the map. Disambiguated only where it has to be, so the
   /// city keeps the bare name and the province around it says "Region".
+  /// English/source form — kept for callers not yet localized.
   String get displayName => sharesNameWithCity ? '$name Region' : name;
+
+  /// Plain localized name (no disambiguation): `ru → en → name`.
+  String localizedName(String lang) => lang == 'ru'
+      ? (nameRu.isNotEmpty ? nameRu : (nameEn.isNotEmpty ? nameEn : name))
+      : (nameEn.isNotEmpty ? nameEn : name);
+
+  /// Localized name with the city/province disambiguation applied — the string
+  /// that should appear on the map and in the picker. EN keeps the "… Region"
+  /// suffix; RU uses `name_ru` as-is when it already disambiguates, otherwise
+  /// appends "(регион)".
+  String localizedDisplayName(String lang) {
+    if (lang == 'ru') {
+      final base = nameRu.isNotEmpty
+          ? nameRu
+          : (nameEn.isNotEmpty ? nameEn : name);
+      if (!sharesNameWithCity) return base;
+      return ruSameAsCity ? '$base (регион)' : base;
+    }
+    final base = nameEn.isNotEmpty ? nameEn : name;
+    return sharesNameWithCity ? '$base Region' : base;
+  }
+
+  /// Localized country name: `ru → countryName`.
+  String localizedCountryName(String lang) => lang == 'ru'
+      ? (countryNameRu.isNotEmpty ? countryNameRu : countryName)
+      : countryName;
 
   final Map<String, dynamic> _geometry;
   List<List<Offset>>? _rings;
@@ -157,11 +202,17 @@ class GeoCountry {
     required this.code,
     required this.name,
     required this.regions,
+    this.nameRu = '',
   });
 
   final String code;
   final String name;
+  final String nameRu;
   final List<GeoRegion> regions;
+
+  /// Localized country name: `ru → name`.
+  String localizedName(String lang) =>
+      lang == 'ru' && nameRu.isNotEmpty ? nameRu : name;
 }
 
 /// A country label for the map: its display [name], [center] (lng/lat anchor)
@@ -172,11 +223,17 @@ class CountryLabel {
     required this.name,
     required this.center,
     required this.spanDeg,
+    this.nameRu = '',
   });
 
   final String name;
+  final String nameRu;
   final Offset center;
   final double spanDeg;
+
+  /// Localized country label: `ru → name`.
+  String localizedName(String lang) =>
+      lang == 'ru' && nameRu.isNotEmpty ? nameRu : name;
 }
 
 /// {@template geo_regions}
@@ -191,6 +248,7 @@ class GeoRegions {
 
   static const _assetPath = 'assets/geo/world_admin1.min.json';
   static const _basePath = 'assets/geo/world_countries.min.json';
+  static const _countryNamesPath = 'assets/geo/country_names.min.json';
 
   bool _loaded = false;
   Future<void>? _loading;
@@ -420,6 +478,17 @@ class GeoRegions {
       _countryRings.add(GeoRegion.parseRing(ring as List<dynamic>));
     }
 
+    // Country-name localization (cc -> {en, ru}). Small companion asset.
+    final countryNames = <String, Map<String, dynamic>>{};
+    try {
+      final cnRaw = await rootBundle.loadString(_countryNamesPath);
+      (json.decode(cnRaw) as Map<String, dynamic>).forEach((cc, v) {
+        countryNames[cc] = (v as Map).cast<String, dynamic>();
+      });
+    } catch (_) {
+      // Missing/older bundle: fall through with empty map (English fallback).
+    }
+
     // Admin-1 index — metadata now, geometry lazily per region.
     final raw = await rootBundle.loadString(_assetPath);
     final data = json.decode(raw) as Map<String, dynamic>;
@@ -433,6 +502,9 @@ class GeoRegions {
       final countryCode = (props['cc'] as String?) ?? '';
       final countryName = (props['admin'] as String?) ?? countryCode;
       final name = (props['name'] as String?) ?? iso;
+      final nameEn = (props['en'] as String?) ?? '';
+      final nameRu = (props['ru'] as String?) ?? '';
+      final countryNameRu = (countryNames[countryCode]?['ru'] as String?) ?? '';
       final geometry = feature['geometry'] as Map<String, dynamic>;
 
       final region = GeoRegion(
@@ -441,12 +513,20 @@ class GeoRegions {
         countryCode: countryCode,
         countryName: countryName,
         geometry: geometry,
+        nameEn: nameEn,
+        nameRu: nameRu,
+        countryNameRu: countryNameRu,
       );
       _byIso[iso] = region;
 
       final country = byCountry.putIfAbsent(
         countryName,
-        () => GeoCountry(code: countryCode, name: countryName, regions: []),
+        () => GeoCountry(
+          code: countryCode,
+          name: countryName,
+          nameRu: countryNameRu,
+          regions: [],
+        ),
       );
       country.regions.add(region);
     }
@@ -500,8 +580,21 @@ class GeoRegions {
         // two neighbours that happen to share a name (Altai Republic and Altai
         // Krai, the two halves of Tobago) — neither is "the region".
         if (smallest <= 0 || largest < smallest * 3) continue;
+        // The city's Russian name — so we can tell whether a province's own
+        // `name_ru` already disambiguates (e.g. «Московская область» differs
+        // from the city «Москва») or needs a "(регион)" suffix (e.g. the oblast
+        // and the city are both «Киев»).
+        final cityRu = sharing
+            .firstWhere((r) => r.iso == city)
+            .nameRu
+            .trim()
+            .toLowerCase();
         for (final region in sharing) {
-          if (region.iso != city) region.sharesNameWithCity = true;
+          if (region.iso != city) {
+            region.sharesNameWithCity = true;
+            final ru = region.nameRu.trim().toLowerCase();
+            region.ruSameAsCity = ru.isEmpty || ru == cityRu;
+          }
         }
       }
     }
@@ -621,6 +714,7 @@ class GeoRegions {
       _countryLabels.add(
         CountryLabel(
           name: country.name,
+          nameRu: country.nameRu,
           center: center,
           spanDeg: math.sqrt(totalArea),
         ),

@@ -78,7 +78,9 @@ class _RegionPickerSheetState extends State<_RegionPickerSheet> {
                 _searchField(),
                 const Divider(height: 1, color: Colors.white12),
                 Expanded(
-                  child: _country == null ? _countryList() : _regionList(),
+                  child: _country == null
+                      ? _countryList(Localizations.localeOf(context).languageCode)
+                      : _regionList(Localizations.localeOf(context).languageCode),
                 ),
               ],
             );
@@ -145,11 +147,17 @@ class _RegionPickerSheetState extends State<_RegionPickerSheet> {
     );
   }
 
-  Widget _countryList() {
+  Widget _countryList(String lang) {
     final countries = _query.isEmpty
         ? GeoRegions.instance.countries
         : GeoRegions.instance.countries
-              .where((c) => c.name.toLowerCase().contains(_query))
+              // Match across source + English + Russian so search works in
+              // either script regardless of the app language.
+              .where(
+                (c) =>
+                    c.name.toLowerCase().contains(_query) ||
+                    c.nameRu.toLowerCase().contains(_query),
+              )
               .toList();
     return ListView.builder(
       itemCount: countries.length,
@@ -157,7 +165,7 @@ class _RegionPickerSheetState extends State<_RegionPickerSheet> {
         final country = countries[index];
         return ListTile(
           title: Text(
-            country.name,
+            country.localizedName(lang),
             style: const TextStyle(color: Colors.white),
           ),
           subtitle: Text(
@@ -171,11 +179,16 @@ class _RegionPickerSheetState extends State<_RegionPickerSheet> {
     );
   }
 
-  Widget _regionList() {
+  Widget _regionList(String lang) {
     final regions = _query.isEmpty
         ? _country!.regions
         : _country!.regions
-              .where((r) => r.name.toLowerCase().contains(_query))
+              .where(
+                (r) =>
+                    r.name.toLowerCase().contains(_query) ||
+                    r.nameEn.toLowerCase().contains(_query) ||
+                    r.nameRu.toLowerCase().contains(_query),
+              )
               .toList();
     return ListView.builder(
       itemCount: regions.length,
@@ -184,7 +197,7 @@ class _RegionPickerSheetState extends State<_RegionPickerSheet> {
         return ListTile(
           leading: const Icon(Icons.place_outlined, color: Color(0xFF2ED573)),
           title: Text(
-            region.name,
+            region.localizedDisplayName(lang),
             style: const TextStyle(color: Colors.white),
           ),
           onTap: () => Navigator.of(context).pop(region),

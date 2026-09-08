@@ -328,7 +328,11 @@ class _TravelMapState extends State<TravelMap> {
                         simplificationTolerance: 0,
                       ),
                     MarkerLayer(markers: _pinMarkers()),
-                    MarkerLayer(markers: _labelMarkers()),
+                    MarkerLayer(
+                      markers: _labelMarkers(
+                        Localizations.localeOf(context).languageCode,
+                      ),
+                    ),
                   ],
                 ),
                 Positioned(
@@ -502,7 +506,7 @@ class _TravelMapState extends State<TravelMap> {
   /// Mercator: 256px tiles doubling each zoom level).
   double get _pxPerDeg => 256 * math.pow(2, _zoom) / 360;
 
-  List<Marker> _labelMarkers() {
+  List<Marker> _labelMarkers(String lang) {
     final bounds = _bounds;
     if (bounds == null) return const [];
     // While the profile header collapses, the map is briefly laid out with a
@@ -524,7 +528,7 @@ class _TravelMapState extends State<TravelMap> {
       markers.add(
         _fittedLabel(
           ll,
-          c.name.toUpperCase(),
+          c.localizedName(lang).toUpperCase(),
           width: span.clamp(40, 150),
           height: (span * 0.5).clamp(16, 44),
           color: AppColors.white,
@@ -555,10 +559,17 @@ class _TravelMapState extends State<TravelMap> {
             (pinNames.contains(region.name.trim().toLowerCase()) ||
                 region.name.trim().toLowerCase() ==
                     region.countryName.trim().toLowerCase());
+        // A pin named after its province forces a disambiguator even when the
+        // data didn't flag a clash; pick the locale-appropriate one.
+        final label = clashesWithPin
+            ? (lang == 'ru'
+                  ? '${region.localizedName(lang)} (регион)'
+                  : '${region.localizedName(lang)} Region')
+            : region.localizedDisplayName(lang);
         markers.add(
           _fittedLabel(
             ll,
-            clashesWithPin ? '${region.name} Region' : region.displayName,
+            label,
             width: w.clamp(36, 140),
             height: (b.height * ppd * 0.7).clamp(14, 34),
             color: const Color(0xFFDCE6FF),

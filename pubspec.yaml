@@ -136,3 +136,4 @@ flutter:
   assets:
     - assets/geo/world_admin1.min.json
     - assets/geo/world_countries.min.json
+    - assets/geo/country_names.min.json

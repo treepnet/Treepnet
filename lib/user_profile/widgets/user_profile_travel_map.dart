@@ -79,12 +79,18 @@ class _UserProfileTravelMapState extends State<UserProfileTravelMap>
                       context,
                       userId: widget.userId,
                       regionIso: target.region.iso,
-                      regionName: target.region.name,
+                      // Localized to the app language (matches the map labels).
+                      regionName: target.region.localizedDisplayName(
+                        Localizations.localeOf(context).languageCode,
+                      ),
                       // The name the author gave this spot — the heading of the
                       // page, since "Magic city bogi" is what they remember,
-                      // not the province it happens to fall in.
+                      // not the province it happens to fall in. User content —
+                      // never translated.
                       placeName: target.point?.name,
-                      countryName: target.region.countryName,
+                      countryName: target.region.localizedCountryName(
+                        Localizations.localeOf(context).languageCode,
+                      ),
                       scope: target.point == null
                           ? LocationPostsScope.region
                           : LocationPostsScope.point,
