@@ -84,10 +84,20 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     if (userId.isEmpty) return;
     final posts = context.read<PostsRepository>();
     final regions = await posts.visitedRegionCountsOf(userId: userId).first;
-    final points = await posts.visitedPointsOf(userId: userId).first;
+    final postPoints = await posts.visitedPointsOf(userId: userId).first;
+    final storyPoints = await posts.storyPointsOf(userId: userId).first;
     if (!mounted) return;
+    // Show BOTH post locations and story-only locations (a place pinned with
+    // just a story, no post yet), deduped by coordinate — so every place on the
+    // profile map can be re-picked here and have a post added to it. Posts win
+    // ties so a spot with both keeps its post name.
+    final seen = <String>{};
+    final merged = <({double lat, double lng, String? name})>[];
+    for (final p in [...postPoints, ...storyPoints]) {
+      if (seen.add('${p.lat},${p.lng}')) merged.add(p);
+    }
     _safeSetState(() {
-      _myPoints = points;
+      _myPoints = merged;
       _myPolygons = _buildMyPolygons(regions);
     });
   }
