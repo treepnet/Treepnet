@@ -132,7 +132,9 @@ class StoriesRepository extends StoriesBaseRepository {
     required String regionIso,
     double? lat,
     double? lng,
-    double radiusDegrees = 0.02,
+    // Tight: a story pin is an exact point, so distinct pins in the same
+    // region must not bleed into each other (~22 m box).
+    double radiusDegrees = 0.0002,
   }) => _databaseClient.locationStoriesOf(
     userId: userId,
     regionIso: regionIso,

@@ -145,7 +145,9 @@ class PostsRepository implements PostsBaseRepository {
     required String userId,
     required double lat,
     required double lng,
-    double radiusDegrees = 0.02,
+    // Tight (~22 m): distinct pins in the same region must stay separate,
+    // while hand-drops aimed at one spot still group. Matches story pins.
+    double radiusDegrees = 0.0002,
   }) => _databaseClient.postsAtPoint(
     userId: userId,
     lat: lat,

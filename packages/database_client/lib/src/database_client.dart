@@ -381,12 +381,14 @@ abstract class PostsBaseRepository {
   /// Posts by [userId] placed within [radiusDegrees] of ([lat], [lng]).
   ///
   /// A radius rather than an exact match: each post's pin is dropped by hand,
-  /// so two posts from the same spot never carry identical coordinates.
+  /// so two posts from the same spot never carry identical coordinates. Kept
+  /// tight (~22 m) so distinct pins in one region don't bleed together, while
+  /// hand-drops aimed at the same place still group.
   Stream<List<Post>> postsAtPoint({
     required String userId,
     required double lat,
     required double lng,
-    double radiusDegrees = 0.02,
+    double radiusDegrees = 0.0002,
   });
 
   /// Returns a stream of amount of posts of the user identified by [userId].
@@ -539,7 +541,7 @@ abstract class StoriesBaseRepository {
     required String regionIso,
     double? lat,
     double? lng,
-    double radiusDegrees = 0.02,
+    double radiusDegrees = 0.0002,
   });
 
   /// Pins [storyId] to a place. Doing it twice is a no-op.
@@ -1206,14 +1208,25 @@ ORDER BY i.created_at ASC
     required double lat,
     required double lng,
     String? name,
-  }) =>
-      // Only lat/lng — deliberately NOT location_name: that column drives the
-      // "place" chip under the author on the story, and pinning to the map must
-      // not make that chip appear. The map pin only needs the coordinates.
-      _powerSyncRepository.db().execute(
-        'UPDATE stories SET location_lat = ?, location_lng = ? WHERE id = ?',
-        [lat, lng, storyId],
+  }) {
+    // Persist the pin's name so the travel map can label it. This used to write
+    // only lat/lng, to keep the story-view "place chip" from appearing — but
+    // that chip is deliberately not rendered (see StoriesAuthorListTile), so the
+    // name now only surfaces on the map, which is what we want. A null/blank
+    // name leaves any existing label untouched (no clobber).
+    final trimmed = name?.trim();
+    if (trimmed != null && trimmed.isNotEmpty) {
+      return _powerSyncRepository.db().execute(
+        'UPDATE stories SET location_lat = ?, location_lng = ?, location_name = ? '
+        'WHERE id = ?',
+        [lat, lng, trimmed, storyId],
       );
+    }
+    return _powerSyncRepository.db().execute(
+      'UPDATE stories SET location_lat = ?, location_lng = ? WHERE id = ?',
+      [lat, lng, storyId],
+    );
+  }
 
   @override
   Future<bool> isStoryPinned({required String storyId}) async {
@@ -1480,7 +1493,7 @@ ORDER BY created_at DESC
     required String userId,
     required double lat,
     required double lng,
-    double radiusDegrees = 0.02,
+    double radiusDegrees = 0.0002,
   }) => _postsWhere(
     '''
 posts.user_id = ?
@@ -3442,11 +3455,12 @@ ORDER BY s.created_at DESC
     required String regionIso,
     double? lat,
     double? lng,
-    double radiusDegrees = 0.02,
+    double radiusDegrees = 0.0002,
   }) {
     // A pin and a whole region are the same table, told apart by whether the
     // row carries coordinates — so the point view never picks up region pins
-    // sitting at some unrelated spot.
+    // sitting at some unrelated spot. The radius is tight (~22 m): a story pin
+    // is an exact point, so two distinct pins in one region stay separate.
     final scoped = lat != null && lng != null;
     return _powerSyncRepository
         .db()

@@ -172,7 +172,10 @@ class _PinStorySheetState extends State<PinStorySheet> {
       // Highlights.
       final selHl = _selectedHighlightId;
       if (selHl != null) {
-        await _stories.addStoryToHighlight(highlightId: selHl, storyId: storyId);
+        await _stories.addStoryToHighlight(
+          highlightId: selHl,
+          storyId: storyId,
+        );
       }
       final newName = _newHighlightName;
       if (newName != null) {
@@ -202,9 +205,7 @@ class _PinStorySheetState extends State<PinStorySheet> {
       context: context,
       builder: (context) => Dialog(
         backgroundColor: _sheetBackground,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
@@ -275,69 +276,69 @@ class _PinStorySheetState extends State<PinStorySheet> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-            // Header: centred title, and a ✓ that pins the selections.
-            Row(
-              children: [
-                const SizedBox(width: 24),
-                Expanded(
-                  child: Text(
-                    context.l10n.pinStoryText,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppColors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
+              // Header: centred title, and a ✓ that pins the selections.
+              Row(
+                children: [
+                  const SizedBox(width: 24),
+                  Expanded(
+                    child: Text(
+                      context.l10n.pinStoryText,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ),
-                _saving
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.white,
+                  _saving
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.white,
+                          ),
+                        )
+                      : Tappable.faded(
+                          onTap: _hasSelection ? _confirm : null,
+                          child: Icon(
+                            Icons.check,
+                            color: _hasSelection
+                                ? AppColors.white
+                                : const Color(0xFF414141),
+                          ),
                         ),
-                      )
-                    : Tappable.faded(
-                        onTap: _hasSelection ? _confirm : null,
-                        child: Icon(
-                          Icons.check,
-                          color: _hasSelection
-                              ? AppColors.white
-                              : const Color(0xFF414141),
-                        ),
-                      ),
-              ],
-            ),
-            const Gap.v(AppSpacing.lg),
-            _LocationRow(
-              userId: widget.userId,
-              newLocation: _newLocation,
-              newLocationName: _newLocation == null
-                  ? null
-                  : _nameOf(_newLocation!),
-              selectedKey: _selectedLocation == null
-                  ? null
-                  : _key(_selectedLocation!.lat, _selectedLocation!.lng),
-              onAddOrEdit: _pickNewLocation,
-              onRemoveNew: _removeNewLocation,
-              onToggle: _toggleLocation,
-              keyOf: _key,
-            ),
-            const Divider(
-              height: AppSpacing.xlg,
-              color: AppColors.borderOutline,
-            ),
-            _HighlightRow(
-              userId: widget.userId,
-              storyCoverUrl: widget.story.contentUrl,
-              newName: _newHighlightName,
-              selectedId: _selectedHighlightId,
-              onNewOrEdit: _promptNewHighlight,
-              onRemoveNew: _removeNewHighlight,
-              onToggle: _toggleHighlight,
-            ),
+                ],
+              ),
+              const Gap.v(AppSpacing.lg),
+              _LocationRow(
+                userId: widget.userId,
+                newLocation: _newLocation,
+                newLocationName: _newLocation == null
+                    ? null
+                    : _nameOf(_newLocation!),
+                selectedKey: _selectedLocation == null
+                    ? null
+                    : _key(_selectedLocation!.lat, _selectedLocation!.lng),
+                onAddOrEdit: _pickNewLocation,
+                onRemoveNew: _removeNewLocation,
+                onToggle: _toggleLocation,
+                keyOf: _key,
+              ),
+              const Divider(
+                height: AppSpacing.xlg,
+                color: AppColors.borderOutline,
+              ),
+              _HighlightRow(
+                userId: widget.userId,
+                storyCoverUrl: widget.story.contentUrl,
+                newName: _newHighlightName,
+                selectedId: _selectedHighlightId,
+                onNewOrEdit: _promptNewHighlight,
+                onRemoveNew: _removeNewHighlight,
+                onToggle: _toggleHighlight,
+              ),
             ],
           ),
         ),
@@ -373,48 +374,58 @@ class _LocationRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final posts = context.read<PostsRepository>();
+    // Existing places come from BOTH posts and stories: a spot pinned with only
+    // a story (no post yet) lives in the stories table, so listing posts alone
+    // hid it. Merge the two streams and dedupe by coordinate below.
     return StreamBuilder<List<_Point>>(
       stream: posts.visitedPointsOf(userId: userId),
-      builder: (context, snap) {
-        final points = snap.data ?? const <_Point>[];
-        final seen = <String>{};
-        final unique = points.where((p) => seen.add(keyOf(p.lat, p.lng))).toList();
-        final children = <Widget>[
-          if (newLocation == null)
-            _AddTile(
-              icon: Icons.add_location_alt_outlined,
-              label: context.l10n.addLocationText,
-              onTap: onAddOrEdit,
-            )
-          else
-            // The just-created place takes the "Add location" slot; tapping it
-            // re-opens the map to edit it, and the X removes it (bringing the
-            // "Add location" button back).
-            _PinTile(
-              name: newLocationName ?? context.l10n.locationText,
-              selected: true,
-              onTap: onAddOrEdit,
-              onRemove: onRemoveNew,
-            ),
-          for (final p in unique)
-            _PinTile(
-              name: (p.name?.trim().isNotEmpty ?? false)
-                  ? p.name!
-                  : context.l10n.locationText,
-              selected: selectedKey == keyOf(p.lat, p.lng),
-              onTap: () => onToggle(p),
-            ),
-        ];
-        // Nothing to scroll through yet: centre the lone "Add location" button.
-        final onlyAdd = newLocation == null && unique.isEmpty;
-        return SizedBox(
-          height: 100,
-          child: onlyAdd
-              ? Center(child: children.first)
-              : ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: children,
+      builder: (context, postSnap) {
+        return StreamBuilder<List<_Point>>(
+          stream: posts.storyPointsOf(userId: userId),
+          builder: (context, storySnap) {
+            final points = <_Point>[...?postSnap.data, ...?storySnap.data];
+            final seen = <String>{};
+            final unique = points
+                .where((p) => seen.add(keyOf(p.lat, p.lng)))
+                .toList();
+            final children = <Widget>[
+              if (newLocation == null)
+                _AddTile(
+                  icon: Icons.add_location_alt_outlined,
+                  label: context.l10n.addLocationText,
+                  onTap: onAddOrEdit,
+                )
+              else
+                // The just-created place takes the "Add location" slot; tapping it
+                // re-opens the map to edit it, and the X removes it (bringing the
+                // "Add location" button back).
+                _PinTile(
+                  name: newLocationName ?? context.l10n.locationText,
+                  selected: true,
+                  onTap: onAddOrEdit,
+                  onRemove: onRemoveNew,
                 ),
+              for (final p in unique)
+                _PinTile(
+                  name: (p.name?.trim().isNotEmpty ?? false)
+                      ? p.name!
+                      : context.l10n.locationText,
+                  selected: selectedKey == keyOf(p.lat, p.lng),
+                  onTap: () => onToggle(p),
+                ),
+            ];
+            // Nothing to scroll through yet: centre the lone "Add location" button.
+            final onlyAdd = newLocation == null && unique.isEmpty;
+            return SizedBox(
+              height: 100,
+              child: onlyAdd
+                  ? Center(child: children.first)
+                  : ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: children,
+                    ),
+            );
+          },
         );
       },
     );
@@ -488,10 +499,7 @@ class _HighlightRow extends StatelessWidget {
           height: 104,
           child: onlyAdd
               ? Center(child: children.first)
-              : ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: children,
-                ),
+              : ListView(scrollDirection: Axis.horizontal, children: children),
         );
       },
     );

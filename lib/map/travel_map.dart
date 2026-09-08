@@ -327,7 +327,11 @@ class _TravelMapState extends State<TravelMap> {
                         polygons: visited,
                         simplificationTolerance: 0,
                       ),
-                    MarkerLayer(markers: _pinMarkers()),
+                    MarkerLayer(
+                      markers: _pinMarkers(
+                        Localizations.localeOf(context).languageCode,
+                      ),
+                    ),
                     MarkerLayer(
                       markers: _labelMarkers(
                         Localizations.localeOf(context).languageCode,
@@ -451,7 +455,36 @@ class _TravelMapState extends State<TravelMap> {
     return bestDistance <= _pinHitRadius ? best : null;
   }
 
-  List<Marker> _pinMarkers() {
+  /// The text under a pin. A name the author typed rides as-is (user content,
+  /// never translated). But when a story/post was pinned without a custom name,
+  /// the stored label is just the region's source (English) name — reverse-
+  /// geocode the point and show that region in the app's language instead, so
+  /// the pin follows the UI language like every other map label.
+  String _pinLabel(({double lat, double lng, String? name}) p, String lang) {
+    final typed = p.name?.trim() ?? '';
+    final region = GeoRegions.instance.regionAt(p.lng, p.lat);
+    if (region != null && (typed.isEmpty || typed == region.name.trim())) {
+      return region.localizedDisplayName(lang);
+    }
+    return typed;
+  }
+
+  // Reverse-geocoding a pin is too costly to repeat on every pan frame, so
+  // memoize the computed labels until the points or the language change.
+  String _pinLabelsKey = '';
+  Map<String, String> _pinLabels = {};
+
+  List<Marker> _pinMarkers(String lang) {
+    final key =
+        '$lang|'
+        '${[for (final p in widget.points) '${p.lat},${p.lng},${p.name}'].join(';')}';
+    if (key != _pinLabelsKey) {
+      _pinLabelsKey = key;
+      _pinLabels = {
+        for (final p in widget.points)
+          _pointKey(p.lat, p.lng): _pinLabel(p, lang),
+      };
+    }
     return [
       for (final p in widget.points)
         Marker(
@@ -478,10 +511,9 @@ class _TravelMapState extends State<TravelMap> {
                   ],
                 ),
                 if (_zoom >= _placeNameZoom &&
-                    p.name != null &&
-                    p.name!.trim().isNotEmpty)
+                    (_pinLabels[_pointKey(p.lat, p.lng)] ?? '').isNotEmpty)
                   Text(
-                    p.name!,
+                    _pinLabels[_pointKey(p.lat, p.lng)]!,
                     maxLines: 1,
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
