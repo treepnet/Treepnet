@@ -86,6 +86,8 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     final regions = await posts.visitedRegionCountsOf(userId: userId).first;
     final postPoints = await posts.visitedPointsOf(userId: userId).first;
     final storyPoints = await posts.storyPointsOf(userId: userId).first;
+    // Needed to reverse-geocode story points into their regions below.
+    await GeoRegions.instance.load();
     if (!mounted) return;
     // Show BOTH post locations and story-only locations (a place pinned with
     // just a story, no post yet), deduped by coordinate — so every place on the
@@ -96,9 +98,20 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     for (final p in [...postPoints, ...storyPoints]) {
       if (seen.add('${p.lat},${p.lng}')) merged.add(p);
     }
+    // Region shading counts posts plus the regions story points fall in
+    // (reverse-geocoded), matching the profile map so a story-only region is
+    // shaded too.
+    final counts = Map<String, int>.of(regions);
+    final geo = GeoRegions.instance;
+    for (final p in storyPoints) {
+      final region = geo.regionAt(p.lng, p.lat);
+      if (region != null) {
+        counts.update(region.iso, (c) => c + 1, ifAbsent: () => 1);
+      }
+    }
     _safeSetState(() {
       _myPoints = merged;
-      _myPolygons = _buildMyPolygons(regions);
+      _myPolygons = _buildMyPolygons(counts);
     });
   }
 
