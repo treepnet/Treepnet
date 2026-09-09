@@ -514,8 +514,11 @@ class _ConversationTile extends StatelessWidget {
     };
   }
 
-  String _time(DateTime? dt) {
-    if (dt == null) return '';
+  String _time(DateTime? utc) {
+    if (utc == null) return '';
+    // Backend timestamps are UTC; the thread shows local time (via toLocal),
+    // so the inbox must too — otherwise it reads hours behind (e.g. UTC+5).
+    final dt = utc.toLocal();
     final now = DateTime.now();
     final sameDay = dt.year == now.year && dt.month == now.month && dt.day == now.day;
     if (sameDay) {
