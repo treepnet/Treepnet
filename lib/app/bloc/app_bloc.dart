@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:app_ui/app_ui.dart';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:messenger_chat/messenger_chat.dart';
 import 'package:treepnet/app/view/view.dart';
 import 'package:treepnet/chat/chat_session.dart';
 import 'package:treepnet/notifications/push/push_notifications.dart';
@@ -66,8 +67,11 @@ class AppBloc extends Bloc<AppEvent, AppState> {
       await PushNotifications.disableForUser(_userRepository);
       // Tear down the chat connection so the next account starts a clean
       // session — otherwise the previous user's socket/identity lingers and
-      // their messages cross into the new user's threads.
+      // their messages cross into the new user's threads. stop() closes the
+      // app-side socket; wipeSession() clears the plugin's cached state too
+      // (runtime identity, the persisted outbox, and secure storage).
       await ChatSession.instance.stop();
+      await MessengerChat.wipeSession();
       await _userRepository.logOut();
       openSnackbar(
         SnackbarMessage.success(title: l10nGlobal.loggedOutSuccessfullyText),

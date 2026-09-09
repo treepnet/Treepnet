@@ -238,6 +238,20 @@ class MessengerChat extends StatefulWidget {
     _SecureStorage.storage.deleteAll();
   }
 
+  /// Full teardown for logout / account switch. Kills the socket, drops the
+  /// runtime identity ([me]/transport/peer), and wipes every cached scrap of
+  /// chat state — the persisted outbox of optimistic messages and the secure
+  /// storage — so nothing from the previous account leaks into the next one.
+  static Future<void> wipeSession() async {
+    await _ChatSocket.dispose();
+    await _ChatRuntime.instance.reset();
+    // Open the box first: clear() is a no-op if it was never opened this run,
+    // which would leave the previous user's pending messages on disk.
+    await _OutboxService().init();
+    await _OutboxService().clear();
+    await _SecureStorage.deleteAllData();
+  }
+
   static NotificationController notificationController =
       NotificationController();
 
