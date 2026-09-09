@@ -52,6 +52,17 @@ async function sendOne(accessToken, projectId, token, row) {
             Object.entries(row.data || {}).map(([k, v]) => [k, String(v)]),
           ),
           android: { priority: 'high', notification: { sound: 'default' } },
+          // iOS: force immediate delivery. Without apns-priority 10 APNs may
+          // batch/throttle the push and deliver it up to ~an hour late.
+          apns: {
+            headers: {
+              'apns-priority': '10',
+              'apns-push-type': 'alert',
+            },
+            payload: {
+              aps: { sound: 'default' },
+            },
+          },
         },
       }),
     },
