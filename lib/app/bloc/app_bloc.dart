@@ -4,6 +4,7 @@ import 'package:app_ui/app_ui.dart';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:treepnet/app/view/view.dart';
+import 'package:treepnet/chat/chat_session.dart';
 import 'package:treepnet/notifications/push/push_notifications.dart';
 import 'package:user_repository/user_repository.dart';
 
@@ -63,6 +64,10 @@ class AppBloc extends Bloc<AppEvent, AppState> {
       // Clear the push token first, while the user id is still valid, so this
       // signed-out device stops receiving notifications.
       await PushNotifications.disableForUser(_userRepository);
+      // Tear down the chat connection so the next account starts a clean
+      // session — otherwise the previous user's socket/identity lingers and
+      // their messages cross into the new user's threads.
+      await ChatSession.instance.stop();
       await _userRepository.logOut();
       openSnackbar(
         SnackbarMessage.success(title: l10nGlobal.loggedOutSuccessfullyText),

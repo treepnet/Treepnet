@@ -207,6 +207,11 @@ class ChatSession {
     }
     await _listTransport?.dispose();
     _listTransport = null;
+    // Actually close the socket. DmListTransport.dispose() leaves `api` alone,
+    // so without this the previous user's websocket stayed connected
+    // (authenticated as them) after logout / account switch and crossed wires
+    // with the next user's session.
+    await _api?.dispose();
     _api = null;
     _myUuid = '';
     _myUserId = '';
