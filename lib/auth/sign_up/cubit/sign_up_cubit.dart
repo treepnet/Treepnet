@@ -8,6 +8,7 @@ import 'package:firebase_authentication_client/firebase_authentication_client.da
 import 'package:equatable/equatable.dart';
 import 'package:form_fields/form_fields.dart';
 import 'package:treepnet/auth/sign_up/widgets/password_strength_meter.dart';
+import 'package:treepnet/referral/pending_referral.dart';
 import 'package:user_repository/user_repository.dart';
 
 part 'sign_up_state.dart';
@@ -276,11 +277,34 @@ class SignUpCubit extends Cubit<SignupState> {
         username: state.username.value.trim(),
         fullName: state.fullName.value.trim(),
       );
+      // A brand-new account is the ONLY thing that counts a referral: redeem
+      // any invite captured from a link / install referrer exactly here, never
+      // on a plain login. Best-effort — sign-up must not fail over it.
+      await _redeemPendingReferral();
       if (isClosed) return;
       emit(state.copyWith(submissionStatus: SignUpSubmissionStatus.success));
     } catch (e, stackTrace) {
       _errorFormatter(e, stackTrace);
     }
+  }
+
+  /// Redeems the invite handle captured before sign-up (if any). Retries a few
+  /// times because the freshly-signed-in session's token can take a moment to
+  /// reach the API; clears the handle afterwards so it is used exactly once.
+  Future<void> _redeemPendingReferral() async {
+    final handle = await PendingReferral.read();
+    if (handle == null) return;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        final status = await _userRepository.redeemReferral(handle: handle);
+        // Anything other than "not signed in yet" is a definitive answer.
+        if (status != 'unauthenticated') break;
+      } catch (_) {
+        // Network / token not ready — fall through to a short retry.
+      }
+      await Future<void>.delayed(const Duration(seconds: 1));
+    }
+    await PendingReferral.clear();
   }
 
   /// Surfaces why a step failed. The auth client already translates Entra's
