@@ -572,31 +572,65 @@ class _ConversationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final unread = conversation.unreadCount;
-    final preview = _preview();
-
-    // Resolve the peer's app uuid so the avatar can show their story ring
-    // (the ChatUser only carries the backend id).
     final peerUuid = ChatSession.instance.isStarted
         ? ChatSession.instance.listTransport.peerUuidOf(conversation.id)
         : null;
+    if (peerUuid == null || peerUuid.isEmpty) {
+      return _row(
+        context,
+        peerUuid: null,
+        name: conversation.peer.name,
+        avatarUrl: conversation.peer.avatarUrl,
+      );
+    }
+    // Prefer the peer's LIVE app profile (username/avatar) over the name the
+    // chat backend cached on the conversation row — that copy goes stale after
+    // the peer changes their username or avatar.
+    final repo = context.read<UserRepository>();
+    return StreamBuilder<User>(
+      stream: repo.profile(id: peerUuid),
+      builder: (context, snap) {
+        final profile = snap.data;
+        final name = (profile != null && profile.displayUsername != 'Unknown')
+            ? profile.displayUsername
+            : conversation.peer.name;
+        final avatarUrl = (profile != null && profile.hasAvatar)
+            ? profile.avatarUrl
+            : conversation.peer.avatarUrl;
+        return _row(
+          context,
+          peerUuid: peerUuid,
+          name: name,
+          avatarUrl: avatarUrl,
+        );
+      },
+    );
+  }
+
+  Widget _row(
+    BuildContext context, {
+    required String? peerUuid,
+    required String name,
+    required String? avatarUrl,
+  }) {
+    final unread = conversation.unreadCount;
+    final preview = _preview();
+
+    // The story ring needs the peer's app uuid (the ChatUser carries only the
+    // backend id).
     final author = (peerUuid != null && peerUuid.isNotEmpty)
-        ? User(
-            id: peerUuid,
-            username: conversation.peer.name,
-            avatarUrl: conversation.peer.avatarUrl,
-          )
+        ? User(id: peerUuid, username: name, avatarUrl: avatarUrl)
         : null;
 
     return _PersonRow(
-      avatarUrl: conversation.peer.avatarUrl,
+      avatarUrl: avatarUrl,
       author: author,
-      title: conversation.peer.name,
+      title: name,
       subtitle: preview.isEmpty ? null : preview,
       onTap: () => openConversationScreen(
         context,
         conversationId: conversation.id,
-        peer: conversation.peer,
+        peer: conversation.peer.copyWith(name: name, avatarUrl: avatarUrl),
       ),
       onLongPress: () => _confirmDelete(context),
       trailing: Column(

@@ -38,6 +38,32 @@ class ChatThreadScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The chat backend caches the peer's name/avatar on the conversation row,
+    // so a later username/avatar change wouldn't show in the thread. Resolve
+    // the peer's LIVE app profile (by uuid) and prefer it, falling back to the
+    // backend-supplied values until (or unless) the profile is available.
+    if (peerUuid.isEmpty) return _buildForPeer(context, peer);
+    final repo = context.read<UserRepository>();
+    return StreamBuilder<User>(
+      stream: repo.profile(id: peerUuid),
+      builder: (context, snap) {
+        final profile = snap.data;
+        final effectivePeer = profile == null
+            ? peer
+            : peer.copyWith(
+                name: profile.displayUsername != 'Unknown'
+                    ? profile.displayUsername
+                    : peer.name,
+                avatarUrl: profile.hasAvatar
+                    ? profile.avatarUrl
+                    : peer.avatarUrl,
+              );
+        return _buildForPeer(context, effectivePeer);
+      },
+    );
+  }
+
+  Widget _buildForPeer(BuildContext context, ChatUser peer) {
     final me = context.select((AppBloc bloc) => bloc.state.user.id);
     final repo = context.read<UserRepository>();
     final menu = _ChatOverflowMenu(
@@ -77,7 +103,7 @@ class ChatThreadScreen extends StatelessWidget {
     }
 
     if (peerUuid.isEmpty || me.isEmpty) {
-      return _chat(trailing: menu, composerOverride: null);
+      return _chat(peer: peer, trailing: menu, composerOverride: null);
     }
 
     // Block gates BOTH ways: if I blocked them the notice offers unblock; if
@@ -95,6 +121,7 @@ class ChatThreadScreen extends StatelessWidget {
             final blockedMe = blockedMeSnap.data ?? false;
             final blocked = iBlocked || blockedMe;
             return _chat(
+              peer: peer,
               trailing: menu,
               avatar: headerAvatar,
               onTitleTap: onTitleTap,
@@ -108,6 +135,7 @@ class ChatThreadScreen extends StatelessWidget {
   }
 
   Widget _chat({
+    required ChatUser peer,
     required Widget trailing,
     Widget? avatar,
     VoidCallback? onTitleTap,
