@@ -1,6 +1,7 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:treepnet/referral/referral_config.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/l10n/l10n.dart';
@@ -29,9 +30,17 @@ class ReferralPage extends StatelessWidget {
     return handle;
   }
 
+  /// Copies the invite link and confirms with a snackbar. Copying is the app's
+  /// share convention everywhere (profile/post links), so no extra dependency.
+  void _copyLink(BuildContext context, String url) {
+    Clipboard.setData(ClipboardData(text: url));
+    openSnackbar(SnackbarMessage.success(title: context.l10n.linkCopiedText));
+  }
+
   @override
   Widget build(BuildContext context) {
     final code = _handleOf(context);
+    final inviteUrl = ReferralConfig.inviteUrl(code);
     return TreepNetAmbientBackground(
       child: AppScaffold(
         backgroundColor: AppColors.transparent,
@@ -79,7 +88,10 @@ class ReferralPage extends StatelessWidget {
                 ),
               ),
               const Gap.v(AppSpacing.xs),
-              _CodeField(code: ReferralConfig.inviteUrl(code)),
+              _CodeField(
+                code: inviteUrl,
+                onCopy: () => _copyLink(context, inviteUrl),
+              ),
               const Gap.v(AppSpacing.lg),
               // One stream feeds the counters, the progress bar and the
               // ladder, so they can never disagree about where you stand.
@@ -111,8 +123,7 @@ class ReferralPage extends StatelessWidget {
                 style: context.bodyMedium?.copyWith(color: AppColors.white),
               ),
               const Gap.v(AppSpacing.xlg),
-              // The whole feature is not live yet — a non-interactive badge.
-              const Center(child: _ComingSoonBadge()),
+              _CopyLinkButton(onTap: () => _copyLink(context, inviteUrl)),
             ],
           ),
         ),
@@ -122,78 +133,92 @@ class ReferralPage extends StatelessWidget {
 
 }
 
-/// A button-shaped "Coming soon" badge: white fill, black text, deliberately
-/// not tappable (the referral feature is disabled for now).
-class _ComingSoonBadge extends StatelessWidget {
-  const _ComingSoonBadge();
+/// The primary call-to-action: copy the invite link to share it anywhere.
+/// White fill, black text, full width — matching the app's primary buttons.
+class _CopyLinkButton extends StatelessWidget {
+  const _CopyLinkButton({required this.onTap});
+
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xlg,
-        vertical: AppSpacing.md,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.white,
+    return Material(
+      color: AppColors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(14),
-      ),
-      child: Text(
-        context.l10n.comingSoonText,
-        style: context.titleMedium?.copyWith(
-          color: AppColors.black,
-          fontWeight: AppFontWeight.bold,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.copy, color: AppColors.black, size: 20),
+              const Gap.h(AppSpacing.sm),
+              Text(
+                context.l10n.copyLinkText,
+                style: context.titleMedium?.copyWith(
+                  color: AppColors.black,
+                  fontWeight: AppFontWeight.bold,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// The invite link. Copy is disabled while the feature is not live — the copy
-/// icon is replaced with a white "blocked" icon and the field is not tappable.
+/// The invite link. Tapping anywhere on it copies the link (a copy icon hints
+/// at it), matching how profile/post links are shared elsewhere in the app.
 class _CodeField extends StatelessWidget {
-  const _CodeField({required this.code});
+  const _CodeField({required this.code, required this.onCopy});
 
   final String code;
+  final VoidCallback onCopy;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.white.withValues(alpha: 0.10),
       borderRadius: BorderRadius.circular(14),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: AppSpacing.md + 2,
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.link,
-              color: Colors.white54,
-              size: 20,
-            ),
-            const Gap.h(AppSpacing.sm),
-            Expanded(
-              child: Text(
-                code,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: context.textTheme.titleMedium?.copyWith(
-                  color: context.colorScheme.onSurface,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
+      child: InkWell(
+        onTap: onCopy,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.md + 2,
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.link,
+                color: Colors.white54,
+                size: 20,
+              ),
+              const Gap.h(AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  code,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.textTheme.titleMedium?.copyWith(
+                    color: context.colorScheme.onSurface,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
-            ),
-            const Gap.h(AppSpacing.sm),
-            // Copy disabled (feature not live) — white blocked icon.
-            const Icon(
-              Icons.block,
-              color: AppColors.white,
-              size: 20,
-            ),
-          ],
+              const Gap.h(AppSpacing.sm),
+              const Icon(
+                Icons.copy,
+                color: AppColors.white,
+                size: 20,
+              ),
+            ],
+          ),
         ),
       ),
     );
