@@ -9,8 +9,8 @@
 // a deferred install.
 
 const ANDROID_PKG = 'com.treepnet.application';
-// Filled in the iOS phase once the App Store id exists.
-const IOS_APPSTORE_ID = '';
+// TreepNet on the App Store.
+const IOS_APPSTORE_ID = '6801508746';
 
 function storeUrlFor(handle, userAgent) {
   const ua = userAgent || '';
