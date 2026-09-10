@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>TreepNet</title>
+  <!-- Black, contentless: this page only ever loads for a device WITHOUT the
+       app (when the app is installed the Android App Link / iOS Universal Link
+       opens it directly and this HTML never runs). It redirects in ~0.1s, so
+       the user effectively never sees it. -->
+  <style>html,body{margin:0;height:100%;background:#000}</style>
+</head>
+<body>
+  <script>
+    (function () {
+      // Prod Android package (see AndroidManifest / assetlinks.json).
+      var ANDROID_PKG = "com.treepnet.application";
+      // Filled in the iOS phase once the App Store id exists.
+      var IOS_APPSTORE_ID = "";
+
+      // Pull <handle> out of /invite/<handle>.
+      var parts = location.pathname.split("/").filter(Boolean);
+      var i = parts.indexOf("invite");
+      var handle = (i !== -1 && parts[i + 1]) ? decodeURIComponent(parts[i + 1]) : "";
+
+      var ua = navigator.userAgent || "";
+      var isAndroid = /android/i.test(ua);
+      var isIOS = /iphone|ipad|ipod/i.test(ua) ||
+        (/Macintosh/i.test(ua) && "ontouchend" in document);
+
+      var dest;
+      if (isAndroid) {
+        // Play preserves this referrer through install; the app reads it on
+        // first launch (AndroidPlayInstallReferrer -> treepnet_invite=<handle>).
+        var ref = encodeURIComponent("treepnet_invite=" + handle);
+        dest = "https://play.google.com/store/apps/details?id=" +
+          ANDROID_PKG + "&referrer=" + ref;
+      } else if (isIOS) {
+        dest = IOS_APPSTORE_ID
+          ? "https://apps.apple.com/app/id" + IOS_APPSTORE_ID
+          : "https://apps.apple.com/";
+      } else {
+        // Desktop / other: the Play listing (referrer only matters on-device).
+        dest = "https://play.google.com/store/apps/details?id=" + ANDROID_PKG;
+      }
+      location.replace(dest);
+    })();
+  </script>
+</body>
+</html>

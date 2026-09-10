@@ -25,3 +25,38 @@ api.treepnet.com, rest.130-61-138-104.sslip.io {
 chat.treepnet.com, chat.130-61-138-104.sslip.io {
 	reverse_proxy chatbackend:3000
 }
+
+# Referral invite landing + app-verification files (Android App Links now,
+# iOS Universal Links later). The treepnet.com A-record must point at
+# 130.61.138.104 (DNS only, proxy OFF) so Caddy can issue a cert. Static files
+# live in ./caddy/web, mounted into the container at /srv/web.
+treepnet.com, www.treepnet.com {
+	root * /srv/web
+
+	# Android App Links verification — must be application/json, 200, no redirect.
+	handle /.well-known/assetlinks.json {
+		header Content-Type application/json
+		file_server
+	}
+
+	# iOS Universal Links verification — populated in the iOS phase; serving the
+	# file early is harmless.
+	handle /.well-known/apple-app-site-association {
+		header Content-Type application/json
+		file_server
+	}
+
+	# Invite links. When the app is installed the OS opens it directly and this
+	# never runs; otherwise the page redirects (~0.1s) to the store, carrying the
+	# invite handle as the Play install referrer.
+	handle /invite/* {
+		rewrite * /invite.html
+		file_server
+	}
+
+	# Anything else -> the same smart page (a bare treepnet.com won't 404).
+	handle {
+		rewrite * /invite.html
+		file_server
+	}
+}
