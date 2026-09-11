@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": [
+          "YR6Y9NXLYK.com.treepnet.application",
+          "YR6Y9NXLYK.com.treepnet.application.dev"
+        ],
+        "components": [
+          { "/": "/invite/*" }
+        ]
+      }
+    ]
+  }
+}
