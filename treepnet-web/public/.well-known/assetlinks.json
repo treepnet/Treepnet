@@ -9,5 +9,15 @@
         "F8:17:40:B8:31:C3:85:D8:22:52:CE:A6:C9:51:66:14:34:65:32:E1:C8:B4:AA:55:A0:19:1C:7D:96:85:02:EF"
       ]
     }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.treepnet.application.dev",
+      "sha256_cert_fingerprints": [
+        "7E:77:01:06:2D:F4:2A:5F:24:17:32:85:F1:37:1B:6C:95:25:79:D3:AB:E4:6A:F2:78:F8:F1:30:CC:DC:1D:FA"
+      ]
+    }
   }
 ]
