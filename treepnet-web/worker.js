@@ -37,7 +37,12 @@ export default {
     if (match) {
       const handle = decodeURIComponent(match[1]);
       const dest = storeUrlFor(handle, request.headers.get('user-agent'));
-      return Response.redirect(dest, 302);
+      // Never let a browser/CDN cache an invite redirect — a stale cache is
+      // what makes a device keep showing the old page for the same link.
+      return new Response(null, {
+        status: 302,
+        headers: { Location: dest, 'Cache-Control': 'no-store' },
+      });
     }
     // Everything else: the static site (assets binding respects SPA fallback
     // and serves real files like /.well-known/assetlinks.json directly).
