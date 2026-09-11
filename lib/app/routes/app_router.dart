@@ -491,6 +491,17 @@ class AppRouter {
       final authenticating = state.matchedLocation == AppRoutes.auth.route;
       final onboarding = state.matchedLocation == AppRoutes.onboarding.route;
 
+      // An external deep link — the invite App Link
+      // (https://treepnet.com/invite/<handle>), the custom scheme, or a bare
+      // "/" — matches no in-app route and would otherwise render "Page Not
+      // Found". The invite handle is captured separately (ReferralLinkListener),
+      // so route anything external to the feed; the auth/onboarding gating below
+      // then applies on the re-run.
+      final uri = state.uri;
+      if (uri.hasScheme || uri.path == '/' || uri.path.contains('/invite')) {
+        return AppRoutes.feed.route;
+      }
+
       // Unauthenticated users are always sent to the auth page.
       if (!authenticated) return AppRoutes.auth.route;
 
