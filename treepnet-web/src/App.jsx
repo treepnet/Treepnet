@@ -127,7 +127,9 @@ export default function App() {
   function onAppStore(e) {
     if (!inviteHandle) return; // organic — let the href open normally
     e.preventDefault();
-    const code = "treepnet_invite=" + inviteHandle;
+    // Copy the invite as a URL so the iOS app can read it with
+    // detectValues(.probableWebURL) — no "Allow Paste?" prompt.
+    const code = "https://treepnet.com/invite/" + inviteHandle;
     try {
       // Synchronous copy: the only reliable way to copy AND immediately
       // navigate within one user gesture on iOS Safari.

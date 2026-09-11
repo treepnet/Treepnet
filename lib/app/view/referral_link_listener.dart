@@ -52,31 +52,34 @@ class _ReferralLinkListenerState extends State<ReferralLinkListener> {
   }
 
   static const _kIosClipChecked = 'ios_referral_clip_checked';
+  static const _iosReferralChannel = MethodChannel('treepnet/referral');
 
   /// iOS deferred attribution: on the FIRST launch after install, read the
-  /// clipboard once. If the invite landing put `treepnet_invite=<handle>` there
-  /// (on the App Store tap), capture it and clear it. Guarded by a flag so it
-  /// runs exactly once — reading the clipboard shows iOS's one-time paste
-  /// notice, and there is nothing to find on later launches anyway.
+  /// invite URL the web landing copied to the clipboard (on the App Store tap).
+  ///
+  /// Uses a native `detectValues(for: [.probableWebURL])` bridge (iOS 16+) which
+  /// returns a clipboard URL WITHOUT the "Allow Paste?" prompt — reading
+  /// `Clipboard.getData` directly would nag the user (default = deny) and lose
+  /// most referrals. Guarded by a flag so it runs exactly once.
   Future<void> _checkIosClipboard() async {
     if (!Platform.isIOS) return;
     try {
       final prefs = await SharedPreferences.getInstance();
       if (prefs.getBool(_kIosClipChecked) ?? false) return;
-      // Mark first (even if the read throws) so the paste notice never repeats.
+      // Mark first (even if the read fails) so it never repeats.
       await prefs.setBool(_kIosClipChecked, true);
 
-      final data = await Clipboard.getData(Clipboard.kTextPlain);
-      final text = data?.text;
-      if (text == null || text.isEmpty) return;
-      // Same `treepnet_invite=<handle>` shape as the Play referrer.
-      final handle = ReferralConfig.handleFromReferrer(text);
-      if (handle == null) return;
+      final url = await _iosReferralChannel.invokeMethod<String>('readInviteUrl');
+      if (url == null || url.isEmpty) return;
+      final uri = Uri.tryParse(url);
+      if (uri == null) return;
+      final handle = ReferralConfig.handleFromUri(uri);
+      if (handle == null || handle.isEmpty) return;
       await PendingReferral.save(handle);
       // Consume it so it can't be re-read or leak.
       await Clipboard.setData(const ClipboardData(text: ''));
     } catch (_) {
-      // Clipboard unavailable / restricted — nothing to capture.
+      // Channel unavailable / clipboard restricted — nothing to capture.
     }
   }
 
