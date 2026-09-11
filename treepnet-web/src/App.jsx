@@ -115,6 +115,36 @@ export default function App() {
   const [menu, setMenu] = useState(false);
   const t = I18N[lang];
 
+  // Referral deferred attribution (iOS): when we arrive on /invite/<handle>,
+  // the App Store button copies the handle to the clipboard so the freshly
+  // installed app can read it on first launch — iOS has no Play-style install
+  // referrer. Organic visitors (no handle) just follow the link normally.
+  const inviteHandle = (() => {
+    const m = window.location.pathname.match(/^\/invite\/([^/]+)\/?$/);
+    return m ? decodeURIComponent(m[1]) : null;
+  })();
+  const APP_STORE_URL = "https://apps.apple.com/uz/app/treepnet/id6801508746";
+  function onAppStore(e) {
+    if (!inviteHandle) return; // organic — let the href open normally
+    e.preventDefault();
+    const code = "treepnet_invite=" + inviteHandle;
+    try {
+      // Synchronous copy: the only reliable way to copy AND immediately
+      // navigate within one user gesture on iOS Safari.
+      const ta = document.createElement("textarea");
+      ta.value = code;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    } catch (_) {
+      try { navigator.clipboard?.writeText(code); } catch (_) {}
+    }
+    window.location.href = APP_STORE_URL;
+  }
+
   useEffect(() => {
     localStorage.setItem("tn_lang", lang);
     document.documentElement.lang = lang;
@@ -233,7 +263,7 @@ export default function App() {
                 </span>
                 <span className="store-txt" style={{ justifyContent: 'center' }}><b>Google Play</b></span>
               </a>
-              <a className="store" href="https://apps.apple.com/uz/app/treepnet/id6801508746" target="_blank" rel="noopener noreferrer">
+              <a className="store" href={APP_STORE_URL} onClick={onAppStore} target="_blank" rel="noopener noreferrer">
                 <span className="store-ico" style={{ display: 'flex', alignItems: 'center' }}>
                   <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.68.78-1.3 2.22-.11 3.597 1.35.1 2.662-.806 3.497-1.818z"/></svg>
                 </span>

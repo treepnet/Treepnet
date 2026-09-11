@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:android_play_install_referrer/android_play_install_referrer.dart';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:treepnet/referral/pending_referral.dart';
 import 'package:treepnet/referral/referral_config.dart';
 
@@ -13,9 +16,11 @@ import 'package:treepnet/referral/referral_config.dart';
 ///   * `https://<domain>/invite/<handle>` — auto-verified App Link (needs
 ///     assetlinks.json on the domain);
 ///   * `treepnet://invite/<handle>` — custom scheme, always opens the app;
-///   * the Play Store **install referrer** — the deferred case, so an invite
-///     still counts when the app wasn't installed at tap time (Android only;
-///     iOS deferred is a later phase).
+///   * the Play Store **install referrer** — Android's deferred case, so an
+///     invite still counts when the app wasn't installed at tap time;
+///   * the **clipboard** — iOS's deferred case: the invite landing copies
+///     `treepnet_invite=<handle>` on the App Store tap, and this reads it once
+///     on the first launch after install (iOS has no Play install referrer).
 ///
 /// It only *stores* the handle (see [PendingReferral]); the referral is
 /// redeemed exactly once, when a brand-new account is created (sign-up cubit).
@@ -43,6 +48,36 @@ class _ReferralLinkListenerState extends State<ReferralLinkListener> {
       if (uri != null) _onUri(uri);
     });
     _checkInstallReferrer();
+    _checkIosClipboard();
+  }
+
+  static const _kIosClipChecked = 'ios_referral_clip_checked';
+
+  /// iOS deferred attribution: on the FIRST launch after install, read the
+  /// clipboard once. If the invite landing put `treepnet_invite=<handle>` there
+  /// (on the App Store tap), capture it and clear it. Guarded by a flag so it
+  /// runs exactly once — reading the clipboard shows iOS's one-time paste
+  /// notice, and there is nothing to find on later launches anyway.
+  Future<void> _checkIosClipboard() async {
+    if (!Platform.isIOS) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_kIosClipChecked) ?? false) return;
+      // Mark first (even if the read throws) so the paste notice never repeats.
+      await prefs.setBool(_kIosClipChecked, true);
+
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      final text = data?.text;
+      if (text == null || text.isEmpty) return;
+      // Same `treepnet_invite=<handle>` shape as the Play referrer.
+      final handle = ReferralConfig.handleFromReferrer(text);
+      if (handle == null) return;
+      await PendingReferral.save(handle);
+      // Consume it so it can't be re-read or leak.
+      await Clipboard.setData(const ClipboardData(text: ''));
+    } catch (_) {
+      // Clipboard unavailable / restricted — nothing to capture.
+    }
   }
 
   @override
