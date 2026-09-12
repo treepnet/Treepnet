@@ -22,7 +22,7 @@ class Password extends FormzInput<String, PasswordValidationError>
   PasswordValidationError? validator(String value) {
     if (value.isEmpty) {
       return PasswordValidationError.empty;
-    } else if (value.length < 6 || value.length > 120) {
+    } else if (value.length < 8 || value.length > 120) {
       return PasswordValidationError.invalid;
     } else {
       return null;
@@ -33,7 +33,7 @@ class Password extends FormzInput<String, PasswordValidationError>
   Map<PasswordValidationError?, String?> get validationErrorMessage => {
     PasswordValidationError.empty: 'This field is required',
     PasswordValidationError.invalid:
-        'Password should contain at least 6 characters',
+        'Password should contain at least 8 characters',
     null: null,
   };
 

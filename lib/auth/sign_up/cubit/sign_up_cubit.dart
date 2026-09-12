@@ -7,7 +7,6 @@ import 'package:firebase_authentication_client/firebase_authentication_client.da
         SignUpWithPasswordFailure;
 import 'package:equatable/equatable.dart';
 import 'package:form_fields/form_fields.dart';
-import 'package:treepnet/auth/sign_up/widgets/password_strength_meter.dart';
 import 'package:treepnet/referral/pending_referral.dart';
 import 'package:user_repository/user_repository.dart';
 
@@ -183,12 +182,9 @@ class SignUpCubit extends Cubit<SignupState> {
       return;
     }
 
-    // Entra rejects anything weaker, so stop here rather than after a round
-    // trip: the meter under the field already shows why.
-    if (!PasswordStrength.of(password.value).isAcceptable) {
-      _fail(SignUpError.weakPassword);
-      return;
-    }
+    // Password rule is length-only now (min 8, enforced by the field validator
+    // and the backend). Character classes (letters + digits + symbols) are no
+    // longer required — that was an Entra-era rule that made sign-up harder.
 
     emit(state.copyWith(submissionStatus: SignUpSubmissionStatus.inProgress));
     try {
