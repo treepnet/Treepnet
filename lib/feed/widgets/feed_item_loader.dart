@@ -19,6 +19,10 @@ class _FeedLoaderItemState extends State<FeedLoaderItem> {
   void initState() {
     super.initState();
     Future.delayed(350.ms, () {
+      // The delay can outlive this item (scrolled off / page disposed), and
+      // onPresented reads an ancestor bloc via context — guard against firing
+      // after the element is deactivated.
+      if (!mounted) return;
       widget.onPresented?.call();
     });
   }

@@ -95,8 +95,10 @@ class LoginCubit extends Cubit<LoginState> {
     emit(state.copyWith(status: LogInSubmissionStatus.googleAuthInProgress));
     try {
       await _userRepository.logInWithGoogle();
+      if (isClosed) return;
       emit(state.copyWith(status: LogInSubmissionStatus.success));
     } on LogInWithGoogleCanceled {
+      if (isClosed) return;
       emit(state.copyWith(status: LogInSubmissionStatus.idle));
     } catch (error, stackTrace) {
       _errorFormatter(error, stackTrace);
@@ -107,8 +109,10 @@ class LoginCubit extends Cubit<LoginState> {
     emit(state.copyWith(status: LogInSubmissionStatus.githubAuthInProgress));
     try {
       await _userRepository.logInWithGithub();
+      if (isClosed) return;
       emit(state.copyWith(status: LogInSubmissionStatus.success));
     } on LogInWithGithubCanceled {
+      if (isClosed) return;
       emit(state.copyWith(status: LogInSubmissionStatus.idle));
     } catch (error, stackTrace) {
       _errorFormatter(error, stackTrace);
@@ -140,12 +144,17 @@ class LoginCubit extends Cubit<LoginState> {
             password: password.value,
           )
           .timeout(const Duration(seconds: 20));
+      // The screen can be popped while the request is in flight, closing this
+      // cubit; emitting then throws "Cannot emit after close".
+      if (isClosed) return;
       final newState = state.copyWith(status: LogInSubmissionStatus.success);
       emit(newState);
     } on TimeoutException {
+      if (isClosed) return;
       // The network-error copy is localized in login_form.dart from the status.
       emit(state.copyWith(status: LogInSubmissionStatus.networkError));
     } catch (e, stackTrace) {
+      if (isClosed) return;
       _errorFormatter(e, stackTrace);
     }
   }
@@ -153,6 +162,8 @@ class LoginCubit extends Cubit<LoginState> {
   /// Formats error, that occurred during login process.
   void _errorFormatter(Object e, StackTrace stackTrace) {
     addError(e, stackTrace);
+    // Defensive: any async caller may reach here after the cubit closed.
+    if (isClosed) return;
     final status = switch (e) {
       LogInWithPasswordFailure() => LogInSubmissionStatus.error,
       LogInWithGoogleFailure() => LogInSubmissionStatus.googleLogInFailure,

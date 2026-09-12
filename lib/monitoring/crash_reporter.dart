@@ -124,6 +124,13 @@ class CrashReporter {
       // long report across several Telegram messages so nothing is lost. Only a
       // generous safety cap remains so one payload can't be unbounded.
       final message = _truncate(error.toString(), 4000);
+
+      // Only real bugs/crashes belong here. Expected, user-facing outcomes —
+      // a wrong password, an offline device — are not bugs, so drop them before
+      // they reach Telegram. Real bugs (StateError, type errors, FlutterError,
+      // "Cannot emit after close", null-checks…) are NOT matched and flow on.
+      if (_isExpected(error, message)) return;
+
       final frames = _allFrames(stack, maxChars: 8000);
       final signature = '$kind|${_truncate(message, 120)}|${frames.isEmpty ? '' : frames.first}';
 
@@ -147,6 +154,26 @@ class CrashReporter {
       // Reporting must never surface an error of its own.
     }
   }
+
+  /// Whether [error] is an EXPECTED outcome rather than a bug/crash, and so
+  /// should not be reported. Kept deliberately narrow: only clearly-expected
+  /// cases match, so a genuine bug is never silenced by accident.
+  bool _isExpected(Object error, String message) {
+    // Every auth-client failure (wrong password, taken email, cancelled
+    // sign-in) stringifies through one stable base-class prefix — the whole
+    // hierarchy is matched without importing it.
+    if (message.startsWith('Authentication exception error:')) return true;
+    // Device offline / a slow request timing out — connectivity, not a bug.
+    if (error is TimeoutException) return true;
+    return _expectedTypes.contains(error.runtimeType.toString());
+  }
+
+  // Client-side connectivity failures. DioException is deliberately NOT here:
+  // it can wrap a real backend 5xx that IS worth seeing.
+  static const Set<String> _expectedTypes = {
+    'SocketException', // offline / DNS failure
+    'HandshakeException', // TLS negotiation failure
+  };
 
   Map<String, dynamic> _buildPayload({
     required String kind,
