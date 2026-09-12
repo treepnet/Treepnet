@@ -377,6 +377,13 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get emailInvalidErrorText => 'Email is not correct';
+
+  @override
+  String get otpInvalidErrorText =>
+      'Invalid code. Please check and re-enter it.';
+
+  @override
   String get changeText => 'Change';
 
   @override

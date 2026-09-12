@@ -1,6 +1,7 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:treepnet/auth/field_error_l10n.dart';
 import 'package:treepnet/auth/sign_up/cubit/sign_up_cubit.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:shared/shared.dart';
@@ -39,7 +40,7 @@ class _PasswordTextFieldState extends State<PasswordTextField> {
       (SignUpCubit cubit) => cubit.state.submissionStatus.isLoading,
     );
     final passwordError = context.select(
-      (SignUpCubit cubit) => cubit.state.password.errorMessage,
+      (SignUpCubit cubit) => cubit.state.password.validationError,
     );
     final showPassword = context.select(
       (SignUpCubit cubit) => cubit.state.showPassword,
@@ -82,7 +83,7 @@ class _PasswordTextFieldState extends State<PasswordTextField> {
       enabled: !isLoading,
       obscureText: !showPassword,
       onChanged: (v) => context.read<SignUpCubit>().onPasswordChanged(v),
-      errorText: passwordError,
+      errorText: passwordErrorText(context, passwordError),
       suffixIcon: Tappable.faded(
         backgroundColor: AppColors.transparent,
         onTap: isLoading

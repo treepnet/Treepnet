@@ -373,10 +373,19 @@ class AppLocalizationsRu extends AppLocalizations {
       count,
       locale: localeName,
       other: '$count символа',
+      many: '$count символов',
+      few: '$count символа',
       one: '$count символ',
     );
     return 'Пароль должен содержать минимум $_temp0';
   }
+
+  @override
+  String get emailInvalidErrorText => 'Некорректный email';
+
+  @override
+  String get otpInvalidErrorText =>
+      'Неверный код. Проверьте и введите его снова.';
 
   @override
   String get changeText => 'Изменить';

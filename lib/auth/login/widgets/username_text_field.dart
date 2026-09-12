@@ -2,6 +2,7 @@ import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared/shared.dart';
+import 'package:treepnet/auth/field_error_l10n.dart';
 import 'package:treepnet/auth/login/cubit/login_cubit.dart';
 import 'package:treepnet/l10n/l10n.dart';
 
@@ -39,7 +40,7 @@ class _UsernameTextFieldState extends State<UsernameTextField> {
   @override
   Widget build(BuildContext context) {
     final usernameError = context.select(
-      (LoginCubit cubit) => cubit.state.username.errorMessage,
+      (LoginCubit cubit) => cubit.state.username.validationError,
     );
     final isLoading = context.select(
       (LoginCubit cubit) => cubit.state.status.isLoading,
@@ -88,7 +89,7 @@ class _UsernameTextFieldState extends State<UsernameTextField> {
       focusedBorder: focusedInputBorder,
       onChanged: (v) =>
           _debouncer.run(() => context.read<LoginCubit>().onUsernameChanged(v)),
-      errorText: usernameError,
+      errorText: usernameErrorText(context, usernameError),
     );
   }
 }

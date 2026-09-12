@@ -1,6 +1,7 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:treepnet/auth/field_error_l10n.dart';
 import 'package:treepnet/auth/login/cubit/login_cubit.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:shared/shared.dart';
@@ -36,7 +37,7 @@ class _PasswordTextFieldState extends State<PasswordTextField> {
   @override
   Widget build(BuildContext context) {
     final passwordError = context.select(
-      (LoginCubit cubit) => cubit.state.password.errorMessage,
+      (LoginCubit cubit) => cubit.state.password.validationError,
     );
     final showPassword = context.select(
       (LoginCubit cubit) => cubit.state.showPassword,
@@ -84,7 +85,7 @@ class _PasswordTextFieldState extends State<PasswordTextField> {
       onFieldSubmitted: (_) => context.read<LoginCubit>().onSubmit(),
       onChanged: (v) =>
           _debouncer.run(() => context.read<LoginCubit>().onPasswordChanged(v)),
-      errorText: passwordError,
+      errorText: passwordErrorText(context, passwordError),
       suffixIcon: Tappable.faded(
         backgroundColor: AppColors.transparent,
         onTap: context.read<LoginCubit>().changePasswordVisibility,

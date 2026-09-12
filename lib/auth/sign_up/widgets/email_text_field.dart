@@ -1,6 +1,7 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:treepnet/auth/field_error_l10n.dart';
 import 'package:treepnet/auth/sign_up/cubit/sign_up_cubit.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:shared/shared.dart';
@@ -39,7 +40,7 @@ class _EmailTextFieldState extends State<EmailTextField> {
       (SignUpCubit cubit) => cubit.state.submissionStatus.isLoading,
     );
     final emailError = context.select(
-      (SignUpCubit cubit) => cubit.state.email.errorMessage,
+      (SignUpCubit cubit) => cubit.state.email.validationError,
     );
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textFieldFill = AppColors.inputSpace;
@@ -77,7 +78,7 @@ class _EmailTextFieldState extends State<EmailTextField> {
       enabledBorder: inputBorder,
       focusedBorder: focusedInputBorder,
       onChanged: (v) => context.read<SignUpCubit>().onEmailChanged(v),
-      errorText: emailError,
+      errorText: emailErrorText(context, emailError),
     );
   }
 }

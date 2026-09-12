@@ -2,6 +2,7 @@ import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:treepnet/auth/field_error_l10n.dart';
 import 'package:treepnet/auth/sign_up/cubit/sign_up_cubit.dart';
 import 'package:treepnet/l10n/l10n.dart';
 
@@ -12,7 +13,7 @@ class CodeTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final codeError = context.select(
-      (SignUpCubit c) => c.state.code.errorMessage,
+      (SignUpCubit c) => c.state.code.validationError,
     );
     final isLoading = context.select(
       (SignUpCubit c) => c.state.submissionStatus.isLoading,
@@ -59,7 +60,7 @@ class CodeTextField extends StatelessWidget {
         ),
       ),
       onChanged: (v) => context.read<SignUpCubit>().onCodeChanged(v),
-      errorText: codeError,
+      errorText: otpErrorText(context, codeError),
     );
   }
 }

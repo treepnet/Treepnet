@@ -675,6 +675,18 @@ abstract class AppLocalizations {
   /// **'Password should contain at least {count} characters'**
   String passwordLengthErrorText(int count);
 
+  /// No description provided for @emailInvalidErrorText.
+  ///
+  /// In en, this message translates to:
+  /// **'Email is not correct'**
+  String get emailInvalidErrorText;
+
+  /// No description provided for @otpInvalidErrorText.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid code. Please check and re-enter it.'**
+  String get otpInvalidErrorText;
+
   /// No description provided for @changeText.
   ///
   /// In en, this message translates to:
