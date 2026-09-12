@@ -18,10 +18,18 @@ The new app version talks to this stack; old store versions still hit Azure.
 | `postgrest` | `postgrest/postgrest` | REST API (writes + RPCs), JWT via Entra JWKS |
 | `pushworker` | `functions/push-worker` | Polls `push_outbox`, sends FCM v1 pushes |
 | `deleteaccount` | `functions/delete-account` | Web "delete account" flow (email code + delete) |
+| `errorlogger` | `functions/error-logger` | Forwards app crash/error reports to the private Telegram bot |
 
 Public endpoints (Caddy): `https://sync.treepnet.com` → powersync,
 `https://api.treepnet.com` → postgrest, `https://api.treepnet.com/delete-account/*`
-→ deleteaccount. Auth is Microsoft Entra External ID (validated via its JWKS).
+→ deleteaccount, `https://api.treepnet.com/log/error` → errorlogger. Auth is
+Microsoft Entra External ID (validated via its JWKS).
+
+The `errorlogger` needs three env vars in `.env` (`TG_LOG_BOT_TOKEN`,
+`TG_LOG_CHAT_ID`, `LOG_APP_KEY`). It has no database or secret-file dependency,
+so deploying it is just: `docker compose up -d --build errorlogger` and then
+reload Caddy for the new `/log/*` route
+(`docker exec treepnet-caddy caddy reload --config /etc/caddy/Caddyfile`).
 
 ## Deploy
 

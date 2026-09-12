@@ -16,6 +16,11 @@ api.treepnet.com, rest.130-61-138-104.sslip.io {
 	handle_path /auth/* {
 		reverse_proxy authservice:4100
 	}
+	# Crash/error logger (prefix stripped -> service sees /error). Forwards app
+	# error reports to Treepnet's private Telegram bot.
+	handle_path /log/* {
+		reverse_proxy errorlogger:4200
+	}
 	reverse_proxy postgrest:3000
 }
 

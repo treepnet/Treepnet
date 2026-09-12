@@ -12,6 +12,7 @@ import 'package:powersync_repository/powersync_repository.dart';
 import 'package:shared/shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:treepnet/app/services/media_upload_queue.dart';
+import 'package:treepnet/monitoring/crash_reporter.dart';
 import 'package:treepnet/notifications/push/push_notifications.dart';
 
 typedef AppBuilder =
@@ -27,6 +28,9 @@ class AppBlocObserver extends BlocObserver {
   @override
   void onError(BlocBase<dynamic> bloc, Object error, StackTrace stackTrace) {
     log('onError ${bloc.runtimeType}', error: error, stackTrace: stackTrace);
+    // Augment, don't replace: keep the existing console log, and also report
+    // the bloc error to Treepnet's crash logger (fire-and-forget, no throw).
+    CrashReporter.instance.report(error, stackTrace, kind: 'bloc');
     super.onError(bloc, error, stackTrace);
   }
 }
@@ -37,6 +41,11 @@ Future<void> bootstrap(
 }) async {
   FlutterError.onError = (details) {
     logE(details.exceptionAsString(), stackTrace: details.stack);
+    CrashReporter.instance.report(
+      details.exception,
+      details.stack,
+      kind: 'flutter',
+    );
   };
 
   Bloc.observer = const AppBlocObserver();
@@ -50,6 +59,11 @@ Future<void> bootstrap(
 
       boot('0 ensureInitialized');
       WidgetsFlutterBinding.ensureInitialized();
+
+      // Crash logger: gather app/device context and flush any offline-queued
+      // reports. Off the critical path (unawaited) so it can never delay the
+      // first frame; the error hooks above already work without it.
+      unawaited(CrashReporter.instance.init(env: appFlavor.flavor.name));
 
       boot('1 hydrated storage (start)');
       HydratedBloc.storage = await HydratedStorage.build(
@@ -112,6 +126,7 @@ Future<void> bootstrap(
     (error, stack) {
       debugPrint('TREEP_BOOT: ERROR $error');
       logE(error.toString(), stackTrace: stack);
+      CrashReporter.instance.report(error, stack, kind: 'zone');
     },
   );
 }

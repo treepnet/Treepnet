@@ -187,3 +187,19 @@ services:
       - ./functions/fcm-service-account.json:/app/fcm-service-account.json:ro
     networks:
       - treepnet
+
+  # Crash/error logger — receives error reports from the mobile app and forwards
+  # them to Treepnet's private Telegram bot. Dependency-free Node service. The
+  # bot token lives ONLY here (env), never in the app binary or the repo. Behind
+  # Caddy at api.treepnet.com/log/* (prefix stripped -> service sees /error).
+  errorlogger:
+    build: ./functions/error-logger
+    container_name: treepnet-errorlogger
+    restart: unless-stopped
+    environment:
+      PORT: "4200"
+      TG_LOG_BOT_TOKEN: ${TG_LOG_BOT_TOKEN}
+      TG_LOG_CHAT_ID: ${TG_LOG_CHAT_ID}
+      LOG_APP_KEY: ${LOG_APP_KEY}
+    networks:
+      - treepnet

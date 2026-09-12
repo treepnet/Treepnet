@@ -12,6 +12,7 @@ import 'package:treepnet/feed/post/post.dart';
 import 'package:treepnet/feed/view/feed_page.dart';
 import 'package:treepnet/home/home.dart';
 import 'package:treepnet/map/map.dart';
+import 'package:treepnet/monitoring/crash_reporter.dart';
 import 'package:treepnet/onboarding/onboarding.dart';
 import 'package:treepnet/search/search.dart';
 import 'package:treepnet/stories/stories.dart';
@@ -32,8 +33,20 @@ class AppRouter {
 
   final AppBloc appBloc;
 
+  /// Points the crash logger at the current user id (null when logged out, and
+  /// re-read on every report so it never survives a sign-out) and hands back the
+  /// navigation observer that tracks which screen the user is on.
+  NavigatorObserver _wireCrashReporter() {
+    CrashReporter.instance.userIdProvider =
+        () => appBloc.state.user.isAnonymous ? null : appBloc.state.user.id;
+    return CrashReporter.instance.navigatorObserver;
+  }
+
   GoRouter get router => GoRouter(
     navigatorKey: _rootNavigatorKey,
+    // Let the crash logger name the screen an error happened on, and read the
+    // current user id at report time (null when logged out — never cached).
+    observers: [_wireCrashReporter()],
     initialLocation: AppRoutes.feed.route,
     routes: [
       GoRoute(

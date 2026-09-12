@@ -32,6 +32,10 @@ dependencies:
   collection: ^1.18.0
   database_client:
     path: packages/database_client
+  # Crash logger context (app version + device model/OS). Already resolved
+  # transitively; pinned here as direct deps for the reporter.
+  device_info_plus: ^11.3.0
+  package_info_plus: ^9.0.0
   # Chat backend transport (messenger_chat plugin talks to our OCI Node/Socket.IO
   # service through these). Versions match what the plugin already resolves.
   dio: ^5.8.0+1
