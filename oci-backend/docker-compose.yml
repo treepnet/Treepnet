@@ -203,3 +203,27 @@ services:
       LOG_APP_KEY: ${LOG_APP_KEY}
     networks:
       - treepnet
+
+  # Admin analytics dashboard (Metabase) behind Caddy at admin.treepnet.com.
+  # READ-ONLY: connects to Postgres as `analytics_ro`, which sees only the PII-safe
+  # `analytics` views. Its own config lives in a separate `metabase` database
+  # (role `metabase_app`), isolated from the app data. JVM heap + mem_limit are
+  # capped because the VM has no swap — Metabase must never OOM the app containers.
+  metabase:
+    image: metabase/metabase:v0.58.33
+    container_name: treepnet-metabase
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_HOST: postgres
+      MB_DB_PORT: "5432"
+      MB_DB_DBNAME: metabase
+      MB_DB_USER: metabase_app
+      MB_DB_PASS: ${METABASE_DB_PASS}
+      JAVA_TOOL_OPTIONS: "-Xmx1g"
+    mem_limit: 1600m
+    networks:
+      - treepnet

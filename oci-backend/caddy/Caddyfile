@@ -31,6 +31,19 @@ chat.treepnet.com, chat.130-61-138-104.sslip.io {
 	reverse_proxy chatbackend:3000
 }
 
+# Admin analytics dashboard (Metabase). Add the treepnet.com A-record for
+# admin.treepnet.com (DNS only, proxy OFF) so Caddy can issue a cert; the sslip.io
+# host works without DNS in the meantime. To restrict access, uncomment the IP
+# allowlist and put your own IP in @admin.
+admin.treepnet.com, admin.130-61-138-104.sslip.io {
+	# @admin remote_ip 1.2.3.4/32
+	# handle @admin {
+	# 	reverse_proxy metabase:3000
+	# }
+	# respond 403
+	reverse_proxy metabase:3000
+}
+
 # Referral invite landing + app-verification files (Android App Links now,
 # iOS Universal Links later). The treepnet.com A-record must point at
 # 130.61.138.104 (DNS only, proxy OFF) so Caddy can issue a cert. Static files
