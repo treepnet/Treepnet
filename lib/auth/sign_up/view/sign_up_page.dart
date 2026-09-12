@@ -41,7 +41,6 @@ class SignUpView extends StatelessWidget {
               SignUpError.usernameTaken => l10n.signUpUsernameTakenError,
               SignUpError.invalidEmail => l10n.signUpInvalidEmailError,
               SignUpError.invalidCode => l10n.signUpInvalidCodeError,
-              SignUpError.weakPassword => l10n.signUpWeakPasswordError,
               // No local cause: the identity service explained why.
               null => state.errorMessage ?? l10n.signUpGenericError,
             };
@@ -106,7 +105,6 @@ class _DetailsStep extends StatelessWidget {
       UsernameTextField(),
       Gap.v(AppSpacing.md),
       PasswordTextField(),
-      PasswordStrengthMeter(),
     ],
   );
 }

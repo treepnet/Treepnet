@@ -64,9 +64,6 @@ enum SignUpError {
 
   /// The one-time code is empty or malformed.
   invalidCode,
-
-  /// The password would be refused by the identity service.
-  weakPassword,
 }
 
 /// The three screens of the sign-up flow, in order.
