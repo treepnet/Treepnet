@@ -167,10 +167,11 @@ class CrashReporter {
     if (error is TimeoutException) return true;
     // Transient network/gateway hiccups (server slow or briefly unavailable) —
     // infra noise, not an app bug. A Dio connect/receive/send timeout or
-    // connection error, and PostgREST gateway statuses (408/429/502/503/504).
-    // Real server errors (400/404/409/500) are NOT matched and still report.
+    // connection error, a Dio bad-response with a gateway status (e.g. a story
+    // upload getting 504), and PostgREST gateway statuses. Real server errors
+    // (400/404/409/500) are NOT matched and still report.
     if (message.startsWith('DioException') &&
-        _dioTransient.hasMatch(message)) {
+        (_dioTransient.hasMatch(message) || _gatewayStatus.hasMatch(message))) {
       return true;
     }
     if (message.startsWith('PostgrestException') &&
@@ -183,7 +184,11 @@ class CrashReporter {
   static final RegExp _dioTransient = RegExp(
     r'\[(connection timeout|receive timeout|send timeout|connection error)\]',
   );
-  static final RegExp _gatewayStatus = RegExp(r'code:\s*(408|429|502|503|504)\b');
+  // Gateway/transient statuses in either wording: PostgREST "code: 504" or
+  // Dio's "status code of 504" / "status code 504".
+  static final RegExp _gatewayStatus = RegExp(
+    r'(?:code:?\s*(?:of\s+)?)(408|429|502|503|504)\b',
+  );
 
   // Client-side connectivity failures.
   static const Set<String> _expectedTypes = {
