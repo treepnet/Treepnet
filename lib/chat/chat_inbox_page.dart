@@ -56,11 +56,23 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
 
   void _goToTab(int tab) {
     setState(() => _tab = tab);
-    _pageController.animateToPage(
-      tab,
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeInOut,
-    );
+    // The PageView may not be attached yet (a fast tab tap during the first
+    // layout); animateToPage on a controller with no clients throws
+    // "Bad state: No element". Animate when attached, else jump on the next
+    // frame once the PageView has laid out.
+    if (_pageController.hasClients) {
+      _pageController.animateToPage(
+        tab,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+      );
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _pageController.hasClients) {
+          _pageController.jumpToPage(tab);
+        }
+      });
+    }
   }
 
   @override

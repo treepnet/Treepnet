@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared/shared.dart';
 import 'package:treepnet/app/app.dart';
-import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/stories/bloc/create_stories_bloc.dart';
 import 'package:treepnet/stories/view/story_camera_page.dart';
 import 'package:user_repository/user_repository.dart';
@@ -48,10 +47,14 @@ Future<void> startStoryCreation(BuildContext context, User author) async {
               filePath: path,
               onError: (_, _) {
                 toggleLoadingIndeterminate(enable: false);
+                // These fire after the story request resolves — by then this
+                // route has been popped (below) and `context` is deactivated,
+                // so context.l10n would null-crash. Use the context-less
+                // l10nGlobal, matching the global openSnackbar it feeds.
                 openSnackbar(
                   SnackbarMessage.error(
-                    title: context.l10n.somethingWentWrongText,
-                    description: context.l10n.failedToCreateStoryText,
+                    title: l10nGlobal.somethingWentWrongText,
+                    description: l10nGlobal.failedToCreateStoryText,
                   ),
                 );
               },
@@ -60,7 +63,7 @@ Future<void> startStoryCreation(BuildContext context, User author) async {
                 toggleLoadingIndeterminate(enable: false);
                 openSnackbar(
                   SnackbarMessage.success(
-                    title: context.l10n.successfullyCreatedStoryText,
+                    title: l10nGlobal.successfullyCreatedStoryText,
                   ),
                   clearIfQueue: true,
                 );
