@@ -1,4 +1,6 @@
--- Treepnet admin analytics — read-only views + grants for Metabase.
+-- Treepnet admin analytics — read-only views + a locked read-only role.
+-- Reusable backend for a stats/admin panel (Metabase was removed; these views
+-- and the analytics_ro role are kept so a future custom panel can read them).
 --
 -- Exposes ONLY aggregate-safe columns. NEVER exposes: email, password hash, OTP
 -- codes, push tokens, full names, avatar/media URLs, or message/comment TEXT.
