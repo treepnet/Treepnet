@@ -165,11 +165,27 @@ class CrashReporter {
     if (message.startsWith('Authentication exception error:')) return true;
     // Device offline / a slow request timing out — connectivity, not a bug.
     if (error is TimeoutException) return true;
+    // Transient network/gateway hiccups (server slow or briefly unavailable) —
+    // infra noise, not an app bug. A Dio connect/receive/send timeout or
+    // connection error, and PostgREST gateway statuses (408/429/502/503/504).
+    // Real server errors (400/404/409/500) are NOT matched and still report.
+    if (message.startsWith('DioException') &&
+        _dioTransient.hasMatch(message)) {
+      return true;
+    }
+    if (message.startsWith('PostgrestException') &&
+        _gatewayStatus.hasMatch(message)) {
+      return true;
+    }
     return _expectedTypes.contains(error.runtimeType.toString());
   }
 
-  // Client-side connectivity failures. DioException is deliberately NOT here:
-  // it can wrap a real backend 5xx that IS worth seeing.
+  static final RegExp _dioTransient = RegExp(
+    r'\[(connection timeout|receive timeout|send timeout|connection error)\]',
+  );
+  static final RegExp _gatewayStatus = RegExp(r'code:\s*(408|429|502|503|504)\b');
+
+  // Client-side connectivity failures.
   static const Set<String> _expectedTypes = {
     'SocketException', // offline / DNS failure
     'HandshakeException', // TLS negotiation failure

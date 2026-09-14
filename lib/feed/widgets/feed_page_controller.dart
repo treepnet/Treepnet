@@ -50,11 +50,18 @@ class FeedPageController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void scrollToTop() => _nestedScrollController.animateTo(
-    0,
-    duration: 250.ms,
-    curve: Curves.ease,
-  );
+  void scrollToTop() {
+    // Tapping the Feed nav tab from another tab calls this before the feed's
+    // scroll view is attached; animateTo on a controller with no clients trips
+    // an assertion ("ScrollController not attached to any scroll views").
+    // Nothing to scroll when it isn't attached, so just skip.
+    if (!_nestedScrollController.hasClients) return;
+    _nestedScrollController.animateTo(
+      0,
+      duration: 250.ms,
+      curve: Curves.ease,
+    );
+  }
 
   Future<void> processPostMedia({
     required List<SelectedByte> selectedFiles,
