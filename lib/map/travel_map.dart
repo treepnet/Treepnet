@@ -160,6 +160,7 @@ class _TravelMapState extends State<TravelMap> {
       // Force the pin memo (below) to recompute counts + seed legacy now that
       // the stored state has arrived.
       _pinLabelsKey = '';
+      _seenVersion++;
     });
   }
 
@@ -186,7 +187,10 @@ class _TravelMapState extends State<TravelMap> {
         changed = true;
       }
     }
-    if (changed) unawaited(_persistSeenCounts());
+    if (changed) {
+      _seenVersion++; // invalidate the pin-marker memo
+      unawaited(_persistSeenCounts());
+    }
   }
 
   /// A pin dims to this once you have opened the posts behind it.
@@ -482,6 +486,7 @@ class _TravelMapState extends State<TravelMap> {
       if (_seenCounts[key] != current) {
         _seenCounts[key] = current;
         _legacySeen.remove(key);
+        _seenVersion++; // invalidate the pin-marker memo so this pin recolours
         _safeSetState(() {});
         unawaited(_persistSeenCounts());
       }
@@ -546,7 +551,18 @@ class _TravelMapState extends State<TravelMap> {
       }
       _seedLegacySeen();
     }
-    return [
+
+    // Rebuild the pin markers only when something that changes them actually
+    // changes — the label language, whether names show (zoom crossing
+    // _placeNameZoom), the points, or a pin's seen colour — not on every pan
+    // frame. flutter_map keeps sliding the cached markers with the map, so this
+    // just avoids reconstructing ~all of them each frame over a dense cluster.
+    final markerKey =
+        '$_pinLabelsKey|names=${_zoom >= _placeNameZoom}|seen=$_seenVersion';
+    if (markerKey == _pinMarkersKey) return _pinMarkersCache;
+    _pinMarkersKey = markerKey;
+
+    _pinMarkersCache = [
       for (final p in widget.points)
         Marker(
           point: LatLng(p.lat, p.lng),
@@ -604,7 +620,13 @@ class _TravelMapState extends State<TravelMap> {
           ),
         ),
     ];
+    return _pinMarkersCache;
   }
+
+  // Memoization for [_pinMarkers]; bumped by any change to the seen state.
+  String _pinMarkersKey = '';
+  List<Marker> _pinMarkersCache = const [];
+  int _seenVersion = 0;
 
   /// Approximate pixels-per-degree of longitude at the current zoom (Web
   /// Mercator: 256px tiles doubling each zoom level).
