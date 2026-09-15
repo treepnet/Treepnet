@@ -52,7 +52,31 @@ class _NewestPostsPageState extends State<NewestPostsPage> {
     _scrollOffsetListener = ScrollOffsetListener.create();
     _future = widget.posts != null
         ? Future.value(widget.posts)
-        : context.read<PostsRepository>().getPage(offset: 0, limit: _pageSize);
+        : _loadNewestIncluding(
+            context.read<PostsRepository>(),
+            widget.startPostId,
+          );
+  }
+
+  /// Loads the newest posts, paging until the tapped post ([startPostId]) is
+  /// included. The explore/trend grid keeps paging in tiles well past a single
+  /// page, so a lower tile's post could fall outside a fixed first-page fetch —
+  /// and the id lookup below would then miss and fall back to index 0, opening
+  /// the wrong (first) post. Paging by id (not position) also stays correct if
+  /// a new post lands between the grid load and this one. Bounded so it can
+  /// never spin. Matches the grid's `created_at DESC` order (same `getPage`).
+  Future<List<Post>> _loadNewestIncluding(
+    PostsRepository repo,
+    String startPostId,
+  ) async {
+    final all = <Post>[];
+    for (var offset = 0; offset < 1000; offset += _pageSize) {
+      final batch = await repo.getPage(offset: offset, limit: _pageSize);
+      all.addAll(batch);
+      if (all.any((p) => p.id == startPostId)) break;
+      if (batch.length < _pageSize) break; // reached the end
+    }
+    return all;
   }
 
   @override
