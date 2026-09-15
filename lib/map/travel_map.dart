@@ -301,6 +301,21 @@ class _TravelMapState extends State<TravelMap> {
     // non-finite zoom; ignore those frames.
     if (!zoom.isFinite) return;
     final bounds = camera.visibleBounds;
+    // flutter_map already slides its own layers (polygons, markers) via a
+    // transform during a pan/zoom, so rebuilding our widget tree on every frame
+    // just re-lays-out every pin for nothing — the freeze over a dense cluster.
+    // Rebuild only when the visible result would actually change: a ~0.1 zoom
+    // step (can toggle the province/name layers or resize labels) or the centre
+    // moving ~0.35° (brings new labels/pins in, matching the coarse label/pin
+    // memo). `_zoom`/`_bounds` stay at the last-rendered values so the next
+    // change is measured against what's on screen; taps read the live camera.
+    final last = _bounds;
+    final zoomStep = (zoom - _zoom).abs() >= 0.1;
+    final movedFar =
+        last == null ||
+        (bounds.center.latitude - last.center.latitude).abs() >= 0.35 ||
+        (bounds.center.longitude - last.center.longitude).abs() >= 0.35;
+    if (!zoomStep && !movedFar) return;
     _safeSetState(() {
       _zoom = zoom;
       _bounds = bounds;
