@@ -64,11 +64,26 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
 
   // --- Session ------------------------------------------------------------
 
-  /// Waits for Firebase to rehydrate any persisted session, then publishes it
-  /// so the app's first user read sees the signed-in state.
+  /// Restores any persisted session so the app's first user read sees the
+  /// signed-in state.
+  ///
+  /// The native SDK finishes rehydrating the persisted user during
+  /// `Firebase.initializeApp()` (awaited before this runs), so `currentUser` is
+  /// the authoritative check. `authStateChanges().first` is deliberately NOT
+  /// used as the primary source: on a cold start its very first event can be a
+  /// premature `null` (emitted before rehydration completes), and taking it
+  /// dropped a valid session and stranded the user on the login screen after
+  /// every restart. Fall back to the stream only if `currentUser` is somehow
+  /// still null.
   Future<void> restoreSession() async {
-    final user = await _auth.authStateChanges().first;
-    if (user != null) await _publish(user);
+    final user = _auth.currentUser ?? await _auth.authStateChanges().first;
+    if (user == null) return;
+    try {
+      await _publish(user);
+    } catch (_) {
+      // A slow or failed token refresh here must not strand startup; the
+      // idTokenChanges listener re-publishes once the SDK recovers a token.
+    }
   }
 
   Future<void> _refresh() async {
