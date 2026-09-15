@@ -67,9 +67,10 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   /// Zoom limits, matching the profile map. You can't zoom out past the opening
   /// (continent) view — further out just shrinks the world into grey margins,
   /// which looked broken. (`minZoom` was 0.7, which let the map zoom out far too
-  /// small.) `maxZoom` stays generous so a spot can be placed precisely.
+  /// small.) `maxZoom` matches the profile map's ceiling so both zoom in equally
+  /// far, letting a spot be placed precisely.
   static const _minZoom = 3.0;
-  static const _maxZoom = 12.0;
+  static const _maxZoom = 15.0;
 
   /// A crisp 1px outline (four hard offset copies of the glyph, no blur) — the
   /// same cheap legibility treatment the profile map uses. A blurred Shadow

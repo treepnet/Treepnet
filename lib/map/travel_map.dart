@@ -92,7 +92,9 @@ class _TravelMapState extends State<TravelMap> {
   /// You can't zoom out past the home view — further out just adds empty grey
   /// margins above and below the world, which looks broken.
   static const _minZoom = _homeZoom;
-  static const _maxZoom = 11.0;
+  // Zoom in further than before (~4 extra "+" taps, which step by 1.0 each) so
+  // dense areas can be opened right up. The picker map matches this ceiling.
+  static const _maxZoom = 15.0;
 
   /// The extent of the drawn map (Antarctica is not drawn — see
   /// [MapBaseLayers]). The camera is *contained* by this, so you can never pan
