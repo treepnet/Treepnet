@@ -28,6 +28,17 @@ import 'package:user_repository/user_repository.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
+/// The props for the post currently being published. `go_router` only carries
+/// `extra` on the original navigation event, not in the addressable location,
+/// so when it rebuilds the `publishPost` page from the route configuration —
+/// on a router refresh (the app/auth stream emitting), a redirect, or deep-link
+/// restore — `state.extra` comes back null. The publish page needs its props to
+/// build, so we stash the last ones here and reuse them on such a rebuild
+/// instead of force-unwrapping a null `extra` (which crashed with a red "Null
+/// check operator used on a null value" screen). Only one publish page is ever
+/// open, so a single slot is enough.
+CreatePostProps? _lastPublishProps;
+
 class AppRouter {
   const AppRouter(this.appBloc);
 
@@ -37,8 +48,8 @@ class AppRouter {
   /// re-read on every report so it never survives a sign-out) and hands back the
   /// navigation observer that tracks which screen the user is on.
   NavigatorObserver _wireCrashReporter() {
-    CrashReporter.instance.userIdProvider =
-        () => appBloc.state.user.isAnonymous ? null : appBloc.state.user.id;
+    CrashReporter.instance.userIdProvider = () =>
+        appBloc.state.user.isAnonymous ? null : appBloc.state.user.id;
     return CrashReporter.instance.navigatorObserver;
   }
 
@@ -306,7 +317,24 @@ class AppRouter {
                         path: AppRoutes.publishPost.name,
                         parentNavigatorKey: _rootNavigatorKey,
                         pageBuilder: (context, state) {
-                          final props = state.extra! as CreatePostProps;
+                          // Prefer the freshly-pushed props; fall back to the
+                          // cached ones when go_router rebuilt this page without
+                          // `extra` (refresh / redirect / restore). Never `!` a
+                          // null extra — that was the red-screen crash.
+                          final props =
+                              state.extra as CreatePostProps? ??
+                              _lastPublishProps;
+                          if (props == null) {
+                            // Cold-entered this location with nothing to publish
+                            // (and nothing cached): show the media picker rather
+                            // than crash.
+                            return const NoTransitionPage(
+                              child: UserProfileCreatePost(
+                                wantKeepAlive: false,
+                              ),
+                            );
+                          }
+                          _lastPublishProps = props;
 
                           return CustomTransitionPage(
                             key: state.pageKey,
