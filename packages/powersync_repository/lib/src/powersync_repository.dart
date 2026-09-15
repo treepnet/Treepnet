@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:env/env.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
@@ -208,11 +209,7 @@ class PowerSyncRepository {
   /// Opens the local database and connects to PowerSync if the user is
   /// logged in (via the Entra session).
   Future<void> _openDatabase() async {
-    _db = PowerSyncDatabase(
-      schema: shared.schema,
-      path: await getDatabasePath(),
-    );
-    await _db.initialize();
+    _db = await _openResilient(await getDatabasePath());
 
     SupabaseConnector? currentConnector;
 
@@ -243,5 +240,51 @@ class PowerSyncRepository {
         await _db.disconnect();
       }
     });
+  }
+
+  /// Opens the PowerSync database, recovering from an old on-disk DB the new
+  /// build cannot open.
+  ///
+  /// The database path is stable across releases, so after a store update the
+  /// PREVIOUS version's local `.db` is reused. If its on-disk/native format or a
+  /// resumed sync checkpoint is incompatible with the new build, `initialize()`
+  /// throws — and because boot awaits this unguarded, that would abort startup
+  /// and leave the app broken (nothing loads, posts don't open) until the user
+  /// manually deletes and reinstalls. Instead, clear the local DB once and
+  /// re-open; PowerSync re-downloads everything from the server. This turns the
+  /// "delete + reinstall" workaround into an automatic, invisible recovery.
+  Future<PowerSyncDatabase> _openResilient(String path) async {
+    var db = PowerSyncDatabase(schema: shared.schema, path: path);
+    try {
+      await db.initialize();
+      return db;
+    } catch (e, stackTrace) {
+      shared.logE(
+        'PowerSync open failed; clearing the local DB and retrying once',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      try {
+        await db.close();
+      } catch (_) {
+        // The half-open handle may already be unusable; ignore.
+      }
+      await _deleteDatabaseFiles(path);
+      db = PowerSyncDatabase(schema: shared.schema, path: path);
+      await db.initialize();
+      return db;
+    }
+  }
+
+  /// Deletes the SQLite database and its sidecar files so a clean one is built.
+  Future<void> _deleteDatabaseFiles(String path) async {
+    for (final suffix in const ['', '-wal', '-shm', '-journal']) {
+      final file = File('$path$suffix');
+      try {
+        if (file.existsSync()) await file.delete();
+      } catch (_) {
+        // Best-effort; a locked sidecar shouldn't stop the fresh open.
+      }
+    }
   }
 }
