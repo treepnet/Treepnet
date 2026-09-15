@@ -555,41 +555,51 @@ class _TravelMapState extends State<TravelMap> {
           // The pin's tip (bottom of the icon) sits on the exact point.
           // Grey until its posts are opened, then white. The name the author
           // gave the spot rides just under it, so everyone can read it.
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.location_on,
-                  // White while it has content you haven't opened yet (new pin,
-                  // or new posts/stories added since); dims once you've seen all.
-                  color: _isPinSeen(_pointKey(p.lat, p.lng))
-                      ? _seenPinColor
-                      : AppColors.white,
-                  size: 26,
-                  shadows: const [
-                    Shadow(color: AppColors.black, blurRadius: 3),
-                  ],
-                ),
-                if (_zoom >= _placeNameZoom &&
-                    (_pinLabels[_pointKey(p.lat, p.lng)] ?? '').isNotEmpty)
-                  Text(
-                    _pinLabels[_pointKey(p.lat, p.lng)]!,
-                    maxLines: 1,
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.white,
-                      fontSize: 11,
-                      height: 1,
-                      // Heaviest label on the map: a place the user named
-                      // outranks the country/province names underneath it.
-                      fontWeight: FontWeight.w900,
-                      shadows: [Shadow(color: AppColors.black, blurRadius: 4)],
-                    ),
+          //
+          // RepaintBoundary caches each pin's paint (an icon and a blurred,
+          // heavy-weight label — the blur is GPU-costly). Without it, every one
+          // of these repaints on every pan frame, which froze the map over a
+          // dense cluster of pins once names appear (zoom >= 5). With it, the
+          // cached layer just slides with the map instead.
+          child: RepaintBoundary(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.location_on,
+                    // White while it has content you haven't opened yet (new pin,
+                    // or new posts/stories added since); dims once you've seen all.
+                    color: _isPinSeen(_pointKey(p.lat, p.lng))
+                        ? _seenPinColor
+                        : AppColors.white,
+                    size: 26,
+                    shadows: const [
+                      Shadow(color: AppColors.black, blurRadius: 3),
+                    ],
                   ),
-              ],
+                  if (_zoom >= _placeNameZoom &&
+                      (_pinLabels[_pointKey(p.lat, p.lng)] ?? '').isNotEmpty)
+                    Text(
+                      _pinLabels[_pointKey(p.lat, p.lng)]!,
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 11,
+                        height: 1,
+                        // Heaviest label on the map: a place the user named
+                        // outranks the country/province names underneath it.
+                        fontWeight: FontWeight.w900,
+                        shadows: [
+                          Shadow(color: AppColors.black, blurRadius: 4),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
