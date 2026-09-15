@@ -196,6 +196,20 @@ class _TravelMapState extends State<TravelMap> {
   /// A pin dims to this once you have opened the posts behind it.
   static const _seenPinColor = Color(0xFF414141);
 
+  /// A crisp 1px outline (four hard offset copies of the glyph, no blur). A
+  /// blurred shadow forces a GPU blur pass, and over a dense cluster of pins +
+  /// province labels re-rastering all of those blurs whenever the marker memo
+  /// invalidates (a zoom step, opening a pin) was the remaining hitch at 3x–4x
+  /// once names appear. Drawing the glyph offset four ways instead reuses the
+  /// cached glyph atlas — a few extra quads, no blur pass — and actually reads
+  /// better over any map colour, since it haloes the text on every side.
+  static const _glyphOutline = <Shadow>[
+    Shadow(color: AppColors.black, offset: Offset(0, 1)),
+    Shadow(color: AppColors.black, offset: Offset(0, -1)),
+    Shadow(color: AppColors.black, offset: Offset(1, 0)),
+    Shadow(color: AppColors.black, offset: Offset(-1, 0)),
+  ];
+
   /// Shaded-region polygons, built once per change of [TravelMap.visitedCounts]
   /// rather than on every build. `onPositionChanged` calls `setState` on every
   /// frame of a pan or zoom, and rebuilding thousands of ring points each time
@@ -606,9 +620,7 @@ class _TravelMapState extends State<TravelMap> {
                         ? _seenPinColor
                         : AppColors.white,
                     size: 26,
-                    shadows: const [
-                      Shadow(color: AppColors.black, blurRadius: 3),
-                    ],
+                    shadows: _glyphOutline,
                   ),
                   if (_zoom >= _placeNameZoom &&
                       (_pinLabels[_pointKey(p.lat, p.lng)] ?? '').isNotEmpty)
@@ -624,9 +636,7 @@ class _TravelMapState extends State<TravelMap> {
                         // Heaviest label on the map: a place the user named
                         // outranks the country/province names underneath it.
                         fontWeight: FontWeight.w900,
-                        shadows: [
-                          Shadow(color: AppColors.black, blurRadius: 4),
-                        ],
+                        shadows: _glyphOutline,
                       ),
                     ),
                 ],
@@ -772,7 +782,7 @@ class _TravelMapState extends State<TravelMap> {
             fontWeight: weight,
             fontSize: 13,
             height: 1,
-            shadows: const [Shadow(color: AppColors.black, blurRadius: 3)],
+            shadows: _glyphOutline,
           ),
         ),
       ),
