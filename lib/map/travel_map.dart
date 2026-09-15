@@ -356,16 +356,22 @@ class _TravelMapState extends State<TravelMap> {
                     PolygonLayer(
                       polygons: _countryOutlines,
                       simplificationTolerance: 0.6,
+                      // We draw all names via MarkerLayer below, so skip
+                      // flutter_map's per-polygon label layout — it does that
+                      // for thousands of rings every frame otherwise.
+                      polygonLabels: false,
                     ),
                     if (_zoom >= _provinceZoom)
                       PolygonLayer(
                         polygons: _provinceBorders,
                         simplificationTolerance: 0.4,
+                        polygonLabels: false,
                       ),
                     if (visited.isNotEmpty)
                       PolygonLayer(
                         polygons: visited,
                         simplificationTolerance: 0,
+                        polygonLabels: false,
                       ),
                     MarkerLayer(
                       markers: _pinMarkers(
@@ -605,6 +611,20 @@ class _TravelMapState extends State<TravelMap> {
     final geo = GeoRegions.instance;
     final ppd = _pxPerDeg;
     if (!ppd.isFinite || ppd <= 0) return const [];
+
+    // Building every country label — and, when zoomed in, looping thousands of
+    // provinces — runs on every pan frame because onPositionChanged setStates
+    // per frame. Memoize on a COARSE (zoom, viewport) key so it only rebuilds
+    // when the view meaningfully moves (~0.1 zoom / ~0.5°), not every sub-degree
+    // pan. The MarkerLayer still glides the cached labels with the map between
+    // rebuilds, so panning stays smooth.
+    final key =
+        '$lang|${_zoom.toStringAsFixed(1)}'
+        '|${(bounds.west * 2).round()},${(bounds.south * 2).round()}'
+        ',${(bounds.east * 2).round()},${(bounds.north * 2).round()}'
+        '|${widget.points.length}';
+    if (key == _labelKey) return _labelCache;
+
     final markers = <Marker>[];
 
     // Country names: appear once the country is wide enough on screen.
@@ -666,8 +686,14 @@ class _TravelMapState extends State<TravelMap> {
         );
       }
     }
+    _labelKey = key;
+    _labelCache = markers;
     return markers;
   }
+
+  // Memoization for [_labelMarkers] — see the comment there.
+  String _labelKey = '';
+  List<Marker> _labelCache = const [];
 
   /// A label marker whose text is scaled (via [FittedBox]) to fit the region's
   /// on-screen box, so it never spills past the region and grows/shrinks with
