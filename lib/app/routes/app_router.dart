@@ -39,6 +39,42 @@ final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 /// open, so a single slot is enough.
 CreatePostProps? _lastPublishProps;
 
+/// Same `extra`-dropped-on-rebuild story as [_lastPublishProps], for the
+/// `postEdit` and `stories` routes: cache the last data so a router refresh
+/// rebuilds the same page instead of force-unwrapping a null `extra`.
+PostBlock? _lastEditPost;
+StoriesProps? _lastStoriesProps;
+
+/// Shown when a route that needs `extra` is rebuilt without it *and* nothing was
+/// cached — only reachable by an unexpected cold entry (these routes are always
+/// pushed, so in practice the cache is populated first). Leaves immediately
+/// rather than rendering a broken page or crashing.
+class _MissingRouteData extends StatefulWidget {
+  const _MissingRouteData();
+
+  @override
+  State<_MissingRouteData> createState() => _MissingRouteDataState();
+}
+
+class _MissingRouteDataState extends State<_MissingRouteData> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final router = GoRouter.of(context);
+      if (router.canPop()) {
+        router.pop();
+      } else {
+        context.go(AppRoutes.feed.route);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const Scaffold(body: SizedBox.shrink());
+}
+
 class AppRouter {
   const AppRouter(this.appBloc);
 
@@ -135,7 +171,14 @@ class AppRouter {
         name: AppRoutes.postEdit.name,
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) {
-          final post = state.extra! as PostBlock;
+          // Prefer the freshly-pushed post; fall back to the cached one when
+          // go_router rebuilt this page without `extra` (refresh / redirect /
+          // restore). Never `!` a null extra — that was a red-screen crash.
+          final post = state.extra as PostBlock? ?? _lastEditPost;
+          if (post == null) {
+            return const NoTransitionPage(child: _MissingRouteData());
+          }
+          _lastEditPost = post;
 
           return NoTransitionPage(child: PostEditPage(post: post));
         },
@@ -145,7 +188,14 @@ class AppRouter {
         name: AppRoutes.stories.name,
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) {
-          final props = state.extra! as StoriesProps;
+          // Prefer the freshly-pushed props; fall back to the cached ones when
+          // go_router rebuilt this page without `extra` (refresh / redirect /
+          // restore). Never `!` a null extra — that was a red-screen crash.
+          final props = state.extra as StoriesProps? ?? _lastStoriesProps;
+          if (props == null) {
+            return const NoTransitionPage(child: _MissingRouteData());
+          }
+          _lastStoriesProps = props;
 
           return CustomTransitionPage(
             key: state.pageKey,
