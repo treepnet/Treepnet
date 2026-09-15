@@ -64,6 +64,13 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   static const _ocean = MapBaseLayers.oceanColor;
   static const _provinceZoom = 3.0;
 
+  /// Zoom limits, matching the profile map. You can't zoom out past the opening
+  /// (continent) view — further out just shrinks the world into grey margins,
+  /// which looked broken. (`minZoom` was 0.7, which let the map zoom out far too
+  /// small.) `maxZoom` stays generous so a spot can be placed precisely.
+  static const _minZoom = 3.0;
+  static const _maxZoom = 12.0;
+
   /// A crisp 1px outline (four hard offset copies of the glyph, no blur) — the
   /// same cheap legibility treatment the profile map uses. A blurred Shadow
   /// forces a GPU blur pass per glyph; over a dense cluster of pins + province
@@ -525,7 +532,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
 
   void _zoomBy(double d) {
     final c = _controller.camera;
-    _controller.move(c.center, (c.zoom + d).clamp(0.7, 12));
+    _controller.move(c.center, (c.zoom + d).clamp(_minZoom, _maxZoom));
   }
 
   /// Whether the tick does anything. Deliberately NOT gated on the name: a
@@ -647,8 +654,8 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                   initialCenter: _center,
                   initialZoom: _zoom,
                   // Don't let the world shrink smaller than the screen.
-                  minZoom: 0.7,
-                  maxZoom: 12,
+                  minZoom: _minZoom,
+                  maxZoom: _maxZoom,
                   backgroundColor: _ocean,
                   interactionOptions: const InteractionOptions(
                     flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
