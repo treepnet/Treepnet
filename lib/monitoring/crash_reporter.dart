@@ -190,10 +190,11 @@ class CrashReporter {
     r'(?:code:?\s*(?:of\s+)?)(408|429|502|503|504)\b',
   );
 
-  // Client-side connectivity failures.
+  // Client-side connectivity failures — network/transport, never app logic.
   static const Set<String> _expectedTypes = {
     'SocketException', // offline / DNS failure
     'HandshakeException', // TLS negotiation failure
+    'ClientException', // http transport drop ("connection abort/closed/reset")
   };
 
   Map<String, dynamic> _buildPayload({
