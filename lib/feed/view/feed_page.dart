@@ -18,7 +18,6 @@ import 'package:inview_notifier_list/inview_notifier_list.dart';
 import 'package:shared/shared.dart';
 import 'package:sliver_tools/sliver_tools.dart';
 import 'package:stories_repository/stories_repository.dart';
-import 'package:user_repository/user_repository.dart';
 
 class FeedPage extends StatefulWidget {
   const FeedPage({super.key, this.initialPage = 1});
@@ -125,9 +124,11 @@ class _FeedViewState extends State<FeedView> {
       if (context.read<FeedBloc>().state.feed.feedPage.blocks.isEmpty) {
         context.read<FeedBloc>().add(const FeedRefreshRequested());
       }
-      context.read<StoriesBloc>().add(
-        const StoriesFetchUserFollowingsStories(),
-      );
+      // The stories tray is a LIVE subscription (StoriesBloc.emit.forEach over a
+      // PowerSync watch), started once when the bloc is created — new/expired
+      // stories flow in on their own. Re-dispatching the fetch on every sync
+      // just restarts that subscription and makes the tray flicker/reload, so
+      // we no longer do it here.
     });
   }
 
