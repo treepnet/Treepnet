@@ -1,0 +1,2 @@
+/Users/apple/Desktop/Treepnet/android/app/.cxx/debug/1p5n6g5i/arm64-v8a/CMakeFiles/edit_cache.dir
+/Users/apple/Desktop/Treepnet/android/app/.cxx/debug/1p5n6g5i/arm64-v8a/CMakeFiles/rebuild_cache.dir

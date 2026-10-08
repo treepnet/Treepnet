@@ -67,15 +67,11 @@ class _UserProfileEditViewState extends State<UserProfileEditView> {
               title: Text(
                 hasAvatar ? l10n.avatarChangeText : l10n.avatarUploadText,
               ),
-              onTap: () =>
-                  Navigator.of(sheetContext).pop(_AvatarAction.change),
+              onTap: () => Navigator.of(sheetContext).pop(_AvatarAction.change),
             ),
             if (hasAvatar)
               ListTile(
-                leading: const Icon(
-                  Icons.delete_outline,
-                  color: AppColors.red,
-                ),
+                leading: const Icon(Icons.delete_outline, color: AppColors.red),
                 title: Text(
                   l10n.avatarRemoveText,
                   style: const TextStyle(color: AppColors.red),
@@ -92,7 +88,10 @@ class _UserProfileEditViewState extends State<UserProfileEditView> {
     switch (action) {
       case _AvatarAction.change:
         final url = await UserProfileAvatar.pickAndUpload(context);
-        if (url == null) return;
+        // The pick+upload is async; by the time it returns the profile page
+        // (and its bloc) may be gone — adding then throws "Cannot add new
+        // events after calling close".
+        if (url == null || bloc.isClosed || !context.mounted) return;
         bloc.add(UserProfileUpdateRequested(avatarUrl: url));
         openSnackbar(SnackbarMessage.success(title: l10n.avatarUpdatedText));
       case _AvatarAction.remove:

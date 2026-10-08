@@ -13,7 +13,9 @@ mixin _SecureStorage {
 
   static final storage = const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
-    iOptions: const IOSOptions(accessibility: KeychainAccessibility.first_unlock_this_device),
+    iOptions: const IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
   );
 
   static Future<String> getBaseUrl() async {
@@ -25,9 +27,25 @@ mixin _SecureStorage {
     await storage.write(key: baseUrl, value: value);
   }
 
+  /// Writes to the keychain, recovering from iOS's errSecDuplicateItem (-25299)
+  /// — which a plain `write` can throw ("item already exists in this keychain")
+  /// — by deleting the stale item and writing once more. Never throws.
+  static Future<void> _safeWrite(String key, String value) async {
+    try {
+      await storage.write(key: key, value: value);
+    } catch (_) {
+      try {
+        await storage.delete(key: key);
+        await storage.write(key: key, value: value);
+      } catch (_) {
+        // Best-effort: on a persistent keychain failure, skip rather than crash.
+      }
+    }
+  }
+
   static Future<void> setMessageKeyList(List<String> values) async {
     final encoded = jsonEncode(values);
-    await storage.write(key: messageKeyList, value: encoded);
+    await _safeWrite(messageKeyList, encoded);
   }
 
   static Future<List<String>> getMessageKeyList() async {
@@ -108,7 +126,6 @@ mixin _SecureStorage {
 
   //TODO (change if version change)
   static String get versionName => '1.0.8';
-
 
   static Future<void> deleteAllData() async {
     await storage.delete(key: userUuid);

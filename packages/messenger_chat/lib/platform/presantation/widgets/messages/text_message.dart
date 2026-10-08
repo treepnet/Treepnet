@@ -308,9 +308,13 @@ class _QuotedReply extends StatelessWidget {
     final base = isAdmin
         ? style.adminMessageTextStyle
         : style.clientMessageTextStyle;
-    final author = reply.senderId == _ChatRuntime.instance.me.id
-        ? _ChatRuntime.instance.me.name
-        : (_ChatRuntime.instance.peer?.name ?? '');
+    // A quoted-reply bubble can be built before MessengerChat.init ran (e.g.
+    // a message rendered outside the chat screen); reading `.me` then throws.
+    // Fall back to the peer/empty name instead of crashing.
+    final runtime = _ChatRuntime.instance;
+    final author = runtime.isInitialized && reply.senderId == runtime.me.id
+        ? runtime.me.name
+        : (runtime.peer?.name ?? '');
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -332,10 +336,7 @@ class _QuotedReply extends StatelessWidget {
                 author,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: base.copyWith(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12,
-                ),
+                style: base.copyWith(fontWeight: FontWeight.w700, fontSize: 12),
               ),
             Text(
               // Shared post/story sentinels → a friendly label, via the app

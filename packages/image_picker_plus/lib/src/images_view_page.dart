@@ -194,7 +194,6 @@ class _ImagesViewPageState extends State<ImagesViewPage>
     // `hasAccess` (not `isAuth`) so users who grant *limited* photo access
     // still see their selected photos instead of being treated as denied.
     if (result.hasAccess) {
-
       final albums = await PhotoManager.getAssetPathList(
         onlyAll: true,
         type: type,
@@ -249,7 +248,12 @@ class _ImagesViewPageState extends State<ImagesViewPage>
       }
       currentPage.value++;
       isMediaReady.value = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) => setState(() {}));
+      // Guard against setState after the page was disposed (fast back-out while
+      // media is still paging in) — otherwise the post-frame callback throws
+      // "Null check operator used on a null value".
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
     } else {
       // Respect the user's decision — do NOT force-open the Settings app
       // (App Store Guideline 5.1.1(iv)). Show the empty/no-access state; the
@@ -546,7 +550,12 @@ class _ImagesViewPageState extends State<ImagesViewPage>
                   scaleOfCropsKeys.value.add(cropKey.currentState?.scale);
                   areaOfCropsKeys.value.add(cropKey.currentState?.area);
                 } else {
-                  if (indexOfLatestImage != -1) {
+                  // Bounds-check: the crop-key lists can lag behind the latest
+                  // index when selections change quickly, and a bare []= then
+                  // throws RangeError.
+                  if (indexOfLatestImage != -1 &&
+                      indexOfLatestImage < scaleOfCropsKeys.value.length &&
+                      indexOfLatestImage < areaOfCropsKeys.value.length) {
                     scaleOfCropsKeys.value[indexOfLatestImage] =
                         cropKey.currentState?.scale;
                     areaOfCropsKeys.value[indexOfLatestImage] =
@@ -650,8 +659,7 @@ class _ImagesViewPageState extends State<ImagesViewPage>
             }
             return buildImage(mediaListValue, index);
           },
-          itemCount:
-              mediaListValue.length + (widget.showCameraTile ? 1 : 0),
+          itemCount: mediaListValue.length + (widget.showCameraTile ? 1 : 0),
         ),
       ),
     );
@@ -801,7 +809,12 @@ class _ImagesViewPageState extends State<ImagesViewPage>
         if (widget.showImagePreview && multiSelectionValue.contains(image)) {
           final index =
               multiSelectionValue.indexWhere((element) => element == image);
-          if (indexOfLatestMedia.value != -1) {
+          // Bounds-check: tapping images quickly can leave the crop-key lists
+          // shorter than the latest index, and a bare []= then throws
+          // RangeError (the most frequent picker crash in the logs).
+          if (indexOfLatestMedia.value != -1 &&
+              indexOfLatestMedia.value < scaleOfCropsKeys.value.length &&
+              indexOfLatestMedia.value < areaOfCropsKeys.value.length) {
             scaleOfCropsKeys.value[indexOfLatestMedia.value] =
                 cropKey.currentState?.scale;
             areaOfCropsKeys.value[indexOfLatestMedia.value] =

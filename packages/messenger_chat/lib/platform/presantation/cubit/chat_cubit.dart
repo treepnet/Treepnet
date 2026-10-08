@@ -5,6 +5,17 @@ class ChatCubit extends Cubit<ChatState> {
 
   final _ChatRepository chatRepository;
 
+  /// Most states here are emitted after an `await` (message fetches, typing
+  /// timers). If the user left the chat in the meantime the cubit is already
+  /// closed and `super.emit` throws "Cannot emit new states after calling
+  /// close". Dropping the late emit is the right behaviour, so guard every
+  /// emit in one place rather than at each call site.
+  @override
+  void emit(ChatState state) {
+    if (isClosed) return;
+    super.emit(state);
+  }
+
   /// Ruxsat etilgan xabar turlarini o'qiydi.
   ///
   /// Tarmoqqa chiqmaydi - sozlama [MessengerChat.init] da berilgan
@@ -17,7 +28,6 @@ class ChatCubit extends Cubit<ChatState> {
       ),
     );
   }
-
 
   Future<void> getMessages({bool isRefresh = false, int page = 1}) async {
     if (!state.messages.hasNextPage || state.isLoading || state.isLoadMore)
@@ -306,7 +316,11 @@ class ChatCubit extends Cubit<ChatState> {
         typingName: typingName,
       ),
     );
-    MessengerChat.controller.updateTyping(isTyping, typingType, userName: typingName);
+    MessengerChat.controller.updateTyping(
+      isTyping,
+      typingType,
+      userName: typingName,
+    );
 
     _typingTimer?.cancel();
     if (isTyping) {

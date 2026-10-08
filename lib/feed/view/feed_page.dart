@@ -50,9 +50,9 @@ class FeedPageState extends State<FeedPage> with RouteAware {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (context) => StoriesBloc(
-        storiesRepository: context.read<StoriesRepository>(),
-      )..add(const StoriesFetchUserFollowingsStories()),
+      create: (context) =>
+          StoriesBloc(storiesRepository: context.read<StoriesRepository>())
+            ..add(const StoriesFetchUserFollowingsStories()),
       child: const FeedView(),
     );
   }
@@ -167,6 +167,9 @@ class FeedBody extends StatelessWidget {
     return RefreshIndicator.adaptive(
       onRefresh: () async {
         Future<void> refresh() async {
+          // Runs after a 1s delay; if the feed was left in the meantime the
+          // context is unmounted and context.read throws.
+          if (!context.mounted) return;
           context.read<FeedBloc>().add(const FeedRefreshRequested());
           context.read<StoriesBloc>().add(
             const StoriesFetchUserFollowingsStories(),
@@ -192,7 +195,8 @@ class FeedBody extends StatelessWidget {
               // rebuilt the widget, so the shimmer from the preceding `loading`
               // build stayed on screen with no way out but a manual refresh.
               return current.status.isFailure ||
-                  (current.status.isLoading && current.feed.feedPage.page == 0) ||
+                  (current.status.isLoading &&
+                      current.feed.feedPage.page == 0) ||
                   (previous.status.isLoading && current.status.isPopulated) ||
                   (current.status.isPopulated &&
                       !const ListEquality<InstaBlock>().equals(
@@ -297,7 +301,9 @@ class _UploadProgressBanner extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            done ? context.l10n.postedText : context.l10n.postingText,
+                            done
+                                ? context.l10n.postedText
+                                : context.l10n.postingText,
                             style: context.bodyMedium?.copyWith(
                               fontWeight: AppFontWeight.semiBold,
                             ),

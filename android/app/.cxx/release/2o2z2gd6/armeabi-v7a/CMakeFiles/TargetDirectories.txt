@@ -1,0 +1,2 @@
+/Users/apple/Desktop/Treepnet/android/app/.cxx/release/2o2z2gd6/armeabi-v7a/CMakeFiles/edit_cache.dir
+/Users/apple/Desktop/Treepnet/android/app/.cxx/release/2o2z2gd6/armeabi-v7a/CMakeFiles/rebuild_cache.dir

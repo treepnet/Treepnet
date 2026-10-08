@@ -30,9 +30,9 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
     FirebaseAuth? firebaseAuth,
     AuthServiceApi? api,
     String authBaseUrl = 'https://api.treepnet.com/auth',
-  })  : _powerSyncRepository = powerSyncRepository,
-        _auth = firebaseAuth ?? FirebaseAuth.instance,
-        _api = api ?? AuthServiceApi(baseUrl: authBaseUrl) {
+  }) : _powerSyncRepository = powerSyncRepository,
+       _auth = firebaseAuth ?? FirebaseAuth.instance,
+       _api = api ?? AuthServiceApi(baseUrl: authBaseUrl) {
     // Let PowerSyncRepository trigger a silent refresh without a dependency
     // cycle, mirroring the Entra client.
     EntraSession.instance.registerRefresher(_refresh);
@@ -42,7 +42,24 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
       if (user == null) {
         EntraSession.instance.clear();
       } else {
-        await _publish(user);
+        try {
+          await _publish(user);
+        } catch (e) {
+          // If the account was deleted/disabled server-side, getIdToken throws
+          // (e.g. firebase_auth/user-not-found). Recover to a clean signed-out
+          // state instead of looping on a dead user and logging the throw.
+          // Transient refresh failures are left alone — the listener re-fires on
+          // the next token refresh.
+          final msg = e.toString();
+          if (msg.contains('user-not-found') ||
+              msg.contains('user-disabled') ||
+              msg.contains('user-token-expired')) {
+            EntraSession.instance.clear();
+            try {
+              await _auth.signOut();
+            } catch (_) {}
+          }
+        }
       }
     });
   }
@@ -167,7 +184,8 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
         'fullName': fullName,
       });
       return (
-        continuationToken: (res['continuationToken'] as String?) ?? email.trim(),
+        continuationToken:
+            (res['continuationToken'] as String?) ?? email.trim(),
         codeLength: (res['codeLength'] as num?)?.toInt() ?? 6,
       );
     } on AuthServiceError catch (error, stackTrace) {
@@ -242,7 +260,10 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
         codeLength: (res['codeLength'] as num?)?.toInt() ?? 6,
       );
     } on AuthServiceError catch (error, stackTrace) {
-      Error.throwWithStackTrace(ResetPasswordFailure(error.message), stackTrace);
+      Error.throwWithStackTrace(
+        ResetPasswordFailure(error.message),
+        stackTrace,
+      );
     }
   }
 
@@ -259,7 +280,10 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
         'newPassword': newPassword,
       });
     } on AuthServiceError catch (error, stackTrace) {
-      Error.throwWithStackTrace(ResetPasswordFailure(error.message), stackTrace);
+      Error.throwWithStackTrace(
+        ResetPasswordFailure(error.message),
+        stackTrace,
+      );
     }
   }
 

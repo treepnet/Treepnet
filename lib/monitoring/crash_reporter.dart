@@ -95,7 +95,8 @@ class CrashReporter {
         } else if (Platform.isAndroid) {
           final android = await deviceInfo.androidInfo;
           _device = android.model;
-          _os = 'Android ${android.version.release} (SDK ${android.version.sdkInt})';
+          _os =
+              'Android ${android.version.release} (SDK ${android.version.sdkInt})';
         }
       }
       _initialised = true;
@@ -109,11 +110,7 @@ class CrashReporter {
   /// `flutter | zone | bloc | manual`. Fire-and-forget: it returns immediately
   /// and never throws, so callers can add it beside their existing handling
   /// without a try/catch of their own.
-  void report(
-    Object error,
-    StackTrace? stack, {
-    required String kind,
-  }) {
+  void report(Object error, StackTrace? stack, {required String kind}) {
     // The whole body is guarded: the reporter must never become the crash.
     unawaited(_report(error, stack, kind));
   }
@@ -132,7 +129,8 @@ class CrashReporter {
       if (_isExpected(error, message)) return;
 
       final frames = _allFrames(stack, maxChars: 8000);
-      final signature = '$kind|${_truncate(message, 120)}|${frames.isEmpty ? '' : frames.first}';
+      final signature =
+          '$kind|${_truncate(message, 120)}|${frames.isEmpty ? '' : frames.first}';
 
       final now = DateTime.now();
       if (_isDuplicate(signature, now) || _isRateLimited(now)) return;
@@ -178,6 +176,9 @@ class CrashReporter {
         _gatewayStatus.hasMatch(message)) {
       return true;
     }
+    // iOS Photos library hiccup while picking/exporting media (PHPhotosErrorDomain
+    // -1 etc.) — the OS failing a fetch, not an app bug; the user can retry.
+    if (message.contains('PHPhotosErrorDomain')) return true;
     return _expectedTypes.contains(error.runtimeType.toString());
   }
 
@@ -195,6 +196,7 @@ class CrashReporter {
     'SocketException', // offline / DNS failure
     'HandshakeException', // TLS negotiation failure
     'ClientException', // http transport drop ("connection abort/closed/reset")
+    'HttpException', // connection closed mid-download (e.g. a media fetch)
   };
 
   Map<String, dynamic> _buildPayload({
@@ -215,7 +217,9 @@ class CrashReporter {
       'build': _build,
       'platform': kIsWeb
           ? 'web'
-          : (Platform.isIOS ? 'ios' : (Platform.isAndroid ? 'android' : 'other')),
+          : (Platform.isIOS
+                ? 'ios'
+                : (Platform.isAndroid ? 'android' : 'other')),
       'os': _os,
       'device': _device,
       'env': _env,
