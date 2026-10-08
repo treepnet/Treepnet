@@ -257,6 +257,8 @@ async function buildContentStats() {
     storiesActive: n(s.active),
     storiesPhotoPct: pct(n(s.photo), storiesTotal),
     storiesVideoPct: pct(n(s.video), storiesTotal),
+    // No story-highlights flag is tracked in the analytics layer.
+    highlightsCount: 0,
     dailyPostTrends: trend.map((t) => ({
       day: t.weekday.trim(),
       iso: t.iso,
@@ -290,6 +292,8 @@ async function buildEngagementStats() {
     totalComments,
     todayComments: n(e.today_comments),
     replyCommentPct: pct(n(e.replies), totalComments),
+    // Bookmarks/saved posts aren't exposed in the analytics layer.
+    bookmarksCount: 0,
     avgLikesPerPost: totalPosts > 0 ? round2(totalLikes / totalPosts) : 0,
     // Share of users who liked or commented in the last 7 days.
     engagementRatePct: pct(n(e.engagers_7d), totalUsers),
