@@ -179,6 +179,22 @@ class CrashReporter {
     // iOS Photos library hiccup while picking/exporting media (PHPhotosErrorDomain
     // -1 etc.) — the OS failing a fetch, not an app bug; the user can retry.
     if (message.contains('PHPhotosErrorDomain')) return true;
+    // Low-level socket/transport drops, which also arrive wrapped in a
+    // DioException (so the runtimeType filter below misses them): a connection
+    // closed/reset/aborted while talking to a backend (chat, media, …).
+    if (message.contains('Bad file descriptor') ||
+        message.contains('Connection closed') ||
+        message.contains('Connection reset') ||
+        message.contains('Software caused connection abort')) {
+      return true;
+    }
+    // Firebase Auth connectivity failures (a token fetch with no network) — a
+    // transient environment issue, not an app bug; the listener retries on the
+    // next token refresh.
+    if (message.contains('firebase_auth/network-request-failed') ||
+        message.contains('firebase_auth/too-many-requests')) {
+      return true;
+    }
     return _expectedTypes.contains(error.runtimeType.toString());
   }
 
