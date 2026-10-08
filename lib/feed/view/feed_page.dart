@@ -114,7 +114,17 @@ class _FeedViewState extends State<FeedView> {
       if (syncedAt == null || syncedAt == lastSeen) return;
       lastSeen = syncedAt;
       if (!mounted) return;
-      context.read<FeedBloc>().add(const FeedRefreshRequested());
+      // This exists ONLY to rescue the cold-start blank feed (the one-shot
+      // initial query can return empty before PowerSync streamed this account's
+      // rows). Running a full FeedRefreshRequested on EVERY later sync round
+      // refetches just the first page (7 posts) and replaces the whole list —
+      // so if the user had scrolled down and paginated, the list shrinks and
+      // the viewport snaps back up to the 7th post. Only refresh the feed while
+      // it is still empty; once it has posts, leave pagination/scroll alone
+      // (pull-to-refresh still updates it on demand).
+      if (context.read<FeedBloc>().state.feed.feedPage.blocks.isEmpty) {
+        context.read<FeedBloc>().add(const FeedRefreshRequested());
+      }
       context.read<StoriesBloc>().add(
         const StoriesFetchUserFollowingsStories(),
       );
