@@ -14,6 +14,11 @@ services:
     image: caddy:2
     container_name: treepnet-caddy
     restart: unless-stopped
+    environment:
+      # bcrypt hash for the admin panel's basic_auth (admin.treepnet.com).
+      # Generated with `caddy hash-password`; stored only in the server .env,
+      # never in the repo. Referenced as {$ADMIN_BASIC_HASH} in the Caddyfile.
+      ADMIN_BASIC_HASH: ${ADMIN_BASIC_HASH}
     depends_on:
       - powersync
       - postgrest
@@ -23,6 +28,7 @@ services:
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./caddy/web:/srv/web:ro
+      - ./caddy/admin:/srv/admin:ro
       - caddy_data:/data
       - caddy_config:/config
     networks:
@@ -201,5 +207,22 @@ services:
       TG_LOG_BOT_TOKEN: ${TG_LOG_BOT_TOKEN}
       TG_LOG_CHAT_ID: ${TG_LOG_CHAT_ID}
       LOG_APP_KEY: ${LOG_APP_KEY}
+    networks:
+      - treepnet
+
+  # Read-only analytics API for the custom admin panel. Connects as the locked
+  # analytics_ro role (SELECT only, PII-safe analytics.* views) and serves the
+  # dashboard JSON. Behind Caddy at admin.treepnet.com/api/* (gated by the
+  # basic_auth on that site block; prefix stripped -> service sees /dashboard).
+  analyticsapi:
+    build: ./functions/analytics-api
+    container_name: treepnet-analyticsapi
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PG_CONNECTION_STRING: postgresql://analytics_ro:${ANALYTICS_RO_PASS}@postgres:5432/${POSTGRES_DB}
+      PORT: "4300"
     networks:
       - treepnet

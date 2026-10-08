@@ -31,6 +31,27 @@ chat.treepnet.com, chat.130-61-138-104.sslip.io {
 	reverse_proxy chatbackend:3000
 }
 
+# Custom admin analytics panel. Static SPA built from the Treepnet-admin-panel
+# repo (served from ./caddy/admin -> /srv/admin), plus the read-only analytics
+# API at /api/* -> analyticsapi:4300. basic_auth gates BOTH the page and the API
+# (same origin, so the browser replays the credentials to /api automatically).
+# The hash lives only in the server .env ({$ADMIN_BASIC_HASH}). Add the
+# admin.treepnet.com A-record at 130.61.138.104 (DNS only, proxy OFF); the
+# sslip.io host works without DNS in the meantime.
+admin.treepnet.com, admin.130-61-138-104.sslip.io {
+	basic_auth {
+		admin {$ADMIN_BASIC_HASH}
+	}
+
+	handle_path /api/* {
+		reverse_proxy analyticsapi:4300
+	}
+
+	root * /srv/admin
+	try_files {path} /index.html
+	file_server
+}
+
 # Referral invite landing + app-verification files (Android App Links now,
 # iOS Universal Links later). The treepnet.com A-record must point at
 # 130.61.138.104 (DNS only, proxy OFF) so Caddy can issue a cert. Static files
