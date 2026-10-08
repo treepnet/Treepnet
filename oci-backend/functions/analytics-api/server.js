@@ -230,13 +230,13 @@ async function buildContentStats() {
   const [s] = await q(
     `select
        count(*) filter (where is_active) active,
-       count(*) filter (where content_type = 'photo') photo,
+       count(*) filter (where content_type in ('image', 'photo')) photo,
        count(*) filter (where content_type = 'video') video,
        count(*) total
      from analytics.stories`
   );
   const trend = await q(
-    `select to_char(d, 'Dy') day, to_char(d,'YYYY-MM-DD') iso,
+    `select to_char(d, 'Dy') as weekday, to_char(d,'YYYY-MM-DD') iso,
        (select count(*) from analytics.posts   p where p.created_at::date = d) posts,
        (select count(*) from analytics.stories st where st.created_at::date = d) stories
      from generate_series(current_date - interval '6 days', current_date, interval '1 day') d
@@ -258,7 +258,7 @@ async function buildContentStats() {
     storiesPhotoPct: pct(n(s.photo), storiesTotal),
     storiesVideoPct: pct(n(s.video), storiesTotal),
     dailyPostTrends: trend.map((t) => ({
-      day: t.day.trim(),
+      day: t.weekday.trim(),
       iso: t.iso,
       posts: n(t.posts),
       stories: n(t.stories),

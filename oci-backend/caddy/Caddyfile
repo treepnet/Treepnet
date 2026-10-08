@@ -47,9 +47,13 @@ admin.treepnet.com, admin.130-61-138-104.sslip.io {
 		reverse_proxy analyticsapi:4300
 	}
 
-	root * /srv/admin
-	try_files {path} /index.html
-	file_server
+	# Static SPA for everything else. Wrapped in its own handle so the try_files
+	# rewrite below never touches /api/* (which handle_path has already taken).
+	handle {
+		root * /srv/admin
+		try_files {path} /index.html
+		file_server
+	}
 }
 
 # Referral invite landing + app-verification files (Android App Links now,
