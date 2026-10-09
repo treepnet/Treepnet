@@ -11,6 +11,7 @@ import 'package:treepnet/chat/chat_session.dart';
 import 'package:treepnet/chat/chat_theme.dart';
 import 'package:treepnet/chat/open_chat.dart';
 import 'package:treepnet/l10n/l10n.dart';
+import 'package:search_repository/search_repository.dart';
 import 'package:user_repository/user_repository.dart';
 
 /// The chat inbox — two tabs matching the app design:
@@ -267,6 +268,7 @@ class _TypeList extends StatefulWidget {
 
 class _TypeListState extends State<_TypeList> {
   Future<List<User>>? _future;
+  Timer? _debounce;
 
   @override
   void didChangeDependencies() {
@@ -274,13 +276,45 @@ class _TypeListState extends State<_TypeList> {
     _future ??= _load();
   }
 
+  @override
+  void didUpdateWidget(_TypeList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // When the user types in the inbox search, re-run the load. A non-empty
+    // query does a REAL (server-first) user search across ALL accounts — not a
+    // client-side filter of the pre-loaded follows/suggestions, which could
+    // never surface someone you don't follow (why handles like "rakhimrb" were
+    // unfindable here). Debounced so typing doesn't fire a query per keystroke.
+    if (oldWidget.query != widget.query) {
+      _debounce?.cancel();
+      _debounce = Timer(const Duration(milliseconds: 300), () {
+        if (mounted) setState(() => _future = _load());
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
   Future<List<User>> _load() async {
+    final query = widget.query;
+    if (query.isNotEmpty) {
+      // Real search across every account (server-first; see SearchRepository),
+      // so you can start a chat with anyone, not just your follows/suggestions.
+      final results = await context.read<SearchRepository>().searchUsers(
+        query: query,
+      );
+      return results
+          .where((u) => u.id != widget.userId && !u.isAnonymous)
+          .toList();
+    }
+    // Empty query: the quick "start a chat" list — follows + suggestions.
+    // Cap followings: getFollowings with no limit fetches EVERY following (one
+    // profile query each), so a user who follows hundreds would load hundreds
+    // and render an unbounded list on inbox open. 50 keeps it fast and bounded.
     final repo = context.read<UserRepository>();
-    // Cap the quick "start a chat" list: getFollowings with no limit fetches
-    // EVERY following (one profile query each), so a user who follows hundreds
-    // would load hundreds of profiles and render an unbounded list on inbox
-    // open. 50 keeps it fast and bounded (matching suggestedUsers); the rest are
-    // reachable via the paginated user search.
     final followings = await repo.getFollowings(
       userId: widget.userId,
       limit: 50,
@@ -318,14 +352,11 @@ class _TypeListState extends State<_TypeList> {
             ),
           );
         }
+        // No client-side query filter here: _load() already returns the right
+        // set (server search results when searching, follows/suggestions when
+        // not). We only hide people already messaged.
         final users = snapshot.data!
             .where((u) => !existing.contains(u.id))
-            .where(
-              (u) =>
-                  widget.query.isEmpty ||
-                  u.displayUsername.toLowerCase().contains(widget.query) ||
-                  u.displayFullName.toLowerCase().contains(widget.query),
-            )
             .toList();
 
         if (users.isEmpty) {
