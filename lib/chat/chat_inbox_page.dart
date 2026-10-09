@@ -276,7 +276,15 @@ class _TypeListState extends State<_TypeList> {
 
   Future<List<User>> _load() async {
     final repo = context.read<UserRepository>();
-    final followings = await repo.getFollowings(userId: widget.userId);
+    // Cap the quick "start a chat" list: getFollowings with no limit fetches
+    // EVERY following (one profile query each), so a user who follows hundreds
+    // would load hundreds of profiles and render an unbounded list on inbox
+    // open. 50 keeps it fast and bounded (matching suggestedUsers); the rest are
+    // reachable via the paginated user search.
+    final followings = await repo.getFollowings(
+      userId: widget.userId,
+      limit: 50,
+    );
     final suggested = await repo.suggestedUsers();
     final seen = <String>{};
     final all = <User>[];
@@ -415,7 +423,11 @@ class _ChatsListState extends State<_ChatsList> {
         setState(() => _map[conversation.id] = conversation);
       case ChatConversationRemoved(:final conversationId):
         setState(() => _map.remove(conversationId));
-      case ChatPeerPresenceChanged(:final peerId, :final isOnline, :final lastSeen):
+      case ChatPeerPresenceChanged(
+        :final peerId,
+        :final isOnline,
+        :final lastSeen,
+      ):
         final match = _map.values
             .where((c) => c.peer.id == peerId)
             .toList(growable: false);
@@ -532,7 +544,8 @@ class _ConversationTile extends StatelessWidget {
     // so the inbox must too — otherwise it reads hours behind (e.g. UTC+5).
     final dt = utc.toLocal();
     final now = DateTime.now();
-    final sameDay = dt.year == now.year && dt.month == now.month && dt.day == now.day;
+    final sameDay =
+        dt.year == now.year && dt.month == now.month && dt.day == now.day;
     if (sameDay) {
       return '${dt.hour.toString().padLeft(2, '0')}:'
           '${dt.minute.toString().padLeft(2, '0')}';
@@ -671,9 +684,7 @@ class _ConversationTile extends StatelessWidget {
           const Gap.v(AppSpacing.xs),
           Text(
             _time(conversation.lastMessageAt),
-            style: context.labelSmall?.copyWith(
-              color: AppColors.textSecondary,
-            ),
+            style: context.labelSmall?.copyWith(color: AppColors.textSecondary),
           ),
         ],
       ),
@@ -839,10 +850,7 @@ class _PersonRow extends StatelessWidget {
                 ],
               ),
             ),
-            if (trailing != null) ...[
-              const Gap.h(AppSpacing.sm),
-              trailing!,
-            ],
+            if (trailing != null) ...[const Gap.h(AppSpacing.sm), trailing!],
           ],
         ),
       ),
