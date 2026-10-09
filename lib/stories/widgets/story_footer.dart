@@ -279,10 +279,7 @@ class _StoryFooterState extends State<StoryFooter> with WidgetsBindingObserver {
           ),
         ),
         // Share — same sheet and behaviour as the viewer footer.
-        IconButton(
-          onPressed: _openShare,
-          icon: const _ShareIcon(size: 26),
-        ),
+        IconButton(onPressed: _openShare, icon: const _ShareIcon(size: 26)),
         // More (white ⋮) — story options (Delete), opened on the page.
         IconButton(
           onPressed: widget.onMore,
@@ -683,7 +680,8 @@ class _ViewerTile extends StatelessWidget {
               const Gap.h(AppSpacing.md),
               Expanded(
                 child: Text(
-                  user.displayFullName,
+                  // Story viewers are shown by username (not full name).
+                  user.displayUsername,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: context.bodyLarge?.copyWith(
