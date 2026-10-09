@@ -12,6 +12,13 @@
 #     downloads other people's DMs. This replaces the old `global_messages` /
 #     `global_participants` buckets, which leaked every chat to every device.
 #
+# DEPLOY WARNING: any change to this file makes PowerSync create a new sync-
+# rules version and re-snapshot every table with a plain SELECT, which is
+# subject to RLS. The `powersync` DB role MUST have BYPASSRLS
+# (sql/powersync-bypassrls.sql), otherwise owner-only tables (referrals,
+# saved_posts, saved_profiles, blocked_users, archived_posts) snapshot empty
+# and those rows vanish from every device.
+#
 # Notes on PowerSync limits (learned from validation):
 #   * A parameter query may SELECT from only ONE table — no JOINs. So message
 #     attachments (which need a messages-participants join to scope) sync
