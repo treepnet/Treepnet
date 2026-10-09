@@ -287,7 +287,14 @@ class _TypeListState extends State<_TypeList> {
     if (oldWidget.query != widget.query) {
       _debounce?.cancel();
       _debounce = Timer(const Duration(milliseconds: 300), () {
-        if (mounted) setState(() => _future = _load());
+        // Assign in a block body: an arrow `=> _future = _load()` returns the
+        // Future, and setState warns when its callback returns one. We only
+        // store the future here (the FutureBuilder awaits it), not await it.
+        if (mounted) {
+          setState(() {
+            _future = _load();
+          });
+        }
       });
     }
   }

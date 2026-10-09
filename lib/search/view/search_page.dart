@@ -136,11 +136,16 @@ class _SearcAppBarState extends State<SearcAppBar> {
         focusNode: _focusNode,
         textController: _searchController,
         onChanged: (query) {
-          _debouncer.run(
-            () async => widget.onUsersSearch.call(
-              await context.read<SearchRepository>().searchUsers(query: query),
-            ),
-          );
+          // Read the repository NOW (while this element is active), not inside
+          // the debounced async callback: by the time that fires the search bar
+          // may be gone, and context.read on a deactivated element throws
+          // "Looking up a deactivated widget's ancestor is unsafe".
+          final searchRepository = context.read<SearchRepository>();
+          _debouncer.run(() async {
+            final users = await searchRepository.searchUsers(query: query);
+            if (!mounted) return;
+            widget.onUsersSearch.call(users);
+          });
         },
       ),
     );
