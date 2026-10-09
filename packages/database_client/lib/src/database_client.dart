@@ -2038,7 +2038,10 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
       .db()
       .watch(
         'SELECT COUNT(*) AS subscription_count FROM subscriptions '
-        'WHERE subscribed_to_id = ?',
+        // Only accepted follows count — a 'pending' request to a private
+        // account must NOT bump the follower count until it's approved.
+        // Legacy rows have NULL status and count as accepted.
+        "WHERE subscribed_to_id = ? AND COALESCE(status, 'accepted') = 'accepted'",
         parameters: [userId],
       )
       .map(
@@ -2167,24 +2170,28 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
   }
 
   @override
-  Stream<int> followingsCountOf({required String userId}) =>
-      _powerSyncRepository
-          .db()
-          .watch(
-            'SELECT COUNT(*) AS subscription_count FROM subscriptions '
-            'WHERE subscriber_id = ?',
-            parameters: [userId],
-          )
-          .map(
-            (event) =>
-                event.safeMap((element) => element['subscription_count']).first
-                    as int,
-          );
+  Stream<int> followingsCountOf({
+    required String userId,
+  }) => _powerSyncRepository
+      .db()
+      .watch(
+        'SELECT COUNT(*) AS subscription_count FROM subscriptions '
+        // Only accepted follows count toward "following" — a pending request
+        // to a private account doesn't yet. NULL status = legacy = accepted.
+        "WHERE subscriber_id = ? AND COALESCE(status, 'accepted') = 'accepted'",
+        parameters: [userId],
+      )
+      .map(
+        (event) =>
+            event.safeMap((element) => element['subscription_count']).first
+                as int,
+      );
 
   @override
   Future<List<User>> getFollowers({String? userId}) async {
     final followersId = await _powerSyncRepository.db().getAll(
-      'SELECT subscriber_id FROM subscriptions WHERE subscribed_to_id = ? ',
+      'SELECT subscriber_id FROM subscriptions WHERE subscribed_to_id = ? '
+      "AND COALESCE(status, 'accepted') = 'accepted'",
       [userId ?? currentUserId],
     );
     if (followersId.isEmpty) return [];
@@ -2221,6 +2228,7 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
     // other callers). Growing the limit re-subscribes with a wider window.
     final streamResult = _powerSyncRepository.db().watch(
       'SELECT subscriber_id FROM subscriptions WHERE subscribed_to_id = ? '
+      "AND COALESCE(status, 'accepted') = 'accepted' "
       '${limit != null ? 'LIMIT ?' : ''}',
       parameters: [userId, if (limit != null) limit],
     );
@@ -2251,6 +2259,7 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
     // null = all. Callers grow the limit for scroll pagination.
     final followingsUserId = await _powerSyncRepository.db().getAll(
       'SELECT subscribed_to_id FROM subscriptions WHERE subscriber_id = ? '
+      "AND COALESCE(status, 'accepted') = 'accepted' "
       '${limit != null ? 'LIMIT ?' : ''}',
       [userId ?? currentUserId, if (limit != null) limit],
     );
