@@ -376,7 +376,10 @@ abstract class PostsBaseRepository {
   Stream<List<Post>> postsOf({String? userId, int? limit});
 
   /// Posts by [userId] placed in the ISO 3166-2 region [iso].
-  Stream<List<Post>> postsInRegion({required String userId, required String iso});
+  Stream<List<Post>> postsInRegion({
+    required String userId,
+    required String iso,
+  });
 
   /// Posts by [userId] placed within [radiusDegrees] of ([lat], [lng]).
   ///
@@ -864,7 +867,9 @@ SELECT * FROM profiles WHERE id = ?
     if (result.isEmpty) return null;
     final json = Map<String, dynamic>.from((result.first as ResultSet).first);
     final authorRow = result.last as Row?;
-    final author = authorRow != null ? User.fromJson(authorRow) : User.anonymous;
+    final author = authorRow != null
+        ? User.fromJson(authorRow)
+        : User.anonymous;
     final jsonMedia = json['media'] as String;
 
     final rootToken = RootIsolateToken.instance!;
@@ -890,9 +895,8 @@ SELECT * FROM profiles WHERE id = ?
             parameters: [userId],
           )
           .map(
-            (result) => result
-                .map((row) => row['location_region'] as String)
-                .toSet(),
+            (result) =>
+                result.map((row) => row['location_region'] as String).toSet(),
           );
 
   @override
@@ -1055,8 +1059,9 @@ SELECT
             final row = rows.first;
 
             final dates = <DateTime>[];
-            for (final part
-                in ((row['invite_dates'] as String?) ?? '').split(',')) {
+            for (final part in ((row['invite_dates'] as String?) ?? '').split(
+              ',',
+            )) {
               final at = DateTime.tryParse(part.trim());
               if (at != null) dates.add(at);
             }
@@ -1086,9 +1091,7 @@ SELECT
             parameters: [userId],
           )
           .map(
-            (event) => event
-                .map((row) => row['region_iso'] as String)
-                .toSet(),
+            (event) => event.map((row) => row['region_iso'] as String).toSet(),
           );
 
   @override
@@ -1281,15 +1284,14 @@ ORDER BY s.created_at DESC
   Stream<bool> isProfileSaved({
     required String userId,
     required String profileId,
-  }) =>
-      _powerSyncRepository
-          .db()
-          .watch(
-            'SELECT 1 FROM saved_profiles '
-            'WHERE saver_id = ? AND profile_id = ? LIMIT 1',
-            parameters: [userId, profileId],
-          )
-          .map((event) => event.isNotEmpty);
+  }) => _powerSyncRepository
+      .db()
+      .watch(
+        'SELECT 1 FROM saved_profiles '
+        'WHERE saver_id = ? AND profile_id = ? LIMIT 1',
+        parameters: [userId, profileId],
+      )
+      .map((event) => event.isNotEmpty);
 
   @override
   Future<void> saveProfile({
@@ -1317,11 +1319,10 @@ ORDER BY s.created_at DESC
   Future<void> unsaveProfile({
     required String userId,
     required String profileId,
-  }) =>
-      _powerSyncRepository.db().execute(
-        'DELETE FROM saved_profiles WHERE saver_id = ? AND profile_id = ?',
-        [userId, profileId],
-      );
+  }) => _powerSyncRepository.db().execute(
+    'DELETE FROM saved_profiles WHERE saver_id = ? AND profile_id = ?',
+    [userId, profileId],
+  );
 
   @override
   Future<void> setVisitedRegions({
@@ -1510,10 +1511,11 @@ posts.user_id = ?
         .map((row) => Map<String, dynamic>.from(row)['media'] as String)
         .toList();
     final rootToken = RootIsolateToken.instance!;
-    final media = await compute<List<dynamic>, List<List<Map<String, dynamic>>>>(
-      _computeJsonListMedia,
-      [rootToken, jsonListMedia],
-    );
+    final media =
+        await compute<List<dynamic>, List<List<Map<String, dynamic>>>>(
+          _computeJsonListMedia,
+          [rootToken, jsonListMedia],
+        );
     final posts = <Post>[];
     for (var i = 0; i < result.length; i++) {
       final json = Map<String, dynamic>.from(result[i]);
@@ -3213,7 +3215,32 @@ values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     if (query == null || query.trim().isEmpty) return <User>[];
     // Keep dots, dashes and underscores — they are legal in a handle, and
     // stripping them turned "h.hamid15" into "hhamid15", which matches nobody.
-    query = query.removeSpecialCharacters(keepAllowed: true);
+    final q = query.removeSpecialCharacters(keepAllowed: true);
+    final me = currentUserId;
+
+    // Server-first: search PostgREST so EVERY account is findable, not just the
+    // profiles already synced to this device's local PowerSync DB. The local
+    // DB holds only a subset, so a purely-local search missed users that exist
+    // on the server (why some handles were findable on one screen but not
+    // another). profiles are world-readable (RLS "Profiles are viewable by
+    // everyone"), so the authenticated role can search them all. Falls back to
+    // the local query when offline / the request fails.
+    try {
+      var builder = _powerSyncRepository
+          .postgrest()
+          .from('profiles')
+          .select('id, avatar_url, full_name, username')
+          .or('username.ilike.*$q*,full_name.ilike.*$q*');
+      if (me != null) builder = builder.neq('id', me);
+      final rows = await builder.range(offset, offset + limit - 1);
+      return rows
+          .cast<Map<String, dynamic>>()
+          .map(User.fromJson)
+          .toList(growable: false);
+    } catch (_) {
+      // Offline / server error — fall back to the local synced-profiles search.
+    }
+
     final excludeUserIdsStatement = excludeUserIds == null
         ? ''
         : 'AND id NOT IN ($excludeUserIds)';
@@ -3222,8 +3249,8 @@ values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       '''
 SELECT id, avatar_url, full_name, username
   FROM profiles
-WHERE (LOWER(username) LIKE LOWER('%$query%') OR LOWER(full_name) LIKE LOWER('%$query%'))
-  AND id <> ?1 $excludeUserIdsStatement 
+WHERE (LOWER(username) LIKE LOWER('%$q%') OR LOWER(full_name) LIKE LOWER('%$q%'))
+  AND id <> ?1 $excludeUserIdsStatement
 LIMIT ?2 OFFSET ?3
 ''',
       [currentUserId, limit, offset],
@@ -3472,7 +3499,7 @@ FROM location_stories ls
   LEFT JOIN profiles p ON s.user_id = p.id
 WHERE ls.user_id = ?1 AND ls.region_iso = ?2
   ${scoped ? 'AND ls.lat IS NOT NULL AND ABS(ls.lat - ?3) <= ?4 '
-      'AND ls.lng IS NOT NULL AND ABS(ls.lng - ?5) <= ?4' : ''}
+                    'AND ls.lng IS NOT NULL AND ABS(ls.lng - ?5) <= ?4' : ''}
 ORDER BY ls.created_at DESC
 ''',
           parameters: [
