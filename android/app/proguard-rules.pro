@@ -26,3 +26,11 @@
 -dontwarn androidx.window.sidecar.SidecarInterface
 -dontwarn androidx.window.sidecar.SidecarProvider
 -dontwarn androidx.window.sidecar.SidecarWindowLayoutInfo
+
+# PostHog's Android SDK references Jetpack Compose classes for its optional
+# Compose auto-capture / session-replay. This is a plain Flutter app with no
+# Compose, so those classes aren't on the classpath and R8 escalates the
+# "Missing class" warnings to a build failure. Suppress the whole Compose
+# namespace (never shipped/executed here) so a future posthog_flutter bump that
+# references more Compose classes can't break the release build again.
+-dontwarn androidx.compose.**
