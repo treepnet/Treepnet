@@ -1,6 +1,6 @@
 name: treepnet
 description: A complete offline-first Flutter Instagram clone with Supabase and PowerSync.
-version: 1.0.6+6
+version: 1.0.7+7
 publish_to: none
 
 environment:
