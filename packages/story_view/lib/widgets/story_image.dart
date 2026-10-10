@@ -18,7 +18,27 @@ class ImageLoader {
 
   LoadState state = LoadState.loading; // by default
 
+  /// True while a file read + decode is in flight, so a second cache event
+  /// arriving during that async gap doesn't start a duplicate decode.
+  bool _decoding = false;
+
   ImageLoader(this.url, {this.requestHeaders});
+
+  /// Warms the disk cache for [url] so a story opens without a network wait
+  /// once the viewer reaches it. Errors are ignored; the real load retries.
+  static void prefetch(String url) {
+    if (url.isEmpty) return;
+    DefaultCacheManager().getSingleFile(url).then((_) {}, onError: (_) {});
+  }
+
+  /// Physical width of the screen, used as the decode width: a story is shown
+  /// full-bleed, so decoding wider (uploads are 1440px) only costs decode time
+  /// and texture memory while the open transition is animating.
+  static int? _screenWidthPx() {
+    final view = ui.PlatformDispatcher.instance.implicitView;
+    final width = view?.physicalSize.width ?? 0;
+    return width > 0 ? width.round() : null;
+  }
 
   /// Load image from disk cache first, if not found then load from network.
   /// `onComplete` is called when [imageBytes] become available.
@@ -32,26 +52,32 @@ class ImageLoader {
         headers: this.requestHeaders as Map<String, String>?);
 
     fileStream.listen(
-      (fileResponse) {
+      (fileResponse) async {
         if (!(fileResponse is FileInfo)) return;
         // the reason for this is that, when the cache manager fetches
         // the image again from network, the provided `onComplete` should
         // not be called again
-        if (this.frames != null) {
+        if (this.frames != null || _decoding) {
           return;
         }
+        _decoding = true;
 
-        final imageBytes = fileResponse.file.readAsBytesSync();
-
-        this.state = LoadState.success;
-
-        ui.instantiateImageCodec(imageBytes).then((codec) {
-          this.frames = codec;
-          onComplete();
-        }, onError: (error) {
+        try {
+          // Async read: the sync variant blocked the UI isolate on file I/O
+          // right as the story opened.
+          final imageBytes = await fileResponse.file.readAsBytes();
+          this.state = LoadState.success;
+          this.frames = await ui.instantiateImageCodec(
+            imageBytes,
+            targetWidth: _screenWidthPx(),
+            allowUpscaling: false,
+          );
+        } catch (_) {
           this.state = LoadState.failure;
-          onComplete();
-        });
+        } finally {
+          _decoding = false;
+        }
+        onComplete();
       },
       onError: (error) {
         this.state = LoadState.failure;

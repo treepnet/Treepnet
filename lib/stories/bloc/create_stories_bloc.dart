@@ -34,8 +34,11 @@ class CreateStoriesBloc extends Bloc<CreateStoriesEvent, CreateStoriesState> {
 
       final storyId = uuid.v4();
       final storyImageFile = File(event.filePath);
-      final compressed = await ImageCompress.compressFile(storyImageFile);
-      final compressedFile = File(compressed!.path);
+      final compressed = await ImageCompress.compressStory(storyImageFile);
+      // If re-encoding fails, upload the original rather than lose the story.
+      final compressedFile = compressed == null
+          ? storyImageFile
+          : File(compressed.path);
       final compressedBytes = await PickImage().imageBytes(
         file: compressedFile,
       );

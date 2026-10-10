@@ -58,6 +58,27 @@ class ImageCompress {
     );
   }
 
+  /// Re-encodes a finished story for upload as a JPEG sized for a phone screen.
+  ///
+  /// The story editor exports a lossless PNG captured at 3x scale, and
+  /// [compressFile] keeps `.png` files as PNG, where `quality` has no effect.
+  /// Stories were therefore uploaded at 2–4.5 MB each, and viewers on mobile
+  /// data saw a black screen for seconds before each one appeared. A story is
+  /// an opaque full-screen picture, so JPEG loses nothing visible and the file
+  /// shrinks roughly tenfold. Width 1080 is the widest common phone screen.
+  static Future<XFile?> compressStory(File file) {
+    final filePath = file.absolute.path;
+    final dot = filePath.lastIndexOf('.');
+    final base = dot == -1 ? filePath : filePath.substring(0, dot);
+    return FlutterImageCompress.compressAndGetFile(
+      filePath,
+      '${base}_story.jpg',
+      minWidth: 1080,
+      minHeight: 1920,
+      quality: 82,
+    );
+  }
+
   /// Compress image file.
   static Future<XFile?> compressFile(File file) async {
     final filePath = file.absolute.path;

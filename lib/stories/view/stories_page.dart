@@ -1,7 +1,6 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:treepnet/settings/view/referral_badge.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
@@ -11,7 +10,6 @@ import 'package:treepnet/stories/widgets/pin_story_sheet.dart';
 import 'package:treepnet/stories/stories.dart';
 import 'package:go_router/go_router.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart';
-import 'package:palette_generator/palette_generator.dart';
 import 'package:shared/shared.dart';
 import 'package:stories_repository/stories_repository.dart';
 import 'package:story_view/story_view.dart';
@@ -81,7 +79,9 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
   /// of being letterboxed with a black bar top and bottom.
   final _storyAspect = ValueNotifier<double?>(null);
 
-  Color? _textColor;
+  /// Bumped per [_resolveStoryAspect] call so a decode that finishes after the
+  /// viewer has moved on cannot stamp the previous story's shape on this one.
+  int _aspectRequest = 0;
 
   /// The batch currently playing. Starts as `widget.props` but is replaced in
   /// place each time the viewer rolls on to the next profile or highlight, so
@@ -115,19 +115,31 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
   /// Decodes the story image just enough to learn its shape, so the frame can
   /// match it. Video stories (or a failed decode) leave the aspect null and the
   /// frame simply fills, which is the sensible fallback.
-  void _resolveStoryAspect(String url) {
+  ///
+  /// Only the shape is needed, so a 360px-wide copy is decoded (from the same
+  /// disk cache the player already filled) rather than the full 1440px image —
+  /// this runs while the open transition is animating. Videos are skipped:
+  /// resolving one as an image downloaded the whole clip just to fail.
+  void _resolveStoryAspect(Story story) {
+    final request = ++_aspectRequest;
     _storyAspect.value = null;
-    if (url.isEmpty) return;
-    final stream = CachedNetworkImageProvider(
-      url,
-    ).resolve(const ImageConfiguration());
+    final url = story.contentUrl;
+    if (url.isEmpty || story.contentType != StoryContentType.image) return;
+    final stream = ResizeImage(
+      CachedNetworkImageProvider(url),
+      width: 360,
+    ).resolve(ImageConfiguration.empty);
     late final ImageStreamListener listener;
-    listener = ImageStreamListener((info, _) {
-      if (mounted && info.image.height > 0) {
-        _storyAspect.value = info.image.width / info.image.height;
-      }
-      stream.removeListener(listener);
-    }, onError: (_, _) => stream.removeListener(listener));
+    listener = ImageStreamListener(
+      (info, _) {
+        stream.removeListener(listener);
+        if (mounted && request == _aspectRequest && info.image.height > 0) {
+          _storyAspect.value = info.image.width / info.image.height;
+        }
+        info.dispose();
+      },
+      onError: (_, _) => stream.removeListener(listener),
+    );
     stream.addListener(listener);
   }
 
@@ -162,32 +174,6 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
       if (mounted) _controller.play();
     });
   }
-
-  Future<void> _initColor() async {
-    final textColor = await _useWhiteTextColor(
-      region: Offset.zero & const Size(40, 40),
-    ).then((isWhite) => isWhite ? AppColors.white : AppColors.black);
-
-    safeSetState(() {
-      _textColor = textColor;
-    });
-  }
-
-  Future<bool> _useWhiteTextColor({required Rect region}) async {
-    final paletteGenerator = await PaletteGenerator.fromImageProvider(
-      NetworkImage(_currentStory.value.contentUrl),
-      size: const Size(400, 400),
-      region: region,
-    );
-
-    final dominantColor = paletteGenerator.dominantColor?.color;
-    if (dominantColor == null) return false;
-
-    return _useWhiteForeground(dominantColor);
-  }
-
-  bool _useWhiteForeground(Color backgroundColor) =>
-      1.05 / (backgroundColor.computeLuminance() + 0.05) > 4.5;
 
   /// True while the reply field is open. Playback stays stopped throughout —
   /// every other play() path checks this, because the keyboard resizing the
@@ -468,10 +454,7 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
                                           _currentStory.value = _stories[index];
                                           _createdAt.value =
                                               _stories[index].createdAt;
-                                          _resolveStoryAspect(
-                                            _stories[index].contentUrl,
-                                          );
-                                          _initColor();
+                                          _resolveStoryAspect(_stories[index]);
                                         });
                                     if (props.onStorySeen != null) {
                                       props.onStorySeen!.call(index, _stories);
@@ -485,6 +468,17 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
                                             ),
                                           );
                                         });
+                                    // Warm the next image story while this one plays, so
+                                    // moving on doesn't stall on a network download (other
+                                    // people's stories are rarely cached yet). One ahead
+                                    // only, to leave bandwidth for the one on screen.
+                                    if (index + 1 < _stories.length) {
+                                      final next = _stories[index + 1];
+                                      if (next.contentType ==
+                                          StoryContentType.image) {
+                                        ImageLoader.prefetch(next.contentUrl);
+                                      }
+                                    }
                                     // Record the view for the "seen by" list — but never your
                                     // own story.
                                     final shown = _stories[index];

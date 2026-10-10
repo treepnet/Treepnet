@@ -3573,7 +3573,9 @@ WHERE user_id = ?1 AND story_id = ?2 AND region_iso = ?3
     required Uint8List imageBytes,
   }) async {
     final stories = MediaStorage.instance.from('stories');
-    final imageExtension = imageFile.path.split('.').last.toLowerCase();
+    final extension = imageFile.path.split('.').last.toLowerCase();
+    // `image/jpg` is not a registered MIME type; stories are now JPEGs.
+    final imageExtension = extension == 'jpg' ? 'jpeg' : extension;
     final imagePath = '$storyId/image';
 
     await stories.uploadBinary(
