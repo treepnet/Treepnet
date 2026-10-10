@@ -7,10 +7,10 @@
 #   * The signed-in user's id lives in the Entra id token's `oid` claim (its
 #     `sub` is not a plain UUID), so parameter queries read it with
 #     `request.user_id()`.
-#   * PRIVATE data (direct messages, conversation participants) is scoped to the
-#     conversations the signed-in user is a participant of, so a device never
-#     downloads other people's DMs. This replaces the old `global_messages` /
-#     `global_participants` buckets, which leaked every chat to every device.
+#   * Direct messages are NOT synced by PowerSync: chat runs on the self-hosted
+#     Socket.IO backend (lib/chat). The legacy `user_conversations` and
+#     `global_attachments` buckets were removed on 2026-10-10 — nothing in the
+#     app read them any more.
 #
 # DEPLOY WARNING: any change to this file makes PowerSync create a new sync-
 # rules version and re-snapshot every table with a plain SELECT, which is
@@ -20,10 +20,14 @@
 # and those rows vanish from every device.
 #
 # Notes on PowerSync limits (learned from validation):
-#   * A parameter query may SELECT from only ONE table — no JOINs. So message
-#     attachments (which need a messages-participants join to scope) sync
-#     globally instead; the media they point at is already public in Blob.
-#   * `blocked_users` is private to the blocker, like their DMs.
+#   * A parameter query may SELECT from only ONE table — no JOINs. When a row
+#     needs scoping by something on another table, denormalise it onto the row
+#     server-side (e.g. story_views.story_owner_id, set by a trigger —
+#     sql/story_views_owner.sql).
+#   * PowerSync caps one connection at 1,000 buckets and stops syncing
+#     EVERYTHING for that user past it. Never parameterise a bucket per item a
+#     user owns (per story, per conversation); use one bucket per user.
+#   * `blocked_users` is private to the blocker.
 bucket_definitions:
   global_media:
     data:
@@ -47,9 +51,6 @@ bucket_definitions:
   global_subscriptions:
     data:
         - select * from subscriptions
-  global_attachments:
-    data:
-        - select * from attachments
   # Story likes are public (a story shows its like count to everyone).
   global_story_likes:
     data:
@@ -64,22 +65,13 @@ bucket_definitions:
     data:
         - select * from story_highlights
         - select * from story_highlight_items
-  # A user's own conversations: the conversation row, its messages and its
-  # participants — nothing from conversations they are not part of.
-  user_conversations:
-    parameters: select conversation_id from participants where user_id = request.user_id()
-    data:
-        - select * from conversations where id = bucket.conversation_id
-        - select * from messages where conversation_id = bucket.conversation_id
-        - select * from participants where conversation_id = bucket.conversation_id
-        - select * from typing_status where conversation_id = bucket.conversation_id
-        - select * from conversation_reads where conversation_id = bucket.conversation_id
   # Who viewed the signed-in user's own stories — the "seen by" list. Only the
-  # author receives these rows.
+  # author receives these rows, in ONE bucket per user (story_owner_id is set
+  # server-side), so the bucket count no longer grows with every story posted.
   user_story_views:
-    parameters: select id as story_id from stories where user_id = request.user_id()
+    parameters: select request.user_id() as user_id
     data:
-        - select * from story_views where story_id = bucket.story_id
+        - select * from story_views where story_owner_id = bucket.user_id
   user_saved_posts:
     parameters: select request.user_id() as user_id
     data:
