@@ -1,8 +1,9 @@
 import React from 'react';
 import {
-  Activity, ChevronLeft, ChevronRight, Gift, Heart, Image as ImageIcon, LayoutDashboard, MapPin, TreePine, Users, X,
+  Activity, ChevronLeft, ChevronRight, Gift, Heart, Image as ImageIcon, LayoutDashboard, MapPin, Users, X,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { TreepnetLogo } from './Logo';
 
 export type TabType = 'overview' | 'users' | 'activity' | 'content' | 'engagement' | 'referral' | 'geography';
 
@@ -62,9 +63,7 @@ const NavList: React.FC<{ current: TabType; onSelect: (t: TabType) => void; coll
 
 const Brand: React.FC<{ collapsed?: boolean }> = ({ collapsed }) => (
   <div className="flex items-center gap-2.5">
-    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-600 text-white">
-      <TreePine className="h-4 w-4" />
-    </div>
+    <TreepnetLogo size={32} className="shrink-0 rounded-[22%] ring-1 ring-black/10 dark:ring-white/10" />
     {!collapsed && (
       <div className="leading-tight">
         <div className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Treepnet</div>
