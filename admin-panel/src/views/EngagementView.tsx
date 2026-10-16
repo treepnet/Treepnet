@@ -1,117 +1,97 @@
 import React from 'react';
-import { 
-  Heart, 
-  MessageSquare, 
-  Bookmark, 
-  UserCheck
-} from 'lucide-react';
-import { StatCard } from '../components/StatCard';
-import { useAnalytics } from '../data/useAnalytics';
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bell, Bookmark, Heart, MessageCircle, Reply, UserCheck } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useDashboard } from '../context/DataContext';
+import { BarRow, Card, Empty, PageHeader, StatCard, useChartColors } from '../components/ui';
+import { fmtDay, fmtNum, pct } from '../lib/format';
 
 export const EngagementView: React.FC = () => {
-  const { t } = useLanguage();
-  const { data } = useAnalytics();
-  const e = data.engagementStats;
+  const { t, lang } = useLanguage();
+  const d = useDashboard();
+  const c = useChartColors();
+  const tt = d.totals;
+  const e = d.engagement;
+  const rows = d.series.map((r) => ({ ...r, label: fmtDay(r.date, lang) }));
+  const pushTotal = e.push.sent + e.push.failed + e.push.pending;
+  const maxLiked = e.topLiked[0]?.likes ?? 0;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-white tracking-tight">{t.engagement.title}</h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{t.engagement.subtitle}</p>
-        </div>
-        <div className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
-          {t.engagement.rateLabel} <span className="text-zinc-900 dark:text-white font-medium">{e.engagementRatePct}%</span>
-        </div>
+    <div className="space-y-5">
+      <PageHeader title={t.engagement.title} subtitle={t.engagement.subtitle} />
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard title={t.kpi.likes} value={tt.like.value} metric={tt.like} icon={Heart} accent="rose" />
+        <StatCard title={t.kpi.comments} value={tt.comment.value} metric={tt.comment} icon={MessageCircle} accent="sky" />
+        <StatCard
+          title={t.engagement.replies}
+          value={e.replies}
+          icon={Reply}
+          sub={`${pct(e.replies, tt.comment.value)}% · ${t.scope.period}`}
+        />
+        <StatCard title={t.kpi.follows} value={tt.follow.value} metric={tt.follow} icon={UserCheck} accent="emerald" />
+        <StatCard title={t.kpi.saves} value={tt.save.value} metric={tt.save} icon={Bookmark} />
+        <StatCard
+          title={t.engagement.engagementRate}
+          value={`${pct(tt.engagers, tt.active.value)}%`}
+          hint={t.engagement.engagementHint}
+          sub={`${fmtNum(tt.engagers)} / ${fmtNum(tt.active.value)}`}
+        />
+        <StatCard
+          title={t.engagement.likesPerPost}
+          value={tt.post.value ? Math.round((tt.like.value / tt.post.value) * 10) / 10 : 0}
+          sub={t.scope.period}
+        />
+        <StatCard title={t.engagement.pendingFollows} value={d.snapshot.totals.pendingFollows} sub={t.scope.now} />
       </div>
 
-      {/* Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard
-          title={t.engagement.likesToday}
-          value={e.todayLikes}
-          subtitle={`Total: ${(e.totalLikes / 1000000).toFixed(2)}M`}
-          icon={Heart}
-        />
-        <StatCard
-          title={t.engagement.commentsToday}
-          value={e.todayComments}
-          subtitle={`Total: ${(e.totalComments / 1000).toFixed(1)}k`}
-          icon={MessageSquare}
-        />
-        <StatCard
-          title={t.engagement.followsToday}
-          value={e.followsToday}
-          subtitle={`Total: ${(e.followsTotal / 1000).toFixed(1)}k`}
-          icon={UserCheck}
-        />
-        <StatCard
-          title={t.engagement.bookmarks}
-          value={e.bookmarksCount}
-          subtitle={t.engagement.bookmarksSub}
-          icon={Bookmark}
-        />
-      </div>
+      <Card title={t.engagement.chart} scope="period">
+        {tt.like.value + tt.comment.value + tt.follow.value === 0 ? (
+          <Empty />
+        ) : (
+          <div className="h-60">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={rows} margin={{ top: 5, right: 8, left: -18, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={c.grid} vertical={false} />
+                <XAxis dataKey="label" stroke={c.axis} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} minTickGap={18} />
+                <YAxis stroke={c.axis} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip {...c.tooltip} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Line type="monotone" dataKey="likes" name={t.common.likes} stroke={c.rose} strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="comments" name={t.common.comments} stroke={c.sky} strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="follows" name={t.kpi.follows} stroke={c.emerald} strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </Card>
 
-      {/* Ratios */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="p-4 rounded-xl bg-white dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-white/[0.07] shadow-xs dark:shadow-none">
-          <div className="flex items-center justify-between text-xs mb-1">
-            <span className="text-zinc-500 dark:text-zinc-400 text-[11px]">{t.engagement.replyRatioTitle}</span>
-            <span className="font-mono text-zinc-900 dark:text-zinc-200 text-xs font-medium">{e.replyCommentPct}%</span>
-          </div>
-          <div className="text-lg font-semibold text-zinc-900 dark:text-white tracking-tight">{t.engagement.replyRatioHeading}</div>
-          <p className="text-[11px] text-zinc-500 mt-1">{t.engagement.replyRatioDesc}</p>
-          <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-1 rounded-full mt-3 overflow-hidden">
-            <div className="bg-zinc-800 dark:bg-zinc-300 h-full rounded-full" style={{ width: `${e.replyCommentPct}%` }} />
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl bg-white dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-white/[0.07] shadow-xs dark:shadow-none">
-          <div className="flex items-center justify-between text-xs mb-1">
-            <span className="text-zinc-500 dark:text-zinc-400 text-[11px]">{t.engagement.zeroFollowerTitle}</span>
-            <span className="font-mono text-zinc-900 dark:text-zinc-200 text-xs font-medium">{e.zeroFollowerUsersPct}%</span>
-          </div>
-          <div className="text-lg font-semibold text-zinc-900 dark:text-white tracking-tight">{t.engagement.zeroFollowerHeading}</div>
-          <p className="text-[11px] text-zinc-500 mt-1">{t.engagement.zeroFollowerDesc}</p>
-          <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-1 rounded-full mt-3 overflow-hidden">
-            <div className="bg-zinc-800 dark:bg-zinc-300 h-full rounded-full" style={{ width: `${e.zeroFollowerUsersPct}%` }} />
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl bg-white dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-white/[0.07] shadow-xs dark:shadow-none">
-          <div className="flex items-center justify-between text-xs mb-1">
-            <span className="text-zinc-500 dark:text-zinc-400 text-[11px]">{t.engagement.pendingRequestsTitle}</span>
-            <span className="font-mono text-zinc-900 dark:text-zinc-200 text-xs font-medium">3,240</span>
-          </div>
-          <div className="text-lg font-semibold text-zinc-900 dark:text-white tracking-tight">{t.engagement.pendingRequestsHeading}</div>
-          <p className="text-[11px] text-zinc-500 mt-1">{t.engagement.pendingRequestsDesc}</p>
-          <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-1 rounded-full mt-3 overflow-hidden">
-            <div className="bg-emerald-500 h-full rounded-full" style={{ width: '42%' }} />
-          </div>
-        </div>
-      </div>
-
-      {/* Top Followed */}
-      <div className="p-4 rounded-xl bg-white dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-white/[0.07] shadow-xs dark:shadow-none">
-        <h2 className="text-xs font-medium text-zinc-800 dark:text-zinc-300 mb-3">{t.engagement.topFollowedTitle}</h2>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {data.recentUsers.slice(0, 4).map((user) => (
-            <div key={user.id} className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200/70 dark:border-white/[0.05] flex items-center justify-between">
-              <div>
-                <span className="font-mono text-zinc-900 dark:text-zinc-300 font-medium text-xs block">@{user.username}</span>
-                <span className="text-[11px] text-zinc-500">{user.postsCount} {t.engagement.postsCount}</span>
-              </div>
-              <div className="text-right">
-                <span className="font-mono text-xs text-zinc-900 dark:text-white font-medium block">{user.followersCount.toLocaleString()}</span>
-                <span className="text-[10px] text-zinc-400 dark:text-zinc-500">{t.engagement.followers}</span>
-              </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card title={t.engagement.topLiked} scope="period">
+          {e.topLiked.length === 0 ? (
+            <Empty />
+          ) : (
+            <div className="space-y-3">
+              {e.topLiked.map((x) => (
+                <BarRow key={x.username} label={`@${x.username}`} count={x.likes} pct={pct(x.likes, maxLiked)} color="bg-rose-500" right={`♥ ${fmtNum(x.likes)}`} />
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </Card>
+        <Card title={t.engagement.push} scope="period" right={<Bell className="h-4 w-4 text-zinc-400" />}>
+          {pushTotal === 0 ? (
+            <Empty />
+          ) : (
+            <div className="space-y-3">
+              <div className="text-2xl font-semibold tabular-nums text-zinc-900 dark:text-white">
+                {e.push.successPct}% <span className="text-xs font-normal text-zinc-500">{t.engagement.pushSuccess}</span>
+              </div>
+              <BarRow label={t.engagement.pushSent} count={e.push.sent} pct={pct(e.push.sent, pushTotal)} color="bg-emerald-500" />
+              <BarRow label={t.engagement.pushFailed} count={e.push.failed} pct={pct(e.push.failed, pushTotal)} color="bg-rose-500" />
+              <BarRow label={t.engagement.pushPending} count={e.push.pending} pct={pct(e.push.pending, pushTotal)} color="bg-amber-500" />
+            </div>
+          )}
+        </Card>
       </div>
     </div>
   );

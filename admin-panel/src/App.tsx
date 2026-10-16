@@ -1,159 +1,125 @@
-import React, { useState } from 'react';
-import { Sidebar, TabType } from './components/Sidebar';
-import { Navbar } from './components/Navbar';
-import { ReadOnlyNotice } from './components/ReadOnlyNotice';
+import React, { useEffect, useState } from 'react';
+import { Sidebar, TabType, TABS } from './components/Sidebar';
+import { Topbar } from './components/Topbar';
+import { LanguageProvider, useLanguage } from './context/LanguageContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { DataProvider, useData } from './context/DataContext';
 import { OverviewView } from './views/OverviewView';
-import { GrowthView } from './views/GrowthView';
+import { UsersView } from './views/UsersView';
 import { ActivityView } from './views/ActivityView';
 import { ContentView } from './views/ContentView';
 import { EngagementView } from './views/EngagementView';
 import { ReferralView } from './views/ReferralView';
 import { GeographyView } from './views/GeographyView';
-import { LanguageProvider, useLanguage } from './context/LanguageContext';
-import { ThemeProvider } from './context/ThemeContext';
-import { AnalyticsProvider, useAnalytics } from './data/useAnalytics';
 
-const DashboardContent: React.FC = () => {
-  const { t, lang } = useLanguage();
-  const { data, loading, error, range, setRange, refresh } = useAnalytics();
-  const [currentTab, setCurrentTab] = useState<TabType>('overview');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+function readTab(): TabType {
+  const h = window.location.hash.replace('#', '') as TabType;
+  return TABS.some((x) => x.id === h) ? h : 'overview';
+}
 
-  const handleExportReport = () => {
-    if (!data) return;
-    const kpi = data.kpiOverview;
-    const headers = lang === 'ru'
-      ? ['Метрика', 'Значение'].join(',')
-      : ['Metric', 'Value'].join(',');
+const Shell: React.FC = () => {
+  const { t } = useLanguage();
+  const { data, loading, error, refresh } = useData();
+  const [tab, setTab] = useState<TabType>(readTab);
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('treepnet_sidebar') === 'collapsed';
+    } catch {
+      return false;
+    }
+  });
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-    const csvContent = [
-      headers,
-      [lang === 'ru' ? 'Всего пользователей' : 'Total Users', kpi.totalUsers].join(','),
-      [lang === 'ru' ? 'DAU (День)' : 'DAU', kpi.dau].join(','),
-      [lang === 'ru' ? 'WAU (Неделя)' : 'WAU', kpi.wau].join(','),
-      [lang === 'ru' ? 'MAU (Месяц)' : 'MAU', kpi.mau].join(','),
-      [lang === 'ru' ? 'Stickiness (DAU/MAU)' : 'Stickiness', `${kpi.stickiness}%`].join(','),
-      [lang === 'ru' ? 'Регистраций сегодня' : 'Signups Today', kpi.newUsersToday].join(','),
-      [lang === 'ru' ? 'Всего постов' : 'Total Posts', kpi.totalPosts].join(','),
-      [lang === 'ru' ? 'Всего историй' : 'Total Stories', kpi.totalStories].join(','),
-      [lang === 'ru' ? 'Всего комментариев' : 'Total Comments', kpi.totalComments].join(','),
-      [lang === 'ru' ? 'Всего лайков' : 'Total Likes', kpi.totalLikes].join(','),
-      [lang === 'ru' ? 'Всего рефералов' : 'Total Referrals', kpi.totalReferrals].join(','),
-    ].join('\n');
+  useEffect(() => {
+    const onHash = () => setTab(readTab());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
 
-    const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `treepnet_analytics_${lang}_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const select = (next: TabType) => {
+    setTab(next);
+    if (window.location.hash !== `#${next}`) window.history.replaceState(null, '', `#${next}`);
+    window.scrollTo({ top: 0 });
   };
 
-  const renderActiveView = () => {
-    // First load (or a reload with no cached data) — show a spinner / error
-    // instead of the views, which assume data is present.
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      try {
+        localStorage.setItem('treepnet_sidebar', c ? 'open' : 'collapsed');
+      } catch {
+        /* ignore */
+      }
+      return !c;
+    });
+  };
+
+  const body = () => {
     if (!data) {
       if (error) {
         return (
-          <div className="py-24 flex flex-col items-center gap-3 text-center">
-            <p className="text-sm text-zinc-700 dark:text-zinc-300">{t.state.loadError}</p>
-            <p className="text-[11px] font-mono text-zinc-400 dark:text-zinc-500">{error}</p>
-            <button
-              onClick={refresh}
-              className="mt-1 px-3 py-1.5 text-xs rounded-md bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 font-medium"
-            >
-              {t.state.retry}
+          <div className="flex flex-col items-center gap-3 py-24 text-center">
+            <p className="text-sm text-zinc-700 dark:text-zinc-300">{t.common.loadError}</p>
+            <p className="font-mono text-[11px] text-zinc-400">{error}</p>
+            <button type="button" onClick={refresh} className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
+              {t.common.retry}
             </button>
           </div>
         );
       }
       return (
-        <div className="py-24 flex flex-col items-center gap-3 text-zinc-400 dark:text-zinc-500">
-          <span className="w-5 h-5 rounded-full border-2 border-zinc-300 dark:border-zinc-600 border-t-transparent animate-spin" />
-          <span className="text-xs">{t.state.loading}</span>
+        <div className="flex flex-col items-center gap-3 py-24 text-zinc-400">
+          <span className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-300 border-t-transparent dark:border-zinc-600" />
+          <span className="text-xs">{t.common.loading}</span>
         </div>
       );
     }
-
-    switch (currentTab) {
-      case 'overview':
-        return <OverviewView onNavigateTab={(tab) => setCurrentTab(tab)} />;
-      case 'growth':
-        return <GrowthView />;
-      case 'activity':
-        return <ActivityView />;
-      case 'content':
-        return <ContentView />;
-      case 'engagement':
-        return <EngagementView />;
-      case 'referral':
-        return <ReferralView />;
-      case 'geography':
-        return <GeographyView />;
-      default:
-        return <OverviewView onNavigateTab={(tab) => setCurrentTab(tab)} />;
+    switch (tab) {
+      case 'users': return <UsersView />;
+      case 'activity': return <ActivityView />;
+      case 'content': return <ContentView />;
+      case 'engagement': return <EngagementView />;
+      case 'referral': return <ReferralView />;
+      case 'geography': return <GeographyView />;
+      default: return <OverviewView onNavigate={select} />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col font-sans selection:bg-zinc-200 dark:selection:bg-zinc-800 selection:text-zinc-900 dark:selection:text-white transition-colors duration-150">
+    <div className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 lg:flex">
       <Sidebar
-        currentTab={currentTab}
-        onSelectTab={setCurrentTab}
-        collapsed={sidebarCollapsed}
-        setCollapsed={setSidebarCollapsed}
+        current={tab}
+        onSelect={select}
+        collapsed={collapsed}
+        onToggleCollapsed={toggleCollapsed}
+        mobileOpen={mobileOpen}
+        onCloseMobile={() => setMobileOpen(false)}
       />
-
-      <Navbar
-        sidebarCollapsed={sidebarCollapsed}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        dateRange={range}
-        onDateRangeChange={setRange}
-        onExportReport={handleExportReport}
-      />
-
-      <main className={`flex-1 transition-all duration-200 p-4 sm:p-6 lg:p-8 ${
-        sidebarCollapsed ? 'pl-20' : 'pl-64'
-      }`}>
-        <div className="max-w-6xl mx-auto space-y-6">
-          <ReadOnlyNotice />
-          {loading && data && (
-            <div className="text-[11px] font-mono text-zinc-400 dark:text-zinc-500">{t.state.refreshing}</div>
-          )}
-          {renderActiveView()}
-        </div>
-      </main>
-
-      <footer className={`py-4 px-6 border-t border-zinc-200/80 dark:border-white/[0.06] transition-all duration-200 text-[11px] text-zinc-400 dark:text-zinc-500 flex flex-col sm:flex-row items-center justify-between gap-2 ${
-        sidebarCollapsed ? 'pl-20' : 'pl-64'
-      }`}>
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-zinc-700 dark:text-zinc-400">{t.footer.adminTitle}</span>
-          <span className="text-zinc-300 dark:text-zinc-700">•</span>
-          <span>admin.treepnet.com</span>
-        </div>
-        <div className="font-mono text-zinc-400 dark:text-zinc-600">
-          {t.footer.pgTitle}
-        </div>
-      </footer>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Topbar title={t.nav[tab]} onMenu={() => setMobileOpen(true)} />
+        <main className="flex-1 px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+          <div className="mx-auto max-w-7xl space-y-5">
+            {error && data && (
+              <div className="flex items-center justify-between rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
+                <span>{t.common.loadError}: {error}</span>
+                <button type="button" onClick={refresh} className="font-medium underline">{t.common.retry}</button>
+              </div>
+            )}
+            <div className={loading && data ? 'opacity-60 transition-opacity' : 'transition-opacity'}>{body()}</div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 };
 
-export const App: React.FC = () => {
-  return (
-    <ThemeProvider>
-      <LanguageProvider>
-        <AnalyticsProvider>
-          <DashboardContent />
-        </AnalyticsProvider>
-      </LanguageProvider>
-    </ThemeProvider>
-  );
-};
+export const App: React.FC = () => (
+  <ThemeProvider>
+    <LanguageProvider>
+      <DataProvider>
+        <Shell />
+      </DataProvider>
+    </LanguageProvider>
+  </ThemeProvider>
+);
 
 export default App;

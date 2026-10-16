@@ -1,129 +1,127 @@
 import React from 'react';
 import {
-  LayoutDashboard,
-  UserPlus,
-  Activity,
-  Image as ImageIcon,
-  Heart,
-  Gift,
-  MapPin,
-  TreePine,
-  ChevronLeft,
-  ChevronRight
+  Activity, ChevronLeft, ChevronRight, Gift, Heart, Image as ImageIcon, LayoutDashboard, MapPin, TreePine, Users, X,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
-export type TabType =
-  | 'overview'
-  | 'growth'
-  | 'activity'
-  | 'content'
-  | 'engagement'
-  | 'referral'
-  | 'geography';
+export type TabType = 'overview' | 'users' | 'activity' | 'content' | 'engagement' | 'referral' | 'geography';
 
-interface SidebarProps {
-  currentTab: TabType;
-  onSelectTab: (tab: TabType) => void;
+export const TABS: { id: TabType; icon: typeof LayoutDashboard }[] = [
+  { id: 'overview', icon: LayoutDashboard },
+  { id: 'users', icon: Users },
+  { id: 'activity', icon: Activity },
+  { id: 'content', icon: ImageIcon },
+  { id: 'engagement', icon: Heart },
+  { id: 'referral', icon: Gift },
+  { id: 'geography', icon: MapPin },
+];
+
+interface Props {
+  current: TabType;
+  onSelect: (t: TabType) => void;
   collapsed: boolean;
-  setCollapsed: (val: boolean) => void;
+  onToggleCollapsed: () => void;
+  mobileOpen: boolean;
+  onCloseMobile: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({
-  currentTab,
-  onSelectTab,
-  collapsed,
-  setCollapsed,
-}) => {
+const NavList: React.FC<{ current: TabType; onSelect: (t: TabType) => void; collapsed: boolean }> = ({ current, onSelect, collapsed }) => {
   const { t } = useLanguage();
-
-  const navItems = [
-    { id: 'overview' as TabType, label: t.nav.overview, icon: LayoutDashboard },
-    { id: 'growth' as TabType, label: t.nav.growth, icon: UserPlus },
-    { id: 'activity' as TabType, label: t.nav.activity, icon: Activity },
-    { id: 'content' as TabType, label: t.nav.content, icon: ImageIcon },
-    { id: 'engagement' as TabType, label: t.nav.engagement, icon: Heart },
-    { id: 'referral' as TabType, label: t.nav.referral, icon: Gift },
-    { id: 'geography' as TabType, label: t.nav.geography, icon: MapPin },
-  ];
-
   return (
-    <aside className={`fixed left-0 top-0 bottom-0 z-40 flex flex-col transition-all duration-200 ${
-      collapsed ? 'w-16' : 'w-60'
-    } bg-white dark:bg-zinc-950 border-r border-zinc-200/80 dark:border-white/[0.08]`}>
-      {/* Brand */}
-      <div className="h-14 flex items-center justify-between px-4 border-b border-zinc-200/80 dark:border-white/[0.08]">
-        <div 
-          onClick={() => onSelectTab('overview')}
-          className="flex items-center gap-2.5 cursor-pointer select-none"
-        >
-          <div className="w-6 h-6 rounded-md bg-zinc-900 text-white dark:bg-white dark:text-zinc-950 flex items-center justify-center font-bold">
-            <TreePine className="w-4 h-4 stroke-[2.2]" />
-          </div>
+    <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
+      {!collapsed && (
+        <div className="px-2.5 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+          {t.nav.section}
+        </div>
+      )}
+      {TABS.map(({ id, icon: Icon }) => {
+        const active = current === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onSelect(id)}
+            title={collapsed ? t.nav[id] : undefined}
+            aria-current={active ? 'page' : undefined}
+            className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+              collapsed ? 'justify-center' : ''
+            } ${
+              active
+                ? 'bg-zinc-100 font-medium text-zinc-900 dark:bg-white/[0.08] dark:text-white'
+                : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/[0.04] dark:hover:text-zinc-200'
+            }`}
+          >
+            <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-400'}`} />
+            {!collapsed && <span className="truncate">{t.nav[id]}</span>}
+          </button>
+        );
+      })}
+    </nav>
+  );
+};
+
+const Brand: React.FC<{ collapsed?: boolean }> = ({ collapsed }) => (
+  <div className="flex items-center gap-2.5">
+    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-600 text-white">
+      <TreePine className="h-4 w-4" />
+    </div>
+    {!collapsed && (
+      <div className="leading-tight">
+        <div className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Treepnet</div>
+        <div className="font-mono text-[10px] text-zinc-400 dark:text-zinc-500">admin</div>
+      </div>
+    )}
+  </div>
+);
+
+export const Sidebar: React.FC<Props> = ({ current, onSelect, collapsed, onToggleCollapsed, mobileOpen, onCloseMobile }) => {
+  const { t } = useLanguage();
+  return (
+    <>
+      {/* Desktop: an in-flow sticky column, so it pushes the content instead of covering it. */}
+      <aside
+        className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r border-zinc-200/80 bg-white transition-[width] duration-200 dark:border-white/[0.08] dark:bg-zinc-950 lg:flex ${
+          collapsed ? 'w-16' : 'w-60'
+        }`}
+      >
+        <div className={`flex h-14 items-center border-b border-zinc-200/80 px-3 dark:border-white/[0.08] ${collapsed ? 'justify-center' : 'justify-between'}`}>
+          <Brand collapsed={collapsed} />
           {!collapsed && (
-            <div className="flex items-center gap-1.5">
-              <span className="font-semibold text-sm text-zinc-900 dark:text-zinc-100 tracking-tight">Treepnet</span>
-              <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">admin</span>
+            <button type="button" onClick={onToggleCollapsed} className="rounded p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200" aria-label="collapse">
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <NavList current={current} onSelect={onSelect} collapsed={collapsed} />
+        <div className="border-t border-zinc-200/80 p-3 dark:border-white/[0.08]">
+          {collapsed ? (
+            <button type="button" onClick={onToggleCollapsed} className="mx-auto flex rounded p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200" aria-label="expand">
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              {t.nav.readOnly}
             </div>
           )}
         </div>
+      </aside>
 
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-300 p-1 rounded transition-colors"
-          title={collapsed ? 'Expand' : 'Collapse'}
-        >
-          {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
-        </button>
-      </div>
-
-      {/* Nav items */}
-      <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
-        {!collapsed && (
-          <div className="px-2.5 py-1.5 text-[11px] font-medium text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-            {t.nav.analytics}
-          </div>
-        )}
-
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = currentTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => onSelectTab(item.id)}
-              title={collapsed ? item.label : undefined}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] transition-colors ${
-                isActive
-                  ? 'bg-zinc-100 text-zinc-900 dark:bg-white/[0.08] dark:text-white font-medium'
-                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-white/[0.04]'
-              }`}
-            >
-              <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 dark:text-zinc-400'}`} />
-              {!collapsed && (
-                <span className="truncate">{item.label}</span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* Bottom Status */}
-      <div className="p-3 border-t border-zinc-200/80 dark:border-white/[0.08]">
-        {!collapsed ? (
-          <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
-            <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              <span className="text-[11px] text-zinc-600 dark:text-zinc-400">{t.nav.systemActive}</span>
+      {/* Mobile / tablet: an off-canvas drawer over a dimmed backdrop. */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true">
+          <button type="button" className="absolute inset-0 bg-black/40" onClick={onCloseMobile} aria-label="close" />
+          <aside className="absolute inset-y-0 left-0 flex w-64 max-w-[80vw] flex-col bg-white shadow-xl dark:bg-zinc-950">
+            <div className="flex h-14 items-center justify-between border-b border-zinc-200/80 px-3 dark:border-white/[0.08]">
+              <Brand />
+              <button type="button" onClick={onCloseMobile} className="rounded p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200" aria-label="close">
+                <X className="h-4 w-4" />
+              </button>
             </div>
-            <span className="font-mono text-[11px] text-zinc-400 dark:text-zinc-500">{t.nav.version}</span>
-          </div>
-        ) : (
-          <div className="flex justify-center">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-          </div>
-        )}
-      </div>
-    </aside>
+            <NavList current={current} onSelect={(tab) => { onSelect(tab); onCloseMobile(); }} collapsed={false} />
+          </aside>
+        </div>
+      )}
+    </>
   );
 };

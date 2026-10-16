@@ -1,115 +1,105 @@
-import React from 'react';
-import { 
-  Gift, 
-  TrendingUp, 
-  Crown, 
-  CheckCircle2 
-} from 'lucide-react';
-import { StatCard } from '../components/StatCard';
-import { useAnalytics } from '../data/useAnalytics';
+import React, { useState } from 'react';
+import { Gift, UserPlus, Users } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useDashboard } from '../context/DataContext';
+import { BarRow, Card, Empty, PageHeader, StatCard, Td, Th } from '../components/ui';
+import { fmtNum, pct } from '../lib/format';
+
+const TIER_CLS: Record<string, string> = {
+  Bronze: 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300',
+  Silver: 'bg-zinc-200 text-zinc-700 dark:bg-white/[0.08] dark:text-zinc-300',
+  Gold: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/15 dark:text-yellow-300',
+  Platinum: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-500/15 dark:text-cyan-300',
+};
+const TIER_BAR: Record<string, string> = {
+  Bronze: 'bg-amber-600', Silver: 'bg-zinc-400', Gold: 'bg-yellow-500', Platinum: 'bg-cyan-500',
+};
 
 export const ReferralView: React.FC = () => {
   const { t } = useLanguage();
-  const { data } = useAnalytics();
-  const r = data.referralStats;
-  const platinumCount = r.tiers.find((x) => x.key === 'Platinum')?.count ?? 0;
-  const avgConversion = r.leaderboard.length
-    ? Math.round((r.leaderboard.reduce((s, x) => s + x.conversionRate, 0) / r.leaderboard.length) * 10) / 10
-    : 0;
+  const d = useDashboard();
+  const r = d.referrals;
+  const [tab, setTab] = useState<'period' | 'all'>('period');
+  const rows = tab === 'period' ? r.leaderboardPeriod : r.leaderboardAllTime;
+  const tierTotal = Object.values(r.tiers).reduce((s, v) => s + v, 0);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-white tracking-tight">{t.referral.title}</h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{t.referral.subtitle}</p>
-        </div>
-        <div className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
-          {t.referral.shareLabel} <span className="text-zinc-900 dark:text-white font-medium">{r.referralUserSharePct}%</span>
-        </div>
+    <div className="space-y-5">
+      <PageHeader title={t.referral.title} subtitle={t.referral.subtitle} />
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard title={t.referral.invites} value={d.totals.referral.value} metric={d.totals.referral} icon={Gift} accent="emerald" />
+        <StatCard
+          title={t.referral.viaInviteShare}
+          value={`${pct(d.totals.referral.value, d.totals.signup.value)}%`}
+          hint={t.referral.viaInviteHint}
+          icon={UserPlus}
+          sub={`${fmtNum(d.totals.referral.value)} / ${fmtNum(d.totals.signup.value)}`}
+        />
+        <StatCard title={t.referral.inviters} value={r.inviters} icon={Users} sub={t.scope.allTime} />
+        <StatCard title={t.common.total} value={d.snapshot.totals.referrals} sub={t.scope.allTime} />
       </div>
 
-      {/* Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard
-          title={t.referral.totalReferrals}
-          value={r.totalReferrals}
-          change={18.2}
-          icon={Gift}
-        />
-        <StatCard
-          title={t.referral.todayReferrals}
-          value={r.referralsToday}
-          change={9.5}
-          icon={TrendingUp}
-        />
-        <StatCard
-          title={t.referral.platinumUsers}
-          value={platinumCount}
-          subtitle={t.referral.platinumSub}
-          icon={Crown}
-        />
-        <StatCard
-          title={t.referral.avgConversion}
-          value={`${avgConversion}%`}
-          subtitle={t.referral.avgConversionSub}
-          icon={CheckCircle2}
-        />
-      </div>
-
-      {/* Tier Breakdown */}
-      <div className="p-4 rounded-xl bg-white dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-white/[0.07] shadow-xs dark:shadow-none">
-        <h2 className="text-xs font-medium text-zinc-800 dark:text-zinc-300 mb-3">{t.referral.tierTitle}</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {r.tiers.map((tier) => (
-            <div key={tier.key} className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200/70 dark:border-white/[0.05]">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-zinc-500 dark:text-zinc-400 text-[11px]">{tier.key}</span>
-                <span className="font-mono text-zinc-900 dark:text-zinc-200 text-[11px]">{tier.pct}%</span>
-              </div>
-              <div className="mt-1 text-lg font-semibold text-zinc-900 dark:text-white font-mono">{tier.count.toLocaleString()}</div>
-              <div className="w-full bg-zinc-200 dark:bg-zinc-800 h-1 rounded-full mt-2 overflow-hidden">
-                <div className="bg-zinc-800 dark:bg-zinc-300 h-full rounded-full" style={{ width: `${tier.pct}%` }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Leaderboard */}
-      <div className="p-4 rounded-xl bg-white dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-white/[0.07] shadow-xs dark:shadow-none">
-        <h2 className="text-xs font-medium text-zinc-800 dark:text-zinc-300 mb-3">{t.referral.leaderboardTitle}</h2>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-zinc-200 dark:border-white/[0.06] text-zinc-400 dark:text-zinc-500 font-medium text-[11px]">
-                <th className="py-2.5 px-2">{t.referral.rank}</th>
-                <th className="py-2.5 px-2">Username</th>
-                <th className="py-2.5 px-2">Tier</th>
-                <th className="py-2.5 px-2 font-mono">{t.referral.invited}</th>
-                <th className="py-2.5 px-2 font-mono">{t.referral.active}</th>
-                <th className="py-2.5 px-2 font-mono">{t.referral.conversion}</th>
-                <th className="py-2.5 px-2 text-right font-mono">{t.referral.reward}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100 dark:divide-white/[0.04]">
-              {r.leaderboard.map((item, idx) => (
-                <tr key={item.userId} className="hover:bg-zinc-50/80 dark:hover:bg-white/[0.02] transition-colors">
-                  <td className="py-2 px-2 font-mono text-zinc-400 dark:text-zinc-500 text-[11px]">{idx + 1}</td>
-                  <td className="py-2 px-2 font-mono text-zinc-900 dark:text-zinc-200 font-medium">@{item.username}</td>
-                  <td className="py-2 px-2 text-zinc-600 dark:text-zinc-400 font-mono text-[11px]">{item.tier}</td>
-                  <td className="py-2 px-2 font-mono text-zinc-900 dark:text-zinc-200">{item.invitedCount}</td>
-                  <td className="py-2 px-2 font-mono text-zinc-500 dark:text-zinc-400">{item.activeReferralsCount}</td>
-                  <td className="py-2 px-2 font-mono text-emerald-600 dark:text-emerald-400">{item.conversionRate}%</td>
-                  <td className="py-2 px-2 text-right font-mono text-zinc-900 dark:text-zinc-200 font-medium">{item.rewardEarned}</td>
-                </tr>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card
+          title={t.referral.leaderboard}
+          scope={tab === 'period' ? 'period' : 'allTime'}
+          className="lg:col-span-2"
+          right={
+            <div className="flex rounded-lg bg-zinc-100 p-0.5 text-xs dark:bg-white/[0.06]">
+              {(['period', 'all'] as const).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setTab(k)}
+                  className={`rounded-md px-2.5 py-1 font-medium ${tab === k ? 'bg-white text-zinc-900 shadow-sm dark:bg-white/[0.12] dark:text-white' : 'text-zinc-500 dark:text-zinc-400'}`}
+                >
+                  {k === 'period' ? t.referral.periodTab : t.referral.allTimeTab}
+                </button>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          }
+        >
+          {rows.length === 0 ? (
+            <Empty />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-zinc-100 dark:border-white/[0.06]">
+                    <Th>#</Th>
+                    <Th>{t.users.colUser}</Th>
+                    <Th right>{t.referral.colInvited}</Th>
+                    <Th right>{t.referral.colActive}</Th>
+                    <Th>{t.referral.colTier}</Th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100 dark:divide-white/[0.04]">
+                  {rows.map((x, i) => (
+                    <tr key={x.username}>
+                      <Td className="font-mono text-zinc-400">{i + 1}</Td>
+                      <Td className="font-medium text-zinc-800 dark:text-zinc-200">@{x.username}</Td>
+                      <Td right>{x.invited}</Td>
+                      <Td right>{x.active} <span className="text-zinc-400">({x.activePct}%)</span></Td>
+                      <Td><span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${TIER_CLS[x.tier]}`}>{x.tier}</span></Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+        <Card title={t.referral.tiers} scope="allTime" subtitle={t.referral.tierHint}>
+          {tierTotal === 0 ? (
+            <Empty />
+          ) : (
+            <div className="space-y-3">
+              {(['Bronze', 'Silver', 'Gold', 'Platinum'] as const).map((k) => (
+                <BarRow key={k} label={k} count={r.tiers[k]} pct={pct(r.tiers[k], tierTotal)} color={TIER_BAR[k]} />
+              ))}
+            </div>
+          )}
+        </Card>
       </div>
     </div>
   );
