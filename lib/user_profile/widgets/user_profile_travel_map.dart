@@ -1,10 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:posts_repository/posts_repository.dart';
 import 'package:treepnet/map/map.dart';
 
 /// Profile tab showing the user's "travel map": every ISO 3166-2 region they
-/// have posted from is highlighted on an interactive world map. Nothing else.
+/// have posted from is highlighted on an interactive globe. Nothing else.
 ///
 /// The map fills the tab. It used to be pinned to a fixed height at the top,
 /// which left dead space underneath once the profile header collapsed and the
@@ -31,6 +33,40 @@ class _UserProfileTravelMapState extends State<UserProfileTravelMap>
   // which is the stutter you see switching Posts → Map.
   @override
   bool get wantKeepAlive => true;
+
+  /// The pinned app bar and tabs overlap the top of this tab (the header's
+  /// overlap is absorbed, and a map tab has no sliver to inject it back), so
+  /// the globe is kept in the part below them. The handle reports the overlap
+  /// during the profile's own build and layout, when rebuilding is not
+  /// allowed — so a change is picked up on the next frame.
+  SliverOverlapAbsorberHandle? _overlapHandle;
+  double _overlap = 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final handle = NestedScrollView.sliverOverlapAbsorberHandleFor(context);
+    if (identical(handle, _overlapHandle)) return;
+    _overlapHandle?.removeListener(_onOverlapChanged);
+    _overlapHandle = handle..addListener(_onOverlapChanged);
+    _overlap = handle.layoutExtent ?? 0;
+    // On the first build the profile hasn't been laid out yet, so there is
+    // no overlap to read until after this frame.
+    _onOverlapChanged();
+  }
+
+  void _onOverlapChanged() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final overlap = _overlapHandle?.layoutExtent ?? 0;
+      if (mounted && overlap != _overlap) setState(() => _overlap = overlap);
+    });
+  }
+
+  @override
+  void dispose() {
+    _overlapHandle?.removeListener(_onOverlapChanged);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,13 +104,14 @@ class _UserProfileTravelMapState extends State<UserProfileTravelMap>
                 ];
                 return Padding(
                   padding: const EdgeInsets.all(UserProfileTravelMap._inset),
-                  child: TravelMap(
+                  // Fills whatever the tab gives it, header collapsed or not.
+                  child: GlobeView(
                     visitedCounts: _withStoryRegions(visited, storyPoints),
                     points: points,
-                    // Fills whatever the tab gives it, header collapsed or not.
-                    // Safe to resize because the camera is only *centre*
-                    // constrained — see `TravelMap._contentBounds`.
-                    height: double.infinity,
+                    autoRotate: true,
+                    padding: EdgeInsets.only(
+                      top: math.max(0, _overlap - UserProfileTravelMap._inset),
+                    ),
                     onTargetTap: (target) => LocationPostsPage.push(
                       context,
                       userId: widget.userId,

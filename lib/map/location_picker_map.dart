@@ -7,9 +7,9 @@ import 'package:posts_repository/posts_repository.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:treepnet/map/geo_regions.dart';
+import 'package:treepnet/map/globe_view.dart';
 import 'package:treepnet/map/map_base_layers.dart';
 
 /// The outcome of the map location picker: the resolved [region] plus the exact
@@ -43,9 +43,10 @@ Future<PickedLocation?> showLocationPicker(BuildContext context) {
 }
 
 /// {@template location_picker_page}
-/// A Google-Maps-style location picker: a pin stays fixed in the centre while
-/// the map moves behind it, and wherever the pin lands is reverse-geocoded to a
-/// region. Confirming returns that region + the exact coordinates.
+/// A Google-Maps-style location picker on the globe: a pin stays fixed in the
+/// centre while the globe turns behind it, and wherever the pin lands is
+/// reverse-geocoded to a region. Confirming returns that region + the exact
+/// coordinates.
 /// {@endtemplate}
 class LocationPickerPage extends StatefulWidget {
   /// {@macro location_picker_page}
@@ -56,34 +57,13 @@ class LocationPickerPage extends StatefulWidget {
 }
 
 class _LocationPickerPageState extends State<LocationPickerPage> {
-  final _controller = MapController();
+  /// The globe's centre is the picked spot (see [_onGlobeMoved]).
+  final _globeController = GlobeController();
   final _random = math.Random();
   final _placeController = TextEditingController();
   final _searchController = TextEditingController();
 
   static const _ocean = MapBaseLayers.oceanColor;
-  static const _provinceZoom = 3.0;
-
-  /// Zoom limits, matching the profile map. You can't zoom out past the opening
-  /// (continent) view — further out just shrinks the world into grey margins,
-  /// which looked broken. (`minZoom` was 0.7, which let the map zoom out far too
-  /// small.) `maxZoom` matches the profile map's ceiling so both zoom in equally
-  /// far, letting a spot be placed precisely.
-  static const _minZoom = 3.0;
-  static const _maxZoom = 15.0;
-
-  /// A crisp 1px outline (four hard offset copies of the glyph, no blur) — the
-  /// same cheap legibility treatment the profile map uses. A blurred Shadow
-  /// forces a GPU blur pass per glyph; over a dense cluster of pins + province
-  /// labels that blur was a big part of what made this picker stutter. Drawing
-  /// the glyph offset four ways reuses the cached glyph atlas (a few extra
-  /// quads, no blur pass) and reads better over any map colour.
-  static const _glyphOutline = <Shadow>[
-    Shadow(color: AppColors.black, offset: Offset(0, 1)),
-    Shadow(color: AppColors.black, offset: Offset(0, -1)),
-    Shadow(color: AppColors.black, offset: Offset(1, 0)),
-    Shadow(color: AppColors.black, offset: Offset(-1, 0)),
-  ];
 
   /// The existing pin whose name was copied into the field, if any.
   ({double lat, double lng})? _autoFilledAt;
@@ -98,7 +78,9 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   /// The signed-in user's own travel map, drawn underneath the picker so you
   /// can see (and re-pick) somewhere you have already been.
   List<({double lat, double lng, String? name})> _myPoints = const [];
-  List<Polygon> _myPolygons = const [];
+
+  /// Posts (and stories) per region, shaded like the profile map.
+  Map<String, int> _myCounts = const {};
 
   Future<void> _loadMyMap() async {
     final userId = context.read<AppBloc>().state.user.id;
@@ -132,225 +114,20 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     }
     _safeSetState(() {
       _myPoints = merged;
-      _myPolygons = _buildMyPolygons(counts);
+      _myCounts = counts;
     });
   }
 
-  /// Same shading the profile map uses: post density per region.
-  static List<Polygon> _buildMyPolygons(Map<String, int> counts) {
-    final geo = GeoRegions.instance;
-    final polygons = <Polygon>[];
-    for (final entry in counts.entries) {
-      final region = geo.regionByIso(entry.key);
-      if (region == null) continue;
-      final colour = _colorForCount(entry.value);
-      for (final ring in region.rings) {
-        if (ring.length < 3) continue;
-        polygons.add(
-          Polygon(
-            points: [for (final p in ring) LatLng(p.dy, p.dx)],
-            color: colour.withValues(alpha: 0.85),
-            borderColor: AppColors.white,
-            borderStrokeWidth: 1,
-          ),
-        );
-      }
-    }
-    return polygons;
-  }
-
-  static Color _colorForCount(int count) {
-    if (count <= 20) return const Color(0xFF5BB8E8);
-    if (count <= 40) return const Color(0xFF1E7FE0);
-    if (count <= 60) return const Color(0xFFA020C7);
-    if (count <= 80) return const Color(0xFFED2A93);
-    return const Color(0xFFE01B24);
-  }
-
-  /// Country and province names, sized to the region they sit on — the same
-  /// treatment the profile map uses so the two read alike.
-  ///
-  /// Two optimisations mirror the profile map: only labels whose centre is in
-  /// view are built (the loop used to build every country and, when zoomed in,
-  /// every province on Earth), and the result is memoised on a COARSE
-  /// (lang, zoom, viewport) key so it rebuilds only when the view meaningfully
-  /// moves — not on every pan frame. The MarkerLayer glides the cached labels
-  /// with the map between rebuilds.
-  List<Marker> _regionLabels(String lang) {
-    final bounds = _bounds;
-    if (bounds == null || !_zoom.isFinite) return const [];
-    final geo = GeoRegions.instance;
-    final ppd = 256 * math.pow(2, _zoom) / 360;
-    if (!ppd.isFinite || ppd <= 0) return const [];
-
-    final key =
-        '$lang|${_zoom.toStringAsFixed(1)}'
-        '|${(bounds.west * 2).round()},${(bounds.south * 2).round()}'
-        ',${(bounds.east * 2).round()},${(bounds.north * 2).round()}';
-    if (key == _labelKey) return _labelCache;
-
-    final markers = <Marker>[];
-
-    for (final c in geo.countryLabels) {
-      final span = c.spanDeg * ppd;
-      if (span < 55 || span > 900) continue;
-      final ll = LatLng(c.center.dy, c.center.dx);
-      if (!bounds.contains(ll)) continue;
-      markers.add(
-        _label(
-          ll,
-          c.localizedName(lang).toUpperCase(),
-          width: span.clamp(40, 150).toDouble(),
-          height: (span * 0.5).clamp(16, 44).toDouble(),
-          color: AppColors.white,
-          weight: FontWeight.w600,
-        ),
-      );
-    }
-
-    if (_zoom >= 4.5) {
-      for (final region in geo.allRegions) {
-        final b = region.lngLatBounds;
-        if (b == Rect.zero) continue;
-        final w = b.width * ppd;
-        if (w < 42) continue;
-        final ll = LatLng(region.centroidLngLat.dy, region.centroidLngLat.dx);
-        if (!bounds.contains(ll)) continue;
-        markers.add(
-          _label(
-            ll,
-            // displayName (not name): matches the search dropdown, so a
-            // province shows "Washington Region" / «Московская область»
-            // instead of a second bare "Washington".
-            region.localizedDisplayName(lang),
-            width: w.clamp(36, 140).toDouble(),
-            height: (b.height * ppd * 0.7).clamp(14, 34).toDouble(),
-            color: const Color(0xFFDCE6FF),
-            weight: FontWeight.w600,
-          ),
-        );
-      }
-    }
-    _labelKey = key;
-    _labelCache = markers;
-    return markers;
-  }
-
-  // Memoization for [_regionLabels].
-  String _labelKey = '';
-  List<Marker> _labelCache = const [];
-
-  /// The pins for the user's own places, built once (they change only when the
-  /// map reloads) with each wrapped in a RepaintBoundary so its paint — an icon
-  /// plus a heavy label — is cached and just slid with the map, instead of
-  /// repainting every pin on every pan frame. Mirrors the profile map.
-  List<Marker> _pinMarkers() {
-    if (identical(_myPoints, _pinPointsRef)) return _pinCache;
-    _pinPointsRef = _myPoints;
-    _pinCache = [
-      for (final p in _myPoints)
-        Marker(
-          point: LatLng(p.lat, p.lng),
-          width: 96,
-          height: 58,
-          child: RepaintBoundary(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 22),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.location_on,
-                    color: AppColors.white,
-                    size: 22,
-                    shadows: _glyphOutline,
-                  ),
-                  if (p.name != null && p.name!.trim().isNotEmpty)
-                    Text(
-                      p.name!,
-                      maxLines: 1,
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.white,
-                        fontSize: 11,
-                        height: 1,
-                        fontWeight: FontWeight.w900,
-                        shadows: _glyphOutline,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ),
-    ];
-    return _pinCache;
-  }
-
-  // Memoization for [_pinMarkers]; keyed by the identity of [_myPoints], which
-  // is only reassigned when the map data loads.
-  List<({double lat, double lng, String? name})>? _pinPointsRef;
-  List<Marker> _pinCache = const [];
-
-  Marker _label(
-    LatLng point,
-    String text, {
-    required double width,
-    required double height,
-    required Color color,
-    required FontWeight weight,
-  }) {
-    final w = width.isFinite ? width.clamp(8.0, 300.0) : 40.0;
-    final h = height.isFinite ? height.clamp(8.0, 80.0) : 16.0;
-    return Marker(
-      point: point,
-      width: w,
-      height: h,
-      alignment: Alignment.center,
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: color,
-            fontWeight: weight,
-            fontSize: 13,
-            height: 1,
-            shadows: _glyphOutline,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Tapping one of your existing places re-picks it.
-  void _onMapTap(TapPosition tap, LatLng latLng) {
-    if (_myPoints.isEmpty) return;
-    final camera = _controller.camera;
-    final at = tap.relative;
-    if (at == null) return;
-    ({double lat, double lng, String? name})? best;
-    var bestDistance = double.infinity;
-    for (final p in _myPoints) {
-      final screen = camera.latLngToScreenPoint(LatLng(p.lat, p.lng));
-      final d = math.sqrt(
-        math.pow(screen.x - at.dx, 2) + math.pow(screen.y - at.dy, 2),
-      );
-      if (d < bestDistance) {
-        bestDistance = d;
-        best = p;
-      }
-    }
-    if (best == null || bestDistance > 28) return;
-    _controller.move(LatLng(best.lat, best.lng), math.max(_zoom, 6));
-    final name = best.name;
+  /// Tapping one of your existing places re-picks it: centre on it and borrow
+  /// its name. The globe reports taps on its pins here.
+  void _repick(({double lat, double lng, String? name}) place) {
+    _globeController.moveTo(place.lat, place.lng, zoom: math.max(_zoom, 6));
+    final name = place.name;
     if (name != null && name.trim().isNotEmpty) {
       _placeController.text = name;
       // Remember where it came from: drag the pin off this spot and the
       // borrowed name no longer describes it, so it gets cleared.
-      _autoFilledAt = (lat: best.lat, lng: best.lng);
+      _autoFilledAt = (lat: place.lat, lng: place.lng);
     }
   }
 
@@ -358,6 +135,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   void initState() {
     super.initState();
     _placeController.addListener(_onPlaceNameChanged);
+    _globeController.addListener(_onGlobeMoved);
   }
 
   @override
@@ -366,6 +144,9 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
       ..removeListener(_onPlaceNameChanged)
       ..dispose();
     _searchController.dispose();
+    _globeController
+      ..removeListener(_onGlobeMoved)
+      ..dispose();
     super.dispose();
   }
 
@@ -410,7 +191,13 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
       Localizations.localeOf(context).languageCode,
     );
     _safeSetState(() => _suggestions = const []);
-    _controller.move(_spotInside(region), 6);
+    final spot = _spotInside(region);
+    _globeController.moveTo(
+      spot.latitude,
+      spot.longitude,
+      zoom: 6,
+      animate: true,
+    );
   }
 
   /// A random point that is inside [region] yet clear of its centre, so naming
@@ -438,31 +225,32 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     return fallback;
   }
 
-  // Shared, built once per session (see MapBaseLayers) — no long spinner.
-  List<Polygon> get _countryOutlines => MapBaseLayers.instance.countryOutlines;
-  List<Polygon> get _provinceBorders => MapBaseLayers.instance.provinceBorders;
   late final Future<void> _future = _init();
 
+  /// The picked spot and the scale (as a flat-map zoom level), kept current
+  /// on every globe frame — they're read on confirm.
   double _zoom = 3;
   // Central Europe (≈ Germany) as the opening view — Spain/Germany/Poland.
   LatLng _center = const LatLng(50, 10);
   GeoRegion? _detected;
 
-  /// The last camera state we actually rebuilt the map for. `onPositionChanged`
-  /// updates `_center`/`_zoom` every frame (they're read on confirm), but only
-  /// rebuilds — and reverse-geocodes the centre — when the view has moved past
-  /// these, so panning doesn't thrash the widget tree every frame.
-  LatLngBounds? _bounds;
-  double _renderedZoom = 3;
+  /// Where the region was last re-detected (see [_onGlobeMoved]).
+  ({double lat, double lng})? _detectedAt;
+  double _detectedZoom = 3;
+
+  /// The globe is still flying to a search result. The tick waits for it to
+  /// land: the centre is the picked spot, and mid-flight it is somewhere on
+  /// the way.
+  bool _flying = false;
 
   Future<void> _init() async {
-    await MapBaseLayers.instance.build();
+    await GeoRegions.instance.load();
     _detect();
     await _loadMyMap();
   }
 
-  /// `flutter_map` can fire `onPositionChanged` while laying out, and calling
-  /// `setState` then throws "setState() called during build". Defer if so.
+  /// Camera callbacks can arrive while laying out, and calling `setState`
+  /// then throws "setState() called during build". Defer if so.
   void _safeSetState(VoidCallback fn) {
     if (!mounted) return;
     final phase = SchedulerBinding.instance.schedulerPhase;
@@ -487,63 +275,41 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     });
   }
 
-  /// Seeds the rendered-camera state once the map is laid out, so the first
-  /// frame of labels (which need [_bounds]) has a viewport to work from.
-  void _onMapReady() {
-    final camera = _controller.camera;
-    if (!camera.zoom.isFinite) return;
-    _safeSetState(() {
-      _center = camera.center;
-      _zoom = camera.zoom;
-      _renderedZoom = camera.zoom;
-      _bounds = camera.visibleBounds;
-    });
-  }
-
-  /// `_center`/`_zoom` are read on confirm and by the layer-visibility checks,
-  /// so keep them current on every frame — but as plain fields, WITHOUT
-  /// setState. flutter_map already slides its own layers (polygons, markers)
-  /// during a pan, and reverse-geocoding the centre (`_detect`) every frame is
-  /// what froze this picker. Do the heavy work — the rebuild and the
-  /// reverse-geocode — only when the view has actually moved: a ~0.1 zoom step
-  /// (toggles the province layer / resizes labels) or the centre moving ~0.12°
-  /// (brings new labels into view, and can cross into a new region).
-  void _onPositionChanged(MapCamera camera, bool hasGesture) {
-    final zoom = camera.zoom;
-    // Mid-layout flutter_map can report a non-finite zoom; ignore those frames.
+  /// `_center`/`_zoom` are read on confirm, so keep them current on every
+  /// frame — but as plain fields, WITHOUT setState. Reverse-geocoding the
+  /// centre (`_detect`) every frame is what once froze this picker, so do it
+  /// only when the view has actually moved: a ~0.1 zoom step or the centre
+  /// moving ~0.12° (which can cross into a new region).
+  void _onGlobeMoved() {
+    final c = _globeController.center;
+    final zoom = _globeController.zoom;
     if (!zoom.isFinite) return;
-    _center = camera.center;
+    _center = LatLng(c.lat, c.lng);
     _zoom = zoom;
     _clearBorrowedName();
+    final flying = _globeController.flying;
+    if (flying != _flying) _safeSetState(() => _flying = flying);
 
-    final bounds = camera.visibleBounds;
-    final last = _bounds;
-    final zoomStep = (zoom - _renderedZoom).abs() >= 0.1;
+    final last = _detectedAt;
+    final zoomStep = (zoom - _detectedZoom).abs() >= 0.1;
     final movedFar =
         last == null ||
-        (bounds.center.latitude - last.center.latitude).abs() >= 0.12 ||
-        (bounds.center.longitude - last.center.longitude).abs() >= 0.12;
+        (c.lat - last.lat).abs() >= 0.12 ||
+        (c.lng - last.lng).abs() >= 0.12;
     if (!zoomStep && !movedFar) return;
-    _renderedZoom = zoom;
-    _bounds = bounds;
-    // Reverse-geocodes the (new) centre and setStates, which re-keys the label
-    // memo for the moved viewport and refreshes the detected-region UI.
+    _detectedAt = c;
+    _detectedZoom = zoom;
     _detect();
-  }
-
-  void _zoomBy(double d) {
-    final c = _controller.camera;
-    _controller.move(c.center, (c.zoom + d).clamp(_minZoom, _maxZoom));
   }
 
   /// Whether the tick does anything. Deliberately NOT gated on the name: a
   /// disabled tick can't explain itself, so it stays tappable and [_confirm]
-  /// turns the name field red instead.
-  bool get _canConfirm => _detected != null;
+  /// turns the name field red instead. It does wait out a flight, though.
+  bool get _canConfirm => _detected != null && !_flying;
 
   /// Whether the tick looks ready — everything needed has been filled in.
   bool get _isComplete =>
-      _detected != null && _placeController.text.trim().isNotEmpty;
+      _canConfirm && _placeController.text.trim().isNotEmpty;
 
   /// Drops the name copied from an existing pin once the map has been dragged
   /// off that pin — the name belonged to that spot, not to this new one.
@@ -649,53 +415,23 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
           }
           return Stack(
             children: [
-              FlutterMap(
-                mapController: _controller,
-                options: MapOptions(
-                  initialCenter: _center,
+              // Your own travel map on the globe: shaded regions, a pin for
+              // every place you have posted from, country / province names.
+              Positioned.fill(
+                child: GlobeView(
+                  look: GlobeLook.picker,
+                  visitedCounts: _myCounts,
+                  points: _myPoints,
+                  controller: _globeController,
+                  initialCenter: (
+                    lat: _center.latitude,
+                    lng: _center.longitude,
+                  ),
                   initialZoom: _zoom,
-                  // Don't let the world shrink smaller than the screen.
-                  minZoom: _minZoom,
-                  maxZoom: _maxZoom,
-                  backgroundColor: _ocean,
-                  interactionOptions: const InteractionOptions(
-                    flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-                  ),
-                  onTap: _onMapTap,
-                  onMapReady: _onMapReady,
-                  onPositionChanged: _onPositionChanged,
+                  showButtons: false,
+                  borderRadius: 0,
+                  onPinTap: _repick,
                 ),
-                children: [
-                  PolygonLayer(
-                    polygons: _countryOutlines,
-                    simplificationTolerance: 0.6,
-                    // All names are drawn via MarkerLayer below, so skip
-                    // flutter_map's per-polygon label layout — it runs for
-                    // thousands of rings every frame otherwise.
-                    polygonLabels: false,
-                  ),
-                  if (_zoom >= _provinceZoom)
-                    PolygonLayer(
-                      polygons: _provinceBorders,
-                      simplificationTolerance: 0.4,
-                      polygonLabels: false,
-                    ),
-                  // Your own travel map underneath: shaded regions and a pin
-                  // for every place you have posted from.
-                  if (_myPolygons.isNotEmpty)
-                    PolygonLayer(
-                      polygons: _myPolygons,
-                      simplificationTolerance: 0,
-                      polygonLabels: false,
-                    ),
-                  // Country / province names, same as the profile map.
-                  MarkerLayer(
-                    markers: _regionLabels(
-                      Localizations.localeOf(context).languageCode,
-                    ),
-                  ),
-                  MarkerLayer(markers: _pinMarkers()),
-                ],
               ),
               // Fixed centre pin — its tip marks the picked point. White fill
               // with a dark outline so it stands out over any map colour.
@@ -716,9 +452,15 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                 bottom: 130,
                 child: Column(
                   children: [
-                    _MapButton(icon: Icons.add, onTap: () => _zoomBy(1)),
+                    _MapButton(
+                      icon: Icons.add,
+                      onTap: () => _globeController.zoomBy(1),
+                    ),
                     const SizedBox(height: 10),
-                    _MapButton(icon: Icons.remove, onTap: () => _zoomBy(-1)),
+                    _MapButton(
+                      icon: Icons.remove,
+                      onTap: () => _globeController.zoomBy(-1),
+                    ),
                   ],
                 ),
               ),

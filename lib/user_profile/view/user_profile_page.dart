@@ -107,20 +107,16 @@ class _UserProfileViewState extends State<UserProfileView>
               return AnimatedBuilder(
                 animation: tabController,
                 builder: (context, _) {
-                  // On the map (globe) tab lock the page scroll + tab-swipe so
-                  // the map owns all pan/zoom gestures (Google-Maps style).
+                  // On the map (globe) tab lock the tab-swipe so the globe owns
+                  // all pan/zoom gestures (Google-Maps style).
+                  //
+                  // The header stays wherever the user left it when switching
+                  // tabs. (Entering the map tab used to snap it back down: that
+                  // dated from when the page scroll was locked there, so a
+                  // collapsed header was stuck. The outer scroll is live on
+                  // both tabs now and the tab bar is pinned, so dragging the
+                  // bars brings the header back.)
                   final onMap = tabController.index == 0;
-                  // But locking the scroll while the header is collapsed traps
-                  // it there — the map fills the screen and the tab bar is gone,
-                  // with no way back. So on entering the map tab, snap the
-                  // header (and tab bar) back into view first.
-                  if (onMap) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (_controller.hasClients && _controller.offset != 0) {
-                        _controller.jumpTo(0);
-                      }
-                    });
-                  }
                   Widget buildScaffold(bool tabsHidden) {
                     // No pull-to-refresh on the profile — the header, counts and
                     // grid are all live streams, so there is nothing to re-fetch.

@@ -803,6 +803,9 @@ class _TravelMapState extends State<TravelMap> {
   }
 }
 
+/// The region colour bands, shared with [GlobeView].
+Color travelMapColorForCount(int count) => _TravelMapState._colorForCount(count);
+
 class _MapButton extends StatelessWidget {
   const _MapButton({required this.icon, required this.onTap});
 

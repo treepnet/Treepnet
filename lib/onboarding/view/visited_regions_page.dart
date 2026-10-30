@@ -157,12 +157,12 @@ class _VisitedRegionsPageState extends State<VisitedRegionsPage> {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(AppSpacing.md),
-              child: TravelMap(
+              child: GlobeView(
                 visitedCounts: counts,
-                height: double.infinity,
                 tapAnyRegion: true,
                 focusBounds: _focus,
                 focusToken: _focusToken,
+                borderRadius: AppSpacing.md,
                 onTargetTap: (target) => _toggle(target.region.iso),
               ),
             ),
