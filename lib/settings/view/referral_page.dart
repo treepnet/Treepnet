@@ -3,6 +3,7 @@ import 'package:treepnet/referral/referral_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/settings/view/referral_badge.dart';
@@ -81,6 +82,8 @@ class ReferralPage extends StatelessWidget {
                 style: context.bodyMedium?.copyWith(color: AppColors.white),
               ),
               const Gap.v(AppSpacing.lg),
+              _InviteQrCode(url: inviteUrl),
+              const Gap.v(AppSpacing.lg),
               Text(
                 context.l10n.inviteYourLinkText,
                 style: context.labelSmall?.copyWith(
@@ -122,8 +125,6 @@ class ReferralPage extends StatelessWidget {
                 context.l10n.inviteTierExplainText,
                 style: context.bodyMedium?.copyWith(color: AppColors.white),
               ),
-              const Gap.v(AppSpacing.xlg),
-              _CopyLinkButton(onTap: () => _copyLink(context, inviteUrl)),
             ],
           ),
         ),
@@ -133,37 +134,39 @@ class ReferralPage extends StatelessWidget {
 
 }
 
-/// The primary call-to-action: copy the invite link to share it anywhere.
-/// White fill, black text, full width — matching the app's primary buttons.
-class _CopyLinkButton extends StatelessWidget {
-  const _CopyLinkButton({required this.onTap});
+/// The invite link as a QR code, for inviting someone in person. Their phone
+/// camera opens the very same link, so the invite lands — and is counted —
+/// exactly as if they had tapped it. Black on white, as scanners read best.
+class _InviteQrCode extends StatelessWidget {
+  const _InviteQrCode({required this.url});
 
-  final VoidCallback onTap;
+  final String url;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.white,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.copy, color: AppColors.black, size: 20),
-              const Gap.h(AppSpacing.sm),
-              Text(
-                context.l10n.copyLinkText,
-                style: context.titleMedium?.copyWith(
-                  color: AppColors.black,
-                  fontWeight: AppFontWeight.bold,
-                ),
-              ),
-            ],
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(AppSpacing.lg),
+        ),
+        child: QrImageView(
+          data: url,
+          size: 184,
+          padding: EdgeInsets.zero,
+          backgroundColor: AppColors.white,
+          // Survives a scratched or glary screen.
+          errorCorrectionLevel: QrErrorCorrectLevel.M,
+          eyeStyle: const QrEyeStyle(
+            eyeShape: QrEyeShape.square,
+            color: AppColors.black,
           ),
+          dataModuleStyle: const QrDataModuleStyle(
+            dataModuleShape: QrDataModuleShape.square,
+            color: AppColors.black,
+          ),
+          semanticsLabel: context.l10n.inviteYourLinkText,
         ),
       ),
     );
@@ -171,7 +174,8 @@ class _CopyLinkButton extends StatelessWidget {
 }
 
 /// The invite link. Tapping anywhere on it copies the link (a copy icon hints
-/// at it), matching how profile/post links are shared elsewhere in the app.
+/// at it), matching how profile/post links are shared elsewhere in the app —
+/// the one way to copy it on this screen.
 class _CodeField extends StatelessWidget {
   const _CodeField({required this.code, required this.onCopy});
 
