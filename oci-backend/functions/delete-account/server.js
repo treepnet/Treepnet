@@ -4,18 +4,33 @@
 //   POST /api/confirm        { username, code }  -> verifies + deletes account
 // Behind Caddy at https://api.treepnet.com/delete-account/* (prefix stripped).
 const http = require('http');
+const crypto = require('crypto');
 const { Pool } = require('pg');
 const nodemailer = require('nodemailer');
 const admin = require('firebase-admin');
 
 // Firebase Admin — so deleting an account also removes its Firebase Auth user
 // (uid == the profile UUID). Signs locally with the service-account key.
-admin.initializeApp({
-  credential: admin.credential.cert(
-    require(process.env.FIREBASE_SERVICE_ACCOUNT_FILE ||
-      '/secrets/fcm-service-account.json'),
-  ),
-});
+const serviceAccount = require(process.env.FIREBASE_SERVICE_ACCOUNT_FILE ||
+  '/secrets/fcm-service-account.json');
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+
+// Codes are stored as an HMAC, never as-is, so reading account_deletion_codes
+// (a leaked dump, a stray grant) hands out no live codes. The key comes from
+// the service account's private key, which lives outside the database.
+const CODE_KEY = crypto
+  .createHash('sha256')
+  .update(`treepnet-deletion-codes:${serviceAccount.private_key}`)
+  .digest();
+
+const hashCode = (email, code) =>
+  'h1:' + crypto.createHmac('sha256', CODE_KEY).update(`${email}:${code}`).digest('hex');
+
+function codeMatches(stored, email, code) {
+  const a = Buffer.from(String(stored || ''));
+  const b = Buffer.from(hashCode(email, code));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 
 const pool = new Pool({
   connectionString: process.env.PG_CONNECTION_STRING,
@@ -75,14 +90,14 @@ async function requestCode(res, body) {
     const user = await findUser(username);
     // Always return ok so the endpoint can't probe which usernames exist.
     if (user && user.email) {
-      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const code = String(crypto.randomInt(100000, 1000000));
       const expires = new Date(Date.now() + CODE_TTL_MIN * 60000).toISOString();
       await pool.query(
         `insert into account_deletion_codes(email, code, expires_at, attempts)
          values ($1, $2, $3, 0)
          on conflict (email) do update
            set code = excluded.code, expires_at = excluded.expires_at, attempts = 0`,
-        [user.email, code, expires],
+        [user.email, hashCode(user.email, code), expires],
       );
       await transporter.sendMail({
         from: `Treepnet <${process.env.SMTP_USER}>`,
@@ -121,7 +136,7 @@ async function confirm(res, body) {
       return send(res, 400, { error: 'Code has expired. Request a new one.' });
     if (row.attempts >= 5)
       return send(res, 400, { error: 'Too many attempts. Request a new code.' });
-    if (row.code !== code) {
+    if (!codeMatches(row.code, user.email, code)) {
       await pool.query(
         'update account_deletion_codes set attempts = attempts + 1 where email = $1',
         [user.email],

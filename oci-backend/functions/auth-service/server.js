@@ -23,12 +23,17 @@ const admin = require('firebase-admin');
 
 // --- Firebase Admin (custom-token minting) — signs locally with the service
 //     account private key, no network call needed. ------------------------
-admin.initializeApp({
-  credential: admin.credential.cert(
-    require(process.env.FIREBASE_SERVICE_ACCOUNT_FILE ||
-      '/secrets/fcm-service-account.json'),
-  ),
-});
+const serviceAccount = require(process.env.FIREBASE_SERVICE_ACCOUNT_FILE ||
+  '/secrets/fcm-service-account.json');
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+
+// Codes are stored as an HMAC, never as-is, so reading auth_codes (a leaked
+// dump, a stray grant) hands out no live codes. The key comes from the service
+// account's private key, which lives outside the database.
+const CODE_KEY = crypto
+  .createHash('sha256')
+  .update(`treepnet-auth-codes:${serviceAccount.private_key}`)
+  .digest();
 
 const pool = new Pool({
   connectionString: process.env.PG_CONNECTION_STRING, // superuser -> bypasses RLS
@@ -73,6 +78,17 @@ const isUsername = (s) => /^[a-z0-9_.]{3,20}$/.test(s);
 const genCode = () =>
   String(crypto.randomInt(0, 10 ** CODE_LENGTH)).padStart(CODE_LENGTH, '0');
 
+// Bound to the email and purpose, so a stored hash can't be reused elsewhere.
+const hashCode = (email, purpose, code) =>
+  'h1:' +
+  crypto.createHmac('sha256', CODE_KEY).update(`${purpose}:${email}:${code}`).digest('hex');
+
+function codeMatches(stored, email, purpose, code) {
+  const a = Buffer.from(String(stored || ''));
+  const b = Buffer.from(hashCode(email, purpose, code));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 async function emailForUsernameOrEmail(identifier) {
   const id = (identifier || '').trim();
   if (!id) return null;
@@ -108,7 +124,7 @@ async function upsertCode(email, code, purpose) {
      on conflict (email) do update
        set code = excluded.code, purpose = excluded.purpose,
            expires_at = excluded.expires_at, attempts = 0`,
-    [email, code, purpose, expires],
+    [email, hashCode(email, purpose, code), purpose, expires],
   );
 }
 
@@ -124,7 +140,7 @@ async function checkCode(email, code, purpose) {
   if (new Date(row.expires_at) < new Date())
     return 'Code has expired. Request a new one.';
   if (row.attempts >= 5) return 'Too many attempts. Request a new code.';
-  if (row.code !== code) {
+  if (!codeMatches(row.code, email, purpose, code)) {
     await pool.query(
       'update auth_codes set attempts = attempts + 1 where email = $1',
       [email],
@@ -136,6 +152,18 @@ async function checkCode(email, code, purpose) {
 
 async function mintToken(uid) {
   return admin.auth().createCustomToken(uid);
+}
+
+// Signs the account out everywhere: refresh tokens issued before now stop
+// working, so every signed-in device loses its session once its current ID
+// token (at most an hour old) expires. An account that never signed in to
+// Firebase has nothing to revoke.
+async function revokeSessions(uid) {
+  try {
+    await admin.auth().revokeRefreshTokens(uid);
+  } catch (e) {
+    if (e.code !== 'auth/user-not-found') throw e;
+  }
 }
 
 // --- handlers -----------------------------------------------------------
@@ -291,15 +319,24 @@ async function resetVerify(res, b) {
   const codeErr = await checkCode(email, code, 'reset');
   if (codeErr) return fail(res, 400, codeErr, 'invalid_oob_value');
 
-  const hash = await bcrypt.hash(newPassword, BCRYPT_COST);
-  const upd = await pool.query(
-    `update auth_credentials c set password_hash = $2, updated_at = now()
-       from profiles p
-      where c.user_id = p.id and lower(p.email) = $1`,
-    [email, hash],
+  const r = await pool.query(
+    `select c.user_id
+       from profiles p join auth_credentials c on c.user_id = p.id
+      where lower(p.email) = $1 limit 1`,
+    [email],
   );
-  if (upd.rowCount === 0)
-    return fail(res, 400, 'Invalid or expired code.');
+  const uid = r.rows[0]?.user_id;
+  if (!uid) return fail(res, 400, 'Invalid or expired code.');
+
+  // Before the password changes: if revoking fails, nothing has changed and
+  // the same code still works for a retry.
+  await revokeSessions(uid);
+
+  const hash = await bcrypt.hash(newPassword, BCRYPT_COST);
+  await pool.query(
+    'update auth_credentials set password_hash = $2, updated_at = now() where user_id = $1',
+    [uid, hash],
+  );
   await pool.query('delete from auth_codes where email = $1', [email]);
   return send(res, 200, { ok: true });
 }
