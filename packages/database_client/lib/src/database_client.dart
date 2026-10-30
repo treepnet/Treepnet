@@ -881,7 +881,23 @@ SELECT blocker_id FROM blocked_users WHERE blocked_id = ?1''',
   Stream<User> profile({required String id}) => _powerSyncRepository
       .db()
       .watch(
-        'SELECT * FROM profiles WHERE id = ?',
+        // Private fields come from `my_profile`, which only the owner
+        // receives. A value still in `profiles` wins: it is an edit made on
+        // this device that hasn't synced back yet (once it has, the synced
+        // `profiles` row no longer carries it).
+        '''
+SELECT
+  p.id, p.full_name, p.username, p.avatar_url, p.referral_tier,
+  p.referral_tier_expires_at, p.bio, p.is_private, p.telegram, p.website,
+  p.instagram, p.onboarded_at, p.notifications_seen_at,
+  COALESCE(p.email, mp.email) AS email,
+  COALESCE(p.birthday, mp.birthday) AS birthday,
+  COALESCE(p.gender, mp.gender) AS gender,
+  COALESCE(p.push_token, mp.push_token) AS push_token,
+  COALESCE(p.last_seen_at, mp.last_seen_at) AS last_seen_at
+FROM profiles p
+  LEFT JOIN my_profile mp ON mp.id = p.id
+WHERE p.id = ?''',
         parameters: [id],
       )
       .map(

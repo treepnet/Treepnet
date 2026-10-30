@@ -33,6 +33,18 @@ const schema = Schema([
       Column.text('last_seen_at'),
     ],
   ),
+  // The signed-in user's own private profile fields. Since 2026-10-31 the
+  // public `profiles` sync no longer carries email, birthday, gender, push
+  // token or last-seen (they synced to every phone); the server sends them
+  // only to their owner, as this table (sync rule `user_own_profile`). `id` is
+  // the profile id. Writes still go to `profiles`.
+  Table('my_profile', [
+    Column.text('email'),
+    Column.text('birthday'),
+    Column.text('gender'),
+    Column.text('push_token'),
+    Column.text('last_seen_at'),
+  ]),
   Table(
     'referrals',
     [
