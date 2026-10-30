@@ -1,0 +1,17 @@
+{
+  // TreepNet uptime check from outside the server (see worker.js).
+  // Deploy: ../../treepnet-web/node_modules/.bin/wrangler deploy
+  // Secrets: wrangler secret put TG_BOT_TOKEN / TG_CHAT_ID (the server's
+  // TG_LOG_BOT_TOKEN / TG_LOG_CHAT_ID — the same private log chat).
+  "$schema": "../../treepnet-web/node_modules/wrangler/config-schema.json",
+  "name": "treepnet-uptime",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-08",
+  // Cron only: no public URL.
+  "workers_dev": false,
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "kv_namespaces": [
+    { "binding": "STATE", "id": "0affd89034204f65b7471c5c7515b8c5" }
+  ],
+  "observability": { "enabled": true }
+}
