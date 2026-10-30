@@ -16,6 +16,7 @@ const { Pool } = require('pg');
 const POLL_MS = 30 * 1000;
 const CHAT_PROJECT = process.env.CHAT_PROJECT || 'treepnet';
 const CHAT_UPLOADS_DIR = process.env.CHAT_UPLOADS_DIR || '/chat-uploads';
+const MEDIA_NAMESPACE = 'fryarohmp0gm';
 const MEDIA_BUCKET = 'treepnet-media';
 // Report a job to Telegram once it has failed this many times in a row.
 const ALERT_AFTER = 3;
@@ -121,7 +122,13 @@ function createCleanup({ pool, admin }) {
     return storage;
   }
 
+  // A media URL is the bucket's own or the media.treepnet.com CDN in front of
+  // it (oci-backend/media-cdn), which serves <object> from the same bucket.
   function objectOf(url) {
+    const cdn = /^https:\/\/media\.treepnet\.com\/([^?#]+)/.exec(String(url || ''));
+    if (cdn) {
+      return { namespaceName: MEDIA_NAMESPACE, bucketName: MEDIA_BUCKET, objectName: decodeURIComponent(cdn[1]) };
+    }
     const m = /^https:\/\/objectstorage\.[a-z0-9-]+\.oraclecloud\.com\/n\/([^/]+)\/b\/([^/]+)\/o\/([^?#]+)/.exec(
       String(url || ''),
     );

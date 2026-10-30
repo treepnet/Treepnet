@@ -59,9 +59,11 @@ begin
   -- the URLs are matched as text so a malformed value can't block a deletion.
   -- (Greedy quantifiers only: in Postgres the first quantifier sets the whole
   -- pattern's greediness, and [^"] already stops each match at the quote.)
+  -- A URL is either the bucket's own or the media.treepnet.com CDN in front of
+  -- it (media_cdn_urls.sql).
   select coalesce(array_agg(distinct u), '{}') into v_media
     from (
-      select (regexp_matches(media, 'https://objectstorage\.[^"]*/b/treepnet-media/o/[^"]*', 'g'))[1] u
+      select (regexp_matches(media, 'https://(?:objectstorage\.[^"]*/b/treepnet-media/o/|media\.treepnet\.com/)[^"]*', 'g'))[1] u
         from posts where user_id = p_uid
       union all select content_url from stories where user_id = p_uid
       union all select cover_url from story_highlights where user_id = p_uid
@@ -70,7 +72,8 @@ begin
       union all select url from videos where owner_id = p_uid
       union all select first_frame_url from videos where owner_id = p_uid
     ) s
-   where u like 'https://objectstorage.%/b/treepnet-media/o/%';
+   where u like 'https://objectstorage.%/b/treepnet-media/o/%'
+      or u like 'https://media.treepnet.com/%';
 
   -- Stories (children first, then the story)
   delete from story_likes           where user_id = p_uid;

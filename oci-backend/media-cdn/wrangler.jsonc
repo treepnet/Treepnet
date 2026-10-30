@@ -1,0 +1,11 @@
+{
+  // media.treepnet.com: the app's photos through Cloudflare's cache (worker.js).
+  // Deploy: ../../treepnet-web/node_modules/.bin/wrangler deploy
+  "$schema": "../../treepnet-web/node_modules/wrangler/config-schema.json",
+  "name": "treepnet-media-cdn",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-08",
+  "workers_dev": false,
+  "routes": [{ "pattern": "media.treepnet.com", "custom_domain": true }],
+  "observability": { "enabled": true }
+}
