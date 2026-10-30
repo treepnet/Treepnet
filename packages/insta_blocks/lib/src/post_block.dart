@@ -69,6 +69,16 @@ abstract class PostBlock extends InstaBlock with EquatableMixin {
       ? (firstMedia as VideoMedia?)?.firstFrameUrl
       : firstMedia?.url;
 
+  /// The small copy of the first media, for grids and other small previews:
+  /// the photo's thumbnail when it has one, otherwise [firstMediaUrl].
+  String? get firstMediaThumbUrl {
+    final first = firstMedia;
+    if (first is ImageMedia && (first.thumbUrl?.isNotEmpty ?? false)) {
+      return first.thumbUrl;
+    }
+    return firstMediaUrl;
+  }
+
   /// The list of all media url of the [PostBlock].
   List<String> get mediaUrls => media.map((e) => e.url).toList();
 

@@ -230,7 +230,7 @@ class _SavedThumbnail extends StatelessWidget {
     return BlurHashImageThumbnail(
       id: block.id,
       decodeWidth: 480,
-      url: block.firstMediaUrl ?? '',
+      url: block.firstMediaThumbUrl ?? '',
       blurHash: block.firstMedia?.blurHash,
     );
   }

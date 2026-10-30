@@ -187,7 +187,8 @@ function uploadTarget(uid, bucket, path) {
   if (parts.some((p) => !SEGMENT_RE.test(p) || p === '.' || p === '..')) return null;
   if (bucket === 'posts') {
     if (parts.length !== 2 || !UUID_RE.test(parts[0])) return null;
-    if (!/^(image|video|video_first_frame)_\d{1,2}$/.test(parts[1])) return null;
+    // thumb_<i>: the small copy of image_<i> that grids show.
+    if (!/^(image|thumb|video|video_first_frame)_\d{1,2}$/.test(parts[1])) return null;
     return { objectName: `posts/${parts.join('/')}`, path: parts.join('/'), owner: { table: 'posts', id: parts[0] } };
   }
   if (bucket === 'stories') {

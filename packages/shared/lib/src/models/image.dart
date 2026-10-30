@@ -19,6 +19,7 @@ class ImageMedia extends Media {
     required this.id,
     required super.url,
     super.blurHash,
+    this.thumbUrl,
     super.type = ImageMedia.identifier,
   }) : super(id: id);
 
@@ -30,11 +31,18 @@ class ImageMedia extends Media {
   @JsonKey(name: 'media_id')
   final String id;
 
+  /// A small copy of the photo for grids and other small previews. Null when
+  /// the photo has none; show [url] then.
+  final String? thumbUrl;
+
   /// The image media block type identifier.
   static const identifier = '__image_media__';
 
   @override
   Map<String, dynamic> toJson() => _$ImageMediaToJson(this);
+
+  @override
+  List<Object?> get props => [...super.props, thumbUrl];
 }
 
 /// Converts to and from [Uint8List] and [List]<[int]>.

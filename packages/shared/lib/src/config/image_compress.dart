@@ -26,6 +26,18 @@ class ImageCompress {
     );
   }
 
+  /// A small JPEG of a post photo for the grids (profile, saved posts, map,
+  /// timeline): its shorter side scaled down to 480px, enough to fill a tile a
+  /// third of a phone screen wide even on the widest phones. Tiles used to
+  /// download the full photo, roughly ten times the size.
+  static Future<Uint8List> compressThumbnail(Uint8List bytes) =>
+      FlutterImageCompress.compressWithList(
+        bytes,
+        minWidth: 480,
+        minHeight: 480,
+        quality: 75,
+      );
+
   /// Compresses file bytes and writes into file.
   static Future<File> compressByteAndWriteFile(
     Uint8List file, {

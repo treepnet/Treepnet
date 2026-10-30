@@ -327,7 +327,10 @@ class _PostThumb extends StatelessWidget {
       future: context.read<PostsRepository>().getPostBy(id: postId),
       builder: (context, snapshot) {
         final media = snapshot.data?.media ?? const <Media>[];
-        final url = media.isEmpty ? null : media.first.url;
+        final first = media.isEmpty ? null : media.first;
+        final url = first is ImageMedia
+            ? (first.thumbUrl ?? first.url)
+            : first?.url;
         return Container(
           width: 42,
           height: 42,

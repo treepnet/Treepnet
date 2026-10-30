@@ -488,7 +488,7 @@ class PostSmallImage extends StatelessWidget {
       // A third of a phone screen, so a fixed cap is plenty — and it keeps
       // every tile the same shape regardless of screen density.
       decodeWidth: 480,
-      url: post.firstMediaUrl ?? '',
+      url: post.firstMediaThumbUrl ?? '',
       blurHash: post.firstMedia?.blurHash,
     );
   }

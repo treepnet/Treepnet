@@ -24,6 +24,8 @@ class PendingUploadTask {
     required this.blurHash,
     this.firstFrameLocalPath,
     this.firstFrameRemotePath,
+    this.thumbLocalPath,
+    this.thumbRemotePath,
     this.createdAt,
     this.attempts = 0,
     this.nextAttemptAt,
@@ -42,6 +44,8 @@ class PendingUploadTask {
       blurHash: json['blurHash'] as String,
       firstFrameLocalPath: json['firstFrameLocalPath'] as String?,
       firstFrameRemotePath: json['firstFrameRemotePath'] as String?,
+      thumbLocalPath: json['thumbLocalPath'] as String?,
+      thumbRemotePath: json['thumbRemotePath'] as String?,
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
       attempts: json['attempts'] as int? ?? 0,
       nextAttemptAt: DateTime.tryParse(json['nextAttemptAt'] as String? ?? ''),
@@ -59,6 +63,11 @@ class PendingUploadTask {
   final String blurHash;
   final String? firstFrameLocalPath;
   final String? firstFrameRemotePath;
+
+  /// A post photo's grid thumbnail, uploaded with it (see
+  /// [shared.ImageCompress.compressThumbnail]).
+  final String? thumbLocalPath;
+  final String? thumbRemotePath;
 
   /// When it was queued. Null for tasks queued by an older app version.
   final DateTime? createdAt;
@@ -82,6 +91,8 @@ class PendingUploadTask {
       blurHash: blurHash,
       firstFrameLocalPath: firstFrameLocalPath,
       firstFrameRemotePath: firstFrameRemotePath,
+      thumbLocalPath: thumbLocalPath,
+      thumbRemotePath: thumbRemotePath,
       createdAt: createdAt,
       attempts: attempts,
       nextAttemptAt: at,
@@ -101,6 +112,8 @@ class PendingUploadTask {
       'blurHash': blurHash,
       'firstFrameLocalPath': firstFrameLocalPath,
       'firstFrameRemotePath': firstFrameRemotePath,
+      'thumbLocalPath': thumbLocalPath,
+      'thumbRemotePath': thumbRemotePath,
       'createdAt': createdAt?.toIso8601String(),
       'attempts': attempts,
       'nextAttemptAt': nextAttemptAt?.toIso8601String(),
@@ -628,6 +641,8 @@ class MediaUploadQueue {
     required String blurHash,
     Uint8List? firstFrameBytes,
     String? firstFrameRemotePath,
+    Uint8List? thumbBytes,
+    String? thumbRemotePath,
   }) async {
     final docDir = await getApplicationDocumentsDirectory();
     final queueDir = Directory(p.join(docDir.path, 'pending_uploads', postId));
@@ -647,6 +662,13 @@ class MediaUploadQueue {
       firstFrameLocalPath = firstFrameFile.path;
     }
 
+    String? thumbLocalPath;
+    if (thumbBytes != null && thumbRemotePath != null) {
+      final thumbFile = File(p.join(queueDir.path, 'thumb_$index.jpg'));
+      await thumbFile.writeAsBytes(thumbBytes);
+      thumbLocalPath = thumbFile.path;
+    }
+
     final task = PendingUploadTask(
       id: taskId,
       postId: postId,
@@ -659,6 +681,8 @@ class MediaUploadQueue {
       blurHash: blurHash,
       firstFrameLocalPath: firstFrameLocalPath,
       firstFrameRemotePath: firstFrameRemotePath,
+      thumbLocalPath: thumbLocalPath,
+      thumbRemotePath: thumbRemotePath,
       createdAt: DateTime.now(),
     );
 
@@ -885,6 +909,13 @@ class MediaUploadQueue {
         await file.readAsBytes(),
       );
       final blurHash = await shared.BlurHashPlus.blurHashEncode(bytes);
+      // Best effort: without one the grids show the full photo.
+      Uint8List? thumb;
+      try {
+        thumb = await shared.ImageCompress.compressThumbnail(bytes);
+      } catch (e) {
+        shared.logW('MediaUploadQueue: No thumbnail for $postId/$index: $e');
+      }
       await enqueueTask(
         postId: postId,
         bytes: bytes,
@@ -894,6 +925,8 @@ class MediaUploadQueue {
         mediaType: shared.ImageMedia.identifier,
         index: index,
         blurHash: blurHash,
+        thumbBytes: thumb,
+        thumbRemotePath: thumb == null ? null : '$postId/thumb_$index',
       );
       entry = {
         'media_id': shared.uuid.v4(),
@@ -1190,6 +1223,7 @@ class MediaUploadQueue {
         firstFrameUrl = storage.getPublicUrl(storedFramePath);
       }
     }
+    final thumbUrl = await _uploadThumbnail(storage, task);
 
     // Point the queued story or post (or, for a post an older version already
     // created, its database row) at the uploaded file.
@@ -1202,6 +1236,7 @@ class MediaUploadQueue {
         task.index,
         url: mediaUrl,
         firstFrameUrl: firstFrameUrl,
+        thumbUrl: thumbUrl,
       );
     } else {
       await _updateDatabaseRecord(
@@ -1209,6 +1244,7 @@ class MediaUploadQueue {
         index: task.index,
         remoteUrl: mediaUrl,
         remoteFirstFrameUrl: firstFrameUrl,
+        remoteThumbUrl: thumbUrl,
       );
     }
 
@@ -1217,13 +1253,42 @@ class MediaUploadQueue {
     shared.logI('MediaUploadQueue: Task ${task.id} completed successfully.');
   }
 
+  /// Uploads the task's grid thumbnail, if it has one, and returns its URL.
+  /// Best effort: a post whose thumbnail didn't upload shows its full photo
+  /// in the grids.
+  Future<String?> _uploadThumbnail(
+    shared.MediaBucket storage,
+    PendingUploadTask task,
+  ) async {
+    final localPath = task.thumbLocalPath;
+    final remotePath = task.thumbRemotePath;
+    if (localPath == null || remotePath == null) return null;
+    final file = File(localPath);
+    if (!file.existsSync()) return null;
+    try {
+      final storedPath = await storage.uploadBinary(
+        remotePath,
+        await file.readAsBytes(),
+        fileOptions: const shared.MediaFileOptions(
+          contentType: 'image/jpeg',
+          cacheControl: '9000000',
+        ),
+      );
+      return storage.getPublicUrl(storedPath);
+    } catch (e) {
+      shared.logW('MediaUploadQueue: No thumbnail for task ${task.id}: $e');
+      return null;
+    }
+  }
+
   /// Removes the task's queued files, and its post folder once empty.
   void _deleteLocalFiles(PendingUploadTask task) {
     try {
       final mediaFile = File(task.localPath);
       if (mediaFile.existsSync()) mediaFile.deleteSync();
-      if (task.firstFrameLocalPath != null) {
-        final f = File(task.firstFrameLocalPath!);
+      for (final extra in [task.firstFrameLocalPath, task.thumbLocalPath]) {
+        if (extra == null) continue;
+        final f = File(extra);
         if (f.existsSync()) f.deleteSync();
       }
 
@@ -1242,6 +1307,7 @@ class MediaUploadQueue {
     required int index,
     required String remoteUrl,
     String? remoteFirstFrameUrl,
+    String? remoteThumbUrl,
   }) async {
     // Read the current post row from SQLite. (`get` throws when the row is
     // missing, which used to fail — and retry — the task forever.)
@@ -1267,6 +1333,9 @@ class MediaUploadQueue {
       if (remoteFirstFrameUrl != null) {
         mediaList[index]['first_frame_url'] = remoteFirstFrameUrl;
       }
+      if (remoteThumbUrl != null) {
+        mediaList[index]['thumb_url'] = remoteThumbUrl;
+      }
 
       await _db.execute(
         'UPDATE posts SET media = ? WHERE id = ?',
@@ -1283,12 +1352,14 @@ class MediaUploadQueue {
     int index, {
     required String? url,
     String? firstFrameUrl,
+    String? thumbUrl,
   }) async {
     final draft = _loadDrafts()[postId];
     if (draft == null || index < 0 || index >= draft.media.length) return;
     final media = [for (final m in draft.media) Map<String, dynamic>.from(m)];
     media[index]['url'] = url;
     if (firstFrameUrl != null) media[index]['first_frame_url'] = firstFrameUrl;
+    if (thumbUrl != null) media[index]['thumb_url'] = thumbUrl;
     await _saveDraft(draft.withMedia(media));
   }
 
