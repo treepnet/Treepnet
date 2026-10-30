@@ -105,6 +105,9 @@ function createCleanup({ pool, admin }) {
 
   // Object storage client, signed in as this server (OCI instance principal).
   // Built on first use: the SDK is only needed once there are media files.
+  // Permission (created 2026-10-31): dynamic group `treepnet-server` (this VM)
+  // and policy `treepnet-server-media-delete`, which allows only OBJECT_DELETE
+  // and OBJECT_INSPECT in the treepnet-media bucket.
   let storage = null;
   async function objectStorage() {
     if (!storage) {
