@@ -56,6 +56,9 @@ abstract class UserBaseRepository {
   /// Streams the profiles [userId] has blocked, newest first.
   Stream<List<User>> blockedUsers({required String userId});
 
+  /// Streams the ids of everyone [userId] blocked or was blocked by.
+  Stream<Set<String>> blockedPeersOf({required String userId});
+
   /// Changes the currently authenticated user's password to [newPassword].
   Future<void> changePassword({required String newPassword});
 
@@ -787,6 +790,89 @@ WHERE m.conversation_id = ?
   @override
   String? get currentUserId => EntraSession.instance.current?.userId;
 
+  // --- Privacy and blocking -------------------------------------------------
+  //
+  // Every list of other people's content or people goes through one of these
+  // two rules, so a private account and a block hold everywhere, not only on
+  // the profile page. All rows still sync to the phone (the server-side rule
+  // is a separate fix); these keep them off the screen. Both directions of a
+  // block sync (`blocked_users` rows where I'm the blocker or the blocked), so
+  // "they blocked me" hides them as well. Live (`watch`) queries refresh on
+  // their own when a block, follow or privacy row changes, since the rule's
+  // tables are part of the query.
+
+  /// The signed-in user's id as a SQL literal, or `NULL` when signed out.
+  /// Inlined rather than bound so the rule fits queries that already use
+  /// positional (`?` / `?1`) parameters. Only an id shaped like a UUID is
+  /// ever inlined.
+  String get _viewerSql {
+    final id = currentUserId;
+    if (id == null || !_uuidShape.hasMatch(id)) return 'NULL';
+    return "'$id'";
+  }
+
+  static final _uuidShape = RegExp(r'^[0-9a-fA-F-]{36}$');
+
+  /// SQL that is true when neither the signed-in user nor [userColumn] has
+  /// blocked the other — for showing a person at all (search, suggestions,
+  /// followers, likers, commenters, notifications).
+  String _notBlockedSql(String userColumn) {
+    final me = _viewerSql;
+    return '''
+NOT EXISTS (
+  SELECT 1 FROM blocked_users vis_b
+  WHERE (vis_b.blocker_id = $me AND vis_b.blocked_id = $userColumn)
+     OR (vis_b.blocker_id = $userColumn AND vis_b.blocked_id = $me)
+)''';
+  }
+
+  /// SQL that is true when content by [authorColumn] may be shown to the
+  /// signed-in user: it is their own, or nobody blocked anybody and the author
+  /// is public or followed by them (an accepted follow; legacy NULL status
+  /// counts as accepted).
+  String _visibleAuthorSql(String authorColumn) {
+    final me = _viewerSql;
+    return '''
+($authorColumn = $me OR (
+  ${_notBlockedSql(authorColumn)}
+  AND (
+    COALESCE((SELECT vis_p.is_private FROM profiles vis_p
+              WHERE vis_p.id = $authorColumn), 0) = 0
+    OR EXISTS (
+      SELECT 1 FROM subscriptions vis_s
+      WHERE vis_s.subscriber_id = $me
+        AND vis_s.subscribed_to_id = $authorColumn
+        AND COALESCE(vis_s.status, 'accepted') = 'accepted'
+    )
+  )
+))''';
+  }
+
+  /// Everyone the signed-in user blocked or was blocked by — for filtering
+  /// results that come from the server rather than the local database.
+  Future<Set<String>> _blockedPeerIds() async {
+    final me = currentUserId;
+    if (me == null) return const {};
+    final rows = await _powerSyncRepository.db().getAll(
+      '''
+SELECT blocked_id AS peer FROM blocked_users WHERE blocker_id = ?1
+UNION
+SELECT blocker_id FROM blocked_users WHERE blocked_id = ?1''',
+      [me],
+    );
+    return {for (final row in rows) row['peer'] as String};
+  }
+
+  /// Whether the signed-in user may see [userId]'s content (see
+  /// [_visibleAuthorSql]).
+  Future<bool> _canSeeContentOf(String userId) async {
+    final row = await _powerSyncRepository.db().getOptional(
+      'SELECT 1 WHERE ${_visibleAuthorSql('?1')}',
+      [userId],
+    );
+    return row != null;
+  }
+
   @override
   Stream<User> profile({required String id}) => _powerSyncRepository
       .db()
@@ -890,7 +976,8 @@ SELECT * FROM profiles WHERE id = ?
           .watch(
             '''
     SELECT DISTINCT location_region FROM posts
-    WHERE user_id = ? AND location_region IS NOT NULL AND location_region != ''
+    WHERE user_id = ?1 AND location_region IS NOT NULL AND location_region != ''
+      AND ${_visibleAuthorSql('?1')}
     ''',
             parameters: [userId],
           )
@@ -915,6 +1002,7 @@ SELECT * FROM profiles WHERE id = ?
       SELECT region_iso AS region, 1 AS c FROM visited_regions
       WHERE user_id = ?1
     )
+    WHERE ${_visibleAuthorSql('?1')}
     GROUP BY region
     ''',
             parameters: [userId],
@@ -934,7 +1022,8 @@ SELECT * FROM profiles WHERE id = ?
       .watch(
         '''
     SELECT location_lat, location_lng, location_name FROM posts
-    WHERE user_id = ? AND location_lat IS NOT NULL AND location_lng IS NOT NULL
+    WHERE user_id = ?1 AND location_lat IS NOT NULL AND location_lng IS NOT NULL
+      AND ${_visibleAuthorSql('?1')}
     ORDER BY created_at DESC
     ''',
         parameters: [userId],
@@ -959,7 +1048,8 @@ SELECT * FROM profiles WHERE id = ?
       .watch(
         '''
     SELECT location_lat, location_lng, location_name FROM stories
-    WHERE user_id = ? AND location_lat IS NOT NULL AND location_lng IS NOT NULL
+    WHERE user_id = ?1 AND location_lat IS NOT NULL AND location_lng IS NOT NULL
+      AND ${_visibleAuthorSql('?1')}
     ''',
         parameters: [userId],
       )
@@ -1108,7 +1198,7 @@ SELECT h.id, h.user_id, h.name, h.cover_url,
           JOIN stories s ON s.id = i.story_id
           WHERE i.highlight_id = h.id AND s.user_id = h.user_id) AS story_count
 FROM story_highlights h
-WHERE h.user_id = ?
+WHERE h.user_id = ?1 AND ${_visibleAuthorSql('?1')}
 -- Newest activity first: a highlight jumps to the front when a story is added
 -- to it, not only when it is created.
 ORDER BY COALESCE(
@@ -1138,6 +1228,7 @@ LEFT JOIN profiles p ON p.id = s.user_id
 -- Play only the highlight owner's own stories; ignore any foreign story that
 -- was pinned in before pinning became owner-only.
 WHERE i.highlight_id = ? AND s.user_id = h.user_id
+  AND ${_visibleAuthorSql('s.user_id')}
 ORDER BY i.created_at ASC
 ''',
             parameters: [highlightId],
@@ -1271,7 +1362,7 @@ ORDER BY i.created_at ASC
             '''
 SELECT p.* FROM saved_profiles s
 JOIN profiles p ON p.id = s.profile_id
-WHERE s.saver_id = ?
+WHERE s.saver_id = ? AND ${_notBlockedSql('p.id')}
 ORDER BY s.created_at DESC
 ''',
             parameters: [userId],
@@ -1391,6 +1482,7 @@ FROM (
   WHERE s.subscribed_to_id = ?1 AND s.subscriber_id != ?1
 ) act
 LEFT JOIN profiles pr ON pr.id = act.actor_id
+WHERE ${_notBlockedSql('act.actor_id')}
 ORDER BY act.created_at DESC
 LIMIT 80
 ''',
@@ -1426,25 +1518,26 @@ LIMIT 80
             '''
 SELECT COUNT(*) AS c
 FROM (
-  SELECT l.created_at AS created_at
+  SELECT l.user_id AS actor_id, l.created_at AS created_at
   FROM likes l
   JOIN posts p ON p.id = l.post_id
   WHERE p.user_id = ?1 AND l.user_id != ?1 AND l.post_id IS NOT NULL
   UNION ALL
-  SELECT c.created_at
+  SELECT c.user_id, c.created_at
   FROM comments c
   JOIN posts p ON p.id = c.post_id
   WHERE p.user_id = ?1 AND c.user_id != ?1
   UNION ALL
-  SELECT s.created_at
+  SELECT s.subscriber_id, s.created_at
   FROM subscriptions s
   WHERE s.subscribed_to_id = ?1 AND s.subscriber_id != ?1
 ) act
 -- The watermark lives on the profile, so this join puts `profiles` in the
 -- watched set too and the badge clears itself the moment it is bumped.
 LEFT JOIN profiles me ON me.id = ?1
-WHERE me.notifications_seen_at IS NULL
-   OR act.created_at > me.notifications_seen_at
+WHERE (me.notifications_seen_at IS NULL
+       OR act.created_at > me.notifications_seen_at)
+  AND ${_notBlockedSql('act.actor_id')}
 ''',
             parameters: [userId],
           )
@@ -1473,7 +1566,7 @@ SELECT
 FROM
   posts
   left join profiles p on posts.user_id = p.id
-WHERE $where
+WHERE ($where) AND ${_visibleAuthorSql('posts.user_id')}
 ORDER BY created_at DESC
       ''',
             parameters: parameters,
@@ -1553,7 +1646,7 @@ SELECT
 FROM
   posts
   left join profiles p on posts.user_id = p.id
-WHERE user_id = ?
+WHERE user_id = ? AND ${_visibleAuthorSql('posts.user_id')}
 ORDER BY created_at DESC
 ${limit != null ? 'LIMIT ?' : ''}
       ''',
@@ -1679,6 +1772,7 @@ SELECT
 FROM
   posts
   left join profiles p on posts.user_id = p.id
+WHERE ${_visibleAuthorSql('posts.user_id')}
 ORDER BY created_at DESC LIMIT ?1 OFFSET ?2
     ''',
       [limit, offset],
@@ -1803,7 +1897,7 @@ SELECT
 FROM
   posts
   join profiles p on posts.user_id = p.id 
-WHERE posts.id = ?
+WHERE posts.id = ? AND ${_visibleAuthorSql('posts.user_id')}
   ''',
       [id],
     );
@@ -1915,7 +2009,7 @@ FROM
   saved_posts
   inner join posts on saved_posts.post_id = posts.id
   left join profiles p on posts.user_id = p.id
-WHERE saved_posts.user_id = ?1
+WHERE saved_posts.user_id = ?1 AND ${_visibleAuthorSql('posts.user_id')}
 ORDER BY saved_posts.created_at DESC LIMIT ?2 OFFSET ?3
     ''',
       [currentUserId, limit, offset],
@@ -2189,9 +2283,12 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
 
   @override
   Future<List<User>> getFollowers({String? userId}) async {
+    // A private account's list only shows to its followers, and blocked
+    // people are left out of anyone's list.
     final followersId = await _powerSyncRepository.db().getAll(
-      'SELECT subscriber_id FROM subscriptions WHERE subscribed_to_id = ? '
-      "AND COALESCE(status, 'accepted') = 'accepted'",
+      'SELECT subscriber_id FROM subscriptions WHERE subscribed_to_id = ?1 '
+      "AND COALESCE(status, 'accepted') = 'accepted' "
+      "AND ${_visibleAuthorSql('?1')} AND ${_notBlockedSql('subscriber_id')}",
       [userId ?? currentUserId],
     );
     if (followersId.isEmpty) return [];
@@ -2226,10 +2323,13 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
     // `limit` caps the reactive window so a huge follower list isn't fetched
     // (one profile query PER follower) all at once. Null = all (unchanged for
     // other callers). Growing the limit re-subscribes with a wider window.
+    // A private account's list only shows to its followers, and blocked
+    // people are left out of anyone's list.
     final streamResult = _powerSyncRepository.db().watch(
-      'SELECT subscriber_id FROM subscriptions WHERE subscribed_to_id = ? '
+      'SELECT subscriber_id FROM subscriptions WHERE subscribed_to_id = ?1 '
       "AND COALESCE(status, 'accepted') = 'accepted' "
-      '${limit != null ? 'LIMIT ?' : ''}',
+      "AND ${_visibleAuthorSql('?1')} AND ${_notBlockedSql('subscriber_id')} "
+      '${limit != null ? 'LIMIT ?2' : ''}',
       parameters: [userId, if (limit != null) limit],
     );
     await for (final result in streamResult) {
@@ -2257,10 +2357,14 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
   Future<List<User>> getFollowings({String? userId, int? limit}) async {
     // `limit` caps how many followings are fetched (one profile query each);
     // null = all. Callers grow the limit for scroll pagination.
+    // A private account's list only shows to its followers, and blocked
+    // people are left out of anyone's list.
     final followingsUserId = await _powerSyncRepository.db().getAll(
-      'SELECT subscribed_to_id FROM subscriptions WHERE subscriber_id = ? '
+      'SELECT subscribed_to_id FROM subscriptions WHERE subscriber_id = ?1 '
       "AND COALESCE(status, 'accepted') = 'accepted' "
-      '${limit != null ? 'LIMIT ?' : ''}',
+      "AND ${_visibleAuthorSql('?1')} "
+      "AND ${_notBlockedSql('subscribed_to_id')} "
+      '${limit != null ? 'LIMIT ?2' : ''}',
       [userId ?? currentUserId, if (limit != null) limit],
     );
     if (followingsUserId.isEmpty) return [];
@@ -2319,7 +2423,7 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
       .watch(
         '''
 SELECT COUNT(*) AS comments_count FROM comments
-WHERE post_id = ? 
+WHERE post_id = ? AND ${_notBlockedSql('comments.user_id')}
 ''',
         parameters: [postId],
       )
@@ -2345,8 +2449,10 @@ FROM
     profiles p ON p.id = c1.user_id
   LEFT JOIN
     comments c2 ON c1.id = c2.replied_to_comment_id
+      AND ${_notBlockedSql('c2.user_id')}
 WHERE
   c1.post_id = ? AND c1.replied_to_comment_id IS NULL
+  AND ${_notBlockedSql('c1.user_id')}
 GROUP BY
     c1.id, p.avatar_url, p.username, p.full_name
 ORDER BY created_at ASC
@@ -2503,7 +2609,7 @@ FROM
   INNER JOIN
     profiles p ON p.id = c1.user_id
 WHERE
-  c1.replied_to_comment_id = ? 
+  c1.replied_to_comment_id = ? AND ${_notBlockedSql('c1.user_id')}
 GROUP BY
     c1.id, p.avatar_url, p.username, p.full_name
 ORDER BY created_at ASC
@@ -2589,12 +2695,23 @@ ORDER BY created_at ASC
       'SELECT 1 FROM blocked_users WHERE blocker_id = ? AND blocked_id = ?',
       [userId, blockedId],
     );
-    if (exists != null) return;
-    await _powerSyncRepository.db().execute(
-      '''
+    if (exists == null) {
+      await _powerSyncRepository.db().execute(
+        '''
 INSERT INTO blocked_users(id, blocker_id, blocked_id, created_at)
 VALUES(?, ?, ?, ?)''',
-      [uuid.v4(), userId, blockedId, JiffyX.now()],
+        [uuid.v4(), userId, blockedId, JiffyX.now()],
+      );
+    }
+    // A block ends the follow both ways (and any pending request), as the
+    // block dialog says. Its own statement, so the block above stands even if
+    // this part were ever refused by the server.
+    await _powerSyncRepository.db().execute(
+      '''
+DELETE FROM subscriptions
+WHERE (subscriber_id = ?1 AND subscribed_to_id = ?2)
+   OR (subscriber_id = ?2 AND subscribed_to_id = ?1)''',
+      [userId, blockedId],
     );
   }
 
@@ -2618,6 +2735,19 @@ VALUES(?, ?, ?, ?)''',
         parameters: [userId, otherUserId],
       )
       .map((rows) => rows.isNotEmpty);
+
+  @override
+  Stream<Set<String>> blockedPeersOf({required String userId}) =>
+      _powerSyncRepository
+          .db()
+          .watch(
+            '''
+SELECT blocked_id AS peer FROM blocked_users WHERE blocker_id = ?1
+UNION
+SELECT blocker_id FROM blocked_users WHERE blocked_id = ?1''',
+            parameters: [userId],
+          )
+          .map((rows) => {for (final row in rows) row['peer'] as String});
 
   @override
   Stream<List<User>> blockedUsers({required String userId}) =>
@@ -3242,9 +3372,12 @@ values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           .or('username.ilike.*$q*,full_name.ilike.*$q*');
       if (me != null) builder = builder.neq('id', me);
       final rows = await builder.range(offset, offset + limit - 1);
+      // The server doesn't know about blocks yet; drop them here, both ways.
+      final blocked = await _blockedPeerIds();
       return rows
           .cast<Map<String, dynamic>>()
           .map(User.fromJson)
+          .where((user) => !blocked.contains(user.id))
           .toList(growable: false);
     } catch (_) {
       // Offline / server error — fall back to the local synced-profiles search.
@@ -3260,6 +3393,7 @@ SELECT id, avatar_url, full_name, username
   FROM profiles
 WHERE (LOWER(username) LIKE LOWER('%$q%') OR LOWER(full_name) LIKE LOWER('%$q%'))
   AND id <> ?1 $excludeUserIdsStatement
+  AND ${_notBlockedSql('profiles.id')}
 LIMIT ?2 OFFSET ?3
 ''',
       [currentUserId, limit, offset],
@@ -3280,6 +3414,7 @@ WHERE id <> ?1
   AND id NOT IN (
     SELECT subscribed_to_id FROM subscriptions WHERE subscriber_id = ?1
   )
+  AND ${_notBlockedSql('profiles.id')}
 LIMIT ?2
 ''',
       [me, limit],
@@ -3360,7 +3495,7 @@ DELETE FROM stories WHERE id = ?
             '''
 SELECT p.* FROM story_views sv
   JOIN profiles p ON p.id = sv.user_id
-WHERE sv.story_id = ?
+WHERE sv.story_id = ? AND ${_notBlockedSql('sv.user_id')}
 ORDER BY sv.created_at DESC
 ${limit != null ? 'LIMIT ?' : ''}
 ''',
@@ -3426,7 +3561,8 @@ SELECT
   s.*${includeAuthor ? ', p.id as user_id, p.username, p.full_name, p.avatar_url' : ''}
 FROM stories s
   ${includeAuthor ? 'LEFT JOIN profiles p ON s.user_id = p.id' : ''}
-WHERE user_id = ? AND expires_at > current_timestamp
+WHERE s.user_id = ? AND s.expires_at > current_timestamp
+  AND ${_visibleAuthorSql('s.user_id')}
 ORDER BY s.created_at ASC
 ''',
         parameters: [userId],
@@ -3443,6 +3579,8 @@ SELECT DISTINCT s.user_id AS user_id
 FROM stories s
   INNER JOIN subscriptions f ON f.subscribed_to_id = s.user_id
 WHERE f.subscriber_id = ? AND s.expires_at > current_timestamp
+  AND COALESCE(f.status, 'accepted') = 'accepted'
+  AND ${_visibleAuthorSql('s.user_id')}
 ''',
             parameters: [userId ?? currentUserId],
           )
@@ -3459,7 +3597,7 @@ WHERE f.subscriber_id = ? AND s.expires_at > current_timestamp
 SELECT s.*, p.id as user_id, p.username, p.full_name, p.avatar_url
 FROM stories s
   LEFT JOIN profiles p ON s.user_id = p.id
-WHERE s.id = ?
+WHERE s.id = ? AND ${_visibleAuthorSql('s.user_id')}
 ''',
       [id],
     );
@@ -3507,6 +3645,7 @@ FROM location_stories ls
   INNER JOIN stories s ON s.id = ls.story_id
   LEFT JOIN profiles p ON s.user_id = p.id
 WHERE ls.user_id = ?1 AND ls.region_iso = ?2
+  AND ${_visibleAuthorSql('s.user_id')}
   ${scoped ? 'AND ls.lat IS NOT NULL AND ABS(ls.lat - ?3) <= ?4 '
                     'AND ls.lng IS NOT NULL AND ABS(ls.lng - ?5) <= ?4' : ''}
 ORDER BY ls.created_at DESC
@@ -3600,7 +3739,7 @@ WHERE user_id = ?1 AND story_id = ?2 AND region_iso = ?3
 SELECT up.id, up.username, up.full_name, up.avatar_url
 FROM profiles up
 INNER JOIN likes l ON up.id = l.user_id
-WHERE l.post_id = ?
+WHERE l.post_id = ? AND ${_notBlockedSql('up.id')}
 LIMIT ? OFFSET ?
 ''',
       [postId, limit, offset],
@@ -3628,8 +3767,10 @@ WHERE id IN (
         FROM subscriptions f
         WHERE f.subscribed_to_id = l.user_Id
         AND f.subscriber_id = ?2
+        AND COALESCE(f.status, 'accepted') = 'accepted'
     ) AND id <> ?2
 )
+  AND ${_notBlockedSql('profiles.id')}
 LIMIT ?3 OFFSET ?4
 ''',
       [postId, currentUserId, limit, offset],

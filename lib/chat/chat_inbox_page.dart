@@ -424,9 +424,22 @@ class _ChatsListState extends State<_ChatsList> {
   bool _loading = true;
   Object? _error;
 
+  /// Everyone I blocked or who blocked me. The chat backend doesn't know about
+  /// blocks, so their conversations are hidden here (opening one is already
+  /// refused in `openChatWithUser`).
+  Set<String> _blocked = const {};
+  StreamSubscription<Set<String>>? _blockedSub;
+
   @override
   void initState() {
     super.initState();
+    final me = context.read<AppBloc>().state.user.id;
+    _blockedSub = context
+        .read<UserRepository>()
+        .blockedPeersOf(userId: me)
+        .listen((peers) {
+          if (mounted) setState(() => _blocked = peers);
+        });
     _bind();
   }
 
@@ -485,6 +498,7 @@ class _ChatsListState extends State<_ChatsList> {
   @override
   void dispose() {
     unawaited(_sub?.cancel());
+    unawaited(_blockedSub?.cancel());
     super.dispose();
   }
 
@@ -528,6 +542,13 @@ class _ChatsListState extends State<_ChatsList> {
             // Only conversations with an actual message — a freshly opened but
             // empty one stays out of Chats until something is written.
             .where((c) => c.lastMessage.isNotEmpty)
+            // The peer's app uuid (the conversation's own peer id is the
+            // chat backend's).
+            .where(
+              (c) => !_blocked.contains(
+                ChatSession.instance.listTransport.peerUuidOf(c.id),
+              ),
+            )
             .where(
               (c) =>
                   widget.query.isEmpty ||

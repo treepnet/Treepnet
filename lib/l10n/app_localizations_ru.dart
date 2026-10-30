@@ -1631,7 +1631,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get blockConfirmationText =>
-      'Они не смогут найти ваш профиль или написать вам.';
+      'Они не смогут найти ваш профиль или написать вам, а ваши подписки друг на друга будут удалены.';
 
   @override
   String get addLocationAndNameText => 'Добавьте место и назовите его';

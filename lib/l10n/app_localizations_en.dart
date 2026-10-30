@@ -1600,7 +1600,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get blockConfirmationText =>
-      'They won\'t be able to find your profile or message you.';
+      'They won\'t be able to find your profile or message you, and you\'ll both stop following each other.';
 
   @override
   String get addLocationAndNameText => 'Add a location and name it';

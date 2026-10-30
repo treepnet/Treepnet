@@ -880,7 +880,7 @@
   "passwordChangedText": "Password changed",
   "passwordChangedDescriptionText": "You can sign in with your new password now.",
   "unblockConfirmationText": "They will be able to find your profile and message you again.",
-  "blockConfirmationText": "They won't be able to find your profile or message you.",
+  "blockConfirmationText": "They won't be able to find your profile or message you, and you'll both stop following each other.",
   "addLocationAndNameText": "Add a location and name it",
   "noLikesYetText": "No likes yet",
   "deleteAccountWarningText": "This permanently deletes your account and everything in it — posts, stories, messages and profile. This cannot be undone.",

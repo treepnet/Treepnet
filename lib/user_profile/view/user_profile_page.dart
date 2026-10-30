@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
+import 'package:treepnet/feed/feed.dart' show FeedBloc, FeedRefreshRequested;
 import 'package:treepnet/feed/post/post.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/map/location_picker_map.dart';
@@ -18,6 +19,7 @@ import 'package:treepnet/user_profile/widgets/story_highlights_row.dart';
 import 'package:go_router/go_router.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart';
 import 'package:posts_repository/posts_repository.dart';
+import 'package:search_repository/search_repository.dart';
 import 'package:shared/shared.dart';
 import 'package:sliver_tools/sliver_tools.dart';
 import 'package:user_repository/user_repository.dart';
@@ -670,6 +672,10 @@ class UserProfileActions extends StatelessWidget {
                 userId: currentUserId,
                 blockedId: profileUser.id,
               );
+              if (!context.mounted) return;
+              // Live lists update on their own; these two hold a snapshot.
+              context.read<SearchRepository>().clearCache();
+              context.read<FeedBloc>().add(const FeedRefreshRequested());
               openSnackbar(
                 SnackbarMessage.success(title: context.l10n.blockedText),
                 clearIfQueue: true,

@@ -28,6 +28,10 @@ class SearchRepository {
   /// the data is there.
   final _usersHashedQueryResults = <String, List<User>>{};
 
+  /// Forgets cached search results — after a block, so the blocked person
+  /// doesn't linger in a result cached before it.
+  void clearCache() => _usersHashedQueryResults.clear();
+
   /// Searches users by handle / name. Caches only non-empty successful results.
   Future<List<User>> searchUsers({
     required String query,

@@ -2724,7 +2724,7 @@ abstract class AppLocalizations {
   /// No description provided for @blockConfirmationText.
   ///
   /// In en, this message translates to:
-  /// **'They won\'t be able to find your profile or message you.'**
+  /// **'They won\'t be able to find your profile or message you, and you\'ll both stop following each other.'**
   String get blockConfirmationText;
 
   /// No description provided for @addLocationAndNameText.

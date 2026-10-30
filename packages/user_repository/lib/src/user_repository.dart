@@ -547,6 +547,10 @@ class UserRepository implements UserBaseRepository {
       _databaseClient.blockedUsers(userId: userId);
 
   @override
+  Stream<Set<String>> blockedPeersOf({required String userId}) =>
+      _databaseClient.blockedPeersOf(userId: userId);
+
+  @override
   Future<void> changePassword({required String newPassword}) =>
       _databaseClient.changePassword(newPassword: newPassword);
 
