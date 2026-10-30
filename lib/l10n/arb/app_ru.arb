@@ -894,5 +894,6 @@
   "chatPhotoPreviewText": "Фото",
   "chatVideoPreviewText": "Видео",
   "chatVoicePreviewText": "Голосовое сообщение",
-  "chatFilePreviewText": "Файл"
+  "chatFilePreviewText": "Файл",
+  "searchNothingFoundText": "Ничего не найдено"
 }

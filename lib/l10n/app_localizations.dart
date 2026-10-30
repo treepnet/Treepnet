@@ -3116,6 +3116,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'File'**
   String get chatFilePreviewText;
+
+  /// No description provided for @searchNothingFoundText.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing found'**
+  String get searchNothingFoundText;
 }
 
 class _AppLocalizationsDelegate

@@ -713,6 +713,10 @@ class _UserSearchFieldState extends State<UserSearchField> {
 
   late final _iconColor = ValueNotifier(_inactiveIconColor);
 
+  /// Bumped per search; an older search's results are dropped instead of
+  /// overwriting newer ones.
+  int _request = 0;
+
   @override
   void initState() {
     super.initState();
@@ -749,14 +753,18 @@ class _UserSearchFieldState extends State<UserSearchField> {
         return AppTextField(
           textController: searchController,
           focusNode: widget.focusNode,
-          onChanged: (query) => _debouncer.run(() async {
-            if (query.trim().isEmpty) {
-              _noUsersFound();
-              return;
-            }
-            final users = await searchRepository.searchUsers(query: query);
-            widget.onUsersFound.call(users, query);
-          }),
+          onChanged: (query) {
+            final request = ++_request;
+            _debouncer.run(() async {
+              if (query.trim().isEmpty) {
+                _noUsersFound();
+                return;
+              }
+              final users = await searchRepository.searchUsers(query: query);
+              if (!mounted || request != _request) return;
+              widget.onUsersFound.call(users, query);
+            });
+          },
           filled: true,
           hintText: context.l10n.searchText,
           contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -765,6 +773,7 @@ class _UserSearchFieldState extends State<UserSearchField> {
               ? null
               : Tappable.faded(
                   onTap: () {
+                    _request++;
                     searchController.clear();
                     _noUsersFound();
                   },

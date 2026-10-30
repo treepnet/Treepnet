@@ -3404,56 +3404,116 @@ values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     String? userId,
     String? excludeUserIds,
   }) async {
-    if (query == null || query.trim().isEmpty) return <User>[];
-    // Keep dots, dashes and underscores — they are legal in a handle, and
-    // stripping them turned "h.hamid15" into "hhamid15", which matches nobody.
-    final q = query.removeSpecialCharacters(keepAllowed: true);
+    if (query == null || _searchKey(query).isEmpty) return <User>[];
     final me = currentUserId;
 
-    // Server-first: search PostgREST so EVERY account is findable, not just the
-    // profiles already synced to this device's local PowerSync DB. The local
-    // DB holds only a subset, so a purely-local search missed users that exist
-    // on the server (why some handles were findable on one screen but not
-    // another). profiles are world-readable (RLS "Profiles are viewable by
-    // everyone"), so the authenticated role can search them all. Falls back to
-    // the local query when offline / the request fails.
+    // Server-first, so EVERY account is findable, not just the profiles
+    // already synced to this device. `search_profiles` matches a search key of
+    // the query against usernames and names (Cyrillic and Latin alike, see
+    // oci-backend/sql/search_profiles.sql) and takes the query as a parameter.
+    // Falls back to the same match on the local profiles when offline.
     try {
-      var builder = _powerSyncRepository
-          .postgrest()
-          .from('profiles')
-          .select('id, avatar_url, full_name, username')
-          .or('username.ilike.*$q*,full_name.ilike.*$q*');
-      if (me != null) builder = builder.neq('id', me);
-      final rows = await builder.range(offset, offset + limit - 1);
+      final rows = await _powerSyncRepository.postgrest().rpc<List<dynamic>>(
+        'search_profiles',
+        params: {'p_query': query, 'p_limit': limit, 'p_offset': offset},
+      );
       // The server doesn't know about blocks yet; drop them here, both ways.
       final blocked = await _blockedPeerIds();
       return rows
           .cast<Map<String, dynamic>>()
           .map(User.fromJson)
-          .where((user) => !blocked.contains(user.id))
+          .where((user) => user.id != me && !blocked.contains(user.id))
           .toList(growable: false);
     } catch (_) {
-      // Offline / server error — fall back to the local synced-profiles search.
+      // Offline / server error — fall back to the local synced profiles.
     }
 
     final excludeUserIdsStatement = excludeUserIds == null
         ? ''
         : 'AND id NOT IN ($excludeUserIds)';
-
-    final result = await _powerSyncRepository.db().getAll(
+    final rows = await _powerSyncRepository.db().getAll(
       '''
 SELECT id, avatar_url, full_name, username
   FROM profiles
-WHERE (LOWER(username) LIKE LOWER('%$q%') OR LOWER(full_name) LIKE LOWER('%$q%'))
-  AND id <> ?1 $excludeUserIdsStatement
+WHERE id <> ?1 $excludeUserIdsStatement
   AND ${_notBlockedSql('profiles.id')}
-LIMIT ?2 OFFSET ?3
 ''',
-      [currentUserId, limit, offset],
+      [currentUserId],
     );
-
-    return result.safeMap(User.fromJson).toList(growable: false);
+    final key = _searchKey(query);
+    bool startsWith(Row row) =>
+        _searchKey(row['username'] as String? ?? '').startsWith(key) ||
+        _searchKey(row['full_name'] as String? ?? '').startsWith(key);
+    final matches =
+        rows
+            .where(
+              (row) =>
+                  _searchKey(row['username'] as String? ?? '').contains(key) ||
+                  _searchKey(row['full_name'] as String? ?? '').contains(key),
+            )
+            .toList()
+          ..sort((a, b) {
+            final byStart = (startsWith(b) ? 1 : 0) - (startsWith(a) ? 1 : 0);
+            if (byStart != 0) return byStart;
+            return (a['username'] as String? ?? '').compareTo(
+              b['username'] as String? ?? '',
+            );
+          });
+    return matches
+        .skip(offset)
+        .take(limit)
+        .map(User.fromJson)
+        .toList(growable: false);
   }
+
+  /// The search key of [text]: lower-cased, whitespace collapsed, apostrophes
+  /// dropped, Cyrillic (Russian and Uzbek) spelled in Latin and the common
+  /// double spellings folded (kh / x -> h, zh -> j) — so "Шаҳзод", "Shakhzod"
+  /// and "shahzod" all match. Must stay in step with `search_key` in
+  /// oci-backend/sql/search_profiles.sql.
+  static String _searchKey(String text) {
+    var s = text.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+    for (final MapEntry(:key, :value) in _cyrillicDigraphs.entries) {
+      s = s.replaceAll(key, value);
+    }
+    final out = StringBuffer();
+    for (final rune in s.runes) {
+      final char = String.fromCharCode(rune);
+      final latin = _cyrillicLetters[char];
+      if (latin != null) {
+        out.write(latin);
+      } else if (!_droppedInSearch.contains(char)) {
+        out.write(char);
+      }
+    }
+    return out
+        .toString()
+        .replaceAll('kh', 'h')
+        .replaceAll('zh', 'j')
+        .replaceAll('x', 'h');
+  }
+
+  static const _cyrillicDigraphs = {
+    'щ': 'sh',
+    'ш': 'sh',
+    'ч': 'ch',
+    'ц': 'ts',
+    'ю': 'yu',
+    'я': 'ya',
+    'ё': 'yo',
+    'ж': 'j',
+    'х': 'h',
+    'ҳ': 'h',
+  };
+
+  static const _cyrillicLetters = {
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'з': 'z', //
+    'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o', //
+    'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 'ы': 'i', //
+    'э': 'e', 'ў': 'o', 'қ': 'q', 'ғ': 'g',
+  };
+
+  static const _droppedInSearch = {'ъ', 'ь', "'", '’', 'ʻ', 'ʼ', '`'};
 
   @override
   Future<List<User>> suggestedUsers({int limit = 50}) async {

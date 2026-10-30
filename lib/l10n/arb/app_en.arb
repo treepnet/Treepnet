@@ -948,5 +948,6 @@
   "chatPhotoPreviewText": "Photo",
   "chatVideoPreviewText": "Video",
   "chatVoicePreviewText": "Voice message",
-  "chatFilePreviewText": "File"
+  "chatFilePreviewText": "File",
+  "searchNothingFoundText": "Nothing found"
 }

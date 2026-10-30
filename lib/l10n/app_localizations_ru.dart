@@ -1852,4 +1852,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get chatFilePreviewText => 'Файл';
+
+  @override
+  String get searchNothingFoundText => 'Ничего не найдено';
 }

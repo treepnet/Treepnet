@@ -27,15 +27,34 @@ class SearchView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final users = ValueNotifier(<User>[]);
+    final search = ValueNotifier(const _SearchResults());
 
     return AppScaffold(
       appBar: SearcAppBar(
-        onUsersSearch: (foundUsers) => users.value = foundUsers,
+        onQueryChanged: (query) => search.value = _SearchResults(
+          query: query,
+          users: query.trim().isEmpty ? const [] : search.value.users,
+          loading: query.trim().isNotEmpty,
+        ),
+        onUsersSearch: (query, foundUsers) =>
+            search.value = _SearchResults(query: query, users: foundUsers),
       ),
       body: ValueListenableBuilder(
-        valueListenable: users,
-        builder: (context, users, _) {
+        valueListenable: search,
+        builder: (context, search, _) {
+          final users = search.users;
+          if (users.isEmpty && search.query.trim().isNotEmpty) {
+            return Center(
+              child: search.loading
+                  ? const CircularProgressIndicator.adaptive()
+                  : Text(
+                      context.l10n.searchNothingFoundText,
+                      style: context.bodyMedium?.copyWith(
+                        color: AppColors.grey,
+                      ),
+                    ),
+            );
+          }
           return CustomScrollView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             slivers: [
@@ -56,6 +75,20 @@ class SearchView extends StatelessWidget {
       ),
     );
   }
+}
+
+/// What the search screen shows: the latest query, its results so far, and
+/// whether they are still loading.
+class _SearchResults {
+  const _SearchResults({
+    this.query = '',
+    this.users = const [],
+    this.loading = false,
+  });
+
+  final String query;
+  final List<User> users;
+  final bool loading;
 }
 
 class UserListTile extends StatelessWidget {
@@ -94,9 +127,17 @@ class UserListTile extends StatelessWidget {
 }
 
 class SearcAppBar extends StatefulWidget implements PreferredSizeWidget {
-  const SearcAppBar({required this.onUsersSearch, super.key});
+  const SearcAppBar({
+    required this.onQueryChanged,
+    required this.onUsersSearch,
+    super.key,
+  });
 
-  final ValueSetter<List<User>> onUsersSearch;
+  /// The text changed (results for it follow in [onUsersSearch]).
+  final ValueSetter<String> onQueryChanged;
+
+  /// Results for the latest query only.
+  final void Function(String query, List<User> users) onUsersSearch;
 
   @override
   State<SearcAppBar> createState() => _SearcAppBarState();
@@ -110,6 +151,10 @@ class _SearcAppBarState extends State<SearcAppBar> {
   late TextEditingController _searchController;
 
   late Debouncer _debouncer;
+
+  /// Bumped per search; a slower, older search's results are dropped instead
+  /// of overwriting the newer ones.
+  int _request = 0;
 
   @override
   void initState() {
@@ -141,10 +186,12 @@ class _SearcAppBarState extends State<SearcAppBar> {
           // may be gone, and context.read on a deactivated element throws
           // "Looking up a deactivated widget's ancestor is unsafe".
           final searchRepository = context.read<SearchRepository>();
+          final request = ++_request;
+          widget.onQueryChanged(query);
           _debouncer.run(() async {
             final users = await searchRepository.searchUsers(query: query);
-            if (!mounted) return;
-            widget.onUsersSearch.call(users);
+            if (!mounted || request != _request) return;
+            widget.onUsersSearch.call(query, users);
           });
         },
       ),
