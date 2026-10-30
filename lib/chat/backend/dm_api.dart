@@ -19,6 +19,7 @@ class DmApi {
     required this.apiKey,
     required this.deviceId,
     required this.deviceName,
+    required this.idToken,
     this.userName,
     this.userAvatar,
   });
@@ -29,6 +30,12 @@ class DmApi {
   final String apiKey;
   final String deviceId;
   final String deviceName;
+
+  /// The signed-in user's Firebase ID token, sent with every request and every
+  /// socket (re)connect so the backend identifies us from the token instead of
+  /// trusting `x-uuid`. Null when no token is at hand; the backend then falls
+  /// back to `x-uuid` for as long as it still accepts old app versions.
+  final Future<String?> Function({bool forceRefresh}) idToken;
 
   /// Display name and avatar of the current user. Sent as `x-name` / `x-avatar`
   /// so the backend can populate this user's row — otherwise the peer would see
@@ -41,11 +48,72 @@ class DmApi {
   String? userName;
   String? userAvatar;
 
-  late final Dio dio = Dio(BaseOptions(baseUrl: baseUrl, headers: _headers));
+  late final Dio dio = Dio(BaseOptions(baseUrl: baseUrl, headers: _headers))
+    ..interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          final token = await _token();
+          if (token != null) options.headers['Authorization'] = 'Bearer $token';
+          handler.next(options);
+        },
+        // A token can expire between fetching and the server checking it:
+        // refresh once and retry before giving up.
+        onError: (e, handler) async {
+          final options = e.requestOptions;
+          if (e.response?.statusCode != 401 ||
+              options.extra['authRetried'] == true) {
+            return handler.next(e);
+          }
+          final token = await _token(forceRefresh: true);
+          if (token == null) return handler.next(e);
+          options.extra['authRetried'] = true;
+          options.headers['Authorization'] = 'Bearer $token';
+          final data = options.data;
+          if (data is FormData) options.data = data.clone();
+          try {
+            handler.resolve(await dio.fetch<dynamic>(options));
+          } on DioException catch (retryError) {
+            handler.next(retryError);
+          }
+        },
+      ),
+    );
 
   io.Socket? _socket;
   final _events = StreamController<DmEvent>.broadcast();
   Completer<void>? _connecting;
+
+  /// Set when the backend refused our socket token: the next connect fetches a
+  /// fresh one instead of the cached token.
+  bool _refreshTokenOnConnect = false;
+
+  /// Reconnects after the backend refused our token. A socket the server
+  /// disconnected does not reconnect on its own.
+  Timer? _authRetryTimer;
+  int _authRetries = 0;
+
+  /// [idToken], never throwing: a failed token fetch must not break the chat.
+  Future<String?> _token({bool forceRefresh = false}) async {
+    try {
+      return await idToken(forceRefresh: forceRefresh);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _retryAfterAuthError() {
+    _refreshTokenOnConnect = true;
+    // A few spaced tries (2 s, 4 s, 8 s); after that the next [connect] call —
+    // opening the inbox or a thread — tries again.
+    if (_authRetries >= 3) return;
+    final delay = Duration(seconds: 2 << _authRetries);
+    _authRetries++;
+    _authRetryTimer?.cancel();
+    _authRetryTimer = Timer(delay, () {
+      final socket = _socket;
+      if (socket != null && socket.disconnected) socket.connect();
+    });
+  }
 
   /// Updates the current user's name/avatar mid-session and re-announces it to
   /// the backend (which upserts the row on the next authenticated request).
@@ -71,11 +139,13 @@ class DmApi {
     // the corrected name. Best-effort — the next real request would carry it
     // anyway now that the header is updated.
     unawaited(
-      dio.get<Map<String, dynamic>>('/chat/dm/me').catchError(
-        (_) => Response<Map<String, dynamic>>(
-          requestOptions: RequestOptions(path: '/chat/dm/me'),
-        ),
-      ),
+      dio
+          .get<Map<String, dynamic>>('/chat/dm/me')
+          .catchError(
+            (_) => Response<Map<String, dynamic>>(
+              requestOptions: RequestOptions(path: '/chat/dm/me'),
+            ),
+          ),
     );
   }
 
@@ -114,11 +184,21 @@ class DmApi {
       io.OptionBuilder()
           .setTransports(['websocket'])
           .setExtraHeaders(_headers)
+          // Called on every (re)connect, so a reconnect an hour later carries a
+          // fresh token rather than the expired one from the first connect.
+          .setAuthFn((callback) {
+            final force = _refreshTokenOnConnect;
+            _refreshTokenOnConnect = false;
+            _token(
+              forceRefresh: force,
+            ).then((token) => callback(token == null ? {} : {'token': token}));
+          })
           .disableAutoConnect()
           .build(),
     );
 
     socket.onConnect((_) {
+      _authRetries = 0;
       _events.add(const DmConnectionEvent(ChatConnectionStatus.connected));
       if (!completer.isCompleted) completer.complete();
     });
@@ -131,6 +211,10 @@ class DmApi {
       _events.add(const DmConnectionEvent(ChatConnectionStatus.error));
       if (!completer.isCompleted) completer.complete();
     });
+
+    // The backend refused our token (expired, or not yet refreshed) and is
+    // about to disconnect us.
+    socket.on('dm.authError', (_) => _retryAfterAuthError());
 
     socket.on('dm.newMessage', (data) {
       if (data is Map) _events.add(DmMessageEvent(DmMessage.fromJson(data)));
@@ -258,6 +342,7 @@ class DmApi {
   }
 
   Future<void> dispose() async {
+    _authRetryTimer?.cancel();
     _socket
       ?..clearListeners()
       ..disconnect()

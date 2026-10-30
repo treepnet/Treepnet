@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:messenger_chat/messenger_chat.dart';
+import 'package:token_storage/token_storage.dart';
 
 import 'package:treepnet/chat/backend/chat_backend_config.dart';
 import 'package:treepnet/chat/backend/dm_api.dart';
@@ -77,6 +78,8 @@ class ChatSession {
       deviceId: deviceId,
       // x-device-name is mandatory server-side and must not be 'unknown'.
       deviceName: 'TreepNet ${Platform.operatingSystem}',
+      idToken: ({forceRefresh = false}) =>
+          _idTokenFor(myUuid, forceRefresh: forceRefresh),
       userName: myName,
       userAvatar: myAvatarUrl,
     );
@@ -100,6 +103,24 @@ class ChatSession {
     unawaited(_registerPushToken());
   }
 
+  /// The current Firebase ID token, refreshed first when it is about to expire
+  /// (or when [forceRefresh]). Only a token for [myUuid] is returned: the chat
+  /// backend takes our identity from it.
+  static Future<String?> _idTokenFor(
+    String myUuid, {
+    bool forceRefresh = false,
+  }) async {
+    final session = EntraSession.instance;
+    var tokens = session.current;
+    if (tokens == null) return null;
+    if (forceRefresh || !tokens.isIdTokenValid) {
+      await session.refresh().timeout(const Duration(seconds: 10));
+      tokens = session.current;
+    }
+    if (tokens == null || tokens.userId != myUuid) return null;
+    return tokens.idToken;
+  }
+
   StreamSubscription<String>? _tokenRefreshSub;
 
   /// Registers this device's FCM token with the chat backend so messages push
@@ -111,7 +132,9 @@ class ChatSession {
       if (token != null && token.isNotEmpty) {
         await _api?.registerDeviceToken(token: token, platform: platform);
       }
-      _tokenRefreshSub ??= FirebaseMessaging.instance.onTokenRefresh.listen((t) {
+      _tokenRefreshSub ??= FirebaseMessaging.instance.onTokenRefresh.listen((
+        t,
+      ) {
         unawaited(
           _api?.registerDeviceToken(token: t, platform: platform) ??
               Future<void>.value(),

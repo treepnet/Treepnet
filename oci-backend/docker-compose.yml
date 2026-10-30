@@ -170,7 +170,9 @@ services:
   # Self-hosted 1:1 messenger backend (Node + Socket.IO + Prisma). Its own `chat`
   # database on the same Postgres. Behind Caddy at chat.treepnet.com (WebSocket).
   # Code lives in a separate repo, placed at ./chatbackend on the server
-  # (gitignored here). Mobile app authenticates via x-uuid = profile UUID.
+  # (gitignored here). The app sends its Firebase ID token; the backend takes the
+  # user from it (chatbackend-patches/firebase-token-auth.patch). Tokenless
+  # x-uuid requests from old app versions pass until CHAT_AUTH_REQUIRED="true".
   chatbackend:
     build: ./chatbackend
     container_name: treepnet-chatbackend

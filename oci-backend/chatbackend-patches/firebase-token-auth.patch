@@ -1,0 +1,264 @@
+Chat backend (./chatbackend on the server, not in this repo): identify users by
+their Firebase ID token instead of trusting the x-uuid header.
+
+Applied on the server 2026-10-31 (source backup:
+~/backups/chatbackend-src-20261031-pre-token.tgz). Re-apply after replacing the
+chat backend source:
+  cd ~/treepnet/chatbackend && patch -p1 < firebase-token-auth.patch
+  cd .. && docker compose build chatbackend && docker compose up -d chatbackend
+
+Transition: tokenless requests still pass on x-uuid until CHAT_AUTH_REQUIRED=true
+is set on the chatbackend service (once most users run an app that sends the
+token). The "[Auth] oxirgi soatda: ..." log line counts both kinds hourly.
+
+diff -ruN -x *.bak-* -x node_modules chatbackend.orig/src/application/use-cases/resolve_identity.js chatbackend/src/application/use-cases/resolve_identity.js
+--- a/src/application/use-cases/resolve_identity.js	1970-01-01 05:00:00
++++ b/src/application/use-cases/resolve_identity.js	2026-10-31 01:07:55
+@@ -0,0 +1,77 @@
++const admin = require('firebase-admin');
++const { getFirebaseApp } = require('../../infrastructure/external/firebase_app');
++
++/**
++ * Mijoz kimligini aniqlaydi.
++ *
++ * Ilova Firebase ID tokenini yuboradi (HTTP: `Authorization: Bearer ...`,
++ * socket: `auth.token`). Token imzosi va muddati tekshiriladi, foydalanuvchi
++ * esa tokendagi `uid` dan olinadi - ilova o'zi aytgan `x-uuid` ga endi
++ * ishonilmaydi. `x-uuid` ham kelsa, u tokendagi bilan bir xil bo'lishi shart.
++ *
++ * O'tish davri: tokenni yubormaydigan eski ilova versiyalari hali bor.
++ * `CHAT_AUTH_REQUIRED=true` bo'lmaguncha tokensiz so'rov eski usulda
++ * (`x-uuid` bo'yicha) o'tadi. Ko'pchilik yangilangach o'zgaruvchi yoqiladi va
++ * tokensiz so'rovlar rad etiladi. Qachon yoqish mumkinligini bilish uchun har
++ * soatda nechta eski va yangi mijoz kelgani logga yoziladi.
++ */
++const REQUIRED = process.env.CHAT_AUTH_REQUIRED === 'true';
++
++const stats = { token: new Set(), legacy: new Set() };
++setInterval(() => {
++    if (stats.token.size || stats.legacy.size) {
++        console.log(
++            `[Auth] oxirgi soatda: token bilan ${stats.token.size} ta, ` +
++            `eski usulda ${stats.legacy.size} ta foydalanuvchi` +
++            (REQUIRED ? ' (token majburiy)' : ''),
++        );
++    }
++    stats.token.clear();
++    stats.legacy.clear();
++}, 60 * 60 * 1000).unref();
++
++/** `Authorization: Bearer <token>` sarlavhasidan tokenni ajratadi. */
++function bearerToken(header) {
++    if (typeof header !== 'string') return null;
++    const match = header.match(/^Bearer\s+(.+)$/i);
++    return match ? match[1].trim() : null;
++}
++
++async function verify(token) {
++    const app = getFirebaseApp();
++    if (!app) {
++        throw { status: 503, code: 'AUTH_UNAVAILABLE', message: 'Auth unavailable' };
++    }
++    try {
++        const decoded = await admin.auth(app).verifyIdToken(token);
++        return decoded.uid;
++    } catch (_) {
++        throw { status: 401, code: 'TOKEN_INVALID', message: 'Invalid or expired token' };
++    }
++}
++
++/**
++ * @param {{ token?: string|null, headerUuid?: string|null }} params
++ * @returns {Promise<string>} foydalanuvchining uuid si
++ */
++async function resolveIdentity({ token, headerUuid }) {
++    if (token) {
++        const uid = await verify(token);
++        if (headerUuid && headerUuid !== uid) {
++            throw { status: 403, code: 'IDENTITY_MISMATCH', message: 'x-uuid does not match the token' };
++        }
++        stats.token.add(uid);
++        return uid;
++    }
++
++    if (REQUIRED) {
++        throw { status: 401, code: 'TOKEN_REQUIRED', message: 'Missing bearer token' };
++    }
++    if (!headerUuid) {
++        throw { status: 401, code: 'MISSING_UUID', message: 'Missing x-uuid header' };
++    }
++    stats.legacy.add(headerUuid);
++    return headerUuid;
++}
++
++module.exports = { resolveIdentity, bearerToken };
+diff -ruN -x *.bak-* -x node_modules chatbackend.orig/src/infrastructure/external/fcm_service.js chatbackend/src/infrastructure/external/fcm_service.js
+--- a/src/infrastructure/external/fcm_service.js	2026-10-31 01:07:21
++++ b/src/infrastructure/external/fcm_service.js	2026-10-31 01:08:04
+@@ -1,6 +1,6 @@
+-const fs = require('fs');
+ const admin = require('firebase-admin');
+ const prisma = require('../database/prisma');
++const { getFirebaseApp } = require('./firebase_app');
+ 
+ /**
+  * FCM (push) xizmati. Servis-akkaunt fayli topilmasa - push jimgina o'chadi
+@@ -13,20 +13,8 @@
+     if (initialized) return enabled;
+     initialized = true;
+ 
+-    const path =
+-        process.env.FCM_SERVICE_ACCOUNT || '/app/fcm-service-account.json';
+-    if (!fs.existsSync(path)) {
+-        console.warn('[FCM] service account topilmadi:', path, '- push o\'chirilgan');
+-        return false;
+-    }
+-    try {
+-        const serviceAccount = JSON.parse(fs.readFileSync(path, 'utf8'));
+-        admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+-        enabled = true;
+-        console.log('[FCM] ishga tushdi (project:', serviceAccount.project_id, ')');
+-    } catch (e) {
+-        console.error('[FCM] init xatosi:', e.message);
+-    }
++    enabled = getFirebaseApp() != null;
++    if (!enabled) console.warn('[FCM] push o\'chirilgan');
+     return enabled;
+ }
+ 
+diff -ruN -x *.bak-* -x node_modules chatbackend.orig/src/infrastructure/external/firebase_app.js chatbackend/src/infrastructure/external/firebase_app.js
+--- a/src/infrastructure/external/firebase_app.js	1970-01-01 05:00:00
++++ b/src/infrastructure/external/firebase_app.js	2026-10-31 01:07:42
+@@ -0,0 +1,34 @@
++const fs = require('fs');
++const admin = require('firebase-admin');
++
++/**
++ * Yagona Firebase Admin ilovasi - push (FCM) ham, kirish tokenlarini
++ * tekshirish ham shuni ishlatadi. `initializeApp` faqat bir marta chaqirilishi
++ * mumkin, shuning uchun u shu yerda turadi.
++ *
++ * Servis-akkaunt fayli topilmasa `null` qaytadi.
++ */
++let tried = false;
++let app = null;
++
++function getFirebaseApp() {
++    if (tried) return app;
++    tried = true;
++
++    const path =
++        process.env.FCM_SERVICE_ACCOUNT || '/app/fcm-service-account.json';
++    if (!fs.existsSync(path)) {
++        console.warn('[Firebase] service account topilmadi:', path);
++        return null;
++    }
++    try {
++        const serviceAccount = JSON.parse(fs.readFileSync(path, 'utf8'));
++        app = admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
++        console.log('[Firebase] ishga tushdi (project:', serviceAccount.project_id, ')');
++    } catch (e) {
++        console.error('[Firebase] init xatosi:', e.message);
++    }
++    return app;
++}
++
++module.exports = { getFirebaseApp };
+diff -ruN -x *.bak-* -x node_modules chatbackend.orig/src/infrastructure/sockets/socket_manager.js chatbackend/src/infrastructure/sockets/socket_manager.js
+--- a/src/infrastructure/sockets/socket_manager.js	2026-10-31 01:07:21
++++ b/src/infrastructure/sockets/socket_manager.js	2026-10-31 01:08:20
+@@ -1,5 +1,6 @@
+ const { Server } = require('socket.io');
+ const authUserUseCase = require('../../application/use-cases/auth_user');
++const { resolveIdentity, bearerToken } = require('../../application/use-cases/resolve_identity');
+ const { CORS_ORIGIN } = require('../config/constants');
+ const Logger = require('../utils/logger');
+ 
+@@ -27,11 +28,15 @@
+     }
+ 
+     handleConnection(socket) {
+-        const uuid = socket.handshake.headers['x-uuid'];
+-        const apiKey = socket.handshake.headers['x-app-key'];
+-        const appName = socket.handshake.headers['x-app'] || 'messenger';
++        const headers = socket.handshake.headers;
++        const apiKey = headers['x-app-key'];
++        const appName = headers['x-app'] || 'messenger';
++        const token =
++            (typeof socket.handshake.auth?.token === 'string' && socket.handshake.auth.token) ||
++            bearerToken(headers.authorization);
++        const headerUuid = headers['x-uuid'] || null;
+ 
+-        if (!uuid) {
++        if (!token && !headerUuid) {
+             socket.disconnect();
+             return;
+         }
+@@ -42,21 +47,29 @@
+         // va klient ulanib darrov xabar yuborsa, o'sha xabar hech qanday
+         // xatosiz yo'qolardi. Ishlovchilar darhol ro'yxatga olinadi, ular esa
+         // ish boshlashdan oldin `socket.authReady` ni kutadi.
+-        socket.authReady = authUserUseCase
+-            .execute({
+-                uuid,
+-                apiKey,
+-                appName,
+-                deviceData: this.getDeviceData(socket.handshake.headers),
+-            })
+-            .then(({ user, project }) => {
+-                socket.uuid = uuid;
+-                socket.userId = user.id;
+-                socket.projectId = project.id;
+-                return true;
+-            })
++        //
++        // Token yaroqsiz yoki muddati o'tgan bo'lsa, ulanishni uzishdan oldin
++        // `dm.authError` yuboriladi: server uzgan socket o'zi qayta ulanmaydi,
++        // shuning uchun ilova tokenni yangilab, o'zi qayta ulanadi.
++        socket.authReady = resolveIdentity({ token, headerUuid })
++            .then((uuid) =>
++                authUserUseCase
++                    .execute({
++                        uuid,
++                        apiKey,
++                        appName,
++                        deviceData: this.getDeviceData(headers),
++                    })
++                    .then(({ user, project }) => {
++                        socket.uuid = uuid;
++                        socket.userId = user.id;
++                        socket.projectId = project.id;
++                        return true;
++                    }),
++            )
+             .catch((error) => {
+                 console.error('[Socket Auth Failure]', error.message);
++                if (error.code) socket.emit('dm.authError', { code: error.code });
+                 socket.disconnect();
+                 return false;
+             });
+diff -ruN -x *.bak-* -x node_modules chatbackend.orig/src/interfaces/http/middlewares/check_user.js chatbackend/src/interfaces/http/middlewares/check_user.js
+--- a/src/interfaces/http/middlewares/check_user.js	2026-10-31 01:07:21
++++ b/src/interfaces/http/middlewares/check_user.js	2026-10-31 01:08:20
+@@ -1,11 +1,19 @@
+ const authUserUseCase = require('../../../application/use-cases/auth_user');
++const { resolveIdentity, bearerToken } = require('../../../application/use-cases/resolve_identity');
+ 
+ const checkUserMiddleware = async (req, res, next) => {
+-    const uuid = req.headers['x-uuid'];
+     const apiKey = req.headers['x-app-key'];
+     const appName = req.headers['x-app'] || 'unknown';
+ 
+-    if (!uuid) return res.status(401).json({ error: 'Missing x-uuid header' });
++    let uuid;
++    try {
++        uuid = await resolveIdentity({
++            token: bearerToken(req.headers.authorization),
++            headerUuid: req.headers['x-uuid'] || null,
++        });
++    } catch (err) {
++        return res.status(err.status || 401).json({ error: err.message, code: err.code });
++    }
+ 
+     const deviceName = req.headers['x-device-name'];
+     if (!deviceName || deviceName === 'unknown') {
