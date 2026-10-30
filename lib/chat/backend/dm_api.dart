@@ -293,7 +293,13 @@ class DmApi {
     return completer.future;
   }
 
-  void send({
+  /// How long [send] waits for the backend to confirm a message.
+  static const _sendTimeout = Duration(seconds: 15);
+
+  /// Sends a message and waits (up to [_sendTimeout]) for the backend to
+  /// confirm it. The backend stores a [key] once, so sending the same message
+  /// again never duplicates it.
+  Future<DmSendResult> send({
     required String conversationId,
     required String content,
     required String contentType,
@@ -312,11 +318,15 @@ class DmApi {
     }
     // Don't drop the message when the socket is momentarily disconnected
     // (backgrounded / idle / mid-reconnect): socket.io buffers emits made while
-    // disconnected and flushes them on reconnect, so the message sends itself
-    // once the connection is back instead of getting stuck as "pending". Nudge
-    // the reconnect along.
+    // disconnected and flushes them on reconnect, so the message still goes
+    // out once the connection is back (its confirmation then just arrives
+    // after the timeout). Nudge the reconnect along.
     if (socket.disconnected) socket.connect();
-    socket.emit('dm.send', {
+    final result = Completer<DmSendResult>();
+    final timeout = Timer(_sendTimeout, () {
+      if (!result.isCompleted) result.complete(const DmSendResult.timedOut());
+    });
+    socket.emitWithAck('dm.send', {
       'conversationId': conversationId,
       'content': content,
       'contentType': contentType,
@@ -328,7 +338,11 @@ class DmApi {
       if (replyToId != null) 'replyToId': replyToId,
       if (replyToContent != null) 'replyToContent': replyToContent,
       if (replyToSenderId != null) 'replyToSenderId': replyToSenderId,
+    }, ack: ([dynamic response]) {
+      timeout.cancel();
+      if (!result.isCompleted) result.complete(DmSendResult.fromAck(response));
     });
+    return result.future;
   }
 
   void typing({
@@ -380,6 +394,41 @@ class DmApi {
     _connecting = null;
     await _events.close();
   }
+}
+
+/// The backend's answer to [DmApi.send].
+class DmSendResult {
+  const DmSendResult._({required this.ok, this.error, this.code});
+
+  const DmSendResult.timedOut()
+    : this._(ok: false, error: 'no confirmation in time');
+
+  factory DmSendResult.fromAck(dynamic response) {
+    final data = response is Map ? response : const <dynamic, dynamic>{};
+    return DmSendResult._(
+      ok: data['status'] == 'ok',
+      error: data['error']?.toString() ?? 'unexpected reply',
+      code: data['code']?.toString(),
+    );
+  }
+
+  final bool ok;
+  final String? error;
+  final String? code;
+
+  /// Refused for good — sending it again can't help (a block, or a message
+  /// the backend won't take). Anything else (a timeout, rate limit, a server
+  /// hiccup) is worth retrying.
+  bool get isRejected =>
+      !ok &&
+      (code == 'BLOCKED' ||
+          const {
+            'Not a participant',
+            'content must not be empty',
+            'unsupported contentType',
+            'conversationId and key are required',
+          }.contains(error) ||
+          (error?.startsWith('content is too long') ?? false));
 }
 
 /// A message from the server.

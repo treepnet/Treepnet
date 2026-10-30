@@ -132,17 +132,34 @@ class ChatCubit extends Cubit<ChatState> {
         );
       },
       (response) async {
-        final existingIds = state.messages.messages.map((m) => m.id).toSet();
+        final current = [...state.messages.messages];
+        final existingIds = current.map((m) => m.id).toSet();
+        // Hali "yuborilmoqda" turgan nusxalar - kalit bo'yicha. Server o'sha
+        // xabarni qaytarsa, nusxa almashtiriladi (aks holda ikki marta
+        // chizilardi).
+        final localByKey = <String, int>{
+          for (final (index, message) in current.indexed)
+            if (message.isLocal && message.key.isNotEmpty) message.key: index,
+        };
         final shouldAddList = List<_MessageModel>.empty(growable: true);
 
         for (final message in response.messages) {
+          final localIndex = message.key.isEmpty
+              ? null
+              : localByKey[message.key];
+          if (localIndex != null) {
+            current[localIndex] = message;
+            _OutboxService().removeMessage(message.key);
+            existingIds.add(message.id);
+            continue;
+          }
           if (!existingIds.contains(message.id)) {
             existingIds.add(message.id);
             shouldAddList.add(message);
           }
         }
 
-        final combinedMessages = [...shouldAddList, ...state.messages.messages];
+        final combinedMessages = [...shouldAddList, ...current];
 
         emit(
           state.copyWith(
@@ -244,6 +261,36 @@ class ChatCubit extends Cubit<ChatState> {
 
   void markAsRead() {
     unawaited(_ChatSocket.markRead());
+  }
+
+  /// Serverga yetmagan xabarni o'chiradi (oflayn navbatdan ham).
+  void removeLocalMessage(String key) {
+    _OutboxService().removeMessage(key);
+    emit(
+      state.copyWith(
+        messages: state.messages.copyWith(
+          messages: state.messages.messages
+              .where((m) => !(m.isLocal && m.key == key))
+              .toList(),
+        ),
+      ),
+    );
+  }
+
+  /// Yuborilmagan matnli xabarni o'sha kalit bilan qayta yuboradi - server
+  /// bir kalitni bir marta saqlaydi, shuning uchun dublikat bo'lmaydi.
+  Future<void> retryTextMessage(_MessageModel message) async {
+    updateMessage(message.copyWith(status: MessageStatus.sending));
+    await _ChatSocket.send(
+      ChatOutgoingMessage(
+        clientKey: message.key,
+        kind: ChatMessageKind.text,
+        content: message.content.content,
+        replyTo: message.replyTo,
+      ),
+      onError: (_) =>
+          updateMessage(message.copyWith(status: MessageStatus.error)),
+    );
   }
 
   Future<void> updateMessage(_MessageModel message) async {

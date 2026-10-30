@@ -120,6 +120,10 @@ class _MessageListState extends State<_MessageList> {
                   itemCount: state.messages.messages.length,
                   itemBuilder: (context, index) {
                     final message = state.messages.messages[index];
+                    // Never reached the server: offer Retry / Delete.
+                    final failed =
+                        message.isLocal &&
+                        message.status == MessageStatus.error;
                     final DateTime dateTime =
                         DateTime.tryParse(message.date) ?? DateTime.now();
 
@@ -206,18 +210,31 @@ class _MessageListState extends State<_MessageList> {
                               enabled:
                                   widget.onReply != null && !message.isLocal,
                               onReply: () => widget.onReply?.call(message),
-                              onLongPress: message.isLocal
-                                  ? null
-                                  : () => widget.onLongPress?.call(message),
-                              child: _ChatBubble(
-                                isAdmin: message.isFromPeer,
-                                message: message,
-                                config: state.config,
-                                showDate: showDate,
-                                showSenderName: showSenderName,
-                                showPeerAvatar: showPeerAvatar,
-                                date: date,
-                                messageStyle: widget.messageStyle,
+                              onLongPress: !message.isLocal
+                                  ? () => widget.onLongPress?.call(message)
+                                  : failed
+                                  ? () => _showFailedMessageActions(
+                                      context,
+                                      message,
+                                    )
+                                  : null,
+                              child: GestureDetector(
+                                onTap: failed
+                                    ? () => _showFailedMessageActions(
+                                        context,
+                                        message,
+                                      )
+                                    : null,
+                                child: _ChatBubble(
+                                  isAdmin: message.isFromPeer,
+                                  message: message,
+                                  config: state.config,
+                                  showDate: showDate,
+                                  showSenderName: showSenderName,
+                                  showPeerAvatar: showPeerAvatar,
+                                  date: date,
+                                  messageStyle: widget.messageStyle,
+                                ),
                               ),
                             ),
                           ),
@@ -300,4 +317,53 @@ class _SwipeToReplyState extends State<_SwipeToReply> {
       ),
     );
   }
+}
+
+/// Serverga yetmagan xabar uchun: qayta yuborish yoki o'chirish.
+///
+/// Matnli xabar o'sha kalit bilan qayta yuboriladi (server dublikat
+/// saqlamaydi); fayl esa qaytadan yuklab yuboriladi.
+Future<void> _showFailedMessageActions(
+  BuildContext context,
+  _MessageModel message,
+) async {
+  final cubit = context.read<ChatCubit>();
+  final action = await showModalBottomSheet<String>(
+    context: context,
+    builder: (sheetContext) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.refresh),
+            title: Text(_AppTexts.retry),
+            onTap: () => Navigator.pop(sheetContext, 'retry'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete_outline),
+            title: Text(_AppTexts.delete),
+            onTap: () => Navigator.pop(sheetContext, 'delete'),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (action == null || !context.mounted) return;
+  if (action == 'delete') {
+    cubit.removeLocalMessage(message.key);
+    return;
+  }
+  if (message.contentType.isText) {
+    await cubit.retryTextMessage(message);
+    return;
+  }
+  final path = message.filePath;
+  cubit.removeLocalMessage(message.key);
+  if (path == null || path.isEmpty) return;
+  await cubit.sendFileMessage(
+    path,
+    message.content.size,
+    context: context,
+    downScrollCallback: () {},
+  );
 }

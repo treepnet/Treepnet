@@ -225,6 +225,18 @@ class ChatConnectionChanged extends ChatTransportEvent {
   final ChatConnectionStatus status;
 }
 
+/// [ChatTransport.send] tashlaydi, agar backend xabarni butunlay rad etsa
+/// (masalan, blok). Tarmoq xatosidan farqli o'laroq, bunday xabar oflayn
+/// navbatga qo'yilmaydi - qayta yuborish yordam bermaydi.
+class ChatSendRejected implements Exception {
+  const ChatSendRejected(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'ChatSendRejected: $reason';
+}
+
 /// Chat UI va ilovaning backendi o'rtasidagi yagona shartnoma.
 ///
 /// Plagin tarmoq haqida hech narsa bilmaydi: HTTP, WebSocket, Firebase yoki

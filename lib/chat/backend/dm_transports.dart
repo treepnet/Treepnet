@@ -115,17 +115,28 @@ class DmChatTransport implements ChatTransport {
   }
 
   @override
-  Future<void> send(ChatOutgoingMessage message) async => api.send(
-    conversationId: conversationId,
-    content: message.content,
-    contentType: dmContentTypeOf(message.kind),
-    key: message.clientKey,
-    duration: message.duration,
-    size: message.size,
-    replyToId: message.replyTo?.messageId,
-    replyToContent: message.replyTo?.content,
-    replyToSenderId: message.replyTo?.senderId,
+  Future<void> send(ChatOutgoingMessage message) async => _confirm(
+    await api.send(
+      conversationId: conversationId,
+      content: message.content,
+      contentType: dmContentTypeOf(message.kind),
+      key: message.clientKey,
+      duration: message.duration,
+      size: message.size,
+      replyToId: message.replyTo?.messageId,
+      replyToContent: message.replyTo?.content,
+      replyToSenderId: message.replyTo?.senderId,
+    ),
   );
+
+  /// Turns the backend's answer into what the chat plugin expects: nothing on
+  /// success, [ChatSendRejected] when it refused the message for good (not
+  /// queued again), any other error when it's worth resending later.
+  void _confirm(DmSendResult result) {
+    if (result.ok) return;
+    if (result.isRejected) throw ChatSendRejected(result.code ?? result.error!);
+    throw StateError('Message not confirmed: ${result.error}');
+  }
 
   @override
   Future<ChatUploadResult> uploadAttachment({
@@ -153,16 +164,19 @@ class DmChatTransport implements ChatTransport {
     // The server generates a thumbnail (`png`) for video.
     final thumbnail = api.absolute(body['png']?.toString() ?? '');
 
-    // Send the message ourselves once the upload finishes.
-    api.send(
-      conversationId: conversationId,
-      content: url,
-      contentType: dmContentTypeOf(kind),
-      key: clientKey,
-      svg: body['svg']?.toString(),
-      png: body['png']?.toString(),
-      duration: body['duration']?.toString(),
-      size: body['size']?.toString(),
+    // Send the message ourselves once the upload finishes; a failure shows
+    // on the message (with Retry) like a failed upload.
+    _confirm(
+      await api.send(
+        conversationId: conversationId,
+        content: url,
+        contentType: dmContentTypeOf(kind),
+        key: clientKey,
+        svg: body['svg']?.toString(),
+        png: body['png']?.toString(),
+        duration: body['duration']?.toString(),
+        size: body['size']?.toString(),
+      ),
     );
 
     return ChatUploadResult(

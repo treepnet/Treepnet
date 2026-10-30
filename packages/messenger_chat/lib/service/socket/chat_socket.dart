@@ -134,6 +134,11 @@ class _ChatSocket {
       await transport.send(message);
       _OutboxService().removeMessage(message.clientKey);
       onSuccess?.call();
+    } on ChatSendRejected catch (e) {
+      // Butunlay rad etildi - navbatga qo'yilmaydi.
+      _ChatLogger.failure('⛔️ Xabar rad etildi: ${e.reason}');
+      _OutboxService().removeMessage(message.clientKey);
+      onError?.call(e);
     } catch (e) {
       _ChatLogger.failure('📦 Yuborilmadi, navbatga qo\'yildi: $e');
       _OutboxService().addMessage(message.clientKey, _encode(message));

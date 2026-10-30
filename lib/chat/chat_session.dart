@@ -238,7 +238,8 @@ class ChatSession {
 
   /// Sends a one-off text message to [peerUuid] without opening the thread UI
   /// (used by share / story-reply). Opens/creates the conversation, ensures the
-  /// socket is up, then emits. The conversation surfaces in the peer's inbox.
+  /// socket is up, then sends and waits for the backend to confirm it; throws
+  /// when it doesn't. The conversation surfaces in the peer's inbox.
   Future<void> sendText({
     required String peerUuid,
     required String peerName,
@@ -251,12 +252,13 @@ class ChatSession {
       peerAvatarUrl: peerAvatarUrl,
     );
     await api.connect();
-    api.send(
+    final result = await api.send(
       conversationId: opened.conversationId,
       content: text,
       contentType: 'text',
       key: DateTime.now().microsecondsSinceEpoch.toString(),
     );
+    if (!result.ok) throw StateError('Message not sent: ${result.error}');
   }
 
   /// Tears down the connection (logout / user switch).
