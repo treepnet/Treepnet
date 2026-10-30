@@ -902,5 +902,10 @@
   "updateAvailableDescription": "Обновите Treepnet, чтобы получить последние исправления и новые функции.",
   "updateText": "Обновить",
   "laterText": "Позже",
-  "postNotPublishedText": "Не удалось опубликовать"
+  "postNotPublishedText": "Не удалось опубликовать",
+  "chatsLoadFailedText": "Не удалось загрузить чаты",
+  "chatPhotoPreviewText": "Фото",
+  "chatVideoPreviewText": "Видео",
+  "chatVoicePreviewText": "Голосовое сообщение",
+  "chatFilePreviewText": "Файл"
 }

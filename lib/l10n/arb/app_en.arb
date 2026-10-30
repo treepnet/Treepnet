@@ -956,5 +956,10 @@
   "updateAvailableDescription": "Update Treepnet to get the latest fixes and features.",
   "updateText": "Update",
   "laterText": "Later",
-  "postNotPublishedText": "Couldn't post"
+  "postNotPublishedText": "Couldn't post",
+  "chatsLoadFailedText": "Couldn't load chats",
+  "chatPhotoPreviewText": "Photo",
+  "chatVideoPreviewText": "Video",
+  "chatVoicePreviewText": "Voice message",
+  "chatFilePreviewText": "File"
 }

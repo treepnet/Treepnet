@@ -3092,6 +3092,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn\'t post'**
   String get postNotPublishedText;
+
+  /// No description provided for @chatsLoadFailedText.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load chats'**
+  String get chatsLoadFailedText;
+
+  /// No description provided for @chatPhotoPreviewText.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo'**
+  String get chatPhotoPreviewText;
+
+  /// No description provided for @chatVideoPreviewText.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get chatVideoPreviewText;
+
+  /// No description provided for @chatVoicePreviewText.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice message'**
+  String get chatVoicePreviewText;
+
+  /// No description provided for @chatFilePreviewText.
+  ///
+  /// In en, this message translates to:
+  /// **'File'**
+  String get chatFilePreviewText;
 }
 
 class _AppLocalizationsDelegate

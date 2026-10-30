@@ -1817,4 +1817,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get postNotPublishedText => 'Couldn\'t post';
+
+  @override
+  String get chatsLoadFailedText => 'Couldn\'t load chats';
+
+  @override
+  String get chatPhotoPreviewText => 'Photo';
+
+  @override
+  String get chatVideoPreviewText => 'Video';
+
+  @override
+  String get chatVoicePreviewText => 'Voice message';
+
+  @override
+  String get chatFilePreviewText => 'File';
 }

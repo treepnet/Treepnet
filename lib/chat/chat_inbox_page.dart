@@ -115,6 +115,7 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
                         _ChatsList(
                           query: _query,
                           onStartChat: () => _goToTab(0),
+                          start: _start,
                         ),
                       ],
                     );
@@ -407,9 +408,16 @@ class _TypeListState extends State<_TypeList> {
 /// "Chats" tab: existing conversations from the shared list transport, filtered
 /// by the search query and kept live via the transport's events.
 class _ChatsList extends StatefulWidget {
-  const _ChatsList({required this.query, this.onStartChat});
+  const _ChatsList({
+    required this.query,
+    required this.start,
+    this.onStartChat,
+  });
 
   final String query;
+
+  /// Starts the chat session — again after it failed (e.g. opened offline).
+  final Future<void> Function() start;
 
   /// Jumps to the "Type" tab from the empty-state button.
   final VoidCallback? onStartChat;
@@ -423,6 +431,11 @@ class _ChatsListState extends State<_ChatsList> {
   StreamSubscription<ChatListEvent>? _sub;
   bool _loading = true;
   Object? _error;
+
+  /// Tries again on its own while loading has failed (5 s, 10 s, 20 s, then
+  /// every 30 s), so chats come back once the connection does.
+  Timer? _retryTimer;
+  int _retries = 0;
 
   /// Everyone I blocked or who blocked me. The chat backend doesn't know about
   /// blocks, so their conversations are hidden here (opening one is already
@@ -444,13 +457,23 @@ class _ChatsListState extends State<_ChatsList> {
   }
 
   Future<void> _bind() async {
+    _retryTimer?.cancel();
     await _sub?.cancel();
     _sub = null;
+    _error = null;
+    // Opened offline, the session never started; start it now.
+    if (!ChatSession.instance.isStarted) {
+      try {
+        await widget.start();
+      } catch (_) {}
+    }
+    if (!mounted) return;
     if (!ChatSession.instance.isStarted) {
       setState(() {
         _loading = false;
         _error = 'not-started';
       });
+      _retryLater();
       return;
     }
     final transport = ChatSession.instance.listTransport;
@@ -461,10 +484,22 @@ class _ChatsListState extends State<_ChatsList> {
       for (final c in page.conversations) {
         _map[c.id] = c;
       }
+      _retries = 0;
     } catch (e) {
       _error = e;
+      _retryLater();
     }
     if (mounted) setState(() => _loading = false);
+  }
+
+  void _retryLater() {
+    if (!mounted) return;
+    final delay = Duration(seconds: _retries >= 3 ? 30 : 5 << _retries);
+    _retries++;
+    _retryTimer?.cancel();
+    _retryTimer = Timer(delay, () {
+      if (mounted && _error != null) unawaited(_bind());
+    });
   }
 
   void _onEvent(ChatListEvent event) {
@@ -497,6 +532,7 @@ class _ChatsListState extends State<_ChatsList> {
 
   @override
   void dispose() {
+    _retryTimer?.cancel();
     unawaited(_sub?.cancel());
     unawaited(_blockedSub?.cancel());
     super.dispose();
@@ -516,7 +552,7 @@ class _ChatsListState extends State<_ChatsList> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              context.l10n.noChatsText,
+              context.l10n.chatsLoadFailedText,
               style: context.bodyMedium?.copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -524,13 +560,14 @@ class _ChatsListState extends State<_ChatsList> {
             const Gap.v(AppSpacing.sm),
             TextButton(
               onPressed: () {
+                _retries = 0;
                 setState(() {
                   _loading = true;
                   _error = null;
                 });
                 _bind();
               },
-              child: const Text('Qayta urinish'),
+              child: Text(context.l10n.retryText),
             ),
           ],
         ),
@@ -586,13 +623,14 @@ class _ConversationTile extends StatelessWidget {
 
   final ChatConversation conversation;
 
-  String _preview() {
+  String _preview(BuildContext context) {
     if (conversation.lastMessage.isNotEmpty) return conversation.lastMessage;
+    final l10n = context.l10n;
     return switch (conversation.lastMessageKind) {
-      ChatMessageKind.photo => '📷 Rasm',
-      ChatMessageKind.video => '🎬 Video',
-      ChatMessageKind.voice => '🎤 Ovozli xabar',
-      ChatMessageKind.file => '📎 Fayl',
+      ChatMessageKind.photo => '📷 ${l10n.chatPhotoPreviewText}',
+      ChatMessageKind.video => '🎬 ${l10n.chatVideoPreviewText}',
+      ChatMessageKind.voice => '🎤 ${l10n.chatVoicePreviewText}',
+      ChatMessageKind.file => '📎 ${l10n.chatFilePreviewText}',
       ChatMessageKind.text => '',
     };
   }
@@ -698,7 +736,7 @@ class _ConversationTile extends StatelessWidget {
     required String? avatarUrl,
   }) {
     final unread = conversation.unreadCount;
-    final preview = _preview();
+    final preview = _preview(context);
 
     // The story ring needs the peer's app uuid (the ChatUser carries only the
     // backend id).

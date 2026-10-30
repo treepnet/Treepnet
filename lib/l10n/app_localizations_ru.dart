@@ -1848,4 +1848,19 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get postNotPublishedText => 'Не удалось опубликовать';
+
+  @override
+  String get chatsLoadFailedText => 'Не удалось загрузить чаты';
+
+  @override
+  String get chatPhotoPreviewText => 'Фото';
+
+  @override
+  String get chatVideoPreviewText => 'Видео';
+
+  @override
+  String get chatVoicePreviewText => 'Голосовое сообщение';
+
+  @override
+  String get chatFilePreviewText => 'Файл';
 }
