@@ -142,8 +142,14 @@ services:
       SMTP_PASS: ${SMTP_PASS}
       ALLOWED_ORIGIN: https://treepnet.com,https://www.treepnet.com
       PORT: "4000"
+      # Account-deletion cleanup worker (cleanup.js): the chat server database
+      # and files, and the error logger for jobs that keep failing.
+      CHAT_PG_CONNECTION_STRING: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/chat
+      CHAT_UPLOADS_DIR: /chat-uploads
+      LOG_APP_KEY: ${LOG_APP_KEY}
     volumes:
       - ./functions/fcm-service-account.json:/secrets/fcm-service-account.json:ro
+      - chat_uploads:/chat-uploads
     networks:
       - treepnet
 

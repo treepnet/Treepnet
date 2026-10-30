@@ -2,12 +2,15 @@
 // Node HTTP server for the OCI stack. Two endpoints (called by the website):
 //   POST /api/request-code  { username }        -> emails a 6-digit code
 //   POST /api/confirm        { username, code }  -> verifies + deletes account
+// It also runs the account-deletion cleanup worker (cleanup.js) for every
+// deletion, from the app or the website.
 // Behind Caddy at https://api.treepnet.com/delete-account/* (prefix stripped).
 const http = require('http');
 const crypto = require('crypto');
 const { Pool } = require('pg');
 const nodemailer = require('nodemailer');
 const admin = require('firebase-admin');
+const { createCleanup } = require('./cleanup');
 
 // Firebase Admin — so deleting an account also removes its Firebase Auth user
 // (uid == the profile UUID). Signs locally with the service-account key.
@@ -143,15 +146,10 @@ async function confirm(res, body) {
       );
       return send(res, 400, { error: 'Invalid code.' });
     }
+    // Deletes the rows and the code, and queues the rest (Firebase user, chats,
+    // media files) for the cleanup worker — the same path the app's own
+    // delete_account() takes.
     await pool.query('select delete_account_by_id($1)', [user.id]);
-    // Best-effort: remove the Firebase Auth user (uid == profile id). The
-    // account is already gone from the DB, so don't fail the request if this
-    // does (e.g. the user was never created in Firebase).
-    await admin
-      .auth()
-      .deleteUser(user.id)
-      .catch((e) => console.error('firebase deleteUser failed:', e.message));
-    await pool.query('delete from account_deletion_codes where email = $1', [user.email]);
     return send(res, 200, { ok: true });
   } catch (e) {
     return send(res, 500, { error: 'Something went wrong. Please try again.' });
@@ -184,3 +182,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => console.log(`delete-account server on :${PORT}`));
+
+createCleanup({ pool, admin }).start();
