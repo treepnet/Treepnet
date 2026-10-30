@@ -45,9 +45,13 @@ bucket_definitions:
   global_location_stories:
     data:
         - select * from location_stories
+  # Public profile fields only. Email, birthday, gender, push token and
+  # last-seen used to sync to every phone with `select *`; they now go to
+  # their owner alone (user_own_profile, below). Keep this list in step with
+  # the `profiles` columns the app shows (packages/shared .../schema.dart).
   global_profiles:
     data:
-        - select * from profiles
+        - select id, full_name, username, avatar_url, referral_tier, referral_tier_expires_at, bio, is_private, telegram, website, instagram, onboarded_at, notifications_seen_at from profiles
   global_subscriptions:
     data:
         - select * from subscriptions
@@ -81,6 +85,13 @@ bucket_definitions:
     parameters: select request.user_id() as user_id
     data:
         - select * from archived_posts where user_id = bucket.user_id
+  # The signed-in user's own private profile fields, as a separate client
+  # table: a row synced in two buckets must carry the same columns in both,
+  # so they can't ride on `profiles`.
+  user_own_profile:
+    parameters: select request.user_id() as user_id
+    data:
+        - select id, email, birthday, gender, push_token, last_seen_at from profiles as my_profile where id = bucket.user_id
   user_blocked_users:
     parameters: select request.user_id() as user_id
     data:
