@@ -108,9 +108,9 @@
 
   <script>
   (function () {
-    // Azure Function base URL. REPLACE with the deployed function app URL,
-    // e.g. 'https://treepnet-func.azurewebsites.net/api'.
-    var API_BASE = 'https://treepnet-delete-func.azurewebsites.net/api';
+    // The delete-account service on the OCI server (Caddy strips
+    // /delete-account, so the service sees /api/request-code and /api/confirm).
+    var API_BASE = 'https://api.treepnet.com/delete-account/api';
 
     var usernameEl = document.getElementById('username');
     var codeEl = document.getElementById('code');

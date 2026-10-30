@@ -140,7 +140,7 @@ services:
       FIREBASE_SERVICE_ACCOUNT_FILE: /secrets/fcm-service-account.json
       SMTP_USER: treepnetofficial@gmail.com
       SMTP_PASS: ${SMTP_PASS}
-      ALLOWED_ORIGIN: https://treepnet.com
+      ALLOWED_ORIGIN: https://treepnet.com,https://www.treepnet.com
       PORT: "4000"
     volumes:
       - ./functions/fcm-service-account.json:/secrets/fcm-service-account.json:ro

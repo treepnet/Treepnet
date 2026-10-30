@@ -23,7 +23,11 @@ const pool = new Pool({
   max: 3,
 });
 
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
+// Comma-separated: the page is served on both treepnet.com and www.treepnet.com.
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGIN || '*')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
 const CODE_TTL_MIN = parseInt(process.env.CODE_TTL_MIN || '15', 10);
 const PORT = parseInt(process.env.PORT || '4000', 10);
 
@@ -32,9 +36,16 @@ const transporter = nodemailer.createTransport({
   auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
 });
 
-function corsHeaders() {
+// Browsers accept a single origin per response, so echo the caller's when it
+// is one of ours.
+function allowOriginFor(origin) {
+  if (ALLOWED_ORIGINS.includes('*')) return '*';
+  return ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+}
+
+function corsHeaders(origin) {
   return {
-    'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
+    'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     Vary: 'Origin',
@@ -44,7 +55,7 @@ function corsHeaders() {
 function send(res, status, body) {
   res.writeHead(status, {
     'Content-Type': 'application/json',
-    ...corsHeaders(),
+    ...corsHeaders(res.allowOrigin),
   });
   res.end(JSON.stringify(body));
 }
@@ -133,8 +144,9 @@ async function confirm(res, body) {
 }
 
 const server = http.createServer((req, res) => {
+  res.allowOrigin = allowOriginFor(req.headers.origin);
   if (req.method === 'OPTIONS') {
-    res.writeHead(204, corsHeaders());
+    res.writeHead(204, corsHeaders(res.allowOrigin));
     return res.end();
   }
   const path = (req.url || '').split('?')[0];
