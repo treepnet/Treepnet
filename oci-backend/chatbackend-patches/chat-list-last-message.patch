@@ -1,0 +1,73 @@
+Chat backend (./chatbackend on the server, not in this repo): load ONE last
+message per conversation for the chat list.
+
+The list route used `include: { messages: { orderBy: date desc, take: 1 } }`.
+Prisma doesn't limit that in SQL: it reads every message of the page's
+conversations and keeps one per conversation in memory, so the list got
+heavier as chats grew. Now a LATERAL query reads one row per conversation via
+the (conversationId, date) index. Checked before switching: same last message
+for all 85 users / 218 conversations.
+
+Applied on the server 2026-10-31 (backup: ~/backups/dm_routes.js.bak-20261031-lastmsg).
+Apply after firebase-token-auth.patch:
+  cd ~/treepnet/chatbackend && patch -p1 < chat-list-last-message.patch
+  cd .. && docker compose build chatbackend && docker compose up -d chatbackend
+
+--- a/src/interfaces/http/routes/dm_routes.js	2026-10-31 02:52:30
++++ b/src/interfaces/http/routes/dm_routes.js	2026-10-31 02:52:56
+@@ -87,6 +87,28 @@
+  */
+ const peerOf = (conversation, meId) =>
+     conversation.participants.find((p) => p.userId !== meId);
++
++/**
++ * Har suhbatning oxirgi xabari - bittadan.
++ *
++ * Avval `include: { messages: { take: 1 } }` ishlatilardi: Prisma uni SQL da
++ * cheklamaydi, sahifadagi suhbatlarning HAMMA xabarlarini o'qib, xotirada
++ * bittadan qoldiradi - suhbatlar uzaygani sari ro'yxat og'irlashardi. Bu yerda
++ * har suhbat uchun (conversationId, date) indeksi bo'yicha bitta qator
++ * o'qiladi.
++ */
++async function lastMessagesOf(conversationIds) {
++    if (conversationIds.length === 0) return new Map();
++    const rows = await prisma.$queryRaw`
++        SELECT m.* FROM unnest(${conversationIds}::int[]) AS c(id)
++        CROSS JOIN LATERAL (
++            SELECT * FROM "DirectMessage"
++             WHERE "conversationId" = c.id
++             ORDER BY "date" DESC, "id" DESC
++             LIMIT 1
++        ) m`;
++    return new Map(rows.map((message) => [message.conversationId, message]));
++}
+ 
+ /**
+  * GET /chat/dm/conversations
+@@ -104,7 +126,6 @@
+                 conversation: {
+                     include: {
+                         participants: { include: { user: true } },
+-                        messages: { orderBy: { date: 'desc' }, take: 1 },
+                     },
+                 },
+             },
+@@ -117,6 +138,9 @@
+ 
+         const hasMore = memberships.length > size;
+         const items = hasMore ? memberships.slice(0, size) : memberships;
++        const lastMessages = await lastMessagesOf(
++            items.map((membership) => membership.conversation.id),
++        );
+ 
+         const data = items
+             // A conversation this user has "deleted" (clearedAt set) stays hidden
+@@ -131,7 +155,7 @@
+             .map((membership) => {
+                 const conversation = membership.conversation;
+                 const peer = peerOf(conversation, req.user.id);
+-                const last = conversation.messages[0] || null;
++                const last = lastMessages.get(conversation.id) || null;
+ 
+                 return {
+                     id: String(conversation.id),

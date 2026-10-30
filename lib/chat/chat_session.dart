@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:messenger_chat/messenger_chat.dart';
 import 'package:token_storage/token_storage.dart';
 
@@ -39,6 +39,10 @@ class ChatSession {
   /// bind to it once.
   final ValueNotifier<int> unreadTotal = ValueNotifier<int>(0);
   VoidCallback? _unreadListener;
+
+  /// Reloads the inbox when the app comes back after a while (see [_onResume]).
+  AppLifecycleListener? _lifecycle;
+  DateTime? _backgroundedAt;
 
   DmApi get api => _api!;
   DmListTransport get listTransport => _listTransport!;
@@ -100,6 +104,10 @@ class ChatSession {
     // Warm up in the background so the badge is populated and real-time
     // updates arrive app-wide, even before the inbox is opened. Best-effort.
     unawaited(_warmUp(list));
+    _lifecycle ??= AppLifecycleListener(
+      onHide: () => _backgroundedAt = DateTime.now(),
+      onShow: _onResume,
+    );
     unawaited(_registerPushToken());
   }
 
@@ -119,6 +127,19 @@ class ChatSession {
     }
     if (tokens == null || tokens.userId != myUuid) return null;
     return tokens.idToken;
+  }
+
+  /// Back in the foreground after at least 30 s: messages may have arrived
+  /// while the inbox wasn't listening, so reload it (throttled in
+  /// [DmListTransport.refresh]).
+  void _onResume() {
+    final since = _backgroundedAt;
+    _backgroundedAt = null;
+    if (since == null ||
+        DateTime.now().difference(since) < const Duration(seconds: 30)) {
+      return;
+    }
+    unawaited(_listTransport?.refresh() ?? Future<void>.value());
   }
 
   StreamSubscription<String>? _tokenRefreshSub;
@@ -223,6 +244,9 @@ class ChatSession {
   Future<void> stop() async {
     await _tokenRefreshSub?.cancel();
     _tokenRefreshSub = null;
+    _lifecycle?.dispose();
+    _lifecycle = null;
+    _backgroundedAt = null;
     final listener = _unreadListener;
     if (listener != null) {
       _listTransport?.unreadTotal.removeListener(listener);

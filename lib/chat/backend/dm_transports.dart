@@ -272,6 +272,39 @@ class DmListTransport implements ChatListTransport {
   /// whenever [_conversations] changes.
   final ValueNotifier<int> unreadTotal = ValueNotifier<int>(0);
 
+  /// [refresh] runs at most this often, so a flaky connection or quick app
+  /// switches don't pile up requests.
+  static const _refreshGap = Duration(seconds: 30);
+  DateTime? _lastRefresh;
+  bool _refreshing = false;
+
+  /// The socket dropped since it last connected; reload once it's back.
+  bool _wasDisconnected = false;
+
+  /// Reloads the first page of the list. Messages and new conversations that
+  /// arrived while the socket was down (or the app was in the background)
+  /// only reach the list — and the unread badge — this way. At most once per
+  /// [_refreshGap], and never two at once.
+  Future<void> refresh() async {
+    final last = _lastRefresh;
+    if (_refreshing ||
+        (last != null && DateTime.now().difference(last) < _refreshGap)) {
+      return;
+    }
+    _refreshing = true;
+    _lastRefresh = DateTime.now();
+    try {
+      final page = await loadConversations(page: 1, size: 30);
+      for (final conversation in page.conversations) {
+        _events.add(ChatConversationUpserted(conversation));
+      }
+    } catch (_) {
+      // The next reconnect or return to the app tries again.
+    } finally {
+      _refreshing = false;
+    }
+  }
+
   void _recomputeUnread() {
     unreadTotal.value = _conversations.values.fold<int>(
       0,
@@ -332,6 +365,12 @@ class DmListTransport implements ChatListTransport {
 
         case DmConnectionEvent(:final status):
           _events.add(ChatListConnectionChanged(status));
+          if (status == ChatConnectionStatus.connected) {
+            if (_wasDisconnected) unawaited(refresh());
+            _wasDisconnected = false;
+          } else {
+            _wasDisconnected = true;
+          }
 
         default:
           break;
