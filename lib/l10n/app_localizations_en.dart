@@ -1814,4 +1814,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get laterText => 'Later';
+
+  @override
+  String get postNotPublishedText => 'Couldn\'t post';
 }

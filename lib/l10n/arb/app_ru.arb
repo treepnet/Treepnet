@@ -901,5 +901,6 @@
   "updateAvailableTitle": "Доступна новая версия",
   "updateAvailableDescription": "Обновите Treepnet, чтобы получить последние исправления и новые функции.",
   "updateText": "Обновить",
-  "laterText": "Позже"
+  "laterText": "Позже",
+  "postNotPublishedText": "Не удалось опубликовать"
 }

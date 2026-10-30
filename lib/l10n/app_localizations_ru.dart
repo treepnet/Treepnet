@@ -1845,4 +1845,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get laterText => 'Позже';
+
+  @override
+  String get postNotPublishedText => 'Не удалось опубликовать';
 }

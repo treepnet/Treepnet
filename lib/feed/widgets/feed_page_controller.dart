@@ -1,14 +1,13 @@
-import 'dart:typed_data';
-
+import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:treepnet/feed/feed.dart';
 import 'package:treepnet/feed/post/video/video.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared/shared.dart';
+import 'package:treepnet/app/app.dart';
 import 'package:treepnet/app/services/media_upload_queue.dart';
-import 'package:treepnet/feed/widgets/post_upload_progress.dart';
+import 'package:treepnet/monitoring/crash_reporter.dart';
 import 'package:user_repository/user_repository.dart';
 
 class FeedPageController extends ChangeNotifier {
@@ -63,6 +62,10 @@ class FeedPageController extends ChangeNotifier {
     );
   }
 
+  /// Publishes a new post. The picked files and the post are saved to the
+  /// phone first ([MediaUploadQueue.startPost]), so it survives the app being
+  /// closed; the queue then compresses, uploads and creates it, and the feed's
+  /// "Posting…" banner follows its progress.
   Future<void> processPostMedia({
     required List<SelectedByte> selectedFiles,
     required String postId,
@@ -75,11 +78,9 @@ class FeedPageController extends ChangeNotifier {
     double? locationLat,
     double? locationLng,
   }) async {
-    final firstThumb =
-        selectedFiles.isNotEmpty && selectedFiles.first.isThatImage
-        ? selectedFiles.first.selectedByte
-        : null;
-    PostUploadProgress().begin(thumbnail: firstThumb);
+    final queue = _context.read<MediaUploadQueue>();
+    final userId = _context.read<UserRepository>().currentUserId;
+    final failedText = _context.l10n.failedToCreatePostText;
 
     final isReel =
         selectedFiles.length == 1 && selectedFiles.every((e) => !e.isThatImage);
@@ -91,256 +92,31 @@ class FeedPageController extends ChangeNotifier {
       VideoPlayerInheritedWidget.of(_context).videoPlayerState.playReels();
     }
 
-    void uploadPost({required List<Map<String, dynamic>> media}) =>
-        _context.read<FeedBloc>().add(
-          FeedPostCreateRequested(
-            postId: postId,
-            caption: caption,
-            media: media,
-            location: location,
-            locationCountry: locationCountry,
-            locationRegion: locationRegion,
-            locationName: locationName,
-            locationLat: locationLat,
-            locationLng: locationLng,
-          ),
-        );
-
-    late final storage = MediaStorage.instance.from('posts');
-
-    final queue = _context.read<MediaUploadQueue>();
-    final userId = _context.read<UserRepository>().currentUserId;
-
-    // A file that didn't upload right away goes to the queue, and then the post
-    // goes there too: it is created only once every file is uploaded, so its
-    // media never point at files that exist only on this phone.
-    var queued = false;
-    Future<void> queuePost({required List<Map<String, dynamic>> media}) async {
-      if (userId == null) return;
-      await queue.enqueuePost(
-        PendingPost(
-          postId: postId,
-          userId: userId,
-          caption: caption,
-          media: media,
-          location: location,
-          locationCountry: locationCountry,
-          locationRegion: locationRegion,
-          locationName: locationName,
-          locationLat: locationLat,
-          locationLng: locationLng,
-        ),
-      );
-      // The banner stays up until the queue creates the post.
-      queued = true;
-    }
-
     try {
-    if (isReel) {
-      final selectedFile = selectedFiles.first;
-      final mediaPath = '$postId/video_0';
-
-      final firstFrame = await VideoPlus.getVideoThumbnail(
-        selectedFile.selectedFile,
-      );
-      final blurHash = firstFrame == null
-          ? ''
-          : await BlurHashPlus.blurHashEncode(firstFrame);
-      final compressedVideo =
-          (await VideoPlus.compressVideo(selectedFile.selectedFile))?.file ??
-          selectedFile.selectedFile;
-      final compressedVideoBytes = await PickImage().imageBytes(
-        file: compressedVideo,
-      );
-      final attachment = AttachmentFile(
-        size: compressedVideoBytes.length,
-        bytes: compressedVideoBytes,
-        path: compressedVideo.path,
-      );
-
-      var mediaUrl = '';
-      String? firstFrameUrl;
-      var pending = false;
-
-      try {
-        await storage.uploadBinary(
-          mediaPath,
-          attachment.bytes!,
-          fileOptions: MediaFileOptions(
-            contentType: attachment.mediaType!.mimeType,
-            cacheControl: '9000000',
-          ),
-        );
-        mediaUrl = storage.getPublicUrl(mediaPath);
-
-        if (firstFrame != null) {
-          late final firstFramePath = '$postId/video_first_frame_0';
-          await storage.uploadBinary(
-            firstFramePath,
-            firstFrame,
-            fileOptions: MediaFileOptions(
-              contentType: attachment.mediaType!.mimeType,
-              cacheControl: '9000000',
+      if (userId == null) throw StateError('Not signed in');
+      await queue.startPost(
+        postId: postId,
+        userId: userId,
+        caption: caption,
+        files: [
+          for (final file in selectedFiles)
+            PostSourceFile(
+              bytes: file.selectedByte,
+              path: file.selectedFile.path,
+              isVideo: !file.isThatImage,
             ),
-          );
-          firstFrameUrl = storage.getPublicUrl(firstFramePath);
-        }
-      } catch (error, stackTrace) {
-        logW('Immediate upload failed. Enqueuing offline upload...', error: error, stackTrace: stackTrace);
-        late final firstFramePath = '$postId/video_first_frame_0';
-        await queue.enqueueTask(
-          postId: postId,
-          bytes: attachment.bytes!,
-          remotePath: mediaPath,
-          bucket: 'posts',
-          contentType: attachment.mediaType!.mimeType,
-          mediaType: VideoMedia.identifier,
-          index: 0,
-          blurHash: blurHash,
-          firstFrameBytes: firstFrame,
-          firstFrameRemotePath: firstFramePath,
-        );
-        mediaUrl = '';
-        firstFrameUrl = null;
-        pending = true;
-      }
-
-      final media = [
-        {
-          'media_id': uuid.v4(),
-          'url': mediaUrl,
-          'type': VideoMedia.identifier,
-          'blur_hash': blurHash,
-          'first_frame_url': firstFrameUrl,
-        },
-      ];
-      if (pending) {
-        await queuePost(media: media);
-      } else {
-        uploadPost(media: media);
-      }
-    } else {
-      final media = <Map<String, dynamic>>[];
-      var pending = false;
-      for (var i = 0; i < selectedFiles.length; i++) {
-        late final selectedByte = selectedFiles[i].selectedByte;
-        late final selectedFile = selectedFiles[i].selectedFile;
-        late final isVideo = selectedFile.isVideo;
-        String blurHash;
-        Uint8List? convertedBytes;
-        // Compressed image bytes, reused for both the blur hash and the upload.
-        // Compressing off the main thread first prevents the full-resolution
-        // image from blocking the UI thread (ANR) during blur hash encoding.
-        Uint8List? compressedImageBytes;
-        if (isVideo) {
-          convertedBytes = await VideoPlus.getVideoThumbnail(selectedFile);
-          blurHash = convertedBytes == null
-              ? ''
-              : await BlurHashPlus.blurHashEncode(convertedBytes);
-        } else {
-          compressedImageBytes = await ImageCompress.compressByte(selectedByte);
-          blurHash = await BlurHashPlus.blurHashEncode(compressedImageBytes);
-        }
-        PostUploadProgress().to(0.4);
-        late final mediaExtension = selectedFile.path
-            .split('.')
-            .last
-            .toLowerCase();
-
-        late final mediaPath = '$postId/${!isVideo ? 'image_$i' : 'video_$i'}';
-
-        Uint8List bytes;
-        if (isVideo) {
-          try {
-            final compressedVideo = await VideoPlus.compressVideo(selectedFile);
-            bytes = await PickImage().imageBytes(file: compressedVideo!.file!);
-          } catch (error, stackTrace) {
-            logE(
-              _context.l10n.errorCompressingVideoText,
-              error: error,
-              stackTrace: stackTrace,
-            );
-            bytes = selectedByte;
-          }
-        } else {
-          bytes = compressedImageBytes ?? selectedByte;
-        }
-
-        var mediaUrl = '';
-        String? firstFrameUrl;
-
-        try {
-          await storage.uploadBinary(
-            mediaPath,
-            bytes,
-            fileOptions: MediaFileOptions(
-              contentType: '${!isVideo ? 'image' : 'video'}/$mediaExtension',
-              cacheControl: '9000000',
-            ),
-          );
-          mediaUrl = storage.getPublicUrl(mediaPath);
-          PostUploadProgress().to(0.85);
-
-          if (convertedBytes != null) {
-            late final firstFramePath = '$postId/video_first_frame_$i';
-            await storage.uploadBinary(
-              firstFramePath,
-              convertedBytes,
-              fileOptions: MediaFileOptions(
-                contentType: 'video/$mediaExtension',
-                cacheControl: '9000000',
-              ),
-            );
-            firstFrameUrl = storage.getPublicUrl(firstFramePath);
-          }
-        } catch (error, stackTrace) {
-          logW('Immediate upload failed. Enqueuing offline upload...', error: error, stackTrace: stackTrace);
-          late final firstFramePath = '$postId/video_first_frame_$i';
-          await queue.enqueueTask(
-            postId: postId,
-            bytes: bytes,
-            remotePath: mediaPath,
-            bucket: 'posts',
-            contentType: '${!isVideo ? 'image' : 'video'}/$mediaExtension',
-            mediaType: isVideo ? VideoMedia.identifier : ImageMedia.identifier,
-            index: i,
-            blurHash: blurHash,
-            firstFrameBytes: convertedBytes,
-            firstFrameRemotePath: isVideo ? firstFramePath : null,
-          );
-          mediaUrl = '';
-          firstFrameUrl = null;
-          pending = true;
-        }
-
-        final mediaType = isVideo
-            ? VideoMedia.identifier
-            : ImageMedia.identifier;
-        if (isVideo) {
-          media.add({
-            'media_id': uuid.v4(),
-            'url': mediaUrl,
-            'type': mediaType,
-            'blur_hash': blurHash,
-            'first_frame_url': firstFrameUrl,
-          });
-        } else {
-          media.add({
-            'media_id': uuid.v4(),
-            'url': mediaUrl,
-            'type': mediaType,
-            'blur_hash': blurHash,
-          });
-        }
-      }
-      if (pending) {
-        await queuePost(media: media);
-      } else {
-        uploadPost(media: media);
-      }
-    }
-    } finally {
-      if (!queued) PostUploadProgress().complete();
+        ],
+        location: location,
+        locationCountry: locationCountry,
+        locationRegion: locationRegion,
+        locationName: locationName,
+        locationLat: locationLat,
+        locationLng: locationLng,
+      );
+    } catch (error, stackTrace) {
+      logE('Failed to queue post', error: error, stackTrace: stackTrace);
+      CrashReporter.instance.report(error, stackTrace, kind: 'post-queue');
+      openSnackbar(SnackbarMessage.error(title: failedText));
     }
   }
 }

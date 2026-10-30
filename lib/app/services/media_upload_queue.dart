@@ -108,18 +108,37 @@ class PendingUploadTask {
   }
 }
 
-/// A post whose media didn't all upload right away.
+/// A file picked for a new post, as handed to [MediaUploadQueue.startPost].
+class PostSourceFile {
+  const PostSourceFile({
+    required this.bytes,
+    required this.path,
+    required this.isVideo,
+  });
+
+  /// The picked image's bytes (unused for a video, which is copied by [path]).
+  final Uint8List bytes;
+  final String path;
+  final bool isVideo;
+}
+
+/// A post being published from this phone.
 ///
-/// It stays on this phone and is created only once every file is uploaded, so
+/// It is saved the moment the user shares it, then prepared (compressed),
+/// uploaded and only then created — so it survives the app being closed, and
 /// nobody ever sees a post pointing at files that exist only on the author's
-/// phone. [media] holds the post's media entries; an entry still uploading has
-/// an empty `url` (and `null` once its file is lost).
+/// phone. [media] holds the post's media entries; an entry not uploaded yet
+/// has an empty `url` (and `null` once its file is lost). [sources] are the
+/// picked files still waiting to be prepared.
 class PendingPost {
   PendingPost({
     required this.postId,
     required this.userId,
     required this.caption,
     required this.media,
+    this.sources = const [],
+    this.error,
+    this.thumbnailPath,
     this.location,
     this.locationCountry,
     this.locationRegion,
@@ -138,6 +157,13 @@ class PendingPost {
           (e) => Map<String, dynamic>.from(e as Map),
         ),
       ),
+      sources: List<Map<String, dynamic>>.from(
+        ((json['sources'] as List<dynamic>?) ?? const []).map(
+          (e) => Map<String, dynamic>.from(e as Map),
+        ),
+      ),
+      error: json['error'] as String?,
+      thumbnailPath: json['thumbnailPath'] as String?,
       location: json['location'] as String?,
       locationCountry: json['locationCountry'] as String?,
       locationRegion: json['locationRegion'] as String?,
@@ -153,6 +179,15 @@ class PendingPost {
   final String userId;
   final String caption;
   final List<Map<String, dynamic>> media;
+
+  /// `{index, path, isVideo}` of each picked file not prepared yet.
+  final List<Map<String, dynamic>> sources;
+
+  /// Why preparing failed; the post waits for [MediaUploadQueue.retryPost].
+  final String? error;
+
+  /// The first picked image, shown in the "Posting…" banner.
+  final String? thumbnailPath;
   final String? location;
   final String? locationCountry;
   final String? locationRegion;
@@ -160,12 +195,23 @@ class PendingPost {
   final double? locationLat;
   final double? locationLng;
 
-  PendingPost withMedia(List<Map<String, dynamic>> media) {
+  PendingPost withMedia(List<Map<String, dynamic>> media) =>
+      copyWith(media: media);
+
+  PendingPost copyWith({
+    List<Map<String, dynamic>>? media,
+    List<Map<String, dynamic>>? sources,
+    String? error,
+    bool clearError = false,
+  }) {
     return PendingPost(
       postId: postId,
       userId: userId,
       caption: caption,
-      media: media,
+      media: media ?? this.media,
+      sources: sources ?? this.sources,
+      error: clearError ? null : error ?? this.error,
+      thumbnailPath: thumbnailPath,
       location: location,
       locationCountry: locationCountry,
       locationRegion: locationRegion,
@@ -181,6 +227,9 @@ class PendingPost {
       'userId': userId,
       'caption': caption,
       'media': media,
+      'sources': sources,
+      'error': error,
+      'thumbnailPath': thumbnailPath,
       'location': location,
       'locationCountry': locationCountry,
       'locationRegion': locationRegion,
@@ -189,6 +238,42 @@ class PendingPost {
       'locationLng': locationLng,
     };
   }
+}
+
+/// What the "Posting…" banner shows: the oldest post being published.
+class PostPublishStatus {
+  const PostPublishStatus({
+    required this.postId,
+    required this.progress,
+    this.thumbnail,
+    this.failed = false,
+    this.posted = false,
+  });
+
+  final String postId;
+
+  /// 0.0 – 1.0: files prepared and uploaded so far.
+  final double progress;
+  final Uint8List? thumbnail;
+
+  /// Preparing failed or an upload keeps failing: offer Retry / Cancel. The
+  /// queue still retries uploads on its own.
+  final bool failed;
+
+  /// Just created; shown for a moment, then the banner hides.
+  final bool posted;
+}
+
+/// Preparing a shared post's files failed — reported so we hear about it.
+class _PostPrepareFailed implements Exception {
+  _PostPrepareFailed(this.postId, this.error);
+
+  final String postId;
+  final Object error;
+
+  @override
+  String toString() =>
+      'Preparing post $postId failed: ${error.runtimeType}: $error';
 }
 
 /// A queued upload that keeps failing — reported once, so we hear about it.
@@ -214,9 +299,10 @@ class _MediaUploadStuck implements Exception {
 /// on every reconnect, and is reported once it has failed
 /// [_reportAfterAttempts] times. A task whose post is gone is cancelled.
 ///
-/// A post whose media didn't all upload right away is queued as a
-/// [PendingPost] and created by the post creator the app attaches
-/// ([attachPostCreator]) once its last file is uploaded.
+/// A shared post is queued whole as a [PendingPost] ([startPost]): its files
+/// are prepared and uploaded here, and the post is created by the post creator
+/// the app attaches ([attachPostCreator]) once its last file is uploaded.
+/// [status] drives the "Posting…" banner.
 class MediaUploadQueue {
   MediaUploadQueue({
     required PowerSyncDatabase db,
@@ -232,6 +318,9 @@ class MediaUploadQueue {
   static const Duration _maxBackoff = Duration(hours: 1);
   static const int _reportAfterAttempts = 5;
 
+  /// After this many failed uploads the banner offers Retry / Cancel.
+  static const int _failAfterAttempts = 3;
+
   /// The post is created only after all its media are uploaded or queued, so a
   /// fresh task may run before its post exists. Within this window a missing
   /// post means "not yet"; after it, the post was deleted (or never made).
@@ -243,6 +332,14 @@ class MediaUploadQueue {
   /// Creates a ready [PendingPost]; returns false when it can't yet (e.g.
   /// another account is signed in). Null until the app attaches one.
   Future<bool> Function(PendingPost post)? _postCreator;
+
+  final ValueNotifier<PostPublishStatus?> _status = ValueNotifier(null);
+  final Map<String, Uint8List?> _thumbnails = {};
+  PostPublishStatus? _posted;
+  Timer? _postedTimer;
+
+  /// The oldest post being published, or null when there is none.
+  ValueListenable<PostPublishStatus?> get status => _status;
 
   bool _isProcessing = false;
 
@@ -266,12 +363,14 @@ class MediaUploadQueue {
 
     // Run initial processing trigger on startup.
     triggerProcessing();
+    unawaited(_refreshStatus());
   }
 
   /// Disposes resources.
   void dispose() {
     _syncStatusSubscription?.cancel();
     _retryTimer?.cancel();
+    _postedTimer?.cancel();
   }
 
   /// Lets the queue create posts once their media are uploaded. Posts that
@@ -283,18 +382,85 @@ class MediaUploadQueue {
 
   void detachPostCreator() => _postCreator = null;
 
-  /// Queues [post] to be created once its media (queued with [enqueueTask])
-  /// are all uploaded.
-  Future<void> enqueuePost(PendingPost post) async {
-    await _saveDraft(post);
-    // Its tasks may have been put off while the post wasn't queued yet.
+  /// Publishes a new post: saves the picked [files] and the post to this
+  /// phone first, then prepares, uploads and creates it in the background —
+  /// also after the app is closed and opened again.
+  Future<void> startPost({
+    required String postId,
+    required String userId,
+    required String caption,
+    required List<PostSourceFile> files,
+    String? location,
+    String? locationCountry,
+    String? locationRegion,
+    String? locationName,
+    double? locationLat,
+    double? locationLng,
+  }) async {
+    final dir = await _postDir(postId);
+    if (!dir.existsSync()) dir.createSync(recursive: true);
+    final sources = <Map<String, dynamic>>[];
+    for (var i = 0; i < files.length; i++) {
+      final file = files[i];
+      final extension = p.extension(file.path).replaceFirst('.', '');
+      final path = p.join(
+        dir.path,
+        'source_$i.${extension.isEmpty ? 'jpg' : extension.toLowerCase()}',
+      );
+      if (file.isVideo) {
+        await File(file.path).copy(path);
+      } else {
+        await File(path).writeAsBytes(file.bytes);
+      }
+      sources.add({'index': i, 'path': path, 'isVideo': file.isVideo});
+    }
+    final firstIsImage = files.isNotEmpty && !files.first.isVideo;
+    await _saveDraft(
+      PendingPost(
+        postId: postId,
+        userId: userId,
+        caption: caption,
+        media: [
+          for (var i = 0; i < files.length; i++) <String, dynamic>{'url': ''},
+        ],
+        sources: sources,
+        thumbnailPath: firstIsImage ? sources.first['path'] as String : null,
+        location: location,
+        locationCountry: locationCountry,
+        locationRegion: locationRegion,
+        locationName: locationName,
+        locationLat: locationLat,
+        locationLng: locationLng,
+      ),
+    );
+    shared.logI('MediaUploadQueue: Queued post $postId (${files.length} files).');
+    await _refreshStatus();
+    triggerProcessing();
+  }
+
+  /// Tries a failed post again now (its uploads also retry on their own).
+  Future<void> retryPost(String postId) async {
+    final draft = _loadDrafts()[postId];
+    if (draft == null) return;
+    await _saveDraft(draft.copyWith(clearError: true));
     final now = DateTime.now();
     for (final task in _loadTasks()) {
-      if (task.postId == post.postId && task.attempts == 0) {
+      if (task.postId == postId) {
         await _saveTask(task.retryLater(attempts: 0, at: now));
       }
     }
+    await _refreshStatus();
     triggerProcessing();
+  }
+
+  /// Drops a post being published, with its files.
+  Future<void> cancelPost(String postId) async {
+    for (final task in _loadTasks()) {
+      if (task.postId == postId) await _removeTask(task.id);
+    }
+    await _removeDraft(postId);
+    shared.logI('MediaUploadQueue: Cancelled post $postId.');
+    await _refreshStatus();
   }
 
   /// Saves a media file to the local pending directory and registers a task.
@@ -377,8 +543,188 @@ class MediaUploadQueue {
   }
 
   Future<void> _processQueue() async {
+    await _prepareDrafts();
     await _uploadDueTasks();
     await _createReadyPosts();
+    await _refreshStatus();
+  }
+
+  /// Compresses the files of shared posts (also of one the app was closed in
+  /// the middle of) and queues their uploads. A failure marks the post failed
+  /// until the user retries it.
+  Future<void> _prepareDrafts() async {
+    for (final draft in _loadDrafts().values) {
+      if (draft.sources.isEmpty || draft.error != null) continue;
+      var current = draft;
+      try {
+        for (final source in draft.sources) {
+          current = await _prepareSource(current, source);
+          // Cancelled meanwhile: don't bring it back.
+          if (!_loadDrafts().containsKey(draft.postId)) {
+            await cancelPost(draft.postId);
+            break;
+          }
+          await _saveDraft(current);
+          await _refreshStatus();
+        }
+      } catch (error, stackTrace) {
+        shared.logE(
+          'MediaUploadQueue: Preparing post ${draft.postId} failed',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        CrashReporter.instance.report(
+          _PostPrepareFailed(draft.postId, error),
+          stackTrace,
+          kind: 'post-prepare',
+        );
+        if (_loadDrafts().containsKey(draft.postId)) {
+          await _saveDraft(current.copyWith(error: '${error.runtimeType}'));
+        }
+      }
+    }
+  }
+
+  /// Compresses one picked file, queues its upload and fills in its media
+  /// entry (still without a URL).
+  Future<PendingPost> _prepareSource(
+    PendingPost draft,
+    Map<String, dynamic> source,
+  ) async {
+    final index = source['index'] as int;
+    final path = source['path'] as String;
+    final isVideo = source['isVideo'] == true;
+    final file = File(path);
+    final extension = p.extension(path).replaceFirst('.', '');
+    final postId = draft.postId;
+
+    Map<String, dynamic> entry;
+    if (isVideo) {
+      final firstFrame = await shared.VideoPlus.getVideoThumbnail(file);
+      final blurHash = firstFrame == null
+          ? ''
+          : await shared.BlurHashPlus.blurHashEncode(firstFrame);
+      Uint8List bytes;
+      try {
+        final compressed = await shared.VideoPlus.compressVideo(file);
+        bytes = await shared.PickImage().imageBytes(file: compressed!.file!);
+      } catch (_) {
+        bytes = await file.readAsBytes();
+      }
+      await enqueueTask(
+        postId: postId,
+        bytes: bytes,
+        remotePath: '$postId/video_$index',
+        bucket: 'posts',
+        contentType: 'video/$extension',
+        mediaType: shared.VideoMedia.identifier,
+        index: index,
+        blurHash: blurHash,
+        firstFrameBytes: firstFrame,
+        firstFrameRemotePath: '$postId/video_first_frame_$index',
+      );
+      entry = {
+        'media_id': shared.uuid.v4(),
+        'url': '',
+        'type': shared.VideoMedia.identifier,
+        'blur_hash': blurHash,
+        'first_frame_url': null,
+      };
+    } else {
+      final bytes = await shared.ImageCompress.compressByte(
+        await file.readAsBytes(),
+      );
+      final blurHash = await shared.BlurHashPlus.blurHashEncode(bytes);
+      await enqueueTask(
+        postId: postId,
+        bytes: bytes,
+        remotePath: '$postId/image_$index',
+        bucket: 'posts',
+        contentType: 'image/$extension',
+        mediaType: shared.ImageMedia.identifier,
+        index: index,
+        blurHash: blurHash,
+      );
+      entry = {
+        'media_id': shared.uuid.v4(),
+        'url': '',
+        'type': shared.ImageMedia.identifier,
+        'blur_hash': blurHash,
+      };
+    }
+
+    // The banner's thumbnail stays until the post is done.
+    if (path != draft.thumbnailPath) {
+      try {
+        file.deleteSync();
+      } catch (_) {}
+    }
+    final media = [for (final m in draft.media) Map<String, dynamic>.from(m)];
+    if (index >= 0 && index < media.length) media[index] = entry;
+    return draft.copyWith(
+      media: media,
+      sources: [
+        for (final s in draft.sources)
+          if (s['index'] != index) s,
+      ],
+    );
+  }
+
+  /// Recomputes [status] from the queued posts and their uploads.
+  Future<void> _refreshStatus() async {
+    final drafts = _loadDrafts().values.toList();
+    if (drafts.isEmpty) {
+      _status.value = _posted;
+      return;
+    }
+    final draft = drafts.first;
+    final tasks = _loadTasks().where((t) => t.postId == draft.postId);
+    final total = draft.media.length;
+    final prepared = total - draft.sources.length;
+    final uploaded = draft.media
+        .where((m) => (m['url'] as String?)?.isNotEmpty ?? false)
+        .length;
+    final progress = total == 0
+        ? 0.0
+        : (prepared * 0.3 + uploaded * 0.7) / total;
+    _status.value = PostPublishStatus(
+      postId: draft.postId,
+      // Never shows 0 % (it has started) or 100 % (that means posted).
+      progress: progress.clamp(0.03, 0.95),
+      thumbnail: await _thumbnailOf(draft),
+      failed:
+          draft.error != null ||
+          tasks.any((t) => t.attempts >= _failAfterAttempts),
+    );
+  }
+
+  Future<Uint8List?> _thumbnailOf(PendingPost draft) async {
+    if (_thumbnails.containsKey(draft.postId)) {
+      return _thumbnails[draft.postId];
+    }
+    Uint8List? bytes;
+    final path = draft.thumbnailPath;
+    try {
+      if (path != null && File(path).existsSync()) {
+        bytes = await File(path).readAsBytes();
+      }
+    } catch (_) {}
+    return _thumbnails[draft.postId] = bytes;
+  }
+
+  /// Shows "Posted" for [draft] for a moment.
+  void _showPosted(PendingPost draft) {
+    _posted = PostPublishStatus(
+      postId: draft.postId,
+      progress: 1,
+      thumbnail: _thumbnails[draft.postId],
+      posted: true,
+    );
+    _postedTimer?.cancel();
+    _postedTimer = Timer(const Duration(milliseconds: 1500), () {
+      _posted = null;
+      unawaited(_refreshStatus());
+    });
   }
 
   Future<void> _uploadDueTasks() async {
@@ -417,6 +763,7 @@ class MediaUploadQueue {
     final uploading = _loadTasks().map((t) => t.postId).toSet();
     for (final draft in _loadDrafts().values) {
       if (uploading.contains(draft.postId)) continue;
+      if (draft.sources.isNotEmpty || draft.error != null) continue;
 
       // Already created (e.g. the app stopped right after creating it).
       final exists =
@@ -444,6 +791,7 @@ class MediaUploadQueue {
 
       try {
         if (await creator(draft.withMedia(media))) {
+          _showPosted(draft);
           await _removeDraft(draft.postId);
           shared.logI('MediaUploadQueue: Created queued post ${draft.postId}.');
         }
@@ -698,6 +1046,19 @@ class MediaUploadQueue {
       _postsKey,
       drafts.values.map((d) => json.encode(d.toJson())).toList(),
     );
+    _thumbnails.remove(postId);
+    // Its picked files, thumbnail and any upload left over.
+    try {
+      final dir = await _postDir(postId);
+      if (dir.existsSync()) dir.deleteSync(recursive: true);
+    } catch (e) {
+      shared.logW('MediaUploadQueue: Minor error clearing post files: $e');
+    }
+  }
+
+  Future<Directory> _postDir(String postId) async {
+    final docDir = await getApplicationDocumentsDirectory();
+    return Directory(p.join(docDir.path, 'pending_uploads', postId));
   }
 
   List<PendingUploadTask> _loadTasks() {

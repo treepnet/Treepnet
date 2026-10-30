@@ -7,14 +7,13 @@ import 'package:posts_repository/posts_repository.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/app/services/media_upload_queue.dart';
 import 'package:treepnet/feed/feed.dart';
-import 'package:treepnet/feed/widgets/post_upload_progress.dart';
 import 'package:user_repository/user_repository.dart';
 
-/// Invisible widget that creates the posts [MediaUploadQueue] held back until
-/// their media were uploaded (see [PendingPost]).
+/// Invisible widget that creates the posts [MediaUploadQueue] publishes, once
+/// all their media are uploaded (see [PendingPost]).
 ///
-/// They go through the posts repository like a post created right away, so
-/// they land at the top of the feed with the usual "posted" message.
+/// They go through the posts repository, so they land at the top of the feed
+/// with the usual "posted" message.
 class QueuedPostPublisher extends StatefulWidget {
   const QueuedPostPublisher({super.key});
 
@@ -55,7 +54,6 @@ class _QueuedPostPublisherState extends State<QueuedPostPublisher> {
         update: FeedPageUpdate(newPost: created, type: PageUpdateType.create),
       ),
     );
-    PostUploadProgress().complete();
     openSnackbar(
       SnackbarMessage.success(title: l10nGlobal.successfullyCreatedPostText),
     );

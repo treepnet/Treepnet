@@ -10,7 +10,7 @@ import 'package:powersync_repository/powersync_repository.dart'
     show PowerSyncRepository;
 import 'package:treepnet/feed/feed.dart';
 import 'package:treepnet/feed/post/post.dart';
-import 'package:treepnet/feed/widgets/post_upload_progress.dart';
+import 'package:treepnet/app/services/media_upload_queue.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/stories/stories.dart';
 import 'package:treepnet/user_profile/user_profile.dart';
@@ -258,20 +258,22 @@ class FeedBody extends StatelessWidget {
 }
 
 /// Non-blocking "Posting… N%" banner shown under the stories row while a post
-/// uploads. Driven by the [PostUploadProgress] singleton.
+/// is being published. Driven by [MediaUploadQueue.status], so it also shows a
+/// post still on its way after the app was reopened, and offers Retry / Cancel
+/// when publishing fails.
 class _UploadProgressBanner extends StatelessWidget {
   const _UploadProgressBanner();
 
   @override
   Widget build(BuildContext context) {
-    final progress = PostUploadProgress();
+    final queue = context.read<MediaUploadQueue>();
     return SliverToBoxAdapter(
-      child: AnimatedBuilder(
-        animation: progress,
-        builder: (context, _) {
-          if (!progress.active) return const SizedBox.shrink();
-          final pct = (progress.progress * 100).clamp(0, 100).round();
-          final done = pct >= 100;
+      child: ValueListenableBuilder<PostPublishStatus?>(
+        valueListenable: queue.status,
+        builder: (context, status, _) {
+          if (status == null) return const SizedBox.shrink();
+          final pct = (status.progress * 100).clamp(0, 100).round();
+          final thumbnail = status.thumbnail;
           return Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.md,
@@ -283,11 +285,12 @@ class _UploadProgressBanner extends StatelessWidget {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: progress.thumbnail != null
+                  child: thumbnail != null
                       ? Image.memory(
-                          progress.thumbnail!,
+                          thumbnail,
                           width: 46,
                           height: 46,
+                          cacheWidth: 138,
                           fit: BoxFit.cover,
                           gaplessPlayback: true,
                         )
@@ -304,40 +307,64 @@ class _UploadProgressBanner extends StatelessWidget {
                 ),
                 const Gap.h(AppSpacing.md),
                 Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            done
-                                ? context.l10n.postedText
-                                : context.l10n.postingText,
-                            style: context.bodyMedium?.copyWith(
-                              fontWeight: AppFontWeight.semiBold,
+                  child: status.failed
+                      ? Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                context.l10n.postNotPublishedText,
+                                style: context.bodyMedium?.copyWith(
+                                  fontWeight: AppFontWeight.semiBold,
+                                ),
+                              ),
                             ),
-                          ),
-                          Text(
-                            '$pct%',
-                            style: context.textTheme.bodyMedium?.copyWith(
-                              color: AppColors.textSecondary,
+                            TextButton(
+                              onPressed: () =>
+                                  queue.retryPost(status.postId),
+                              child: Text(context.l10n.retryText),
                             ),
-                          ),
-                        ],
-                      ),
-                      const Gap.v(AppSpacing.xs),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: progress.progress,
-                          minHeight: 4,
-                          backgroundColor: AppColors.glassBackgroundLight,
+                            TextButton(
+                              onPressed: () =>
+                                  queue.cancelPost(status.postId),
+                              child: Text(context.l10n.cancelText),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  status.posted
+                                      ? context.l10n.postedText
+                                      : context.l10n.postingText,
+                                  style: context.bodyMedium?.copyWith(
+                                    fontWeight: AppFontWeight.semiBold,
+                                  ),
+                                ),
+                                Text(
+                                  '$pct%',
+                                  style: context.textTheme.bodyMedium
+                                      ?.copyWith(
+                                        color: AppColors.textSecondary,
+                                      ),
+                                ),
+                              ],
+                            ),
+                            const Gap.v(AppSpacing.xs),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: status.progress,
+                                minHeight: 4,
+                                backgroundColor: AppColors.glassBackgroundLight,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
                 ),
               ],
             ),

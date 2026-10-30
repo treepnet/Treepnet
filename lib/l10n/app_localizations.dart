@@ -3086,6 +3086,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Later'**
   String get laterText;
+
+  /// No description provided for @postNotPublishedText.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t post'**
+  String get postNotPublishedText;
 }
 
 class _AppLocalizationsDelegate

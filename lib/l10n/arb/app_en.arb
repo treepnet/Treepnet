@@ -955,5 +955,6 @@
   "updateAvailableTitle": "New version available",
   "updateAvailableDescription": "Update Treepnet to get the latest fixes and features.",
   "updateText": "Update",
-  "laterText": "Later"
+  "laterText": "Later",
+  "postNotPublishedText": "Couldn't post"
 }
