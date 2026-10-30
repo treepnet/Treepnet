@@ -12,9 +12,7 @@ final class CreateStoriesStoryCreateRequested extends CreateStoriesEvent {
     required this.author,
     required this.contentType,
     required this.filePath,
-    this.onStoryCreated,
     this.onError,
-    this.onLoading,
     this.duration,
     this.locationName,
     this.locationLat,
@@ -32,8 +30,8 @@ final class CreateStoriesStoryCreateRequested extends CreateStoriesEvent {
   final double? locationLat;
   final double? locationLng;
 
-  final VoidCallback? onStoryCreated;
-  final VoidCallback? onLoading;
+  /// The story couldn't even be saved to the phone. Later failures show in
+  /// the feed's "Posting…" banner, which offers Retry / Cancel.
   final void Function(Object?, StackTrace?)? onError;
 
   @override

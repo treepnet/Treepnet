@@ -46,8 +46,7 @@ Future<void> startStoryCreation(BuildContext context, User author) async {
               contentType: StoryContentType.image,
               filePath: path,
               onError: (_, _) {
-                toggleLoadingIndeterminate(enable: false);
-                // These fire after the story request resolves — by then this
+                // This fires after the story request resolves — by then this
                 // route has been popped (below) and `context` is deactivated,
                 // so context.l10n would null-crash. Use the context-less
                 // l10nGlobal, matching the global openSnackbar it feeds.
@@ -56,16 +55,6 @@ Future<void> startStoryCreation(BuildContext context, User author) async {
                     title: l10nGlobal.somethingWentWrongText,
                     description: l10nGlobal.failedToCreateStoryText,
                   ),
-                );
-              },
-              onLoading: toggleLoadingIndeterminate,
-              onStoryCreated: () {
-                toggleLoadingIndeterminate(enable: false);
-                openSnackbar(
-                  SnackbarMessage.success(
-                    title: l10nGlobal.successfullyCreatedStoryText,
-                  ),
-                  clearIfQueue: true,
                 );
               },
             ),

@@ -1,65 +1,45 @@
-import 'dart:io';
-
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
-import 'package:flutter/material.dart';
 import 'package:shared/shared.dart';
-import 'package:stories_repository/stories_repository.dart';
+import 'package:treepnet/app/services/media_upload_queue.dart';
 import 'package:user_repository/user_repository.dart';
 
 part 'create_stories_event.dart';
 part 'create_stories_state.dart';
 
 class CreateStoriesBloc extends Bloc<CreateStoriesEvent, CreateStoriesState> {
-  CreateStoriesBloc({required StoriesRepository storiesRepository})
-    : _storiesRepository = storiesRepository,
+  CreateStoriesBloc({required MediaUploadQueue mediaUploadQueue})
+    : _mediaUploadQueue = mediaUploadQueue,
       super(const CreateStoriesState.initial()) {
     on<CreateStoriesStoryCreateRequested>(
       _onStoryCreateRequested,
-      // Droppable, not concurrent: the share button gives no feedback while a
-      // story uploads, so people tap it again — and every tap used to become
-      // its own story (one test produced six copies in a third of a second).
-      transformer: droppable(),
+      // One after another: a story shared while the previous one is still
+      // being saved waits its turn instead of being dropped. (The editor
+      // reports each story once, however often its button is tapped.)
+      transformer: sequential(),
     );
   }
 
-  final StoriesRepository _storiesRepository;
+  final MediaUploadQueue _mediaUploadQueue;
 
   Future<void> _onStoryCreateRequested(
     CreateStoriesStoryCreateRequested event,
     Emitter<CreateStoriesState> emit,
   ) async {
     try {
-      event.onLoading?.call();
-
-      final storyId = uuid.v4();
-      final storyImageFile = File(event.filePath);
-      final compressed = await ImageCompress.compressStory(storyImageFile);
-      // If re-encoding fails, upload the original rather than lose the story.
-      final compressedFile = compressed == null
-          ? storyImageFile
-          : File(compressed.path);
-      final compressedBytes = await PickImage().imageBytes(
-        file: compressedFile,
-      );
-      final contentUrl = await _storiesRepository.uploadStoryMedia(
-        storyId: storyId,
-        imageFile: compressedFile,
-        imageBytes: compressedBytes,
-      );
-
-      await _storiesRepository.createStory(
-        id: storyId,
-        author: event.author,
-        contentType: event.contentType,
-        contentUrl: contentUrl,
+      // Saved to the phone before anything is compressed or uploaded, so the
+      // story survives the app being closed. The queue compresses, uploads
+      // and creates it; the feed's banner shows its progress.
+      await _mediaUploadQueue.startStory(
+        storyId: uuid.v4(),
+        userId: event.author.id,
+        filePath: event.filePath,
+        contentType: event.contentType.toJson(),
         duration: event.duration,
         locationName: event.locationName,
         locationLat: event.locationLat,
         locationLng: event.locationLng,
       );
-
-      event.onStoryCreated?.call();
     } catch (error, stackTrace) {
       addError(error, stackTrace);
       event.onError?.call(error, stackTrace);

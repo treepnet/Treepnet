@@ -780,22 +780,11 @@ class UserProfileAddMediaButton extends StatelessWidget {
                     locationLat: picked?.lat,
                     locationLng: picked?.lng,
                     onError: (_, _) {
-                      toggleLoadingIndeterminate(enable: false);
                       openSnackbar(
                         SnackbarMessage.error(
                           title: l10n.somethingWentWrongText,
                           description: l10n.failedToCreateStoryText,
                         ),
-                      );
-                    },
-                    onLoading: toggleLoadingIndeterminate,
-                    onStoryCreated: () {
-                      toggleLoadingIndeterminate(enable: false);
-                      openSnackbar(
-                        SnackbarMessage.success(
-                          title: l10n.successfullyCreatedStoryText,
-                        ),
-                        clearIfQueue: true,
                       );
                     },
                   ),

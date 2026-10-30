@@ -320,12 +320,12 @@ class _UploadProgressBanner extends StatelessWidget {
                             ),
                             TextButton(
                               onPressed: () =>
-                                  queue.retryPost(status.postId),
+                                  queue.retry(status.id),
                               child: Text(context.l10n.retryText),
                             ),
                             TextButton(
                               onPressed: () =>
-                                  queue.cancelPost(status.postId),
+                                  queue.cancel(status.id),
                               child: Text(context.l10n.cancelText),
                             ),
                           ],

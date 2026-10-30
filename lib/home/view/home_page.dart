@@ -12,8 +12,8 @@ import 'package:treepnet/user_profile/user_profile.dart';
 import 'package:go_router/go_router.dart';
 import 'package:posts_repository/posts_repository.dart';
 import 'package:shared/shared.dart';
-import 'package:stories_repository/stories_repository.dart';
 import 'package:user_repository/user_repository.dart';
+import 'package:treepnet/app/services/media_upload_queue.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({required this.navigationShell, super.key});
@@ -130,7 +130,7 @@ class _HomeViewState extends State<HomeView> {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) => CreateStoriesBloc(
-        storiesRepository: context.read<StoriesRepository>(),
+        mediaUploadQueue: context.read<MediaUploadQueue>(),
       ),
       child: VideoPlayerInheritedWidget(
         videoPlayerState: _videoPlayerState,

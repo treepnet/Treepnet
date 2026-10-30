@@ -14,6 +14,7 @@ import 'package:shared/shared.dart';
 import 'package:stories_repository/stories_repository.dart';
 import 'package:story_view/story_view.dart';
 import 'package:user_repository/user_repository.dart';
+import 'package:treepnet/app/services/media_upload_queue.dart';
 
 class StoriesPage extends StatelessWidget {
   const StoriesPage({required this.props, super.key});
@@ -34,7 +35,7 @@ class StoriesPage extends StatelessWidget {
         // story) button.
         BlocProvider(
           create: (context) => CreateStoriesBloc(
-            storiesRepository: context.read<StoriesRepository>(),
+            mediaUploadQueue: context.read<MediaUploadQueue>(),
           ),
         ),
       ],

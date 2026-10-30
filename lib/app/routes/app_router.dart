@@ -23,8 +23,8 @@ import 'package:go_router/go_router.dart';
 import 'package:posts_repository/posts_repository.dart';
 import 'package:shared/shared.dart' hide FeedPage, ReelsPage;
 import 'package:stories_editor/stories_editor.dart';
-import 'package:stories_repository/stories_repository.dart';
 import 'package:user_repository/user_repository.dart';
+import 'package:treepnet/app/services/media_upload_queue.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
@@ -125,7 +125,7 @@ class AppRouter {
             key: state.pageKey,
             child: BlocProvider(
               create: (context) => CreateStoriesBloc(
-                storiesRepository: context.read<StoriesRepository>(),
+                mediaUploadQueue: context.read<MediaUploadQueue>(),
               ),
               child: UserProfilePage(
                 userId: userId,
