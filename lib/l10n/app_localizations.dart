@@ -2430,7 +2430,7 @@ abstract class AppLocalizations {
   /// No description provided for @incorrectCredentialsText.
   ///
   /// In en, this message translates to:
-  /// **'Email and/or password are incorrect.'**
+  /// **'Wrong username, email or password.'**
   String get incorrectCredentialsText;
 
   /// No description provided for @userNotFoundText.

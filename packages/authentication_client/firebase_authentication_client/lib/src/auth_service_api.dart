@@ -18,6 +18,10 @@ class AuthServiceError implements Exception {
   /// Machine-readable code, e.g. `invalid_credentials` or `password_too_short`.
   final String? code;
 
+  /// [code] when the service couldn't be reached at all (no connection or a
+  /// timeout), as opposed to an answer from it.
+  static const networkCode = 'network';
+
   @override
   String toString() => message;
 }
@@ -81,8 +85,14 @@ class AuthServiceApi {
         );
       } on DioException catch (e) {
         // A bad HTTP response (e.g. a 5xx, which comes back as badResponse) is a
-        // real answer; only connection-level failures are worth retrying on a
-        // fresh connection.
+        // real answer — the service failed, the connection didn't.
+        if (e.type == DioExceptionType.badResponse) {
+          throw const AuthServiceError(
+            message: 'Something went wrong. Please try again.',
+          );
+        }
+        // Only connection-level failures are worth retrying on a fresh
+        // connection.
         final retriable = e.type == DioExceptionType.connectionError ||
             e.type == DioExceptionType.connectionTimeout ||
             e.type == DioExceptionType.sendTimeout ||
@@ -96,6 +106,7 @@ class AuthServiceApi {
     }
     throw const AuthServiceError(
       message: 'Network error. Please check your connection and try again.',
+      code: AuthServiceError.networkCode,
     );
   }
 }

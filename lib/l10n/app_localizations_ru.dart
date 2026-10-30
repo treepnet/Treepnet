@@ -1462,7 +1462,8 @@ class AppLocalizationsRu extends AppLocalizations {
   String get backToLoginText => 'Назад ко входу';
 
   @override
-  String get incorrectCredentialsText => 'Неверный email и/или пароль.';
+  String get incorrectCredentialsText =>
+      'Неверное имя пользователя, email или пароль.';
 
   @override
   String get userNotFoundText => 'Пользователь с таким email не найден!';

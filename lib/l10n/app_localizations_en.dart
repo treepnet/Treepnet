@@ -1440,7 +1440,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get backToLoginText => 'Back to login';
 
   @override
-  String get incorrectCredentialsText => 'Email and/or password are incorrect.';
+  String get incorrectCredentialsText => 'Wrong username, email or password.';
 
   @override
   String get userNotFoundText => 'User with this email not found!';

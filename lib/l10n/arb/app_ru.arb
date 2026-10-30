@@ -764,7 +764,7 @@
   "codeText": "Код",
   "sendCodeAgainText": "Отправить код снова",
   "backToLoginText": "Назад ко входу",
-  "incorrectCredentialsText": "Неверный email и/или пароль.",
+  "incorrectCredentialsText": "Неверное имя пользователя, email или пароль.",
   "userNotFoundText": "Пользователь с таким email не найден!",
   "googleLoginFailedText": "Не удалось войти через Google!",
   "postArchivedText": "Пост архивирован",

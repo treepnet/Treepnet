@@ -48,6 +48,23 @@ class LogInWithPasswordFailure extends AuthenticationException {
   const LogInWithPasswordFailure(super.error);
 }
 
+/// {@template log_in_with_password_invalid_credentials}
+/// A [LogInWithPasswordFailure]: the username/email or password is wrong.
+/// {@endtemplate}
+class LogInWithPasswordInvalidCredentials extends LogInWithPasswordFailure {
+  /// {@macro log_in_with_password_invalid_credentials}
+  const LogInWithPasswordInvalidCredentials(super.error);
+}
+
+/// {@template log_in_with_password_network_failure}
+/// A [LogInWithPasswordFailure]: the sign-in service couldn't be reached (no
+/// connection or a timeout).
+/// {@endtemplate}
+class LogInWithPasswordNetworkFailure extends LogInWithPasswordFailure {
+  /// {@macro log_in_with_password_network_failure}
+  const LogInWithPasswordNetworkFailure(super.error);
+}
+
 /// {@template log_in_with_password_canceled}
 /// Thrown during the sign in with password process if a cancel occurs.
 /// {@endtemplate}

@@ -818,7 +818,7 @@
   "codeText": "Code",
   "sendCodeAgainText": "Send the code again",
   "backToLoginText": "Back to login",
-  "incorrectCredentialsText": "Email and/or password are incorrect.",
+  "incorrectCredentialsText": "Wrong username, email or password.",
   "userNotFoundText": "User with this email not found!",
   "googleLoginFailedText": "Google login failed!",
   "postArchivedText": "Post archived",

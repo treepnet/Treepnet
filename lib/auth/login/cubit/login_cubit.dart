@@ -165,6 +165,9 @@ class LoginCubit extends Cubit<LoginState> {
     // Defensive: any async caller may reach here after the cubit closed.
     if (isClosed) return;
     final status = switch (e) {
+      LogInWithPasswordInvalidCredentials() =>
+        LogInSubmissionStatus.invalidCredentials,
+      LogInWithPasswordNetworkFailure() => LogInSubmissionStatus.networkError,
       LogInWithPasswordFailure() => LogInSubmissionStatus.error,
       LogInWithGoogleFailure() => LogInSubmissionStatus.googleLogInFailure,
       _ => LogInSubmissionStatus.idle,

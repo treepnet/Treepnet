@@ -149,8 +149,24 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
     } on AuthenticationException {
       rethrow;
     } on AuthServiceError catch (error, stackTrace) {
+      // Kept apart so the login screen can say what actually went wrong.
       Error.throwWithStackTrace(
-        LogInWithPasswordFailure(error.message),
+        switch (error.code) {
+          'invalid_credentials' => LogInWithPasswordInvalidCredentials(
+            error.message,
+          ),
+          AuthServiceError.networkCode => LogInWithPasswordNetworkFailure(
+            error.message,
+          ),
+          _ => LogInWithPasswordFailure(error.message),
+        },
+        stackTrace,
+      );
+    } on FirebaseAuthException catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        error.code == 'network-request-failed'
+            ? LogInWithPasswordNetworkFailure(error)
+            : LogInWithPasswordFailure(error),
         stackTrace,
       );
     } catch (error, stackTrace) {
