@@ -410,11 +410,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String profileInfoChangePeriodText(String changeType, int count) {
-    return 'You can change your $changeType only twice in $count days ';
-  }
-
-  @override
   String get forgotPasswordText => 'Forgot password?';
 
   @override

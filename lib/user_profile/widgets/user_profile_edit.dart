@@ -416,6 +416,10 @@ class _ProfileInfoEditViewState extends State<ProfileInfoEditView> {
 
   late String _infoChangeType;
 
+  /// A handle the server already has for someone else; shown as taken until
+  /// the field changes.
+  String? _takenUsername;
+
   @override
   void initState() {
     super.initState();
@@ -471,6 +475,9 @@ class _ProfileInfoEditViewState extends State<ProfileInfoEditView> {
   String? get _usernameError {
     if (widget.infoType != ProfileEditInfoType.username) return null;
     final v = _valueController.text.trim();
+    if (v.isNotEmpty && v == _takenUsername) {
+      return context.l10n.signUpUsernameTakenError;
+    }
     if (v.isEmpty || _usernameRegex.hasMatch(v)) return null;
     return context.l10n.usernameValidationText;
   }
@@ -512,7 +519,26 @@ class _ProfileInfoEditViewState extends State<ProfileInfoEditView> {
     if (value.isEmpty && !optional) return;
     // A handle must satisfy the 6–16 rule before it can be saved.
     if (_usernameError != null) return;
-    // Only the handle and display name are rate-limited; everything else
+    // ...and be free: the server refuses a taken one, so say it here.
+    if (widget.infoType == ProfileEditInfoType.username) {
+      final l10n = context.l10n;
+      bool available;
+      try {
+        available = await context.read<UserRepository>().isUsernameAvailable(
+          value,
+        );
+      } catch (_) {
+        openSnackbar(SnackbarMessage.error(title: l10n.networkProblemText));
+        return;
+      }
+      if (!mounted) return;
+      if (!available) {
+        setState(() => _takenUsername = value);
+        return;
+      }
+    }
+    if (!mounted) return;
+    // Only the handle and display name ask for confirmation; everything else
     // saves straight away.
     if (!widget.infoType.needsConfirmation) {
       await _save(value);
@@ -528,7 +554,6 @@ class _ProfileInfoEditViewState extends State<ProfileInfoEditView> {
         value,
         _infoChangeType,
       ),
-      content: context.l10n.profileInfoChangePeriodText(_infoChangeType, 14),
       yesText: context.l10n.changeText,
       noText: context.l10n.cancelText,
       yesTextStyle: context.labelLarge?.apply(color: AppColors.blue),

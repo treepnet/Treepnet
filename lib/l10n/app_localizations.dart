@@ -723,12 +723,6 @@ abstract class AppLocalizations {
   /// **'Are you sure you want to change your {changeType} to {newUsername} ?'**
   String profileInfoEditConfirmationText(String newUsername, String changeType);
 
-  /// No description provided for @profileInfoChangePeriodText.
-  ///
-  /// In en, this message translates to:
-  /// **'You can change your {changeType} only twice in {count} days '**
-  String profileInfoChangePeriodText(String changeType, int count);
-
   /// No description provided for @forgotPasswordText.
   ///
   /// In en, this message translates to:

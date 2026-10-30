@@ -414,18 +414,6 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String profileInfoChangePeriodText(String changeType, int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count дней',
-      few: '$count дня',
-      one: 'день',
-    );
-    return 'Вы можете изменять $changeType только дважды в $_temp0.';
-  }
-
-  @override
   String get forgotPasswordText => 'Забыли пароль?';
 
   @override

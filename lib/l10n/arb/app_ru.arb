@@ -294,19 +294,6 @@
       }
     }
   },
-  "profileInfoChangePeriodText": "Вы можете изменять {changeType} только дважды в {count, plural, =1{день} few{{count} дня} other{{count} дней}}.",
-  "@profileInfoChangePeriodText": {
-    "placeholders": {
-      "changeType": {
-        "type": "String",
-        "example": "username"
-      },
-      "count": {
-        "type": "int",
-        "example": "14"
-      }
-    }
-  },
   "forgotPasswordText": "Забыли пароль?",
   "recoveryPasswordText": "Восстановление пароля",
   "orText": "Или",

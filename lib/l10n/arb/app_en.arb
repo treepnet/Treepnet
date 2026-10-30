@@ -300,19 +300,6 @@
       }
     }
   },
-  "profileInfoChangePeriodText": "You can change your {changeType} only twice in {count} days ",
-  "@profileInfoChangePeriodText": {
-    "placeholders": {
-      "changeType": {
-        "type": "String",
-        "example": "username"
-      },
-      "count": {
-        "type": "int",
-        "example": "14"
-      }
-    }
-  },
   "forgotPasswordText": "Forgot password?",
   "recoveryPasswordText": "Password recovery",
   "orText": "Or",
