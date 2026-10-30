@@ -21,6 +21,15 @@ api.treepnet.com, rest.130-61-138-104.sslip.io {
 	handle_path /log/* {
 		reverse_proxy errorlogger:4200
 	}
+	# App update gate (lib/app/view/app_update_gate.dart): per-platform minBuild /
+	# latestBuild / storeUrl. Static JSON in ./caddy/web/app-config (mounted at
+	# /srv/web); edit the file to change it — no reload needed. Raise minBuild
+	# only after that build is 100% live on the store; lower it to undo a block.
+	handle_path /app-config/* {
+		root * /srv/web/app-config
+		header Cache-Control "no-cache"
+		file_server
+	}
 	reverse_proxy postgrest:3000
 }
 

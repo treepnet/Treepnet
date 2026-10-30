@@ -1,0 +1,12 @@
+{
+  "android": {
+    "minBuild": 0,
+    "latestBuild": 0,
+    "storeUrl": "https://play.google.com/store/apps/details?id=com.treepnet.application"
+  },
+  "ios": {
+    "minBuild": 0,
+    "latestBuild": 0,
+    "storeUrl": "https://apps.apple.com/app/id6801508746"
+  }
+}

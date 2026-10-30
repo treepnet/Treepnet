@@ -2,6 +2,7 @@ import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
+import 'package:treepnet/app/view/app_update_gate.dart';
 import 'package:treepnet/app/view/presence_heartbeat.dart';
 import 'package:treepnet/app/view/referral_link_listener.dart';
 import 'package:treepnet/app/view/rejected_upload_listener.dart';
@@ -54,6 +55,8 @@ class AppView extends StatelessWidget {
                         const RejectedUploadListener(),
                         AppSnackbar(key: snackbarKey),
                         AppLoadingIndeterminate(key: loadingIndeterminateKey),
+                        // Last, so "Update required" covers everything above.
+                        const AppUpdateGate(),
                       ],
                     ),
                   );

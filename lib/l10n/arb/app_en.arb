@@ -949,5 +949,11 @@
   "networkProblemText": "Network problem — check your connection and try again.",
   "postedText": "Posted",
   "postingText": "Posting…",
-  "cameraUnavailableText": "Camera unavailable"
+  "cameraUnavailableText": "Camera unavailable",
+  "updateRequiredTitle": "Update required",
+  "updateRequiredDescription": "This version of Treepnet is no longer supported. Update the app to keep using it.",
+  "updateAvailableTitle": "New version available",
+  "updateAvailableDescription": "Update Treepnet to get the latest fixes and features.",
+  "updateText": "Update",
+  "laterText": "Later"
 }

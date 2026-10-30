@@ -1825,4 +1825,24 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get cameraUnavailableText => 'Камера недоступна';
+
+  @override
+  String get updateRequiredTitle => 'Требуется обновление';
+
+  @override
+  String get updateRequiredDescription =>
+      'Эта версия Treepnet больше не поддерживается. Обновите приложение, чтобы продолжить.';
+
+  @override
+  String get updateAvailableTitle => 'Доступна новая версия';
+
+  @override
+  String get updateAvailableDescription =>
+      'Обновите Treepnet, чтобы получить последние исправления и новые функции.';
+
+  @override
+  String get updateText => 'Обновить';
+
+  @override
+  String get laterText => 'Позже';
 }

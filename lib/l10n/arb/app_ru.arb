@@ -895,5 +895,11 @@
   "networkProblemText": "Проблема с сетью — проверьте подключение и попробуйте снова.",
   "postedText": "Опубликовано",
   "postingText": "Публикуется…",
-  "cameraUnavailableText": "Камера недоступна"
+  "cameraUnavailableText": "Камера недоступна",
+  "updateRequiredTitle": "Требуется обновление",
+  "updateRequiredDescription": "Эта версия Treepnet больше не поддерживается. Обновите приложение, чтобы продолжить.",
+  "updateAvailableTitle": "Доступна новая версия",
+  "updateAvailableDescription": "Обновите Treepnet, чтобы получить последние исправления и новые функции.",
+  "updateText": "Обновить",
+  "laterText": "Позже"
 }

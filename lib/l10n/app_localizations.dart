@@ -3050,6 +3050,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Camera unavailable'**
   String get cameraUnavailableText;
+
+  /// No description provided for @updateRequiredTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Update required'**
+  String get updateRequiredTitle;
+
+  /// No description provided for @updateRequiredDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'This version of Treepnet is no longer supported. Update the app to keep using it.'**
+  String get updateRequiredDescription;
+
+  /// No description provided for @updateAvailableTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'New version available'**
+  String get updateAvailableTitle;
+
+  /// No description provided for @updateAvailableDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Update Treepnet to get the latest fixes and features.'**
+  String get updateAvailableDescription;
+
+  /// No description provided for @updateText.
+  ///
+  /// In en, this message translates to:
+  /// **'Update'**
+  String get updateText;
+
+  /// No description provided for @laterText.
+  ///
+  /// In en, this message translates to:
+  /// **'Later'**
+  String get laterText;
 }
 
 class _AppLocalizationsDelegate

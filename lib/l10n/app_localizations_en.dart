@@ -1794,4 +1794,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cameraUnavailableText => 'Camera unavailable';
+
+  @override
+  String get updateRequiredTitle => 'Update required';
+
+  @override
+  String get updateRequiredDescription =>
+      'This version of Treepnet is no longer supported. Update the app to keep using it.';
+
+  @override
+  String get updateAvailableTitle => 'New version available';
+
+  @override
+  String get updateAvailableDescription =>
+      'Update Treepnet to get the latest fixes and features.';
+
+  @override
+  String get updateText => 'Update';
+
+  @override
+  String get laterText => 'Later';
 }
