@@ -13,15 +13,12 @@ import 'package:dio/dio.dart';
 /// (`avatars`, `stories`, `posts`) becomes a top-level object-name prefix
 /// inside that single bucket.
 ///
-/// Reads are anonymous: the bucket's visibility is Public (ObjectRead), so the
-/// native object URL is a stable public link and needs no signing — the same
-/// model the Azure containers used. Writes go through a bucket-scoped
-/// Pre-Authenticated Request (PAR) whose token, embedded in the URL, is the
-/// write credential — the OCI analogue of the old Azure SAS.
-///
-/// TODO(treepnet): before real production, mint short-lived per-user PARs from
-/// a backend instead of shipping one long-lived bucket write PAR in the
-/// client, and move `_writePar` into env rather than source.
+/// Reads are anonymous: objects are publicly readable by URL (the bucket's
+/// object list is not), so the native object URL is a stable public link.
+/// Writes need a link from the backend for each file: it checks the signed-in
+/// user ([idToken]) and that the object is theirs to write, and the link it
+/// returns writes only that object, for a few minutes. (The app used to carry
+/// one bucket-wide write link valid until 2035.)
 /// {@endtemplate}
 class MediaStorage {
   MediaStorage._();
@@ -29,19 +26,18 @@ class MediaStorage {
   /// Shared instance — mirrors `Supabase.instance.client.storage`.
   static final MediaStorage instance = MediaStorage._();
 
-  /// Bucket-scoped write PAR (Pre-Authenticated Request) URL.
-  ///
-  /// This is the full URL OCI gives you when you create a PAR with:
-  ///   • Target: "Bucket"  • Access: "Permit object writes"  • long expiry.
-  /// Shape (single line):
-  ///   `https://objectstorage.{region}.oraclecloud.com/p/{token}/n/{ns}/b/{bucket}/o/`
-  ///
-  /// Everything else (region, namespace, bucket, and the public-read base URL)
-  /// is derived from this single value.
-  static const _writePar =
+  /// Public-read base of the media bucket.
+  static const _readBase =
       'https://objectstorage.eu-frankfurt-1.oraclecloud.com'
-      '/p/3qzWuaJDL3XxoiWzffw42H6kPYUPOgFbm75so906blXJp3LAEUdZibZvCimLbec0'
-      '/n/fryarohmp0gm/b/treepnet-media/o/';
+      '/n/fryarohmp0gm/b/treepnet-media';
+
+  /// Hands out a write link for one object (auth-service).
+  static const _uploadLinkUrl =
+      'https://api.treepnet.com/auth/media/upload-url';
+
+  /// The signed-in user's Firebase ID token, refreshed first when
+  /// [forceRefresh]. Set by the app at start-up; uploads fail without it.
+  Future<String?> Function({bool forceRefresh})? idToken;
 
   /// One client for every upload. It used to be a fresh `Dio()` per call with
   /// no timeouts at all, so on a weak mobile connection an upload could hang
@@ -57,7 +53,7 @@ class MediaStorage {
   /// Returns a handle scoped to [bucket] — the legacy container name, used here
   /// as the object-name prefix inside the single OCI bucket.
   MediaBucket from(String bucket) =>
-      MediaBucket(writePar: _writePar, prefix: bucket, dio: _dio);
+      MediaBucket(prefix: bucket, storage: this, dio: _dio);
 }
 
 /// {@template media_bucket}
@@ -68,44 +64,18 @@ class MediaStorage {
 class MediaBucket {
   /// {@macro media_bucket}
   MediaBucket({
-    required this.writePar,
     required this.prefix,
+    required MediaStorage storage,
     Dio? dio,
-  }) : _dio = dio ?? Dio();
-
-  /// Bucket-scoped write PAR URL (see [MediaStorage._writePar]).
-  final String writePar;
+  }) : _storage = storage,
+       _dio = dio ?? Dio();
 
   /// Legacy container name (`avatars` | `stories` | `posts`), used as the
   /// top-level object-name prefix.
   final String prefix;
 
+  final MediaStorage _storage;
   final Dio _dio;
-
-  /// Write base: the PAR URL with any trailing `/o/` (or `/o`) removed, leaving
-  /// `https://objectstorage.{region}.oraclecloud.com/p/{token}/n/{ns}/b/{bucket}`.
-  String get _writeBase {
-    var b = writePar;
-    while (b.endsWith('/')) {
-      b = b.substring(0, b.length - 1);
-    }
-    if (b.endsWith('/o')) b = b.substring(0, b.length - 2);
-    return b;
-  }
-
-  /// Public-read base: the write base with the `/p/{token}` PAR segment
-  /// removed, leaving
-  /// `https://objectstorage.{region}.oraclecloud.com/n/{ns}/b/{bucket}`.
-  /// Requires the bucket's visibility to be Public (ObjectRead).
-  String get _readBase {
-    final b = _writeBase;
-    final pIdx = b.indexOf('/p/');
-    final nIdx = b.indexOf('/n/');
-    if (pIdx != -1 && nIdx > pIdx) {
-      return b.substring(0, pIdx) + b.substring(nIdx);
-    }
-    return b;
-  }
 
   /// Object name (`<prefix>/<path>`) with each path segment percent-encoded but
   /// the `/` separators preserved, so timestamps/colons in [path] are URL-safe.
@@ -121,19 +91,54 @@ class MediaBucket {
     return Duration(seconds: seconds.clamp(30, 15 * 60));
   }
 
+  /// Asks the backend for a link that writes the object at [path], and the
+  /// path it will be stored at (an avatar goes under the user's own folder).
+  Future<({String url, String path})> _uploadLink(
+    String path,
+    String contentType,
+  ) async {
+    final idToken = _storage.idToken;
+    if (idToken == null) throw StateError('MediaStorage.idToken is not set');
+    for (final forceRefresh in [false, true]) {
+      final token = await idToken(forceRefresh: forceRefresh);
+      if (token == null) throw StateError('Not signed in');
+      final response = await _dio.post<Map<String, dynamic>>(
+        MediaStorage._uploadLinkUrl,
+        data: {'bucket': prefix, 'path': path, 'contentType': contentType},
+        options: Options(
+          headers: <String, dynamic>{'Authorization': 'Bearer $token'},
+          // A 401 is retried once with a fresh token.
+          validateStatus: (status) => status != null,
+        ),
+      );
+      final status = response.statusCode ?? 0;
+      if (status == 401 && !forceRefresh) continue;
+      final data = response.data;
+      if (status != 200 || data == null) {
+        throw Exception(
+          'Upload link refused ($status) for $prefix/$path: ${data?['error']}',
+        );
+      }
+      return (url: data['uploadUrl'] as String, path: data['path'] as String);
+    }
+    throw Exception('Upload link refused (401) for $prefix/$path');
+  }
+
   /// Uploads [bytes] as an object at [path] (under this bucket's prefix),
   /// overwriting any existing object.
   ///
-  /// Mirrors `StorageFileApi.uploadBinary`; returns [path] on success and throws
-  /// on a non-2xx response, or when it takes longer than [_uploadTimeout] (the
-  /// request is cancelled, so the connection is freed).
+  /// Mirrors `StorageFileApi.uploadBinary`. Returns the path the object was
+  /// stored at — pass that to [getPublicUrl] (for an avatar it is placed under
+  /// the user's folder). Throws on a refused link or a non-2xx upload, or
+  /// when it takes longer than [_uploadTimeout] (the request is cancelled, so
+  /// the connection is freed).
   Future<String> uploadBinary(
     String path,
     Uint8List bytes, {
     MediaFileOptions fileOptions = const MediaFileOptions(),
   }) async {
-    final object = _encodedObject(path);
-    final url = '$_writeBase/o/$object';
+    final contentType = fileOptions.contentType ?? 'image/jpeg';
+    final link = await _uploadLink(path, contentType);
     final cancel = CancelToken();
     final deadline = Timer(
       _uploadTimeout(bytes.length),
@@ -142,7 +147,7 @@ class MediaBucket {
     final Response<dynamic> response;
     try {
       response = await _dio.put<dynamic>(
-        url,
+        link.url,
         // A Stream<List<int>> body bypasses dio's request transformer so the
         // raw bytes are sent verbatim (required for binary uploads).
         data: Stream<List<int>>.fromIterable([bytes]),
@@ -150,8 +155,7 @@ class MediaBucket {
         options: Options(
           headers: <String, dynamic>{
             Headers.contentLengthHeader: bytes.length,
-            if (fileOptions.contentType != null)
-              Headers.contentTypeHeader: fileOptions.contentType,
+            Headers.contentTypeHeader: contentType,
             if (fileOptions.cacheControl != null)
               'Cache-Control': 'max-age=${fileOptions.cacheControl}',
           },
@@ -168,13 +172,14 @@ class MediaBucket {
         'OCI media upload failed (${response.statusCode}) for $prefix/$path',
       );
     }
-    return path;
+    return link.path;
   }
 
   /// Returns the public (anonymous-read) URL for the object at [path].
   ///
   /// Mirrors `StorageFileApi.getPublicUrl`.
-  String getPublicUrl(String path) => '$_readBase/o/${_encodedObject(path)}';
+  String getPublicUrl(String path) =>
+      '${MediaStorage._readBase}/o/${_encodedObject(path)}';
 }
 
 /// {@template media_file_options}

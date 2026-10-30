@@ -11,6 +11,7 @@ import 'package:persistent_storage/persistent_storage.dart';
 import 'package:powersync_repository/powersync_repository.dart';
 import 'package:shared/shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:token_storage/token_storage.dart';
 import 'package:treepnet/app/services/media_upload_queue.dart';
 import 'package:treepnet/monitoring/crash_reporter.dart';
 import 'package:treepnet/notifications/push/push_notifications.dart';
@@ -105,6 +106,9 @@ Future<void> bootstrap(
       boot('7 sharedPreferences (start)');
       final sharedPreferences = await SharedPreferences.getInstance();
       boot('8 sharedPreferences (ok)');
+
+      // Uploads ask the backend for a per-file link as the signed-in user.
+      MediaStorage.instance.idToken = EntraSession.instance.idToken;
 
       final mediaUploadQueue = MediaUploadQueue(
         db: powerSyncRepository.db(),

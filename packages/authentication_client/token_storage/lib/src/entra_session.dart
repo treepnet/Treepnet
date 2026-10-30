@@ -93,6 +93,18 @@ class EntraSession {
   /// callback, if any. On success [current] holds fresh tokens.
   Future<void> refresh() async => _refresher?.call();
 
+  /// The current ID token, refreshed first when it is about to expire (or
+  /// when [forceRefresh]); `null` when signed out.
+  Future<String?> idToken({bool forceRefresh = false}) async {
+    var tokens = _tokens;
+    if (tokens == null) return null;
+    if (forceRefresh || !tokens.isIdTokenValid) {
+      await refresh().timeout(const Duration(seconds: 10));
+      tokens = _tokens;
+    }
+    return tokens?.idToken;
+  }
+
   /// Replaces the current session and notifies listeners.
   void update(EntraTokens tokens) {
     _tokens = tokens;

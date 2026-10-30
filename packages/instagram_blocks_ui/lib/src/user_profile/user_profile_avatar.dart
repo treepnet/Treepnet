@@ -125,18 +125,18 @@ class UserProfileAvatar extends StatelessWidget {
 
     final fileExt = file.path.split('.').last.toLowerCase();
     final fileName = '${DateTime.now().toIso8601String()}.$fileExt';
-    final filePath = fileName;
-    await avatarsStorage.uploadBinary(
-      filePath,
+    // The backend stores it under the user's own avatar folder and says where.
+    final storedPath = await avatarsStorage.uploadBinary(
+      fileName,
       bytes,
       fileOptions: MediaFileOptions(
         contentType: 'image/$fileExt',
         cacheControl: '360000',
       ),
     );
-    // Containers grant public blob read, so the public URL is stable — no
-    // signed URL needed (Azure has no direct createSignedUrl equivalent here).
-    final imageUrlResponse = avatarsStorage.getPublicUrl(filePath);
+    // Objects are publicly readable by URL, so the public URL is stable — no
+    // signed URL needed.
+    final imageUrlResponse = avatarsStorage.getPublicUrl(storedPath);
     try {
       await precacheAvatarUrl(imageUrlResponse);
     } catch (error, stackTrace) {

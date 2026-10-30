@@ -1163,7 +1163,7 @@ class MediaUploadQueue {
     final bytes = await mediaFile.readAsBytes();
 
     shared.logI('MediaUploadQueue: Uploading media for task ${task.id}...');
-    await storage.uploadBinary(
+    final storedPath = await storage.uploadBinary(
       task.remotePath,
       bytes,
       fileOptions: shared.MediaFileOptions(
@@ -1171,7 +1171,7 @@ class MediaUploadQueue {
         cacheControl: '9000000',
       ),
     );
-    final mediaUrl = storage.getPublicUrl(task.remotePath);
+    final mediaUrl = storage.getPublicUrl(storedPath);
 
     String? firstFrameUrl;
     if (task.firstFrameLocalPath != null && task.firstFrameRemotePath != null) {
@@ -1179,7 +1179,7 @@ class MediaUploadQueue {
       if (firstFrameFile.existsSync()) {
         shared.logI('MediaUploadQueue: Uploading first frame for task ${task.id}...');
         final firstFrameBytes = await firstFrameFile.readAsBytes();
-        await storage.uploadBinary(
+        final storedFramePath = await storage.uploadBinary(
           task.firstFrameRemotePath!,
           firstFrameBytes,
           fileOptions: const shared.MediaFileOptions(
@@ -1187,7 +1187,7 @@ class MediaUploadQueue {
             cacheControl: '9000000',
           ),
         );
-        firstFrameUrl = storage.getPublicUrl(task.firstFrameRemotePath!);
+        firstFrameUrl = storage.getPublicUrl(storedFramePath);
       }
     }
 

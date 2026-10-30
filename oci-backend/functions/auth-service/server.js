@@ -14,6 +14,8 @@
 //   /reset/send-code   { usernameOrEmail }                           -> emails a code
 //   /reset/verify      { continuationToken(email), code, newPassword }-> {ok}
 //   /verify-password   { usernameOrEmail, password }                 -> {ok}  (delete re-auth)
+//   /media/upload-url  { bucket, path, contentType } + Bearer ID token -> {uploadUrl, path}
+//       a one-object, 15-minute write link for a post, story or avatar file
 const http = require('http');
 const crypto = require('crypto');
 const { Pool } = require('pg');
@@ -44,6 +46,21 @@ const pool = new Pool({
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
 const CODE_TTL_MIN = parseInt(process.env.CODE_TTL_MIN || '15', 10);
 const PORT = parseInt(process.env.PORT || '4100', 10);
+
+// --- Media uploads ------------------------------------------------------
+// The app used to ship one bucket-wide write link valid until 2035. Now it asks
+// here for each file: the caller's Firebase ID token is checked, the object
+// name must be theirs to write, and the link it gets writes only that object,
+// for 15 minutes. Signed in as this server (OCI instance principal; dynamic
+// group treepnet-server, policy treepnet-server-media-delete).
+const MEDIA_REGION = 'eu-frankfurt-1';
+const MEDIA_NAMESPACE = 'fryarohmp0gm';
+const MEDIA_BUCKET = 'treepnet-media';
+const UPLOAD_LINK_MIN = 15;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SEGMENT_RE = /^[A-Za-z0-9._:-]{1,120}$/;
+// Photos and videos only (no SVG: it can carry script).
+const CONTENT_TYPE_RE = /^(image\/(jpeg|jpg|png|heic|heif|webp|gif)|video\/[a-z0-9.+-]{1,30})$/;
 const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '10', 10);
 const CODE_LENGTH = 6;
 
@@ -149,6 +166,122 @@ async function checkCode(email, code, purpose) {
   }
   return null;
 }
+
+let objectStorage = null;
+async function storageClient() {
+  if (!objectStorage) {
+    const common = require('oci-common');
+    const { ObjectStorageClient } = require('oci-objectstorage');
+    const provider = await new common.InstancePrincipalsAuthenticationDetailsProviderBuilder().build();
+    objectStorage = new ObjectStorageClient({ authenticationDetailsProvider: provider });
+    objectStorage.regionId = MEDIA_REGION;
+  }
+  return objectStorage;
+}
+
+// Where [uid] may write `<bucket>/<path>`: their own new or existing post or
+// story, or their own avatar folder (an avatar is always placed under it).
+// Returns { objectName, path, owner } or null when the name isn't allowed.
+function uploadTarget(uid, bucket, path) {
+  const parts = String(path || '').split('/');
+  if (parts.some((p) => !SEGMENT_RE.test(p) || p === '.' || p === '..')) return null;
+  if (bucket === 'posts') {
+    if (parts.length !== 2 || !UUID_RE.test(parts[0])) return null;
+    if (!/^(image|video|video_first_frame)_\d{1,2}$/.test(parts[1])) return null;
+    return { objectName: `posts/${parts.join('/')}`, path: parts.join('/'), owner: { table: 'posts', id: parts[0] } };
+  }
+  if (bucket === 'stories') {
+    if (parts.length !== 2 || !UUID_RE.test(parts[0]) || parts[1] !== 'image') return null;
+    return { objectName: `stories/${parts.join('/')}`, path: parts.join('/'), owner: { table: 'stories', id: parts[0] } };
+  }
+  if (bucket === 'avatars') {
+    const name = parts[parts.length - 1];
+    return { objectName: `avatars/${uid}/${name}`, path: `${uid}/${name}`, owner: null };
+  }
+  return null;
+}
+
+async function uidFromRequest(headers) {
+  const match = /^Bearer\s+(.+)$/i.exec(headers.authorization || '');
+  if (!match) return null;
+  try {
+    return (await admin.auth().verifyIdToken(match[1].trim())).uid;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function mediaUploadUrl(res, b, headers) {
+  const uid = await uidFromRequest(headers);
+  if (!uid) return fail(res, 401, 'Sign in again.', 'unauthorized');
+  const contentType = String(b.contentType || '');
+  if (!CONTENT_TYPE_RE.test(contentType)) return fail(res, 400, 'Unsupported file type.');
+  const target = uploadTarget(uid, b.bucket, b.path);
+  if (!target) return fail(res, 400, 'Invalid file name.');
+
+  // A post or story that already exists must be the caller's.
+  if (target.owner) {
+    const r = await pool.query(
+      `select user_id from ${target.owner.table} where id = $1`,
+      [target.owner.id],
+    );
+    if (r.rows[0] && r.rows[0].user_id !== uid) {
+      return fail(res, 403, 'Not allowed.', 'forbidden');
+    }
+  }
+
+  const client = await storageClient();
+  const expires = new Date(Date.now() + UPLOAD_LINK_MIN * 60000);
+  const par = await client.createPreauthenticatedRequest({
+    namespaceName: MEDIA_NAMESPACE,
+    bucketName: MEDIA_BUCKET,
+    createPreauthenticatedRequestDetails: {
+      name: `upload-${uid}-${Date.now()}`,
+      objectName: target.objectName,
+      accessType: 'ObjectWrite',
+      timeExpires: expires,
+    },
+  });
+  // accessUri is /p/<token>/n/<ns>/b/<bucket>/o/<object>; rebuild the object
+  // part percent-encoded per segment, exactly as the app names its URLs.
+  const accessUri = par.preauthenticatedRequest.accessUri;
+  const tokenPart = accessUri.slice(0, accessUri.indexOf('/n/'));
+  const encoded = target.objectName.split('/').map(encodeURIComponent).join('/');
+  const uploadUrl =
+    `https://objectstorage.${MEDIA_REGION}.oraclecloud.com${tokenPart}` +
+    `/n/${MEDIA_NAMESPACE}/b/${MEDIA_BUCKET}/o/${encoded}`;
+  return send(res, 200, { uploadUrl, path: target.path, expiresAt: expires.toISOString() });
+}
+
+// Expired upload links stay listed on the bucket; clear them hourly.
+async function deleteExpiredUploadLinks() {
+  try {
+    const client = await storageClient();
+    const cutoff = Date.now() - 5 * 60000;
+    let page;
+    do {
+      const r = await client.listPreauthenticatedRequests({
+        namespaceName: MEDIA_NAMESPACE,
+        bucketName: MEDIA_BUCKET,
+        limit: 1000,
+        page,
+      });
+      for (const item of r.items) {
+        if (!String(item.name).startsWith('upload-')) continue;
+        if (new Date(item.timeExpires).getTime() > cutoff) continue;
+        await client.deletePreauthenticatedRequest({
+          namespaceName: MEDIA_NAMESPACE,
+          bucketName: MEDIA_BUCKET,
+          parId: item.id,
+        });
+      }
+      page = r.opcNextPage;
+    } while (page);
+  } catch (e) {
+    console.error('auth-service: clearing expired upload links failed:', e.message);
+  }
+}
+setInterval(deleteExpiredUploadLinks, 60 * 60000).unref();
 
 async function mintToken(uid) {
   return admin.auth().createCustomToken(uid);
@@ -349,6 +482,7 @@ const ROUTES = {
   '/verify-password': verifyPassword,
   '/reset/send-code': resetSendCode,
   '/reset/verify': resetVerify,
+  '/media/upload-url': mediaUploadUrl,
 };
 
 const server = http.createServer((req, res) => {
@@ -374,7 +508,7 @@ const server = http.createServer((req, res) => {
       return fail(res, 400, 'Bad request.');
     }
     try {
-      await handler(res, body);
+      await handler(res, body, req.headers);
     } catch (e) {
       console.error(`auth-service ${path} error:`, e);
       if (!res.headersSent) fail(res, 500, 'Something went wrong. Please try again.');

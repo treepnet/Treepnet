@@ -3770,7 +3770,7 @@ WHERE user_id = ?1 AND story_id = ?2 AND region_iso = ?3
     final imageExtension = extension == 'jpg' ? 'jpeg' : extension;
     final imagePath = '$storyId/image';
 
-    await stories.uploadBinary(
+    final storedPath = await stories.uploadBinary(
       imagePath,
       imageBytes,
       fileOptions: MediaFileOptions(
@@ -3778,7 +3778,7 @@ WHERE user_id = ?1 AND story_id = ?2 AND region_iso = ?3
         cacheControl: '9000000',
       ),
     );
-    return stories.getPublicUrl(imagePath);
+    return stories.getPublicUrl(storedPath);
   }
 
   @override
