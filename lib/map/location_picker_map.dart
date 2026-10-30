@@ -228,9 +228,10 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   late final Future<void> _future = _init();
 
   /// The picked spot and the scale (as a flat-map zoom level), kept current
-  /// on every globe frame — they're read on confirm.
+  /// on every globe frame — they're read on confirm. The globe opens whole,
+  /// over your own travels like the profile globe, and reports its centre
+  /// right away; Central Europe only until then.
   double _zoom = 3;
-  // Central Europe (≈ Germany) as the opening view — Spain/Germany/Poland.
   LatLng _center = const LatLng(50, 10);
   GeoRegion? _detected;
 
@@ -423,11 +424,6 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                   visitedCounts: _myCounts,
                   points: _myPoints,
                   controller: _globeController,
-                  initialCenter: (
-                    lat: _center.latitude,
-                    lng: _center.longitude,
-                  ),
-                  initialZoom: _zoom,
                   showButtons: false,
                   borderRadius: 0,
                   onPinTap: _repick,

@@ -110,12 +110,10 @@ class GlobeView extends StatefulWidget {
 /// little differently, and the globe copies whichever one it replaces.
 enum GlobeLook {
   /// [TravelMap]: the profile map and onboarding. 26 px pins that dim once
-  /// opened, merged per region until zoomed in (see [_pinsSplitZoom]), names
-  /// drawn over the pins.
+  /// opened, names drawn over the pins.
   travelMap,
 
-  /// The post location picker: 22 px pins with their name always shown,
-  /// drawn over the names.
+  /// The post location picker: 22 px pins drawn over the names.
   picker,
 }
 
@@ -171,9 +169,9 @@ const double _provincePpd = 5;
 const double _flatMinPpd = 5.7;
 const double _provinceNamePpd = 16;
 
-// The travel-map globe's pin levels, counted in "+" taps from the whole globe
-// (zoom 1; each tap doubles it): until the 4th tap a region's pins merge into
-// one pin, from the 4th every pin shows, from the 5th with its name.
+// Pin levels, counted in "+" taps from the whole globe (zoom 1; each tap
+// doubles it): until the 4th tap a region's pins merge into one pin, from the
+// 4th every pin shows, from the 5th with its name. The same on every globe.
 const double _pinsSplitZoom = 16;
 const double _pinNamesZoom = 32;
 
@@ -227,8 +225,10 @@ class _GlobeViewState extends State<GlobeView>
   /// How far each region's pins have spread out of its merged pin: 0 merged,
   /// 1 every pin in its own place. Eased between the two when the zoom
   /// crosses [_pinsSplitZoom], so pins slide out instead of popping up.
-  /// Travel map only.
-  AnimationController? _split;
+  late final AnimationController _split = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 300),
+  );
   bool _splitOpen = false;
   Duration _lastTick = Duration.zero;
   Size _size = Size.zero;
@@ -267,13 +267,7 @@ class _GlobeViewState extends State<GlobeView>
       ..lat = c.lat
       ..addListener(_notifyController);
     widget.controller?._view = this;
-    if (widget.look == GlobeLook.travelMap) {
-      _split = AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 300),
-      );
-      _cam.addListener(_syncSplit);
-    }
+    _cam.addListener(_syncSplit);
     if (_autoRotate) _ensureTicking();
     if (widget.look == GlobeLook.travelMap) unawaited(_loadSeenPoints());
     // Putting the province layer on the sphere takes a moment. Do it while the
@@ -327,7 +321,7 @@ class _GlobeViewState extends State<GlobeView>
       widget.controller?._view = null;
     }
     _ticker?.dispose();
-    _split?.dispose();
+    _split.dispose();
     _cam.dispose();
     super.dispose();
   }
@@ -337,15 +331,13 @@ class _GlobeViewState extends State<GlobeView>
   /// Spreads the pins out (or gathers them in) as the zoom crosses
   /// [_pinsSplitZoom].
   void _syncSplit() {
-    final split = _split;
-    if (split == null) return;
     final open = _atZoom(_cam.zoom, _pinsSplitZoom);
     if (open == _splitOpen) return;
     _splitOpen = open;
     if (open) {
-      unawaited(split.forward());
+      unawaited(_split.forward());
     } else {
-      unawaited(split.reverse());
+      unawaited(_split.reverse());
     }
   }
 
@@ -353,6 +345,11 @@ class _GlobeViewState extends State<GlobeView>
   /// needs the size. Called from layout, so it changes fields only.
   void _applyInitialView() {
     if (_initialView != null || _view.isEmpty) return;
+    // Listeners (the picker reads the centre as its spot) hear where the
+    // globe opened once this frame is done.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _notifyController();
+    });
     final focus = widget.focusBounds;
     final center = widget.initialCenter;
     if (focus != null) {
@@ -793,9 +790,22 @@ class _GlobeViewState extends State<GlobeView>
     return bestDistance <= _pinHitRadius ? best : null;
   }
 
-  /// Whether each region's pins are merged into one (travel map, zoomed out).
-  bool get _pinsMerged =>
-      widget.look == GlobeLook.travelMap && !_atZoom(_cam.zoom, _pinsSplitZoom);
+  /// Whether each region's pins are merged into one (zoomed out).
+  bool get _pinsMerged => !_atZoom(_cam.zoom, _pinsSplitZoom);
+
+  /// A merged pin of several places flies in to where they show one by one;
+  /// returns the single place of a one-pin region instead (or null on a miss).
+  _GlobePin? _mergedPinAt(Offset at) {
+    final group = _groupAt(at);
+    if (group == null || group.pins.length == 1) return group?.pins.first;
+    _stopMotion();
+    final c = group.latLng;
+    _panTarget = (lon: c.lng, lat: c.lat);
+    _zoomTarget = _clampZoom(math.max(_cam.zoom, _pinsSplitZoom));
+    _ensureTicking();
+    _cam.changed(); // listeners learn at once that a flight has begun
+    return null;
+  }
 
   /// The merged pin nearest [at] within [_pinHitRadius], or null.
   _PinGroup? _groupAt(Offset at) {
@@ -819,7 +829,7 @@ class _GlobeViewState extends State<GlobeView>
   void _openAt(Offset at) {
     if (widget.look == GlobeLook.picker) {
       // The picker: tapping one of your existing places re-picks it.
-      final hit = _pinAt(at);
+      final hit = _pinsMerged ? _mergedPinAt(at) : _pinAt(at);
       if (hit != null) widget.onPinTap?.call(hit.point);
       return;
     }
@@ -832,23 +842,7 @@ class _GlobeViewState extends State<GlobeView>
     final geo = GeoRegions.instance;
     final scene = _scene;
     if (onTap == null || !geo.isLoaded || scene == null) return;
-    final _GlobePin? hit;
-    if (_pinsMerged) {
-      final group = _groupAt(at);
-      if (group != null && group.pins.length > 1) {
-        // A merged pin: fly in to where its region's pins show one by one.
-        _stopMotion();
-        final c = group.latLng;
-        _panTarget = (lon: c.lng, lat: c.lat);
-        _zoomTarget = _clampZoom(math.max(_cam.zoom, _pinsSplitZoom));
-        _ensureTicking();
-        return;
-      }
-      // A region with a single pin opens it, as when zoomed in.
-      hit = group?.pins.first;
-    } else {
-      hit = _pinAt(at);
-    }
+    final hit = _pinsMerged ? _mergedPinAt(at) : _pinAt(at);
     final probe = hit == null
         ? _unproject(at)
         : (lng: hit.point.lng, lat: hit.point.lat);
@@ -1206,16 +1200,14 @@ class _GlobeScene {
       final name = p.name?.trim() ?? '';
       if (name.isNotEmpty) pinNames.add(name.toLowerCase());
     }
-    // The travel map merges a region's pins while zoomed out. A pin outside
-    // every region (out at sea) stays on its own.
+    // A region's pins merge while zoomed out. A pin outside every region
+    // (out at sea) stays on its own.
     final byRegion = <String, List<_GlobePin>>{};
-    if (look == GlobeLook.travelMap) {
-      for (final pin in pins.values) {
-        final iso = geo.isLoaded
-            ? geo.regionAt(pin.point.lng, pin.point.lat)?.iso
-            : null;
-        byRegion.putIfAbsent(iso ?? pin.key, () => []).add(pin);
-      }
+    for (final pin in pins.values) {
+      final iso = geo.isLoaded
+          ? geo.regionAt(pin.point.lng, pin.point.lat)?.iso
+          : null;
+      byRegion.putIfAbsent(iso ?? pin.key, () => []).add(pin);
     }
     return _GlobeScene._(
       counts: counts,
@@ -1257,7 +1249,7 @@ class _GlobeScene {
   final Map<Color, List<_Layer>> visited;
   final List<_GlobePin> pins;
 
-  /// The pins by region (travel map only), for the zoomed-out view.
+  /// The pins by region, for the zoomed-out view.
   final List<_PinGroup> groups;
 
   /// How many points (posts + stories) sit at each pin key.
@@ -1761,10 +1753,9 @@ class _GlobePainter extends CustomPainter {
     // exactly as there.
     final picker = scene.look == GlobeLook.picker;
 
-    // Pins: that map's pin icon at every zoom. The travel map merges each
-    // region's pins into one until zoomed in (see [_pinsSplitZoom]), then
-    // shows them all, and their names further in; the picker always shows
-    // every pin with its name.
+    // Pins: that map's pin icon at every zoom. Each region's pins merge into
+    // one until zoomed in (see [_pinsSplitZoom]), then slide apart; their
+    // names show further in.
     void drawPins() {
       final glyph = _text(
         _GlobeScene.pinGlyph,
@@ -1778,9 +1769,7 @@ class _GlobePainter extends CustomPainter {
         g.paint(canvas, at.translate(-g.width / 2, -iconTop));
       }
 
-      final spread = picker
-          ? 1.0
-          : Curves.easeOutCubic.transform(split?.value ?? 1);
+      final spread = Curves.easeOutCubic.transform(split?.value ?? 1);
       if (spread <= 0) {
         // One pin per region, dimmed only once all of its pins are.
         for (final group in scene.groups) {
@@ -1815,7 +1804,7 @@ class _GlobePainter extends CustomPainter {
         }
         return;
       }
-      final names = picker || _atZoom(camera.zoom, _pinNamesZoom);
+      final names = _atZoom(camera.zoom, _pinNamesZoom);
       for (final pin in scene.pins) {
         if (project(pin.at) < 0.02 || !onScreen(60)) continue;
         final at = Offset(px, py);
