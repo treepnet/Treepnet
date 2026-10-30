@@ -1,0 +1,146 @@
+Chat backend (./chatbackend on the server, not in this repo): refuse chats,
+messages, "typing" and their pushes between people where either has blocked
+the other.
+
+Blocks live in the main database; the chat server asks
+public.blocked_between(a, b) there as role chat_blocks_ro, which may call
+only that function (oci-backend/sql/chat_blocks_ro.sql; BLOCKS_DATABASE_URL
+in docker-compose). Answers are cached for a minute; if the check fails the
+chat keeps working (logged).
+
+Applied on the server 2026-10-31 (backup: ~/backups/chatbackend-src-20261031-pre-blocks.tgz).
+Apply after chat-list-last-message.patch:
+  cd ~/treepnet/chatbackend && patch -p1 < chat-blocks.patch
+  cd .. && docker compose build chatbackend && docker compose up -d chatbackend
+
+--- a/src/infrastructure/external/blocks.js	1970-01-01 05:00:00
++++ b/src/infrastructure/external/blocks.js	2026-10-31 03:55:05
+@@ -0,0 +1,44 @@
++const { PrismaClient } = require('@prisma/client');
++
++/**
++ * Ilovadagi bloklar.
++ *
++ * Bloklar asosiy (treepnet) bazada turadi, chat bazasida emas. Bu yerdan
++ * faqat bitta savol so'raladi - `blocked_between(a, b)`: ikkalasidan biri
++ * ikkinchisini bloklaganmi? Ulanish `chat_blocks_ro` roli bilan, u faqat shu
++ * funksiyani chaqira oladi (oci-backend/sql/chat_blocks_ro.sql).
++ *
++ * Natija 1 daqiqa keshlanadi, shuning uchun har xabarda bazaga borilmaydi;
++ * bloklash/blokdan chiqarish ko'pi bilan 1 daqiqada kuchga kiradi. Tekshiruv
++ * ishlamay qolsa, chat to'xtamasligi uchun "bloklanmagan" deb olinadi va
++ * xato logga yoziladi.
++ */
++const url = process.env.BLOCKS_DATABASE_URL;
++const db = url ? new PrismaClient({ datasources: { db: { url } } }) : null;
++if (!db) console.warn('[Blocks] BLOCKS_DATABASE_URL is not set - blocks are not checked');
++
++const TTL_MS = 60 * 1000;
++const cache = new Map(); // "a|b" -> { blocked, expiresAt }
++
++async function isBlockedBetween(uuidA, uuidB) {
++    if (!db || !uuidA || !uuidB || uuidA === uuidB) return false;
++    const key = uuidA < uuidB ? `${uuidA}|${uuidB}` : `${uuidB}|${uuidA}`;
++    const hit = cache.get(key);
++    if (hit && hit.expiresAt > Date.now()) return hit.blocked;
++    try {
++        const rows = await db.$queryRaw`
++            select public.blocked_between(${uuidA}::uuid, ${uuidB}::uuid) as blocked`;
++        const blocked = rows[0]?.blocked === true;
++        if (cache.size > 10000) cache.clear();
++        cache.set(key, { blocked, expiresAt: Date.now() + TTL_MS });
++        return blocked;
++    } catch (error) {
++        // Also remembered, so a bad id or a down database isn't asked again
++        // on every message.
++        console.error('[Blocks] check failed:', error.message);
++        cache.set(key, { blocked: false, expiresAt: Date.now() + TTL_MS });
++        return false;
++    }
++}
++
++module.exports = { isBlockedBetween };
+--- a/src/infrastructure/sockets/dm_socket.js	2026-10-31 03:54:27
++++ b/src/infrastructure/sockets/dm_socket.js	2026-10-31 03:55:32
+@@ -1,5 +1,6 @@
+ const prisma = require('../database/prisma');
+ const fcmService = require('../external/fcm_service');
++const { isBlockedBetween } = require('../external/blocks');
+ 
+ /**
+  * Messenger (user <-> user) uchun socket hodisalari.
+@@ -114,6 +115,35 @@
+     }
+ 
+     return userIds.includes(userId) ? userIds : null;
++}
++
++/** Chat foydalanuvchisining ilovadagi uuid si (o'zgarmaydi, keshlanadi). */
++const uuidCache = new Map(); // userId -> uuid
++
++async function uuidOf(userId) {
++    if (uuidCache.has(userId)) return uuidCache.get(userId);
++    const user = await prisma.user.findUnique({
++        where: { id: userId },
++        select: { uuid: true },
++    });
++    const uuid = user?.uuid || null;
++    if (uuidCache.size > 10000) uuidCache.clear();
++    uuidCache.set(userId, uuid);
++    return uuid;
++}
++
++/**
++ * Suhbatdoshlardan biri bilan blok bormi (qaysi tomon bloklaganidan qat'i
++ * nazar)? Bo'lsa, xabar ham, "yozmoqda" ham, push ham yuborilmaydi.
++ */
++async function blockedInConversation(socket, participants) {
++    for (const participantId of participants) {
++        if (participantId === socket.userId) continue;
++        if (await isBlockedBetween(socket.uuid, await uuidOf(participantId))) {
++            return true;
++        }
++    }
++    return false;
+ }
+ 
+ /**
+@@ -236,6 +266,9 @@
+             if (!participants) {
+                 return ack?.({ status: 'error', error: 'Not a participant' });
+             }
++            if (await blockedInConversation(socket, participants)) {
++                return ack?.({ status: 'error', error: 'Blocked', code: 'BLOCKED' });
++            }
+ 
+             // Kalit bo'yicha idempotentlik: qayta yuborilgan xabar dublikat
+             // yaratmaydi.
+@@ -333,6 +366,7 @@
+             const conversationId = Number(data?.conversationId);
+             const participants = await participantsOf(conversationId, socket.userId);
+             if (!participants) return;
++            if (await blockedInConversation(socket, participants)) return;
+ 
+             for (const participantId of participants) {
+                 if (participantId === socket.userId) continue;
+--- a/src/interfaces/http/routes/dm_routes.js	2026-10-31 03:54:27
++++ b/src/interfaces/http/routes/dm_routes.js	2026-10-31 03:55:32
+@@ -5,6 +5,7 @@
+ 
+ const prisma = require('../../../infrastructure/database/prisma');
+ const checkUser = require('../middlewares/check_user');
++const { isBlockedBetween } = require('../../../infrastructure/external/blocks');
+ const { apiLimiter } = require('../middlewares/rate_limiter');
+ const { fileFilter } = require('../../../infrastructure/utils/file_filter');
+ const mediaService = require('../../../infrastructure/external/media_service');
+@@ -222,6 +223,10 @@
+         if (peer.id === req.user.id) {
+             return res.status(400).json({ error: 'Cannot open a chat with yourself' });
+         }
++        // Ikkalasidan biri ikkinchisini bloklagan bo'lsa - suhbat ochilmaydi.
++        if (await isBlockedBetween(req.user.uuid, peer.uuid)) {
++            return res.status(403).json({ error: 'Blocked', code: 'BLOCKED' });
++        }
+ 
+         // Ikkalasi ham ishtirok etadigan mavjud suhbatni qidiramiz.
+         const existing = await prisma.conversation.findFirst({

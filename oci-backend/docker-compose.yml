@@ -190,6 +190,9 @@ services:
       NODE_ENV: production
       APP_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/chat
+      # Blocks live in the main database; this role may only call
+      # blocked_between() (sql/chat_blocks_ro.sql).
+      BLOCKS_DATABASE_URL: postgresql://chat_blocks_ro:${CHAT_BLOCKS_RO_PASS}@postgres:5432/${POSTGRES_DB}
       CORS_ORIGIN: "*"
       PORT: "3000"
       UPLOAD_DIR: uploads
