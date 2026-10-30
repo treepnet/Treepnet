@@ -92,6 +92,28 @@ class DmApi {
   Timer? _authRetryTimer;
   int _authRetries = 0;
 
+  /// The socket was closed on purpose while the app is in the background
+  /// ([pause]); [resume] opens it again.
+  bool _paused = false;
+
+  /// Closes the socket while the app is in the background, so the backend
+  /// treats us as offline and sends new messages as push notifications.
+  void pause() {
+    final socket = _socket;
+    if (socket == null || _paused) return;
+    _paused = true;
+    _authRetryTimer?.cancel();
+    socket.disconnect();
+  }
+
+  /// Opens the socket again after [pause].
+  void resume() {
+    if (!_paused) return;
+    _paused = false;
+    final socket = _socket;
+    if (socket != null && socket.disconnected) socket.connect();
+  }
+
   /// [idToken], never throwing: a failed token fetch must not break the chat.
   Future<String?> _token({bool forceRefresh = false}) async {
     try {
@@ -172,7 +194,10 @@ class DmApi {
       // the inbox brings it back — socket.io keeps retrying on its own, this
       // just hastens it.
       final current = _socket;
-      if (current != null && current.disconnected) current.connect();
+      if (current != null && current.disconnected) {
+        _paused = false;
+        current.connect();
+      }
       return existing.future;
     }
 
@@ -193,6 +218,10 @@ class DmApi {
               forceRefresh: force,
             ).then((token) => callback(token == null ? {} : {'token': token}));
           })
+          // Offline, retries back off from 1 s up to 30 s instead of every
+          // 1–5 s forever.
+          .setReconnectionDelay(1000)
+          .setReconnectionDelayMax(30000)
           .disableAutoConnect()
           .build(),
     );

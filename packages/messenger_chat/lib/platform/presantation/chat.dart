@@ -372,6 +372,14 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final background = state != AppLifecycleState.resumed;
+    _cubit?.setIsBackgroundApp(background);
+    // Back in front of the thread: what arrived meanwhile is seen now.
+    if (!background) _cubit?.markAsRead();
+  }
+
+  @override
   void didChangeMetrics() {
     super.didChangeMetrics();
     final bottomInset = View.of(context).viewInsets.bottom;

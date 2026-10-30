@@ -40,9 +40,11 @@ class ChatSession {
   final ValueNotifier<int> unreadTotal = ValueNotifier<int>(0);
   VoidCallback? _unreadListener;
 
-  /// Reloads the inbox when the app comes back after a while (see [_onResume]).
+  /// Closes the socket in the background (see [_onPause]) and reloads the
+  /// inbox when the app comes back after a while (see [_onResume]).
   AppLifecycleListener? _lifecycle;
   DateTime? _backgroundedAt;
+  Timer? _pauseTimer;
 
   DmApi get api => _api!;
   DmListTransport get listTransport => _listTransport!;
@@ -106,6 +108,7 @@ class ChatSession {
     unawaited(_warmUp(list));
     _lifecycle ??= AppLifecycleListener(
       onHide: () => _backgroundedAt = DateTime.now(),
+      onPause: _onPause,
       onShow: _onResume,
     );
     unawaited(_registerPushToken());
@@ -129,10 +132,26 @@ class ChatSession {
     return tokens.idToken;
   }
 
-  /// Back in the foreground after at least 30 s: messages may have arrived
-  /// while the inbox wasn't listening, so reload it (throttled in
-  /// [DmListTransport.refresh]).
+  /// In the background the socket is closed, so the backend sends new
+  /// messages as push notifications instead of over a socket nobody reads.
+  /// Android keeps the app running a while, so a quick switch away and back
+  /// keeps the connection; iOS suspends the app almost at once (a timer would
+  /// never fire), so it closes right away.
+  void _onPause() {
+    _pauseTimer?.cancel();
+    _pauseTimer = Timer(
+      Platform.isIOS ? Duration.zero : const Duration(seconds: 10),
+      () => _api?.pause(),
+    );
+  }
+
+  /// Back in the foreground: reconnect if the socket was closed, and after at
+  /// least 30 s away reload the inbox — messages may have arrived while it
+  /// wasn't listening (throttled in [DmListTransport.refresh]).
   void _onResume() {
+    _pauseTimer?.cancel();
+    _pauseTimer = null;
+    _api?.resume();
     final since = _backgroundedAt;
     _backgroundedAt = null;
     if (since == null ||
@@ -247,6 +266,8 @@ class ChatSession {
     _lifecycle?.dispose();
     _lifecycle = null;
     _backgroundedAt = null;
+    _pauseTimer?.cancel();
+    _pauseTimer = null;
     final listener = _unreadListener;
     if (listener != null) {
       _listTransport?.unreadTotal.removeListener(listener);

@@ -235,7 +235,9 @@ class ChatCubit extends Cubit<ChatState> {
         unreadCount: 0,
       ),
     );
-    if (message.isFromPeer) {
+    // Not while the app is in the background: nobody has seen it yet. It is
+    // marked once the thread is back on screen (see `MessengerChat`).
+    if (message.isFromPeer && !state.isBackgroundApp) {
       markAsRead();
     }
   }
