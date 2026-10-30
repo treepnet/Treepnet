@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
-import 'package:hydrated_bloc/hydrated_bloc.dart';
+import 'package:bloc/bloc.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:posthog_flutter/posthog_flutter.dart';
 import 'package:posts_repository/posts_repository.dart';
@@ -13,7 +13,7 @@ part 'post_bloc.g.dart';
 part 'post_event.dart';
 part 'post_state.dart';
 
-class PostBloc extends HydratedBloc<PostEvent, PostState> {
+class PostBloc extends Bloc<PostEvent, PostState> {
   PostBloc({
     required String postId,
     required PostsRepository postsRepository,
@@ -54,7 +54,7 @@ class PostBloc extends HydratedBloc<PostEvent, PostState> {
 
   final String _postId;
 
-  @override
+  /// The post this bloc is for.
   String get id => _postId;
 
   Future<void> _onPostLikesCountSubscriptionRequested(
@@ -267,9 +267,4 @@ class PostBloc extends HydratedBloc<PostEvent, PostState> {
     }
   }
 
-  @override
-  PostState? fromJson(Map<String, dynamic> json) => PostState.fromJson(json);
-
-  @override
-  Map<String, dynamic>? toJson(PostState state) => state.toJson();
 }

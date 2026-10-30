@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:hydrated_bloc/hydrated_bloc.dart';
+import 'package:bloc/bloc.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:posts_repository/posts_repository.dart';
 import 'package:shared/shared.dart';
@@ -8,7 +8,7 @@ part 'comment_bloc.g.dart';
 part 'comment_event.dart';
 part 'comment_state.dart';
 
-class CommentBloc extends HydratedBloc<CommentEvent, CommentState> {
+class CommentBloc extends Bloc<CommentEvent, CommentState> {
   CommentBloc({
     required String commentId,
     required PostsRepository postsRepository,
@@ -38,7 +38,7 @@ class CommentBloc extends HydratedBloc<CommentEvent, CommentState> {
   final String _commentId;
   final PostsRepository _postsRepository;
 
-  @override
+  /// The comment this bloc is for.
   String get id => _commentId;
 
   Future<void> _onCommentLikeRequested(
@@ -121,10 +121,4 @@ class CommentBloc extends HydratedBloc<CommentEvent, CommentState> {
     );
   }
 
-  @override
-  CommentState? fromJson(Map<String, dynamic> json) =>
-      CommentState.fromJson(json);
-
-  @override
-  Map<String, dynamic>? toJson(CommentState state) => state.toJson();
 }

@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
-import 'package:hydrated_bloc/hydrated_bloc.dart';
+import 'package:bloc/bloc.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:shared/shared.dart';
 import 'package:stories_repository/stories_repository.dart';
@@ -12,7 +12,7 @@ part 'user_stories_bloc.g.dart';
 part 'user_stories_event.dart';
 part 'user_stories_state.dart';
 
-class UserStoriesBloc extends HydratedBloc<UserStoriesEvent, UserStoriesState> {
+class UserStoriesBloc extends Bloc<UserStoriesEvent, UserStoriesState> {
   UserStoriesBloc({
     required User author,
     required StoriesRepository storiesRepository,
@@ -27,8 +27,6 @@ class UserStoriesBloc extends HydratedBloc<UserStoriesEvent, UserStoriesState> {
   final User _author;
   final StoriesRepository _storiesRepository;
 
-  @override
-  String get id => _author.id;
 
   Future<void> _onUserStoriesSubscriptionRequested(
     UserStoriesSubscriptionRequested event,
@@ -60,10 +58,4 @@ class UserStoriesBloc extends HydratedBloc<UserStoriesEvent, UserStoriesState> {
     Emitter<UserStoriesState> emit,
   ) => _storiesRepository.deleteStory(id: event.id);
 
-  @override
-  UserStoriesState? fromJson(Map<String, dynamic> json) =>
-      UserStoriesState.fromJson(json);
-
-  @override
-  Map<String, dynamic>? toJson(UserStoriesState state) => state.toJson();
 }

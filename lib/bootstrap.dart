@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:developer';
+import 'dart:io';
 
 import 'package:app_ui/app_ui.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -67,11 +68,7 @@ Future<void> bootstrap(
       unawaited(CrashReporter.instance.init(env: appFlavor.flavor.name));
 
       boot('1 hydrated storage (start)');
-      HydratedBloc.storage = await HydratedStorage.build(
-        storageDirectory: kIsWeb
-            ? HydratedStorageDirectory.web
-            : HydratedStorageDirectory((await getTemporaryDirectory()).path),
-      );
+      HydratedBloc.storage = await _settingsStorage();
       boot('2 hydrated storage (ok)');
 
       final powerSyncRepository = PowerSyncRepository(env: appFlavor.getEnv);
@@ -133,4 +130,51 @@ Future<void> bootstrap(
       CrashReporter.instance.report(error, stack, kind: 'zone');
     },
   );
+}
+
+/// Where the app keeps its saved settings — the language and the theme, the
+/// only blocs that still persist their state.
+///
+/// They used to live in the temporary folder, which the OS (or "Clear cache")
+/// may wipe, next to the state of every post, comment and story ever shown,
+/// which piled up forever and was all read on each start. Now they live in
+/// the app-support folder: the two settings are carried over once and the old
+/// store is deleted.
+Future<Storage> _settingsStorage() async {
+  if (kIsWeb) {
+    return HydratedStorage.build(
+      storageDirectory: HydratedStorageDirectory.web,
+    );
+  }
+  const keep = ['LocaleBloc', 'ThemeModeBloc'];
+  final carried = <String, dynamic>{};
+  final oldDir = (await getTemporaryDirectory()).path;
+  if (File('$oldDir/hydrated_box.hive').existsSync()) {
+    try {
+      final old = await HydratedStorage.build(
+        storageDirectory: HydratedStorageDirectory(oldDir),
+      );
+      for (final key in keep) {
+        final value = old.read(key);
+        if (value != null) carried[key] = value;
+      }
+      await old.close();
+    } catch (_) {
+      // Unreadable: the settings fall back to their defaults.
+    }
+    for (final name in ['hydrated_box.hive', 'hydrated_box.lock']) {
+      try {
+        File('$oldDir/$name').deleteSync();
+      } catch (_) {}
+    }
+  }
+  final storage = await HydratedStorage.build(
+    storageDirectory: HydratedStorageDirectory(
+      (await getApplicationSupportDirectory()).path,
+    ),
+  );
+  for (final MapEntry(:key, :value) in carried.entries) {
+    if (storage.read(key) == null) await storage.write(key, value);
+  }
+  return storage;
 }
