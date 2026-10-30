@@ -1941,6 +1941,12 @@ abstract class AppLocalizations {
   /// **'No stories yet'**
   String get noStoriesText;
 
+  /// No description provided for @changeNotSavedText.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save your change. Please try again.'**
+  String get changeNotSavedText;
+
   /// No description provided for @inviteIntroText.
   ///
   /// In en, this message translates to:

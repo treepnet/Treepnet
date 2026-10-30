@@ -1161,6 +1161,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noStoriesText => 'No stories yet';
 
   @override
+  String get changeNotSavedText =>
+      'Couldn\'t save your change. Please try again.';
+
+  @override
   String get inviteIntroText =>
       'Invite your friends to have a more interesting time together and get a reward for it.';
 

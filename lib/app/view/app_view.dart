@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/app/view/presence_heartbeat.dart';
 import 'package:treepnet/app/view/referral_link_listener.dart';
+import 'package:treepnet/app/view/rejected_upload_listener.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/notifications/push/push_notification_listener.dart';
 import 'package:treepnet/selector/selector.dart';
@@ -50,6 +51,7 @@ class AppView extends StatelessWidget {
                         const PresenceHeartbeat(),
                         const ReferralLinkListener(),
                         const PushNotificationListener(),
+                        const RejectedUploadListener(),
                         AppSnackbar(key: snackbarKey),
                         AppLoadingIndeterminate(key: loadingIndeterminateKey),
                       ],

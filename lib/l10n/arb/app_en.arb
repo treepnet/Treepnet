@@ -721,6 +721,7 @@
   "@noStoriesText": {
     "description": "Shown when the stories grid is empty"
   },
+  "changeNotSavedText": "Couldn't save your change. Please try again.",
   "inviteIntroText": "Invite your friends to have a more interesting time together and get a reward for it.",
   "inviteRewardRuleText": "For every 5 people you invite, you will receive 1 month of a tick in your profile to test a premium subscription.",
   "inviteYourLinkText": "Your link to invite friends",

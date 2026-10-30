@@ -24,6 +24,50 @@ final List<RegExp> fatalResponseCodes = [
   RegExp(r'^42501$'),
 ];
 
+/// A local change the server refused for good (see [fatalResponseCodes]). It is
+/// dropped — retrying can't make it succeed — so the app is told, to report it
+/// and tell the user. Carries no row content: only where it was and why.
+class RejectedUpload {
+  /// Creates a [RejectedUpload].
+  const RejectedUpload({
+    required this.table,
+    required this.op,
+    required this.code,
+    required this.message,
+    required this.dropped,
+  });
+
+  /// The table the refused change was for.
+  final String table;
+
+  /// `put`, `patch` or `delete`.
+  final String op;
+
+  /// The Postgres error code, e.g. `23505` or `42501`.
+  final String code;
+
+  /// The server's message, with any quoted values removed.
+  final String message;
+
+  /// How many local changes were dropped with it (its whole transaction).
+  final int dropped;
+
+  @override
+  String toString() =>
+      'Server rejected a synced change: $op on $table ($code: $message); '
+      '$dropped change(s) dropped';
+}
+
+final _rejectedUploads = StreamController<RejectedUpload>.broadcast();
+
+/// Postgres messages can quote the offending value. Keep identifiers
+/// (constraint, column and type names) and drop anything else in quotes, so a
+/// report never carries user content.
+String _withoutValues(String message) => message.replaceAllMapped(
+  RegExp('"([^"]*)"'),
+  (m) => RegExp(r'^[a-z_][a-z0-9_.]*$').hasMatch(m[1]!) ? m[0]! : '"…"',
+);
+
 /// Self-hosted PostgREST, served over HTTPS by Caddy on the OCI ARM server.
 /// Replaces Supabase's auto REST API: reads come from PowerSync, writes and
 /// RPCs go here, authorised with the Entra id token. (Old app versions still
@@ -130,11 +174,20 @@ class SupabaseConnector extends PowerSyncBackendConnector {
         /// Instead of blocking the queue with these errors,
         /// discard the (rest of the) transaction.
         ///
-        /// Note that these errors typically indicate a bug in the application.
-        /// If protecting against data loss is important, save the failing
-        /// records
-        /// elsewhere instead of discarding, and/or notify the user.
+        /// These errors typically indicate a bug in the application, so the
+        /// app is told ([PowerSyncRepository.rejectedUploads]): it reports
+        /// the drop and tells the user, instead of the change silently
+        /// vanishing on the next sync.
         shared.logE('Data upload error - discarding $lastOp', error: e);
+        _rejectedUploads.add(
+          RejectedUpload(
+            table: lastOp?.table ?? '?',
+            op: lastOp?.op.name ?? '?',
+            code: e.code ?? '?',
+            message: _withoutValues(e.message),
+            dropped: transaction.crud.length,
+          ),
+        );
         await transaction.complete();
       } else {
         /// Error may be retryable - e.g. network error or temporary server
@@ -181,6 +234,10 @@ class PowerSyncRepository {
     }
     return _db;
   }
+
+  /// Local changes the server refused for good and that were dropped — one
+  /// event per dropped transaction. See [RejectedUpload].
+  Stream<RejectedUpload> get rejectedUploads => _rejectedUploads.stream;
 
   /// Checks if a user is logged in.
   bool isLoggedIn() {

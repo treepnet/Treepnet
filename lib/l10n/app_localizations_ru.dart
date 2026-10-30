@@ -1185,6 +1185,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get noStoriesText => 'Историй пока нет';
 
   @override
+  String get changeNotSavedText =>
+      'Не удалось сохранить изменение. Попробуйте ещё раз.';
+
+  @override
   String get inviteIntroText =>
       'Приглашайте друзей, чтобы проводить время интереснее и получать за это награду.';
 
