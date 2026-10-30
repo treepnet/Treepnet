@@ -2,8 +2,22 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:instagram_blocks_ui/src/widgets/widgets.dart';
 import 'package:octo_image/octo_image.dart';
+
+/// Disk cache for post photos: up to 1000 of them, kept for 30 days.
+///
+/// The default cache holds 200 files, and post photos used to take two places
+/// each (see [BlurHashImageThumbnail]), so scrolling back through the feed
+/// re-downloaded them.
+final postImageCacheManager = CacheManager(
+  Config(
+    'treepnetPostImages',
+    stalePeriod: const Duration(days: 30),
+    maxNrOfCacheObjects: 1000,
+  ),
+);
 
 /// A network image that decodes at a capped width and keeps its shape.
 ///
@@ -51,10 +65,13 @@ class _BlurHashImageThumbnailState extends State<BlurHashImageThumbnail> {
       memCacheWidth: widget.decodeWidth,
       image: widget.url.startsWith('file://')
           ? FileImage(File(Uri.parse(widget.url).toFilePath())) as ImageProvider
+          // No maxWidth / maxHeight: they made the cache decode each photo,
+          // re-encode it as a PNG (bigger than the JPEG we upload, which is
+          // already at most 1440 px) and store that as a second file.
+          // [decodeWidth] already bounds the memory used.
           : CachedNetworkImageProvider(
               widget.url,
-              maxWidth: 1080,
-              maxHeight: 1080,
+              cacheManager: postImageCacheManager,
               cacheKey: widget.id == null ? widget.url : '${widget.id}/${widget.url}',
             ),
       // No size given: the placeholder fills the same box the image will, so
