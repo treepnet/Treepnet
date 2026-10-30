@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -42,10 +43,21 @@ class MediaStorage {
       '/p/3qzWuaJDL3XxoiWzffw42H6kPYUPOgFbm75so906blXJp3LAEUdZibZvCimLbec0'
       '/n/fryarohmp0gm/b/treepnet-media/o/';
 
+  /// One client for every upload. It used to be a fresh `Dio()` per call with
+  /// no timeouts at all, so on a weak mobile connection an upload could hang
+  /// for minutes (the post banner stuck near 90%). A connection that can't be
+  /// opened gives up here; a slow transfer is bounded per upload by its size —
+  /// see [MediaBucket.uploadBinary]. (No fixed receive timeout: on some
+  /// adapters it also covers sending the body, which would cut off a large
+  /// video on a slow connection.)
+  static final Dio _dio = Dio(
+    BaseOptions(connectTimeout: const Duration(seconds: 20)),
+  );
+
   /// Returns a handle scoped to [bucket] — the legacy container name, used here
   /// as the object-name prefix inside the single OCI bucket.
   MediaBucket from(String bucket) =>
-      MediaBucket(writePar: _writePar, prefix: bucket);
+      MediaBucket(writePar: _writePar, prefix: bucket, dio: _dio);
 }
 
 /// {@template media_bucket}
@@ -102,11 +114,19 @@ class MediaBucket {
   String _encodedObject(String path) =>
       '$prefix/$path'.split('/').map(Uri.encodeComponent).join('/');
 
+  /// The longest one upload may take: 30 s plus enough for [bytes] at a slow
+  /// 50 KB/s, capped at 15 minutes (a large video on a poor connection).
+  static Duration _uploadTimeout(int bytes) {
+    final seconds = 30 + bytes ~/ (50 * 1024);
+    return Duration(seconds: seconds.clamp(30, 15 * 60));
+  }
+
   /// Uploads [bytes] as an object at [path] (under this bucket's prefix),
   /// overwriting any existing object.
   ///
   /// Mirrors `StorageFileApi.uploadBinary`; returns [path] on success and throws
-  /// on a non-2xx response.
+  /// on a non-2xx response, or when it takes longer than [_uploadTimeout] (the
+  /// request is cancelled, so the connection is freed).
   Future<String> uploadBinary(
     String path,
     Uint8List bytes, {
@@ -114,24 +134,35 @@ class MediaBucket {
   }) async {
     final object = _encodedObject(path);
     final url = '$_writeBase/o/$object';
-    final response = await _dio.put<dynamic>(
-      url,
-      // A Stream<List<int>> body bypasses dio's request transformer so the raw
-      // bytes are sent verbatim (required for binary uploads).
-      data: Stream<List<int>>.fromIterable([bytes]),
-      options: Options(
-        headers: <String, dynamic>{
-          Headers.contentLengthHeader: bytes.length,
-          if (fileOptions.contentType != null)
-            Headers.contentTypeHeader: fileOptions.contentType,
-          if (fileOptions.cacheControl != null)
-            'Cache-Control': 'max-age=${fileOptions.cacheControl}',
-        },
-        followRedirects: false,
-        validateStatus: (status) =>
-            status != null && status >= 200 && status < 300,
-      ),
+    final cancel = CancelToken();
+    final deadline = Timer(
+      _uploadTimeout(bytes.length),
+      () => cancel.cancel('upload timed out'),
     );
+    final Response<dynamic> response;
+    try {
+      response = await _dio.put<dynamic>(
+        url,
+        // A Stream<List<int>> body bypasses dio's request transformer so the
+        // raw bytes are sent verbatim (required for binary uploads).
+        data: Stream<List<int>>.fromIterable([bytes]),
+        cancelToken: cancel,
+        options: Options(
+          headers: <String, dynamic>{
+            Headers.contentLengthHeader: bytes.length,
+            if (fileOptions.contentType != null)
+              Headers.contentTypeHeader: fileOptions.contentType,
+            if (fileOptions.cacheControl != null)
+              'Cache-Control': 'max-age=${fileOptions.cacheControl}',
+          },
+          followRedirects: false,
+          validateStatus: (status) =>
+              status != null && status >= 200 && status < 300,
+        ),
+      );
+    } finally {
+      deadline.cancel();
+    }
     if (response.statusCode == null || response.statusCode! >= 300) {
       throw Exception(
         'OCI media upload failed (${response.statusCode}) for $prefix/$path',
