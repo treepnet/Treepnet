@@ -31,6 +31,7 @@ abstract class UserBaseRepository {
     String? website,
     String? instagram,
     String? gender,
+    String? lang,
     bool clearAvatar = false,
   });
 
@@ -2687,6 +2688,7 @@ ORDER BY created_at ASC
     String? instagram,
     String? gender,
     String? password,
+    String? lang,
     bool clearAvatar = false,
   }) async {
     // Writes straight to the `profiles` table (PowerSync uploads the change).
@@ -2711,6 +2713,7 @@ ORDER BY created_at ASC
       if (website != null) 'website': website,
       if (instagram != null) 'instagram': instagram,
       if (gender != null) 'gender': gender,
+      if (lang != null) 'lang': lang,
     };
     if (fields.isEmpty) return;
     final setClause = fields.keys.map((k) => '$k = ?').join(', ');

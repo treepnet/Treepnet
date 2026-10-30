@@ -31,6 +31,9 @@ const schema = Schema([
       // Presence: the app bumps this while foregrounded; the chat header shows
       // "online" when it is recent, else "last seen …".
       Column.text('last_seen_at'),
+      // App language ('en' / 'ru') the server words push notifications in.
+      // Written by the app; not synced back down.
+      Column.text('lang'),
     ],
   ),
   // The signed-in user's own private profile fields. Since 2026-10-31 the

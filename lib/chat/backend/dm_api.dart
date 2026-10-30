@@ -20,6 +20,7 @@ class DmApi {
     required this.deviceId,
     required this.deviceName,
     required this.idToken,
+    this.lang = 'en',
     this.userName,
     this.userAvatar,
   });
@@ -36,6 +37,10 @@ class DmApi {
   /// trusting `x-uuid`. Null when no token is at hand; the backend then falls
   /// back to `x-uuid` for as long as it still accepts old app versions.
   final Future<String?> Function({bool forceRefresh}) idToken;
+
+  /// App language ('en' / 'ru'): the backend words this user's chat push
+  /// notifications in it. See [setLanguage].
+  String lang;
 
   /// Display name and avatar of the current user. Sent as `x-name` / `x-avatar`
   /// so the backend can populate this user's row — otherwise the peer would see
@@ -178,7 +183,7 @@ class DmApi {
     'x-device-id': deviceId,
     'x-device-name': deviceName,
     'x-device-type': 'mobile',
-    'x-lang': 'uz',
+    'x-lang': lang,
     if (userName != null && userName!.isNotEmpty) 'x-name': userName!,
     if (userAvatar != null && userAvatar!.isNotEmpty) 'x-avatar': userAvatar!,
   };
@@ -366,6 +371,20 @@ class DmApi {
 
   void deleteMessage({required String messageId}) =>
       _socket?.emit('dm.delete', {'messageId': messageId});
+
+  /// Tells the backend the app language changed (it refreshes its copy of this
+  /// user on the next request that isn't cached).
+  void setLanguage(String value) {
+    if (value == lang) return;
+    lang = value;
+    dio.options.headers['x-lang'] = value;
+  }
+
+  /// Stops chat pushes for this device and user (on sign-out).
+  Future<void> unregisterDeviceToken(String token) => dio.delete<void>(
+    '/chat/dm/device-token',
+    data: {'token': token},
+  );
 
   /// Registers this device's FCM token with the chat backend so the peer's
   /// messages arrive as push notifications when the app is closed.

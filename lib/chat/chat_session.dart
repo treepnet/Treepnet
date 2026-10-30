@@ -84,6 +84,7 @@ class ChatSession {
       deviceId: deviceId,
       // x-device-name is mandatory server-side and must not be 'unknown'.
       deviceName: 'TreepNet ${Platform.operatingSystem}',
+      lang: _lang,
       idToken: ({forceRefresh = false}) =>
           _idTokenFor(myUuid, forceRefresh: forceRefresh),
       userName: myName,
@@ -159,6 +160,31 @@ class ChatSession {
       return;
     }
     unawaited(_listTransport?.refresh() ?? Future<void>.value());
+  }
+
+  /// App language for chat pushes (see [setLanguage]).
+  String _lang = 'en';
+
+  /// The app language changed (or is first known): chat push notifications
+  /// follow it.
+  void setLanguage(String lang) {
+    _lang = lang;
+    _api?.setLanguage(lang);
+  }
+
+  /// Stops chat pushes to this device for the signed-in user — call on
+  /// sign-out, before the FCM token itself is deleted. Best-effort.
+  Future<void> unregisterPushToken() async {
+    final api = _api;
+    if (api == null) return;
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null && token.isNotEmpty) {
+        await api.unregisterDeviceToken(token);
+      }
+    } catch (_) {
+      // Firebase not configured, or offline: the FCM token is deleted anyway.
+    }
   }
 
   StreamSubscription<String>? _tokenRefreshSub;

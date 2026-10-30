@@ -62,8 +62,10 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     Emitter<AppState> emit,
   ) async {
     try {
-      // Clear the push token first, while the user id is still valid, so this
-      // signed-out device stops receiving notifications.
+      // Stop this device's chat pushes for this user, then clear the push
+      // token, while the user id is still valid, so a signed-out device stops
+      // receiving notifications (and the next account doesn't get these).
+      await ChatSession.instance.unregisterPushToken();
       await PushNotifications.disableForUser(_userRepository);
       // Tear down the chat connection so the next account starts a clean
       // session — otherwise the previous user's socket/identity lingers and

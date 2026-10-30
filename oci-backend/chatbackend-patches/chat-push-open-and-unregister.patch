@@ -1,0 +1,56 @@
+Chat backend (./chatbackend on the server, not in this repo): let a tapped push
+open its chat, and let the app unregister a device on sign-out.
+
+- A chat push's data now carries peerUuid and peerName (the sender), so the app
+  can open that conversation when the notification is tapped.
+- DELETE /chat/dm/device-token { token }: removes this device's push token for
+  the signed-in user, so the next account on the phone doesn't get the
+  previous one's message notifications.
+
+Applied on the server 2026-10-31 (backup: ~/backups/chatbackend-src-20261031-pre-push.tgz).
+Apply after chat-blocks.patch:
+  cd ~/treepnet/chatbackend && patch -p1 < chat-push-open-and-unregister.patch
+  cd .. && docker compose build chatbackend && docker compose up -d chatbackend
+
+--- a/src/infrastructure/sockets/dm_socket.js	2026-10-31 04:15:07
++++ b/src/infrastructure/sockets/dm_socket.js	2026-10-31 04:15:24
+@@ -339,9 +339,12 @@
+                             .sendToUser(participantId, {
+                                 title,
+                                 body,
++                                // peerUuid/peerName let a tap open this chat.
+                                 data: {
+                                     conversationId: String(conversationId),
+                                     type: 'dm',
++                                    peerUuid: sender?.uuid || '',
++                                    peerName: title,
+                                 },
+                             })
+                             .catch(() => {});
+--- a/src/interfaces/http/routes/dm_routes.js	2026-10-31 04:15:07
++++ b/src/interfaces/http/routes/dm_routes.js	2026-10-31 04:15:24
+@@ -427,6 +427,24 @@
+             create: { userId: req.user.id, token, platform },
+         });
+ 
++        res.json({ status: 'ok' });
++    } catch (err) {
++        next(err);
++    }
++});
++
++/**
++ * DELETE /chat/dm/device-token  { token }
++ * Chiqishda: bu qurilma endi shu foydalanuvchining xabarlari uchun push
++ * olmaydi (keyingi akkaunt oldingisining bildirishnomalarini ko'rmasin).
++ */
++router.delete('/device-token', apiLimiter, checkUser, async (req, res, next) => {
++    try {
++        const token = (req.body?.token || '').toString().trim();
++        if (!token) return res.status(400).json({ error: 'token is required' });
++        await prisma.deviceToken.deleteMany({
++            where: { token, userId: req.user.id },
++        });
+         res.json({ status: 'ok' });
+     } catch (err) {
+         next(err);

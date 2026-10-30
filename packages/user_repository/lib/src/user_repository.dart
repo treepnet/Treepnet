@@ -497,6 +497,7 @@ class UserRepository implements UserBaseRepository {
     String? website,
     String? instagram,
     String? gender,
+    String? lang,
     bool clearAvatar = false,
   }) =>
       _databaseClient.updateUser(
@@ -511,6 +512,7 @@ class UserRepository implements UserBaseRepository {
         website: website,
         instagram: instagram,
         gender: gender,
+        lang: lang,
         clearAvatar: clearAvatar,
       );
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -43,6 +45,31 @@ class PushNotifications {
   /// google-services.json). Real remote push needs this AND a real device.
   static bool _fcmReady = false;
 
+  static final _taps = StreamController<Map<String, String>>.broadcast();
+
+  /// Notifications tapped while the app was running in the background: their
+  /// data (`type`, ids) plus `title`.
+  static Stream<Map<String, String>> get taps => _taps.stream;
+
+  /// The notification the app was launched from, once FCM is up.
+  static final _launch = Completer<Map<String, String>?>();
+  static bool _launchTaken = false;
+
+  /// The notification the app was launched from (null if none) — handed out
+  /// once.
+  static Future<Map<String, String>?> takeLaunchNotification() async {
+    final data = await _launch.future;
+    if (_launchTaken) return null;
+    _launchTaken = true;
+    return data;
+  }
+
+  static Map<String, String> _tapData(RemoteMessage message) => {
+    for (final MapEntry(:key, :value) in message.data.entries) key: '$value',
+    if (message.notification?.title != null)
+      'title': message.notification!.title!,
+  };
+
   /// One-time setup. Two independent halves:
   ///  1. Local notifications + Android channel — no Firebase needed, so the OS
   ///     display path works on any flavor/device (and on the simulator).
@@ -80,7 +107,15 @@ class PushNotifications {
           firebaseMessagingBackgroundHandler,
         );
         _fcmReady = true;
+        FirebaseMessaging.onMessageOpenedApp.listen(
+          (message) => _taps.add(_tapData(message)),
+        );
+        final initial = await FirebaseMessaging.instance.getInitialMessage();
+        if (!_launch.isCompleted) {
+          _launch.complete(initial == null ? null : _tapData(initial));
+        }
       } catch (error) {
+        if (!_launch.isCompleted) _launch.complete(null);
         // No Firebase config for this flavor, or init timed out. Local
         // notifications still work; there's just no remote-push transport.
         if (kDebugMode) {

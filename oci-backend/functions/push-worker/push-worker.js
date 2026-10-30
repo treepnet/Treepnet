@@ -35,6 +35,28 @@ async function fcmAccessToken() {
   return token;
 }
 
+// The triggers write the body in English; it is reworded here in the
+// recipient's app language (profiles.lang, set by the app: 'en' / 'ru').
+const BODIES = {
+  ru: {
+    like: 'нравится ваша публикация',
+    follow: 'подписался(-ась) на вас',
+    follow_request: 'хочет подписаться на вас',
+  },
+};
+const COMMENT_PREFIX = { en: 'commented: ', ru: 'прокомментировал(а): ' };
+
+function localizedBody(row, lang) {
+  const type = row.data && row.data.type;
+  const body = row.body || '';
+  const texts = BODIES[lang];
+  if (!texts) return body;
+  if (type === 'comment' && body.startsWith(COMMENT_PREFIX.en)) {
+    return COMMENT_PREFIX[lang] + body.slice(COMMENT_PREFIX.en.length);
+  }
+  return texts[type] || body;
+}
+
 async function sendOne(accessToken, projectId, token, row) {
   const res = await fetch(
     `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
@@ -47,7 +69,10 @@ async function sendOne(accessToken, projectId, token, row) {
       body: JSON.stringify({
         message: {
           token,
-          notification: { title: row.title || 'Treepnet', body: row.body || '' },
+          notification: {
+            title: row.title || 'Treepnet',
+            body: localizedBody(row, row.lang),
+          },
           data: Object.fromEntries(
             Object.entries(row.data || {}).map(([k, v]) => [k, String(v)]),
           ),
@@ -115,10 +140,11 @@ async function runOnce() {
   for (const row of rows) {
     try {
       const tok = await pool.query(
-        'SELECT push_token FROM public.profiles WHERE id = $1',
+        'SELECT push_token, lang FROM public.profiles WHERE id = $1',
         [row.recipient_id],
       );
       const pushToken = tok.rows[0]?.push_token;
+      row.lang = tok.rows[0]?.lang;
       if (!pushToken) {
         await pool.query(
           `UPDATE public.push_outbox SET status='failed', last_error='no token' WHERE id=$1`,

@@ -28,6 +28,10 @@ import 'package:treepnet/app/services/media_upload_queue.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
+/// The app's root navigator — for opening a screen from outside the widget
+/// tree (a tapped push notification).
+GlobalKey<NavigatorState> get rootNavigatorKey => _rootNavigatorKey;
+
 /// The props for the post currently being published. `go_router` only carries
 /// `extra` on the original navigation event, not in the addressable location,
 /// so when it rebuilds the `publishPost` page from the route configuration —
