@@ -7,9 +7,9 @@ import 'package:treepnet/feed/post/video/video.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared/shared.dart';
-import 'package:path/path.dart' as p;
 import 'package:treepnet/app/services/media_upload_queue.dart';
 import 'package:treepnet/feed/widgets/post_upload_progress.dart';
+import 'package:user_repository/user_repository.dart';
 
 class FeedPageController extends ChangeNotifier {
   factory FeedPageController() => _internal;
@@ -109,6 +109,31 @@ class FeedPageController extends ChangeNotifier {
     late final storage = MediaStorage.instance.from('posts');
 
     final queue = _context.read<MediaUploadQueue>();
+    final userId = _context.read<UserRepository>().currentUserId;
+
+    // A file that didn't upload right away goes to the queue, and then the post
+    // goes there too: it is created only once every file is uploaded, so its
+    // media never point at files that exist only on this phone.
+    var queued = false;
+    Future<void> queuePost({required List<Map<String, dynamic>> media}) async {
+      if (userId == null) return;
+      await queue.enqueuePost(
+        PendingPost(
+          postId: postId,
+          userId: userId,
+          caption: caption,
+          media: media,
+          location: location,
+          locationCountry: locationCountry,
+          locationRegion: locationRegion,
+          locationName: locationName,
+          locationLat: locationLat,
+          locationLng: locationLng,
+        ),
+      );
+      // The banner stays up until the queue creates the post.
+      queued = true;
+    }
 
     try {
     if (isReel) {
@@ -133,8 +158,9 @@ class FeedPageController extends ChangeNotifier {
         path: compressedVideo.path,
       );
 
-      String mediaUrl;
+      var mediaUrl = '';
       String? firstFrameUrl;
+      var pending = false;
 
       try {
         await storage.uploadBinary(
@@ -162,7 +188,7 @@ class FeedPageController extends ChangeNotifier {
       } catch (error, stackTrace) {
         logW('Immediate upload failed. Enqueuing offline upload...', error: error, stackTrace: stackTrace);
         late final firstFramePath = '$postId/video_first_frame_0';
-        final localPath = await queue.enqueueTask(
+        await queue.enqueueTask(
           postId: postId,
           bytes: attachment.bytes!,
           remotePath: mediaPath,
@@ -174,11 +200,9 @@ class FeedPageController extends ChangeNotifier {
           firstFrameBytes: firstFrame,
           firstFrameRemotePath: firstFramePath,
         );
-        mediaUrl = Uri.file(localPath).toString();
-        if (firstFrame != null) {
-          final firstFrameLocalPath = p.join(p.dirname(localPath), 'first_frame_0.jpg');
-          firstFrameUrl = Uri.file(firstFrameLocalPath).toString();
-        }
+        mediaUrl = '';
+        firstFrameUrl = null;
+        pending = true;
       }
 
       final media = [
@@ -190,9 +214,14 @@ class FeedPageController extends ChangeNotifier {
           'first_frame_url': firstFrameUrl,
         },
       ];
-      uploadPost(media: media);
+      if (pending) {
+        await queuePost(media: media);
+      } else {
+        uploadPost(media: media);
+      }
     } else {
       final media = <Map<String, dynamic>>[];
+      var pending = false;
       for (var i = 0; i < selectedFiles.length; i++) {
         late final selectedByte = selectedFiles[i].selectedByte;
         late final selectedFile = selectedFiles[i].selectedFile;
@@ -237,7 +266,7 @@ class FeedPageController extends ChangeNotifier {
           bytes = compressedImageBytes ?? selectedByte;
         }
 
-        String mediaUrl;
+        var mediaUrl = '';
         String? firstFrameUrl;
 
         try {
@@ -267,7 +296,7 @@ class FeedPageController extends ChangeNotifier {
         } catch (error, stackTrace) {
           logW('Immediate upload failed. Enqueuing offline upload...', error: error, stackTrace: stackTrace);
           late final firstFramePath = '$postId/video_first_frame_$i';
-          final localPath = await queue.enqueueTask(
+          await queue.enqueueTask(
             postId: postId,
             bytes: bytes,
             remotePath: mediaPath,
@@ -279,11 +308,9 @@ class FeedPageController extends ChangeNotifier {
             firstFrameBytes: convertedBytes,
             firstFrameRemotePath: isVideo ? firstFramePath : null,
           );
-          mediaUrl = Uri.file(localPath).toString();
-          if (convertedBytes != null) {
-            final firstFrameLocalPath = p.join(p.dirname(localPath), 'first_frame_$i.jpg');
-            firstFrameUrl = Uri.file(firstFrameLocalPath).toString();
-          }
+          mediaUrl = '';
+          firstFrameUrl = null;
+          pending = true;
         }
 
         final mediaType = isVideo
@@ -306,10 +333,14 @@ class FeedPageController extends ChangeNotifier {
           });
         }
       }
-      uploadPost(media: media);
+      if (pending) {
+        await queuePost(media: media);
+      } else {
+        uploadPost(media: media);
+      }
     }
     } finally {
-      PostUploadProgress().complete();
+      if (!queued) PostUploadProgress().complete();
     }
   }
 }

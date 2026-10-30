@@ -108,6 +108,89 @@ class PendingUploadTask {
   }
 }
 
+/// A post whose media didn't all upload right away.
+///
+/// It stays on this phone and is created only once every file is uploaded, so
+/// nobody ever sees a post pointing at files that exist only on the author's
+/// phone. [media] holds the post's media entries; an entry still uploading has
+/// an empty `url` (and `null` once its file is lost).
+class PendingPost {
+  PendingPost({
+    required this.postId,
+    required this.userId,
+    required this.caption,
+    required this.media,
+    this.location,
+    this.locationCountry,
+    this.locationRegion,
+    this.locationName,
+    this.locationLat,
+    this.locationLng,
+  });
+
+  factory PendingPost.fromJson(Map<String, dynamic> json) {
+    return PendingPost(
+      postId: json['postId'] as String,
+      userId: json['userId'] as String,
+      caption: json['caption'] as String,
+      media: List<Map<String, dynamic>>.from(
+        (json['media'] as List<dynamic>).map(
+          (e) => Map<String, dynamic>.from(e as Map),
+        ),
+      ),
+      location: json['location'] as String?,
+      locationCountry: json['locationCountry'] as String?,
+      locationRegion: json['locationRegion'] as String?,
+      locationName: json['locationName'] as String?,
+      locationLat: (json['locationLat'] as num?)?.toDouble(),
+      locationLng: (json['locationLng'] as num?)?.toDouble(),
+    );
+  }
+
+  final String postId;
+
+  /// Who wrote it: it is only ever created while this account is signed in.
+  final String userId;
+  final String caption;
+  final List<Map<String, dynamic>> media;
+  final String? location;
+  final String? locationCountry;
+  final String? locationRegion;
+  final String? locationName;
+  final double? locationLat;
+  final double? locationLng;
+
+  PendingPost withMedia(List<Map<String, dynamic>> media) {
+    return PendingPost(
+      postId: postId,
+      userId: userId,
+      caption: caption,
+      media: media,
+      location: location,
+      locationCountry: locationCountry,
+      locationRegion: locationRegion,
+      locationName: locationName,
+      locationLat: locationLat,
+      locationLng: locationLng,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'postId': postId,
+      'userId': userId,
+      'caption': caption,
+      'media': media,
+      'location': location,
+      'locationCountry': locationCountry,
+      'locationRegion': locationRegion,
+      'locationName': locationName,
+      'locationLat': locationLat,
+      'locationLng': locationLng,
+    };
+  }
+}
+
 /// A queued upload that keeps failing — reported once, so we hear about it.
 /// No content: just which task, what kind of media and the error type.
 class _MediaUploadStuck implements Exception {
@@ -130,6 +213,10 @@ class _MediaUploadStuck implements Exception {
 /// A failure backs off (30 s, doubling, up to an hour) instead of re-uploading
 /// on every reconnect, and is reported once it has failed
 /// [_reportAfterAttempts] times. A task whose post is gone is cancelled.
+///
+/// A post whose media didn't all upload right away is queued as a
+/// [PendingPost] and created by the post creator the app attaches
+/// ([attachPostCreator]) once its last file is uploaded.
 class MediaUploadQueue {
   MediaUploadQueue({
     required PowerSyncDatabase db,
@@ -138,6 +225,7 @@ class MediaUploadQueue {
         _prefs = sharedPreferences;
 
   static const String _storageKey = 'treepnet_pending_uploads_queue';
+  static const String _postsKey = 'treepnet_pending_posts';
 
   /// Backoff after the first failure; doubles each time, up to [_maxBackoff].
   static const Duration _firstBackoff = Duration(seconds: 30);
@@ -151,6 +239,10 @@ class MediaUploadQueue {
 
   final PowerSyncDatabase _db;
   final SharedPreferences _prefs;
+
+  /// Creates a ready [PendingPost]; returns false when it can't yet (e.g.
+  /// another account is signed in). Null until the app attaches one.
+  Future<bool> Function(PendingPost post)? _postCreator;
 
   bool _isProcessing = false;
 
@@ -180,6 +272,29 @@ class MediaUploadQueue {
   void dispose() {
     _syncStatusSubscription?.cancel();
     _retryTimer?.cancel();
+  }
+
+  /// Lets the queue create posts once their media are uploaded. Posts that
+  /// became ready while no creator was attached are created now.
+  void attachPostCreator(Future<bool> Function(PendingPost post) creator) {
+    _postCreator = creator;
+    triggerProcessing();
+  }
+
+  void detachPostCreator() => _postCreator = null;
+
+  /// Queues [post] to be created once its media (queued with [enqueueTask])
+  /// are all uploaded.
+  Future<void> enqueuePost(PendingPost post) async {
+    await _saveDraft(post);
+    // Its tasks may have been put off while the post wasn't queued yet.
+    final now = DateTime.now();
+    for (final task in _loadTasks()) {
+      if (task.postId == post.postId && task.attempts == 0) {
+        await _saveTask(task.retryLater(attempts: 0, at: now));
+      }
+    }
+    triggerProcessing();
   }
 
   /// Saves a media file to the local pending directory and registers a task.
@@ -262,6 +377,11 @@ class MediaUploadQueue {
   }
 
   Future<void> _processQueue() async {
+    await _uploadDueTasks();
+    await _createReadyPosts();
+  }
+
+  Future<void> _uploadDueTasks() async {
     final tasks = _loadTasks();
     if (tasks.isEmpty) return;
 
@@ -287,6 +407,54 @@ class MediaUploadQueue {
       }
     }
     _scheduleRetry();
+  }
+
+  /// Creates every queued post whose media are all uploaded. A post that
+  /// can't be created now stays queued for the next cycle.
+  Future<void> _createReadyPosts() async {
+    final creator = _postCreator;
+    if (creator == null) return;
+    final uploading = _loadTasks().map((t) => t.postId).toSet();
+    for (final draft in _loadDrafts().values) {
+      if (uploading.contains(draft.postId)) continue;
+
+      // Already created (e.g. the app stopped right after creating it).
+      final exists =
+          await _db.getOptional(
+            'SELECT id FROM posts WHERE id = ?',
+            [draft.postId],
+          ) !=
+          null;
+      if (exists) {
+        await _removeDraft(draft.postId);
+        continue;
+      }
+
+      final media = draft.media
+          .where((m) => (m['url'] as String?)?.isNotEmpty ?? false)
+          .toList();
+      if (media.isEmpty) {
+        shared.logW(
+          'MediaUploadQueue: Post ${draft.postId} lost all its media. '
+          'Dropping it.',
+        );
+        await _removeDraft(draft.postId);
+        continue;
+      }
+
+      try {
+        if (await creator(draft.withMedia(media))) {
+          await _removeDraft(draft.postId);
+          shared.logI('MediaUploadQueue: Created queued post ${draft.postId}.');
+        }
+      } catch (error, stackTrace) {
+        shared.logE(
+          'MediaUploadQueue: Creating queued post ${draft.postId} failed',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
   }
 
   /// Backs the task off (30 s, doubling, up to an hour) and reports it once it
@@ -344,16 +512,20 @@ class MediaUploadQueue {
     final mediaFile = File(task.localPath);
     if (!mediaFile.existsSync()) {
       shared.logW('MediaUploadQueue: Local file does not exist for task ${task.id}. Removing from queue.');
+      await _setDraftMedia(task.postId, task.index, url: null);
       await _removeTask(task.id);
       return;
     }
 
-    // Check the post first, so a deleted post's media isn't uploaded (again).
-    final postExists = await _db.getOptional(
-          'SELECT id FROM posts WHERE id = ?',
-          [task.postId],
-        ) !=
-        null;
+    // A queued post doesn't exist yet by design; otherwise check the post
+    // first, so a deleted post's media isn't uploaded (again).
+    final queuedPost = _loadDrafts().containsKey(task.postId);
+    final postExists = queuedPost ||
+        await _db.getOptional(
+              'SELECT id FROM posts WHERE id = ?',
+              [task.postId],
+            ) !=
+            null;
     if (!postExists) {
       final createdAt = task.createdAt;
       final fresh = createdAt != null &&
@@ -406,13 +578,23 @@ class MediaUploadQueue {
       }
     }
 
-    // Update the database record with the remote public URLs.
-    await _updateDatabaseRecord(
-      postId: task.postId,
-      index: task.index,
-      remoteUrl: mediaUrl,
-      remoteFirstFrameUrl: firstFrameUrl,
-    );
+    // Point the queued post (or, for a post an older version already created,
+    // its database row) at the uploaded file.
+    if (queuedPost) {
+      await _setDraftMedia(
+        task.postId,
+        task.index,
+        url: mediaUrl,
+        firstFrameUrl: firstFrameUrl,
+      );
+    } else {
+      await _updateDatabaseRecord(
+        postId: task.postId,
+        index: task.index,
+        remoteUrl: mediaUrl,
+        remoteFirstFrameUrl: firstFrameUrl,
+      );
+    }
 
     _deleteLocalFiles(task);
     await _removeTask(task.id);
@@ -476,6 +658,46 @@ class MediaUploadQueue {
       );
       shared.logI('MediaUploadQueue: Updated database row for post $postId index $index.');
     }
+  }
+
+  /// Sets media entry [index] of queued post [postId]; a null [url] marks the
+  /// file as lost. No-op when the post isn't queued.
+  Future<void> _setDraftMedia(
+    String postId,
+    int index, {
+    required String? url,
+    String? firstFrameUrl,
+  }) async {
+    final draft = _loadDrafts()[postId];
+    if (draft == null || index < 0 || index >= draft.media.length) return;
+    final media = [for (final m in draft.media) Map<String, dynamic>.from(m)];
+    media[index]['url'] = url;
+    if (firstFrameUrl != null) media[index]['first_frame_url'] = firstFrameUrl;
+    await _saveDraft(draft.withMedia(media));
+  }
+
+  Map<String, PendingPost> _loadDrafts() {
+    final raw = _prefs.getStringList(_postsKey) ?? [];
+    final drafts = raw.map(
+      (e) => PendingPost.fromJson(json.decode(e) as Map<String, dynamic>),
+    );
+    return {for (final d in drafts) d.postId: d};
+  }
+
+  Future<void> _saveDraft(PendingPost draft) async {
+    final drafts = _loadDrafts()..[draft.postId] = draft;
+    await _prefs.setStringList(
+      _postsKey,
+      drafts.values.map((d) => json.encode(d.toJson())).toList(),
+    );
+  }
+
+  Future<void> _removeDraft(String postId) async {
+    final drafts = _loadDrafts()..remove(postId);
+    await _prefs.setStringList(
+      _postsKey,
+      drafts.values.map((d) => json.encode(d.toJson())).toList(),
+    );
   }
 
   List<PendingUploadTask> _loadTasks() {

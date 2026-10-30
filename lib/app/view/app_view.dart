@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/app/view/app_update_gate.dart';
 import 'package:treepnet/app/view/presence_heartbeat.dart';
+import 'package:treepnet/app/view/queued_post_publisher.dart';
 import 'package:treepnet/app/view/referral_link_listener.dart';
 import 'package:treepnet/app/view/rejected_upload_listener.dart';
 import 'package:treepnet/l10n/l10n.dart';
@@ -53,6 +54,7 @@ class AppView extends StatelessWidget {
                         const ReferralLinkListener(),
                         const PushNotificationListener(),
                         const RejectedUploadListener(),
+                        const QueuedPostPublisher(),
                         AppSnackbar(key: snackbarKey),
                         AppLoadingIndeterminate(key: loadingIndeterminateKey),
                         // Last, so "Update required" covers everything above.

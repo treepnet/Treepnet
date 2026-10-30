@@ -852,6 +852,15 @@ NOT EXISTS (
 ))''';
   }
 
+  /// SQL that is true when [postsTable]'s media are all uploaded, or the post
+  /// is the signed-in user's own. Older app versions created a post before its
+  /// upload finished, with `file://` URLs that only work on the author's phone;
+  /// everyone else would see broken images, so such a post stays hidden until
+  /// the author's phone replaces them.
+  String _postReadySql(String postsTable) =>
+      "($postsTable.user_id = $_viewerSql "
+      "OR $postsTable.media NOT LIKE '%file://%')";
+
   /// Everyone the signed-in user blocked or was blocked by — for filtering
   /// results that come from the server rather than the local database.
   Future<Set<String>> _blockedPeerIds() async {
@@ -1587,6 +1596,7 @@ FROM
   posts
   left join profiles p on posts.user_id = p.id
 WHERE ($where) AND ${_visibleAuthorSql('posts.user_id')}
+  AND ${_postReadySql('posts')}
 ORDER BY created_at DESC
       ''',
             parameters: parameters,
@@ -1667,6 +1677,7 @@ FROM
   posts
   left join profiles p on posts.user_id = p.id
 WHERE user_id = ? AND ${_visibleAuthorSql('posts.user_id')}
+  AND ${_postReadySql('posts')}
 ORDER BY created_at DESC
 ${limit != null ? 'LIMIT ?' : ''}
       ''',
@@ -1793,6 +1804,7 @@ FROM
   posts
   left join profiles p on posts.user_id = p.id
 WHERE ${_visibleAuthorSql('posts.user_id')}
+  AND ${_postReadySql('posts')}
   -- "Don't show again" (device-only, see the hidden_posts table).
   AND posts.id NOT IN (
     SELECT post_id FROM hidden_posts WHERE user_id = $_viewerSql
@@ -1922,6 +1934,7 @@ FROM
   posts
   join profiles p on posts.user_id = p.id 
 WHERE posts.id = ? AND ${_visibleAuthorSql('posts.user_id')}
+  AND ${_postReadySql('posts')}
   ''',
       [id],
     );
@@ -2049,6 +2062,7 @@ FROM
   inner join posts on saved_posts.post_id = posts.id
   left join profiles p on posts.user_id = p.id
 WHERE saved_posts.user_id = ?1 AND ${_visibleAuthorSql('posts.user_id')}
+  AND ${_postReadySql('posts')}
 ORDER BY saved_posts.created_at DESC LIMIT ?2 OFFSET ?3
     ''',
       [currentUserId, limit, offset],
