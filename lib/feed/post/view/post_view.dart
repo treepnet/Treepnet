@@ -13,6 +13,7 @@ import 'package:treepnet/user_profile/user_profile.dart';
 import 'package:go_router/go_router.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart' hide VideoPlayer;
 import 'package:posts_repository/posts_repository.dart';
+import 'package:search_repository/search_repository.dart';
 import 'package:shared/shared.dart';
 import 'package:user_repository/user_repository.dart';
 
@@ -196,7 +197,39 @@ class _PostLargeViewState extends State<PostLargeView> {
                 );
               },
             )
-          : const PostOptionsSettings.viewer(),
+          : PostOptionsSettings.viewer(
+              // "Don't show again": out of this user's feed, now and later.
+              onPostHide: () {
+                context.read<PostsRepository>().hidePost(
+                  postId: widget.block.id,
+                );
+                context.read<FeedBloc>().add(
+                  FeedUpdateRequested(
+                    update: FeedPageUpdate(
+                      newPost: widget.block.toPost,
+                      type: PageUpdateType.delete,
+                    ),
+                  ),
+                );
+                openSnackbar(
+                  SnackbarMessage.success(title: context.l10n.postHiddenText),
+                );
+              },
+              // The same block as on the profile (the menu confirms first).
+              onAuthorBlock: () async {
+                await context.read<UserRepository>().blockUser(
+                  userId: context.read<AppBloc>().state.user.id,
+                  blockedId: widget.block.author.id,
+                );
+                if (!context.mounted) return;
+                context.read<SearchRepository>().clearCache();
+                context.read<FeedBloc>().add(const FeedRefreshRequested());
+                openSnackbar(
+                  SnackbarMessage.success(title: context.l10n.blockedText),
+                  clearIfQueue: true,
+                );
+              },
+            ),
       onCommentsTap: (showFullSized) => context.showScrollableModal(
         showFullSized: showFullSized,
         pageBuilder: (scrollController, draggableScrollController) =>

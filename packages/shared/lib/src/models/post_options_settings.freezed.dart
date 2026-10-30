@@ -122,11 +122,11 @@ return viewer(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( ValueSetter<String> onPostDelete,  ValueSetter<PostBlock> onPostEdit,  ValueSetter<String>? onPostArchive)?  owner,TResult Function()?  viewer,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( ValueSetter<String> onPostDelete,  ValueSetter<PostBlock> onPostEdit,  ValueSetter<String>? onPostArchive)?  owner,TResult Function( VoidCallback? onPostHide,  VoidCallback? onAuthorBlock)?  viewer,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case Owner() when owner != null:
 return owner(_that.onPostDelete,_that.onPostEdit,_that.onPostArchive);case Viewer() when viewer != null:
-return viewer();case _:
+return viewer(_that.onPostHide,_that.onAuthorBlock);case _:
   return orElse();
 
 }
@@ -144,11 +144,11 @@ return viewer();case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( ValueSetter<String> onPostDelete,  ValueSetter<PostBlock> onPostEdit,  ValueSetter<String>? onPostArchive)  owner,required TResult Function()  viewer,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( ValueSetter<String> onPostDelete,  ValueSetter<PostBlock> onPostEdit,  ValueSetter<String>? onPostArchive)  owner,required TResult Function( VoidCallback? onPostHide,  VoidCallback? onAuthorBlock)  viewer,}) {final _that = this;
 switch (_that) {
 case Owner():
 return owner(_that.onPostDelete,_that.onPostEdit,_that.onPostArchive);case Viewer():
-return viewer();case _:
+return viewer(_that.onPostHide,_that.onAuthorBlock);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -165,11 +165,11 @@ return viewer();case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( ValueSetter<String> onPostDelete,  ValueSetter<PostBlock> onPostEdit,  ValueSetter<String>? onPostArchive)?  owner,TResult? Function()?  viewer,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( ValueSetter<String> onPostDelete,  ValueSetter<PostBlock> onPostEdit,  ValueSetter<String>? onPostArchive)?  owner,TResult? Function( VoidCallback? onPostHide,  VoidCallback? onAuthorBlock)?  viewer,}) {final _that = this;
 switch (_that) {
 case Owner() when owner != null:
 return owner(_that.onPostDelete,_that.onPostEdit,_that.onPostArchive);case Viewer() when viewer != null:
-return viewer();case _:
+return viewer(_that.onPostHide,_that.onAuthorBlock);case _:
   return null;
 
 }
@@ -251,32 +251,68 @@ as ValueSetter<String>?,
 
 
 class Viewer extends PostOptionsSettings {
-  const Viewer(): super._();
+  const Viewer({this.onPostHide, this.onAuthorBlock}): super._();
   
 
+ final  VoidCallback? onPostHide;
+ final  VoidCallback? onAuthorBlock;
 
-
+/// Create a copy of PostOptionsSettings
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ViewerCopyWith<Viewer> get copyWith => _$ViewerCopyWithImpl<Viewer>(this, _$identity);
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Viewer);
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Viewer&&(identical(other.onPostHide, onPostHide) || other.onPostHide == onPostHide)&&(identical(other.onAuthorBlock, onAuthorBlock) || other.onAuthorBlock == onAuthorBlock));
 }
 
 
 @override
-int get hashCode => runtimeType.hashCode;
+int get hashCode => Object.hash(runtimeType,onPostHide,onAuthorBlock);
 
 @override
 String toString() {
-  return 'PostOptionsSettings.viewer()';
+  return 'PostOptionsSettings.viewer(onPostHide: $onPostHide, onAuthorBlock: $onAuthorBlock)';
 }
 
 
 }
 
+/// @nodoc
+abstract mixin class $ViewerCopyWith<$Res> implements $PostOptionsSettingsCopyWith<$Res> {
+  factory $ViewerCopyWith(Viewer value, $Res Function(Viewer) _then) = _$ViewerCopyWithImpl;
+@useResult
+$Res call({
+ VoidCallback? onPostHide, VoidCallback? onAuthorBlock
+});
 
 
+
+
+}
+/// @nodoc
+class _$ViewerCopyWithImpl<$Res>
+    implements $ViewerCopyWith<$Res> {
+  _$ViewerCopyWithImpl(this._self, this._then);
+
+  final Viewer _self;
+  final $Res Function(Viewer) _then;
+
+/// Create a copy of PostOptionsSettings
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? onPostHide = freezed,Object? onAuthorBlock = freezed,}) {
+  return _then(Viewer(
+onPostHide: freezed == onPostHide ? _self.onPostHide : onPostHide // ignore: cast_nullable_to_non_nullable
+as VoidCallback?,onAuthorBlock: freezed == onAuthorBlock ? _self.onAuthorBlock : onAuthorBlock // ignore: cast_nullable_to_non_nullable
+as VoidCallback?,
+  ));
+}
+
+
+}
 
 // dart format on

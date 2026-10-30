@@ -258,11 +258,11 @@ class PostOptionsButton extends StatelessWidget {
     ];
 
     return settings.when(
-      viewer: () => Tappable(
+      viewer: (onPostHide, onAuthorBlock) => Tappable(
         onTap: () => showOptionsSheet(
           viewerOptions(
-            onPostNotShowAgainTap: () {},
-            onPostBlockAuthorTap: () {},
+            onPostNotShowAgainTap: () => onPostHide?.call(),
+            onPostBlockAuthorTap: () => onAuthorBlock?.call(),
           ),
         ),
         child: icon,

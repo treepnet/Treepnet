@@ -597,6 +597,12 @@ abstract class AppLocalizations {
   /// **'Dont\'t show again'**
   String get notShowAgainText;
 
+  /// No description provided for @postHiddenText.
+  ///
+  /// In en, this message translates to:
+  /// **'You won\'t see this post in your feed again.'**
+  String get postHiddenText;
+
   /// No description provided for @blockPostAuthorText.
   ///
   /// In en, this message translates to:
@@ -612,7 +618,7 @@ abstract class AppLocalizations {
   /// No description provided for @blockAuthorConfirmationText.
   ///
   /// In en, this message translates to:
-  /// **'Are you sure you want to block this author?'**
+  /// **'They won\'t be able to find your profile or message you, and you\'ll both stop following each other.'**
   String get blockAuthorConfirmationText;
 
   /// No description provided for @blockText.

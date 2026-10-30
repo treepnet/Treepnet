@@ -105,6 +105,10 @@ class PostsRepository implements PostsBaseRepository {
       _databaseClient.bookmarkPost(postId: postId);
 
   @override
+  Future<void> hidePost({required String postId}) =>
+      _databaseClient.hidePost(postId: postId);
+
+  @override
   Stream<bool> isBookmarked({required String postId, String? userId}) =>
       _databaseClient.isBookmarked(postId: postId, userId: userId);
 

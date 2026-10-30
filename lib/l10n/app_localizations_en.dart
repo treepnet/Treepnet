@@ -335,6 +335,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notShowAgainText => 'Dont\'t show again';
 
   @override
+  String get postHiddenText => 'You won\'t see this post in your feed again.';
+
+  @override
   String get blockPostAuthorText => 'Block post author';
 
   @override
@@ -342,7 +345,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get blockAuthorConfirmationText =>
-      'Are you sure you want to block this author?';
+      'They won\'t be able to find your profile or message you, and you\'ll both stop following each other.';
 
   @override
   String get blockText => 'Block';

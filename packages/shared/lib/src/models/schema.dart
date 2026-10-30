@@ -345,6 +345,13 @@ const schema = Schema([
   // the unread badge, since message is_read updates don't round-trip through
   // sync — see markConversationRead / chatsOf.
   Table.localOnly('chat_last_read', [Column.text('last_read_at')]),
+  // Posts a user chose "Don't show again" on. Device-only, per account: they
+  // stay out of that user's feed and are never uploaded.
+  Table.localOnly('hidden_posts', [
+    Column.text('user_id'),
+    Column.text('post_id'),
+    Column.text('created_at'),
+  ]),
   // Typing indicator: one row per (conversation, user), upserted while typing.
   // A fresh updated_at means the user is currently typing.
   Table(

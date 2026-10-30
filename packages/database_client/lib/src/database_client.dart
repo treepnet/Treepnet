@@ -313,6 +313,10 @@ abstract class PostsBaseRepository {
   /// currently authenticated user.
   Future<void> archivePost({required String postId});
 
+  /// Keeps the post identified by [postId] out of the current user's feed
+  /// ("Don't show again"). Stored on this device only.
+  Future<void> hidePost({required String postId});
+
   /// Returns a real-time stream of whether the post identified by [postId] is
   /// archived by the user identified by [userId].
   Stream<bool> isArchived({required String postId, String? userId});
@@ -1773,6 +1777,10 @@ FROM
   posts
   left join profiles p on posts.user_id = p.id
 WHERE ${_visibleAuthorSql('posts.user_id')}
+  -- "Don't show again" (device-only, see the hidden_posts table).
+  AND posts.id NOT IN (
+    SELECT post_id FROM hidden_posts WHERE user_id = $_viewerSql
+  )
 ORDER BY created_at DESC LIMIT ?1 OFFSET ?2
     ''',
       [limit, offset],
@@ -1944,6 +1952,21 @@ WHERE posts.id = ? AND ${_visibleAuthorSql('posts.user_id')}
           WHERE user_id = ? AND $statement = ? AND $statement IS NOT NULL
       ''',
       [currentUserId, id],
+    );
+  }
+
+  @override
+  Future<void> hidePost({required String postId}) async {
+    final me = currentUserId;
+    if (me == null) return;
+    await _powerSyncRepository.db().execute(
+      '''
+INSERT INTO hidden_posts(id, user_id, post_id, created_at)
+SELECT uuid(), ?1, ?2, ?3
+WHERE NOT EXISTS (
+  SELECT 1 FROM hidden_posts WHERE user_id = ?1 AND post_id = ?2
+)''',
+      [me, postId, DateTime.now().toIso8601String()],
     );
   }
 

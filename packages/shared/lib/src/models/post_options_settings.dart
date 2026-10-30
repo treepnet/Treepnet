@@ -20,5 +20,11 @@ class PostOptionsSettings with _$PostOptionsSettings {
   }) = Owner;
 
   /// {@macro post_options_settings.viewer}
-  const factory PostOptionsSettings.viewer() = Viewer;
+  ///
+  /// [onPostHide] hides the post from this user's feed ("Don't show again");
+  /// [onAuthorBlock] blocks its author. The menu confirms before blocking.
+  const factory PostOptionsSettings.viewer({
+    VoidCallback? onPostHide,
+    VoidCallback? onAuthorBlock,
+  }) = Viewer;
 }

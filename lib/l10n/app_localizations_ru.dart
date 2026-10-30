@@ -331,6 +331,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get notShowAgainText => 'Не показывать снова';
 
   @override
+  String get postHiddenText => 'Вы больше не увидите этот пост в ленте.';
+
+  @override
   String get blockPostAuthorText => 'Заблокировать автора публикации';
 
   @override
@@ -338,7 +341,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get blockAuthorConfirmationText =>
-      'Вы уверены что хотите заблокировать этого автора?';
+      'Они не смогут найти ваш профиль или написать вам, а ваши подписки друг на друга будут удалены.';
 
   @override
   String get blockText => 'Заблокировать';
