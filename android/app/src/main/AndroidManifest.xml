@@ -33,9 +33,15 @@ package="com.treepnet.application">
          (Google Play would otherwise ask why it is requested). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"
         tools:node="remove" />
-    <!-- Images-only app: strip video media access even if a media plugin
-         merges it in. -->
+    <!-- Images-only app: strip video and audio media access even if a media
+         plugin merges it in. -->
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"
+        tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"
+        tools:node="remove" />
+    <!-- The chat plugin asks for audio routing for voice messages, which are
+         turned off here (chat_theme.dart: voice: false). -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"
         tools:node="remove" />
 
     <!-- Provide required visibility configuration for API level 30 and above -->
@@ -61,7 +67,11 @@ package="com.treepnet.application">
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon"
         android:enableOnBackInvokedCallback="true"
-        android:requestLegacyExternalStorage="true">
+        android:requestLegacyExternalStorage="true"
+        android:usesCleartextTraffic="false"
+        tools:replace="android:usesCleartextTraffic">
+        <!-- HTTPS only. The chat plugin's manifest allows plain http for the
+             whole app; everything we load (API, media, chat) is https. -->
 
         <!-- FCM: default channel + monochrome status-bar icon used when a push
              arrives while the app is backgrounded/terminated. -->

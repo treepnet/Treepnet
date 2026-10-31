@@ -85,17 +85,17 @@ android {
         production {
             dimension "default"
             applicationIdSuffix ""
-            manifestPlaceholders = [appName: "Treepnet", appAuthRedirectScheme: "com.treepnet.auth"]
+            manifestPlaceholders = [appName: "Treepnet"]
         }
         staging {
             dimension "default"
             applicationIdSuffix ".stg"
-            manifestPlaceholders = [appName: "Treepnet", appAuthRedirectScheme: "com.treepnet.auth"]
+            manifestPlaceholders = [appName: "Treepnet"]
         }
         development {
             dimension "default"
             applicationIdSuffix ".dev"
-            manifestPlaceholders = [appName: "Treepnet", appAuthRedirectScheme: "com.treepnet.auth"]
+            manifestPlaceholders = [appName: "Treepnet"]
         }
     }
 

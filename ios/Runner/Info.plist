@@ -35,7 +35,6 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>treepnet</string>
-				<string>com.googleusercontent.apps.252024091655-mbgan2drcc8kt01ice9jn8ihng58lkfa</string>
 			</array>
 		</dict>
 	</array>
@@ -50,11 +49,6 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Treepnet uses the camera so you can take photos to share as posts and stories on your travel map.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
