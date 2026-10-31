@@ -9,6 +9,10 @@
 //   media    — the account's photos in object storage.
 // Each step is retried until it succeeds (finished steps are remembered), then
 // the job row is deleted so no trace of the account is kept.
+//
+// It also deletes the files of single posts and stories their owners deleted
+// (media_deletion_queue, filled by the delete triggers in
+// oci-backend/sql/media_deletion_queue.sql).
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
@@ -222,6 +226,31 @@ function createCleanup({ pool, admin }) {
     }
   }
 
+  // One queued file: checked again (a post or story may use it after all),
+  // deleted from the bucket, then dropped from the queue. A failure is
+  // retried later, backing off, and reported once it keeps failing.
+  async function processQueuedMedia(row) {
+    try {
+      const inUse = await pool.query('select media_in_use($1) as used', [row.url]);
+      if (!inUse.rows[0].used) await deleteMedia([row.url]);
+      await pool.query('delete from media_deletion_queue where url = $1', [row.url]);
+    } catch (e) {
+      const attempts = row.attempts + 1;
+      const message = String((e && e.message) || e).slice(0, 500);
+      await pool.query(
+        `update media_deletion_queue
+            set attempts = $2, last_error = $3,
+                next_attempt_at = now() + make_interval(mins => $4)
+          where url = $1`,
+        [row.url, attempts, message, Math.min(2 ** attempts, 360)],
+      );
+      console.error('[cleanup] media file not deleted yet:', message);
+      if (attempts === ALERT_AFTER) {
+        await alert(`Deleting a deleted post's or story's file keeps failing: ${message}`);
+      }
+    }
+  }
+
   let running = false;
   async function runOnce() {
     if (running) return;
@@ -232,6 +261,11 @@ function createCleanup({ pool, admin }) {
           where next_attempt_at <= now() order by id limit 20`,
       );
       for (const job of rows) await processJob(job); // eslint-disable-line no-await-in-loop
+      const media = await pool.query(
+        `select url, attempts from media_deletion_queue
+          where next_attempt_at <= now() order by queued_at limit 50`,
+      );
+      for (const row of media.rows) await processQueuedMedia(row); // eslint-disable-line no-await-in-loop
     } catch (e) {
       console.error('[cleanup] run failed:', e.message);
     } finally {
