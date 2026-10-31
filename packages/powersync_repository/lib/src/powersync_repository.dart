@@ -5,6 +5,7 @@ import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:postgrest/postgrest.dart';
 import 'package:powersync/powersync.dart';
+import 'package:powersync_repository/src/fresh_token_client.dart';
 import 'package:shared/shared.dart' as shared;
 import 'package:token_storage/token_storage.dart';
 
@@ -263,17 +264,13 @@ class PowerSyncRepository {
 
   /// Returns a PostgREST client pointed at the self-hosted PostgREST (Azure),
   /// authorised with the current Entra id token. Used for RPC calls and any
-  /// direct writes outside the PowerSync upload path.
-  PostgrestClient postgrest() {
-    final tokens = EntraSession.instance.current;
-    return PostgrestClient(
-      _postgrestUrl,
-      headers: {
-        if (tokens != null && tokens.idToken.isNotEmpty)
-          'Authorization': 'Bearer ${tokens.idToken}',
-      },
-    );
-  }
+  /// direct writes outside the PowerSync upload path. The token is checked
+  /// (and refreshed if needed) per request — see [FreshTokenClient].
+  PostgrestClient postgrest() =>
+      PostgrestClient(_postgrestUrl, httpClient: _restHttpClient);
+
+  /// One shared client for every [postgrest] call.
+  final _restHttpClient = FreshTokenClient();
 
   /// Opens the local database and connects to PowerSync if the user is
   /// logged in (via the Entra session).
@@ -281,8 +278,11 @@ class PowerSyncRepository {
     _db = await _openResilient(await getDatabasePath());
 
     SupabaseConnector? currentConnector;
+    // Whose data the sync connection is for; null while signed out.
+    String? connectedUserId;
 
     if (isLoggedIn()) {
+      connectedUserId = EntraSession.instance.current?.userId;
       currentConnector = SupabaseConnector(_db, env: env);
       unawaited(
         _db.connect(connector: currentConnector).catchError((Object e) {
@@ -291,9 +291,15 @@ class PowerSyncRepository {
       );
     }
 
-    // Connect/disconnect PowerSync as the Entra session comes and goes.
+    // Connect/disconnect PowerSync as the user signs in and out. A refreshed
+    // token for the same user needs nothing: PowerSync asks fetchCredentials
+    // for a new one itself before the old one expires. Reconnecting on every
+    // session update restarted the sync each hour, on PowerSync's own
+    // refreshes, and two or three times at startup.
     EntraSession.instance.changes.listen((tokens) async {
       if (tokens != null) {
+        if (tokens.userId == connectedUserId) return;
+        connectedUserId = tokens.userId;
         try {
           currentConnector = SupabaseConnector(_db, env: env);
           await _db.connect(connector: currentConnector!);
@@ -305,6 +311,7 @@ class PowerSyncRepository {
           );
         }
       } else {
+        connectedUserId = null;
         currentConnector = null;
         await _db.disconnect();
       }
