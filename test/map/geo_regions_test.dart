@@ -27,6 +27,22 @@ void main() {
     expect(b?.displayName, 'Altai Republic');
   });
 
+  test('every region code is one region, listed once', () {
+    final codes = [
+      for (final country in GeoRegions.instance.countries)
+        for (final region in country.regions) region.iso,
+    ];
+    expect(codes.toSet().length, codes.length);
+    // Shapes the source filed under another code, now their own.
+    expect(GeoRegions.instance.regionByIso('CO-DC')?.nameEn, 'Bogotá');
+    expect(GeoRegions.instance.regionByIso('KZ-ALM')?.nameRu,
+        'Алматинская область');
+    expect(GeoRegions.instance.regionByIso('KZ-ALA')?.nameEn, 'Almaty');
+    expect(GeoRegions.instance.regionByIso('AU-NSW')?.nameEn,
+        'New South Wales');
+    expect(GeoRegions.instance.regionByIso('BA-09')?.nameEn, 'Sarajevo');
+  });
+
   test('France is labelled on its mainland, not out in the Atlantic', () {
     final france = GeoRegions.instance.countryLabels
         .where((c) => c.name == 'France')

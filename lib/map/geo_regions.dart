@@ -509,6 +509,15 @@ class GeoRegions {
       final nameRu = reader.text();
       final rings = [for (var r = reader.count(); r > 0; r--) reader.ring()];
       if (iso.isEmpty) continue;
+      // One region per code. The source once filed 152 shapes under 59 codes
+      // (scripts/fix_geo_duplicates.py gave them their own); should a code
+      // repeat again, its shapes join the region instead of replacing it
+      // and showing up twice in the country list.
+      final existing = _byIso[iso];
+      if (existing != null) {
+        existing.rings.addAll(rings);
+        continue;
+      }
       final countryCode = cc;
       final countryName = admin.isEmpty ? countryCode : admin;
       final name = rawName.isEmpty ? iso : rawName;
