@@ -251,8 +251,8 @@ abstract class ChatTransport {
   /// Tarixni sahifalab yuklaydi. [page] 1 dan boshlanadi.
   Future<ChatHistoryPage> loadHistory({required int page, required int size});
 
-  /// Xabarni yuboradi. Xato bo'lsa istisno tashlash kerak - plagin uni
-  /// oflayn navbatga (outbox) qo'yadi va tarmoq tiklanganda qayta yuboradi.
+  /// Xabarni yuboradi. Xato bo'lsa istisno tashlash kerak - plagin xabarni
+  /// chatda "xato" deb belgilaydi ("Qayta yuborish / O'chirish").
   Future<void> send(ChatOutgoingMessage message);
 
   /// Media faylni yuklaydi va uning manzilini qaytaradi.

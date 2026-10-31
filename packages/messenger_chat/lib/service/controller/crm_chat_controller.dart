@@ -57,7 +57,7 @@ class MessengerChatController {
     final deviceName = await _SecureStorage.getDeviceName();
     final deviceType = await _SecureStorage.getDeviceType();
     final lang = await _SecureStorage.getLang();
-    await _OutboxService().init();
+    await _removeLegacyOutbox();
     if (baseUrl.isEmpty) return;
     setConfig(
       baseUrl: baseUrl,
@@ -88,7 +88,7 @@ class MessengerChatController {
       deviceType: deviceType,
       lang: lang,
     );
-    await _OutboxService().init();
+    await _removeLegacyOutbox();
     _stream.add(_config!);
     await _SecureStorage.storage.write(
       key: _SecureStorage.baseUrl,

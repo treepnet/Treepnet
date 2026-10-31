@@ -6,8 +6,9 @@ part of messenger_chat;
 /// tarmoq haqida hech narsa bilmaydi: [ChatTransport.events] oqimini tinglaydi
 /// va chiqadigan xabarlarni [ChatTransport.send] ga uzatadi.
 ///
-/// Oflayn navbat (outbox) shu yerda qoladi - transport xato tashlasa, xabar
-/// saqlanadi va ulanish tiklanganda qayta yuboriladi.
+/// Yuborilmagan xabar navbatga qo'yilmaydi: u o'z chatida "xato" holatida
+/// qoladi va foydalanuvchi "Qayta yuborish" yoki "O'chirish"ni tanlaydi
+/// (eski navbat nega olib tashlangani: [_removeLegacyOutbox]).
 class _ChatSocket {
   static ChatTransport? _transport;
   static StreamSubscription<ChatTransportEvent>? _subscription;
@@ -36,7 +37,6 @@ class _ChatSocket {
     try {
       await transport.connect();
       MessengerChat.controller.updateConnection(ChatConnectionStatus.connected);
-      await _resendOutbox();
     } catch (e) {
       _ChatLogger.failure('⛔️ Transport ulanmadi: $e');
       MessengerChat.controller.updateConnection(ChatConnectionStatus.error);
@@ -57,7 +57,6 @@ class _ChatSocket {
         // O'zimiz yuborgan xabarning tasdig'i bo'lsa - optimistik nusxani
         // yangilaymiz, aks holda yangi xabar sifatida qo'shamiz.
         if (model.isMine && model.key.isNotEmpty) {
-          _OutboxService().removeMessage(model.key);
           cubit.updateMessage(model);
         } else {
           cubit.addMessage(model);
@@ -97,9 +96,6 @@ class _ChatSocket {
 
       case ChatConnectionChanged(:final status):
         MessengerChat.controller.updateConnection(status);
-        if (status == ChatConnectionStatus.connected) {
-          unawaited(_resendOutbox());
-        }
     }
   }
 
@@ -116,7 +112,8 @@ class _ChatSocket {
     }
   }
 
-  /// Xabarni yuboradi. Xato bo'lsa outbox'ga tushadi va keyin qayta yuboriladi.
+  /// Xabarni yuboradi. Xato bo'lsa [onError] chaqiriladi - xabar chatda
+  /// "Qayta yuborish / O'chirish" bilan qoladi.
   static Future<void> send(
     ChatOutgoingMessage message, {
     void Function()? onSuccess,
@@ -124,24 +121,19 @@ class _ChatSocket {
   }) async {
     final transport = _transport;
     if (transport == null) {
-      _ChatLogger.failure('⛔️ Transport ulanmagan, xabar navbatga qo\'yildi');
-      _OutboxService().addMessage(message.clientKey, _encode(message));
+      _ChatLogger.failure('⛔️ Transport ulanmagan, xabar yuborilmadi');
       onError?.call(StateError(_AppTexts.socketConnectionNot));
       return;
     }
 
     try {
       await transport.send(message);
-      _OutboxService().removeMessage(message.clientKey);
       onSuccess?.call();
     } on ChatSendRejected catch (e) {
-      // Butunlay rad etildi - navbatga qo'yilmaydi.
       _ChatLogger.failure('⛔️ Xabar rad etildi: ${e.reason}');
-      _OutboxService().removeMessage(message.clientKey);
       onError?.call(e);
     } catch (e) {
-      _ChatLogger.failure('📦 Yuborilmadi, navbatga qo\'yildi: $e');
-      _OutboxService().addMessage(message.clientKey, _encode(message));
+      _ChatLogger.failure('⛔️ Xabar yuborilmadi: $e');
       onError?.call(e);
     }
   }
@@ -183,55 +175,5 @@ class _ChatSocket {
     } catch (e) {
       _ChatLogger.print('deleteMessage yuborilmadi: $e');
     }
-  }
-
-  /// Navbatdagi xabarlarni qayta yuboradi.
-  static Future<void> _resendOutbox() async {
-    final outbox = _OutboxService();
-    if (outbox.isEmpty) return;
-
-    _ChatLogger.print('♻️ Navbatdagi xabarlar qayta yuborilmoqda...');
-    for (final data in outbox.getAll()) {
-      final message = _decode(data);
-      if (message == null) continue;
-      await send(message);
-    }
-  }
-
-  static Map<String, dynamic> _encode(ChatOutgoingMessage message) => {
-    'key': message.clientKey,
-    'kind': message.kind.name,
-    'content': message.content,
-    'duration': message.duration,
-    'size': message.size,
-    if (message.replyTo != null) 'replyToId': message.replyTo!.messageId,
-    if (message.replyTo != null) 'replyToContent': message.replyTo!.content,
-    if (message.replyTo != null) 'replyToSenderId': message.replyTo!.senderId,
-  };
-
-  static ChatOutgoingMessage? _decode(Map<dynamic, dynamic> data) {
-    final key = data['key'] as String?;
-    final content = data['content'] as String?;
-    if (key == null || content == null) return null;
-
-    final replyToId = data['replyToId'] as String?;
-
-    return ChatOutgoingMessage(
-      clientKey: key,
-      kind: ChatMessageKind.values.firstWhere(
-        (k) => k.name == data['kind'],
-        orElse: () => ChatMessageKind.text,
-      ),
-      content: content,
-      duration: data['duration'] as String?,
-      size: data['size'] as String?,
-      replyTo: replyToId == null
-          ? null
-          : ChatReplyInfo(
-              messageId: replyToId,
-              content: (data['replyToContent'] as String?) ?? '',
-              senderId: (data['replyToSenderId'] as String?) ?? '',
-            ),
-    );
   }
 }

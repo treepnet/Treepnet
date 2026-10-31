@@ -149,7 +149,6 @@ class ChatCubit extends Cubit<ChatState> {
               : localByKey[message.key];
           if (localIndex != null) {
             current[localIndex] = message;
-            _OutboxService().removeMessage(message.key);
             existingIds.add(message.id);
             continue;
           }
@@ -263,9 +262,8 @@ class ChatCubit extends Cubit<ChatState> {
     unawaited(_ChatSocket.markRead());
   }
 
-  /// Serverga yetmagan xabarni o'chiradi (oflayn navbatdan ham).
+  /// Serverga yetmagan xabarni o'chiradi.
   void removeLocalMessage(String key) {
-    _OutboxService().removeMessage(key);
     emit(
       state.copyWith(
         messages: state.messages.copyWith(

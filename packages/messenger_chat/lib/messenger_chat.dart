@@ -264,7 +264,7 @@ part 'service/controller/message_controller.dart';
 
 part 'service/controller/notification_controller.dart';
 part 'service/controller/crm_chat_controller.dart';
-part 'service/outbox/outbox_service.dart';
+part 'service/outbox/legacy_outbox.dart';
 
 part 'data/enum/message_status.dart';
 
