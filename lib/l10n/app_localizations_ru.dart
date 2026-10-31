@@ -1895,6 +1895,9 @@ class AppLocalizationsRu extends AppLocalizations {
       'Не удалось обновить фото. Попробуйте ещё раз.';
 
   @override
+  String get signInIdInvalidText => 'Введите имя пользователя или email.';
+
+  @override
   String get searchNothingFoundText => 'Ничего не найдено';
 
   @override

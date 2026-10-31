@@ -980,6 +980,7 @@
   },
   "logOutAnywayText": "Log out anyway",
   "avatarUpdateFailedText": "Couldn't update the photo. Try again.",
+  "signInIdInvalidText": "Enter your username or email.",
   "searchNothingFoundText": "Nothing found",
   "cameraAccessDeniedText": "Allow camera access in Settings to take a story.",
   "openSettingsText": "Open Settings",

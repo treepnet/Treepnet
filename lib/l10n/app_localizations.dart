@@ -3177,6 +3177,12 @@ abstract class AppLocalizations {
   /// **'Couldn\'t update the photo. Try again.'**
   String get avatarUpdateFailedText;
 
+  /// No description provided for @signInIdInvalidText.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your username or email.'**
+  String get signInIdInvalidText;
+
   /// No description provided for @searchNothingFoundText.
   ///
   /// In en, this message translates to:

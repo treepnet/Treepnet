@@ -6,8 +6,8 @@ import 'package:treepnet/auth/field_error_l10n.dart';
 import 'package:treepnet/auth/login/cubit/login_cubit.dart';
 import 'package:treepnet/l10n/l10n.dart';
 
-/// Sign-in identifier field. People sign in with the username they chose —
-/// the auth client resolves it to the account's email behind the scenes.
+/// Sign-in identifier field: the username people chose, or their email (the
+/// auth service resolves a username to the account's email).
 class UsernameTextField extends StatefulWidget {
   const UsernameTextField({super.key});
 
@@ -72,7 +72,7 @@ class _UsernameTextFieldState extends State<UsernameTextField> {
       filled: true,
       fillColor: textFieldFill,
       focusNode: _focusNode,
-      hintText: context.l10n.usernameText,
+      hintText: context.l10n.usernameOrEmailText,
       enabled: !isLoading,
       textInputAction: TextInputAction.next,
       textInputType: TextInputType.text,
@@ -89,7 +89,7 @@ class _UsernameTextFieldState extends State<UsernameTextField> {
       focusedBorder: focusedInputBorder,
       onChanged: (v) =>
           _debouncer.run(() => context.read<LoginCubit>().onUsernameChanged(v)),
-      errorText: usernameErrorText(context, usernameError),
+      errorText: signInIdErrorText(context, usernameError),
     );
   }
 }

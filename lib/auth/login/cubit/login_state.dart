@@ -85,15 +85,15 @@ class LoginState {
         status: LogInSubmissionStatus.idle,
         message: '',
         showPassword: false,
-        username: const Username.pure(),
+        username: const SignInId.pure(),
         password: const Password.pure(),
       );
 
   final LogInSubmissionStatus status;
 
-  /// People sign in with the handle they chose; the auth client resolves it to
-  /// the account's email before authenticating.
-  final Username username;
+  /// The username or email people sign in with; the auth service resolves a
+  /// username to the account's email.
+  final SignInId username;
   final Password password;
   final bool showPassword;
   final LoginErrorMessage message;
@@ -102,7 +102,7 @@ class LoginState {
     LogInSubmissionStatus? status,
     LoginErrorMessage? message,
     bool? showPassword,
-    Username? username,
+    SignInId? username,
     Password? password,
   }) {
     return LoginState._(

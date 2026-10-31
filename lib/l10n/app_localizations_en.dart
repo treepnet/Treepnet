@@ -1866,6 +1866,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get avatarUpdateFailedText => 'Couldn\'t update the photo. Try again.';
 
   @override
+  String get signInIdInvalidText => 'Enter your username or email.';
+
+  @override
   String get searchNothingFoundText => 'Nothing found';
 
   @override

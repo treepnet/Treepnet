@@ -31,6 +31,18 @@ String? usernameErrorText(BuildContext context, UsernameValidationError? error) 
   };
 }
 
+/// The sign-in field (username or email): see `SignInId`.
+String? signInIdErrorText(
+  BuildContext context,
+  SignInIdValidationError? error,
+) {
+  return switch (error) {
+    null => null,
+    SignInIdValidationError.empty => context.l10n.requiredFieldText,
+    SignInIdValidationError.invalid => context.l10n.signInIdInvalidText,
+  };
+}
+
 String? emailErrorText(BuildContext context, EmailValidationError? error) {
   return switch (error) {
     null => null,

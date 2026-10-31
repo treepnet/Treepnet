@@ -91,7 +91,10 @@ function fail(res, status, error, code) {
 }
 
 const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-const isUsername = (s) => /^[a-z0-9_.]{3,20}$/.test(s);
+// New names: the app's rule (sign-up, profile edit). It was 3-20 here while
+// the database allows 3-16, so 17-20 passed this check and then failed in the
+// database with an unclear error. The database keeps 3-16 for older names.
+const isUsername = (s) => /^[a-z0-9_.]{6,16}$/.test(s);
 const genCode = () =>
   String(crypto.randomInt(0, 10 ** CODE_LENGTH)).padStart(CODE_LENGTH, '0');
 

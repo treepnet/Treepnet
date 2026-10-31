@@ -6,4 +6,5 @@ export 'src/formz_valid.dart';
 export 'src/full_name.dart';
 export 'src/otp.dart';
 export 'src/password.dart';
+export 'src/sign_in_id.dart';
 export 'src/username.dart';

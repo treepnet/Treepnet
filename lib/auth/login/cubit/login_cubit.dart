@@ -33,8 +33,8 @@ class LoginCubit extends Cubit<LoginState> {
     final previousUsernameState = previousScreenState.username;
     final shouldValidate = previousUsernameState.invalid;
     final newUsernameState = shouldValidate
-        ? Username.dirty(newValue)
-        : Username.pure(newValue);
+        ? SignInId.dirty(newValue)
+        : SignInId.pure(newValue);
 
     final newScreenState = state.copyWith(username: newUsernameState);
 
@@ -47,7 +47,7 @@ class LoginCubit extends Cubit<LoginState> {
     final previousUsernameState = previousScreenState.username;
     final previousUsernameValue = previousUsernameState.value;
 
-    final newUsernameState = Username.dirty(previousUsernameValue);
+    final newUsernameState = SignInId.dirty(previousUsernameValue);
     final newScreenState = previousScreenState.copyWith(
       username: newUsernameState,
     );
@@ -120,7 +120,7 @@ class LoginCubit extends Cubit<LoginState> {
   }
 
   Future<void> onSubmit() async {
-    final username = Username.dirty(state.username.value.trim());
+    final username = SignInId.dirty(state.username.value.trim());
     final password = Password.dirty(state.password.value);
     final isFormValid = FormzValid([username, password]).isFormValid;
 
@@ -135,7 +135,7 @@ class LoginCubit extends Cubit<LoginState> {
     if (!isFormValid) return;
 
     try {
-      // The auth client resolves the handle to the account's email.
+      // A username or an email; the auth service resolves a username.
       // Time-boxed so an unreachable server (PostgREST/Entra) surfaces a clear
       // error instead of spinning on "loading" forever.
       await _userRepository
