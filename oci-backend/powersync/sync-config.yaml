@@ -3,7 +3,8 @@
 # Privacy model:
 #   * Public social data (profiles, posts, likes, comments, stories, media,
 #     subscriptions) syncs to everyone — this is what powers search, the feed
-#     and discovery, like a public Instagram.
+#     and discovery, like a public Instagram. Archived stories are the
+#     exception: only their author gets them (see global_stories).
 #   * The signed-in user's id lives in the Entra id token's `oid` claim (its
 #     `sub` is not a plain UUID), so parameter queries read it with
 #     `request.user_id()`.
@@ -38,9 +39,17 @@ bucket_definitions:
         - select * from posts
         - select * from likes
         - select * from comments
+  # Stories everyone may see: live ones, and older ones their author keeps in
+  # a highlight or pinned to a place. stories.visibility is kept by the server
+  # (sql/stories_private_archive.sql); the rest of the archive goes to its
+  # author alone (user_own_stories).
   global_stories:
     data:
-        - select * from stories
+        - select * from stories where visibility = 'public'
+  user_own_stories:
+    parameters: select request.user_id() as user_id
+    data:
+        - select * from stories where user_id = bucket.user_id
   # Which archived stories a traveller pinned to a place — public, like posts.
   global_location_stories:
     data:
