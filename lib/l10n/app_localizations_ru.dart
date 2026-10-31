@@ -1901,6 +1901,11 @@ class AppLocalizationsRu extends AppLocalizations {
   String get newPostsText => 'Новые посты';
 
   @override
+  String sharedToSomeText(int sent, int total) {
+    return 'Отправлено $sent из $total';
+  }
+
+  @override
   String get searchNothingFoundText => 'Ничего не найдено';
 
   @override

@@ -982,6 +982,17 @@
   "avatarUpdateFailedText": "Couldn't update the photo. Try again.",
   "signInIdInvalidText": "Enter your username or email.",
   "newPostsText": "New posts",
+  "sharedToSomeText": "Sent to {sent} of {total}",
+  "@sharedToSomeText": {
+    "placeholders": {
+      "sent": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "searchNothingFoundText": "Nothing found",
   "cameraAccessDeniedText": "Allow camera access in Settings to take a story.",
   "openSettingsText": "Open Settings",

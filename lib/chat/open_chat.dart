@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:messenger_chat/messenger_chat.dart';
+import 'package:shared/shared.dart' show logE;
 import 'package:treepnet/app/bloc/app_bloc.dart';
 import 'package:treepnet/chat/backend/dm_transports.dart';
 import 'package:treepnet/chat/chat_session.dart';
@@ -14,12 +15,11 @@ import 'package:user_repository/user_repository.dart';
 /// Whether either side has blocked the other — used to gate messaging
 /// app-side (the chat backend doesn't know about blocks). Reads the current
 /// value of the reactive `blocked_users` streams.
-Future<bool> _blockedEitherWay(
-  BuildContext context, {
+Future<bool> _blockedBetween(
+  UserRepository repo, {
   required String meId,
   required String peerUuid,
 }) async {
-  final repo = context.read<UserRepository>();
   final results = await Future.wait([
     repo.isBlocked(userId: meId, otherUserId: peerUuid).first,
     repo.isBlocked(userId: peerUuid, otherUserId: meId).first,
@@ -116,11 +116,74 @@ Future<bool> shareTextToUser(
   required String peerName,
   required String text,
   String? peerAvatarUrl,
+}) => _shareText(
+  me: context.read<AppBloc>().state.user,
+  repo: context.read<UserRepository>(),
+  peerUuid: peerUuid,
+  peerName: peerName,
+  text: text,
+  peerAvatarUrl: peerAvatarUrl,
+);
+
+/// How a share to several people went: how many of them got it.
+typedef ShareOutcome = ({int sent, int total});
+
+/// Shares [text] with each of [receivers], up to three at a time, each one
+/// waiting for the server to confirm it. One that fails, or is blocked either
+/// way, doesn't stop the others — they used to stop at the first error, and
+/// a blocked one was skipped yet still reported as sent — and it carries on
+/// if the share sheet is closed meanwhile.
+Future<ShareOutcome> shareTextToUsers(
+  BuildContext context, {
+  required List<User> receivers,
+  required String text,
 }) async {
+  // Read up front: the sheet (and its context) may go away while this runs.
   final me = context.read<AppBloc>().state.user;
-  if (me.isAnonymous || peerUuid.isEmpty || peerUuid == me.id) return false;
   final repo = context.read<UserRepository>();
-  if (await _blockedEitherWay(context, meId: me.id, peerUuid: peerUuid)) {
+  final pending = [...receivers];
+  var sent = 0;
+  Future<void> worker() async {
+    while (pending.isNotEmpty) {
+      final receiver = pending.removeLast();
+      try {
+        final ok = await _shareText(
+          me: me,
+          repo: repo,
+          peerUuid: receiver.id,
+          peerName: receiver.displayUsername,
+          text: text,
+          peerAvatarUrl: (receiver.avatarUrl?.isNotEmpty ?? false)
+              ? receiver.avatarUrl
+              : null,
+        );
+        if (ok) sent++;
+      } catch (error, stackTrace) {
+        logE(
+          'Share to ${receiver.id} failed',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
+  }
+
+  await Future.wait([
+    for (var i = 0; i < receivers.length && i < 3; i++) worker(),
+  ]);
+  return (sent: sent, total: receivers.length);
+}
+
+Future<bool> _shareText({
+  required User me,
+  required UserRepository repo,
+  required String peerUuid,
+  required String peerName,
+  required String text,
+  String? peerAvatarUrl,
+}) async {
+  if (me.isAnonymous || peerUuid.isEmpty || peerUuid == me.id) return false;
+  if (await _blockedBetween(repo, meId: me.id, peerUuid: peerUuid)) {
     return false;
   }
 

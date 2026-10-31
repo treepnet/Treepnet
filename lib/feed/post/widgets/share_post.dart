@@ -15,6 +15,24 @@ import 'package:search_repository/search_repository.dart';
 import 'package:shared/shared.dart';
 import 'package:user_repository/user_repository.dart';
 
+/// What a share says when done: everyone got it, some did ("Sent to 3 of
+/// 5"), or nobody did. It used to say "sent" even when blocked people were
+/// skipped, and only the error once one send failed.
+SnackbarMessage _shareResultMessage(
+  AppLocalizations l10n,
+  ShareOutcome outcome, {
+  required String allSent,
+  required String noneSent,
+}) {
+  if (outcome.sent == outcome.total) {
+    return SnackbarMessage.success(title: allSent);
+  }
+  if (outcome.sent == 0) return SnackbarMessage.error(title: noneSent);
+  return SnackbarMessage.success(
+    title: l10n.sharedToSomeText(outcome.sent, outcome.total),
+  );
+}
+
 class SharePost extends StatelessWidget {
   const SharePost({
     required this.block,
@@ -120,32 +138,25 @@ class _SharPostState extends State<SharePostView> with SafeSetStateMixin {
   Future<void> _send() async {
     final selected = _selectedUsers.value.toList();
     if (selected.isEmpty) return;
-    final shareRef = encodePostShare(widget.block.id);
+    final l10n = context.l10n;
 
     toggleLoadingIndeterminate();
     try {
       // Shared by reference: only the post id travels (a sentinel text), so no
       // media is duplicated. The chat thread renders it as a rich post card.
-      for (final receiver in selected) {
-        if (!mounted) return;
-        await shareTextToUser(
-          context,
-          peerUuid: receiver.id,
-          peerName: receiver.displayUsername,
-          peerAvatarUrl: (receiver.avatarUrl?.isNotEmpty ?? false)
-              ? receiver.avatarUrl
-              : null,
-          text: shareRef,
-        );
-      }
-      if (mounted) context.pop();
-      openSnackbar(
-        SnackbarMessage.success(title: context.l10n.successfullySharedPostText),
+      final outcome = await shareTextToUsers(
+        context,
+        receivers: selected,
+        text: encodePostShare(widget.block.id),
       );
-    } catch (error, stackTrace) {
-      logE('Failed to share post.', error: error, stackTrace: stackTrace);
+      if (mounted && outcome.sent > 0) context.pop();
       openSnackbar(
-        SnackbarMessage.error(title: context.l10n.failedToSharePostText),
+        _shareResultMessage(
+          l10n,
+          outcome,
+          allSent: l10n.successfullySharedPostText,
+          noneSent: l10n.failedToSharePostText,
+        ),
       );
     } finally {
       toggleLoadingIndeterminate(enable: false);
@@ -374,34 +385,25 @@ class _ShareStoryState extends State<ShareStoryView> with SafeSetStateMixin {
   Future<void> _send() async {
     final selected = _selectedUsers.value.toList();
     if (selected.isEmpty) return;
-    final shareRef = encodeStoryShare(widget.storyId);
+    final l10n = context.l10n;
 
     toggleLoadingIndeterminate();
     try {
       // Shared by reference: only the story id travels (a sentinel text). The
       // chat thread renders it as a story card.
-      for (final receiver in selected) {
-        if (!mounted) return;
-        await shareTextToUser(
-          context,
-          peerUuid: receiver.id,
-          peerName: receiver.displayUsername,
-          peerAvatarUrl: (receiver.avatarUrl?.isNotEmpty ?? false)
-              ? receiver.avatarUrl
-              : null,
-          text: shareRef,
-        );
-      }
-      if (mounted) context.pop();
-      openSnackbar(
-        SnackbarMessage.success(
-          title: context.l10n.successfullySharedStoryText,
-        ),
+      final outcome = await shareTextToUsers(
+        context,
+        receivers: selected,
+        text: encodeStoryShare(widget.storyId),
       );
-    } catch (error, stackTrace) {
-      logE('Failed to share story.', error: error, stackTrace: stackTrace);
+      if (mounted && outcome.sent > 0) context.pop();
       openSnackbar(
-        SnackbarMessage.error(title: context.l10n.failedToShareStoryText),
+        _shareResultMessage(
+          l10n,
+          outcome,
+          allSent: l10n.successfullySharedStoryText,
+          noneSent: l10n.failedToShareStoryText,
+        ),
       );
     } finally {
       toggleLoadingIndeterminate(enable: false);

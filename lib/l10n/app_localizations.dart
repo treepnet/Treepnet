@@ -3189,6 +3189,12 @@ abstract class AppLocalizations {
   /// **'New posts'**
   String get newPostsText;
 
+  /// No description provided for @sharedToSomeText.
+  ///
+  /// In en, this message translates to:
+  /// **'Sent to {sent} of {total}'**
+  String sharedToSomeText(int sent, int total);
+
   /// No description provided for @searchNothingFoundText.
   ///
   /// In en, this message translates to:

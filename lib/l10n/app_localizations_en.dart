@@ -1872,6 +1872,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get newPostsText => 'New posts';
 
   @override
+  String sharedToSomeText(int sent, int total) {
+    return 'Sent to $sent of $total';
+  }
+
+  @override
   String get searchNothingFoundText => 'Nothing found';
 
   @override
