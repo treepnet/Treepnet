@@ -6,17 +6,15 @@ import 'package:latlong2/latlong.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/map/map.dart';
+import 'package:treepnet/map/region_search.dart';
 import 'package:user_repository/user_repository.dart';
 
 /// The last onboarding step: mark the places you've already been, so the travel
 /// map — the app's whole point — is coloured in from day one instead of staying
 /// blank until the first post.
 ///
-/// Picking is deliberately two-handed: tap regions straight on the map, or use
-/// the shortcut row of popular places — which also flies the map there, so the
-/// two ways never disagree. Searching through 4,500 admin-1 regions (the first
-/// attempt) was far too much work, and a country → region drill-down still
-/// took three steps.
+/// Two ways to pick: tap regions straight on the map, or search one by name —
+/// picking a result also flies the map there, so the two ways never disagree.
 ///
 /// Saving is best-effort: if it fails the user still gets into the app rather
 /// than being stuck behind a broken step.
@@ -60,8 +58,8 @@ class _VisitedRegionsPageState extends State<VisitedRegionsPage> {
     );
   }
 
-  /// Tapping a chip both marks the place and flies the map to it, so the two
-  /// ways of picking always agree.
+  /// Picking a search result both marks the place and flies the map to it, so
+  /// the two ways of picking always agree.
   void _toggle(String iso, {bool focus = false}) => setState(() {
     if (!_selected.remove(iso)) _selected.add(iso);
     if (focus) {
@@ -172,7 +170,6 @@ class _VisitedRegionsPageState extends State<VisitedRegionsPage> {
         // Search: type a region or country, tap a result to mark it and fly
         // the map there.
         _RegionSearch(
-          selected: _selected,
           onPicked: (iso) => _toggle(iso, focus: true),
         ),
 
@@ -192,12 +189,13 @@ class _VisitedRegionsPageState extends State<VisitedRegionsPage> {
 }
 
 /// Region search over the whole admin-1 index: type a name, tap a result to
-/// mark it (and fly the map there). Results sit above the field since it lives
-/// near the bottom of the screen.
+/// mark it (and fly the map there). Matches the start of any word of a region's
+/// or its country's name in English, Russian or Uzbek, like the place picker
+/// (see region_search.dart); results are shown in the app's language. They sit
+/// above the field since it lives near the bottom of the screen.
 class _RegionSearch extends StatefulWidget {
-  const _RegionSearch({required this.selected, required this.onPicked});
+  const _RegionSearch({required this.onPicked});
 
-  final Set<String> selected;
   final ValueChanged<String> onPicked;
 
   @override
@@ -211,15 +209,14 @@ class _RegionSearchState extends State<_RegionSearch> {
   static const _maxResults = 8;
 
   void _onChanged(String raw) {
-    final query = raw.trim().toLowerCase();
+    final query = normalizeSearch(raw);
     if (query.isEmpty) {
       setState(() => _results = const []);
       return;
     }
     final matches = <GeoRegion>[];
     for (final region in GeoRegions.instance.allRegions) {
-      if (region.name.toLowerCase().startsWith(query) ||
-          region.countryName.toLowerCase().startsWith(query)) {
+      if (regionMatchesSearch(region, query)) {
         matches.add(region);
         if (matches.length >= _maxResults) break;
       }
@@ -242,6 +239,7 @@ class _RegionSearchState extends State<_RegionSearch> {
 
   @override
   Widget build(BuildContext context) {
+    final lang = Localizations.localeOf(context).languageCode;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -259,18 +257,17 @@ class _RegionSearchState extends State<_RegionSearch> {
               itemCount: _results.length,
               itemBuilder: (context, i) {
                 final region = _results[i];
-                final selected = widget.selected.contains(region.iso);
                 return ListTile(
                   dense: true,
                   onTap: () => _pick(region),
                   title: Text(
-                    region.displayName,
+                    region.localizedDisplayName(lang),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: AppColors.white),
                   ),
                   trailing: Text(
-                    region.countryName,
+                    region.localizedCountryName(lang),
                     style: const TextStyle(
                       color: AppColors.grey,
                       fontSize: 12,
