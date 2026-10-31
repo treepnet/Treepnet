@@ -1,4 +1,5 @@
 import 'package:app_ui/app_ui.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
@@ -60,8 +61,12 @@ class BlockedUsersPage extends StatelessWidget {
                   leading: CircleAvatar(
                     radius: 24,
                     backgroundColor: AppColors.glassBackgroundLight,
+                    // Cached, decoded at about 3x the 48px circle.
                     backgroundImage: (avatar != null && avatar.isNotEmpty)
-                        ? NetworkImage(avatar)
+                        ? ResizeImage(
+                            CachedNetworkImageProvider(avatar),
+                            width: 144,
+                          )
                         : null,
                     child: (avatar == null || avatar.isEmpty)
                         ? const Icon(Icons.person, color: AppColors.textSecondary)

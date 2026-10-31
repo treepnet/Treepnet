@@ -1,4 +1,5 @@
 import 'package:app_ui/app_ui.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -106,8 +107,10 @@ class _LikerTile extends StatelessWidget {
       leading: CircleAvatar(
         radius: 24,
         backgroundColor: AppColors.glassBackgroundLight,
+        // Cached, and decoded at about 3x the 48px circle (a NetworkImage
+        // re-downloaded it and decoded the full photo).
         backgroundImage: (avatar != null && avatar.isNotEmpty)
-            ? NetworkImage(avatar)
+            ? ResizeImage(CachedNetworkImageProvider(avatar), width: 144)
             : null,
         child: (avatar == null || avatar.isEmpty)
             ? Icon(Icons.person, color: AppColors.textSecondary)

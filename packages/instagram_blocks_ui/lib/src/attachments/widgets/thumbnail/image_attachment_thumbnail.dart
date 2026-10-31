@@ -3,7 +3,6 @@
 import 'dart:io' show File;
 import 'dart:typed_data';
 
-import 'package:cached_memory_image/cached_memory_image.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart';
@@ -205,28 +204,59 @@ class LocalImageAttachment extends StatelessWidget {
   final bool withAdaptiveColors;
   final ThumbnailErrorBuilder errorBuilder;
 
+  /// The shimmer until the first frame is decoded.
+  Widget _withPlaceholder(
+    BuildContext context,
+    Widget child,
+    int? frame,
+    bool wasSynchronouslyLoaded,
+  ) {
+    if (wasSynchronouslyLoaded || frame != null) return child;
+    return ShimmerPlaceholder(
+      height: height,
+      width: width,
+      withAdaptiveColors: withAdaptiveColors,
+      borderRadius: borderRadius,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final bytes = this.bytes ?? imageFile?.readAsBytesSync() ?? file?.bytes;
+    // Plain Image.memory / Image.file, cached in memory by the bytes / path
+    // themselves. This used CachedMemoryImage keyed with a fresh uuid on
+    // every build: each build wrote the whole photo to a new 30-day disk
+    // cache file and kept another decoded copy (per keystroke in the
+    // new-post caption, per rebuild of an uploading post in the feed) — and
+    // a local file was read from disk synchronously each time first.
+    final bytes = this.bytes ?? file?.bytes;
+    final frameBuilder = withPlaceholder ? _withPlaceholder : null;
     if (bytes != null) {
-      return CachedMemoryImage(
-        uniqueKey: 'app://content/image/${file?.path}/${uuid.v4()}',
+      return Image.memory(
+        bytes,
         fit: fit,
-        bytes: bytes,
         height: height,
         width: width,
         cacheHeight: cacheHeight,
         cacheWidth: cacheWidth,
-        errorBuilder: errorBuilder,
         filterQuality: filterQuality,
-        placeholder: !withPlaceholder
-            ? null
-            : ShimmerPlaceholder(
-                height: height,
-                width: width,
-                withAdaptiveColors: withAdaptiveColors,
-                borderRadius: borderRadius,
-              ),
+        gaplessPlayback: true,
+        frameBuilder: frameBuilder,
+        errorBuilder: errorBuilder,
+      );
+    }
+    final imageFile = this.imageFile;
+    if (imageFile != null) {
+      return Image.file(
+        imageFile,
+        fit: fit,
+        height: height,
+        width: width,
+        cacheHeight: cacheHeight,
+        cacheWidth: cacheWidth,
+        filterQuality: filterQuality,
+        gaplessPlayback: true,
+        frameBuilder: frameBuilder,
+        errorBuilder: errorBuilder,
       );
     }
 

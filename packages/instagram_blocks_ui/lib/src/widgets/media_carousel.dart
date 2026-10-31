@@ -226,6 +226,10 @@ class _MediaCarouselMemoryImage extends StatelessWidget {
       image: Attachment(
         file: AttachmentFile(size: media.bytes.length, bytes: media.bytes),
       ),
+      // A photo just picked (post preview) is full camera size — a 12MP one
+      // takes ~48MB decoded, and up to ten can be picked. Shown at most
+      // screen-wide, so decode at most 1080px; the upload is untouched.
+      memCacheWidth: 1080,
     );
   }
 }

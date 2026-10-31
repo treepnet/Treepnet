@@ -1,6 +1,7 @@
 // ignore_for_file: parameter_assignments
 
 import 'package:app_ui/app_ui.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart';
@@ -195,7 +196,11 @@ class CommentOwnerLikedAvatar extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             image: DecorationImage(
-              image: NetworkImage(avatarUrl),
+              // Cached, decoded at about 3x the 18px dot.
+              image: ResizeImage(
+                CachedNetworkImageProvider(avatarUrl),
+                width: 54,
+              ),
               fit: BoxFit.cover,
             ),
           ),

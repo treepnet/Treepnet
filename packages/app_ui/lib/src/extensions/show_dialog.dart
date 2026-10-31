@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app_ui/app_ui.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared/shared.dart';
@@ -268,7 +269,9 @@ extension DialogExtension on BuildContext {
                 strokeAlign: BorderSide.strokeAlignOutside,
               ),
               image: DecorationImage(
-                image: NetworkImage(imageUrl),
+                // The profile already has it in the cache; NetworkImage
+                // downloaded it again.
+                image: CachedNetworkImageProvider(imageUrl),
                 fit: BoxFit.cover,
                 filterQuality: FilterQuality.high,
               ),
