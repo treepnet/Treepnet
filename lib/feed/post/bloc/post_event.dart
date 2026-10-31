@@ -38,7 +38,10 @@ final class PostLikersPageRequested extends PostEvent {
 }
 
 final class PostLikeRequested extends PostEvent {
-  const PostLikeRequested();
+  const PostLikeRequested({this.liked});
+
+  /// The outcome wanted (a double tap only ever likes); null flips it.
+  final bool? liked;
 }
 
 final class PostBookmarkRequested extends PostEvent {

@@ -140,6 +140,7 @@ class _PostLargeViewState extends State<PostLargeView> {
       isOwner: isOwner,
       isLiked: isLiked,
       likePost: () => bloc.add(const PostLikeRequested()),
+      likeByDoubleTap: () => bloc.add(const PostLikeRequested(liked: true)),
       isBookmarked: isBookmarked,
       bookmarkPost: () => bloc.add(const PostBookmarkRequested()),
       isFollowed: isOwner || (isFollowed ?? true),

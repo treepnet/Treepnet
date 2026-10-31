@@ -48,6 +48,7 @@ class PostLarge extends StatefulWidget {
     required this.onUserTap,
     required this.withInViewNotifier,
     required this.postOptionsSettings,
+    this.likeByDoubleTap,
     this.postAuthorAvatarBuilder,
     this.authorBadge,
     this.authorSubtitle,
@@ -64,6 +65,10 @@ class PostLarge extends StatefulWidget {
   final VoidCallback follow;
   final bool isLiked;
   final VoidCallback likePost;
+
+  /// A double tap on the media. It only ever likes, so a second double tap
+  /// (before the first one shows) doesn't unlike; defaults to [likePost].
+  final VoidCallback? likeByDoubleTap;
   final bool isBookmarked;
   final VoidCallback bookmarkPost;
   final int commentsCount;
@@ -119,7 +124,7 @@ class _PostLargeState extends State<PostLarge> {
     final postMedia = PostMedia(
       isLiked: widget.isLiked,
       media: widget.block.media,
-      likePost: widget.likePost,
+      likePost: widget.likeByDoubleTap ?? widget.likePost,
       onPageChanged: _updateCurrentIndex,
       videoPlayerBuilder: widget.videoPlayerBuilder,
       postIndex: widget.postIndex,

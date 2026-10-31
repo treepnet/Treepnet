@@ -283,10 +283,12 @@ abstract class PostsBaseRepository {
     int offset = 0,
   });
 
-  /// Likes the post by provided either post or comment [id].
+  /// Likes or unlikes the post (or, with `post: false`, the comment) [id].
+  /// [liked] sets the outcome (a double tap only ever likes); null flips it.
   Future<void> like({
     required String id,
     bool post = true,
+    bool? liked,
   });
 
   /// Returns a real-time stream of likes count of post by provided [id].
@@ -2062,31 +2064,34 @@ WHERE posts.id = ? AND ${_visibleAuthorSql('posts.user_id')}
   Future<void> like({
     required String id,
     bool post = true,
+    bool? liked,
   }) async {
-    if (currentUserId == null) return;
+    final me = currentUserId;
+    if (me == null) return;
     final statement = post ? 'post_id' : 'comment_id';
-    final exists = await _powerSyncRepository.db().execute(
-      'SELECT 1 FROM likes '
-      'WHERE user_id = ? AND $statement = ? AND $statement IS NOT NULL',
-      [currentUserId, id],
-    );
-    if (exists.isEmpty) {
-      await _powerSyncRepository.db().execute(
-        '''
-          INSERT INTO likes(user_id, $statement, id)
-            VALUES(?, ?, uuid())
-      ''',
-        [currentUserId, id],
+    // Check and write in one transaction: writes run one at a time, so two
+    // quick taps no longer both saw "not liked" and inserted twice (or a
+    // stale "liked" turned a double tap into an unlike).
+    await _powerSyncRepository.db().writeTransaction((tx) async {
+      final exists = await tx.getOptional(
+        'SELECT 1 FROM likes '
+        'WHERE user_id = ? AND $statement = ? AND $statement IS NOT NULL',
+        [me, id],
       );
-      return;
-    }
-    await _powerSyncRepository.db().execute(
-      '''
-          DELETE FROM likes
-          WHERE user_id = ? AND $statement = ? AND $statement IS NOT NULL
-      ''',
-      [currentUserId, id],
-    );
+      final want = liked ?? exists == null;
+      if (want && exists == null) {
+        await tx.execute(
+          'INSERT INTO likes(user_id, $statement, id) VALUES(?, ?, uuid())',
+          [me, id],
+        );
+      } else if (!want && exists != null) {
+        await tx.execute(
+          'DELETE FROM likes '
+          'WHERE user_id = ? AND $statement = ? AND $statement IS NOT NULL',
+          [me, id],
+        );
+      }
+    });
   }
 
   @override
@@ -2106,25 +2111,29 @@ WHERE NOT EXISTS (
 
   @override
   Future<void> bookmarkPost({required String postId}) async {
-    if (currentUserId == null) return;
-    final exists = await _powerSyncRepository.db().execute(
-      'SELECT 1 FROM saved_posts WHERE user_id = ? AND post_id = ?',
-      [currentUserId, postId],
-    );
-    if (exists.isEmpty) {
-      await _powerSyncRepository.db().execute(
-        '''
+    final me = currentUserId;
+    if (me == null) return;
+    // One transaction, like `like`: quick taps run one after the other.
+    await _powerSyncRepository.db().writeTransaction((tx) async {
+      final exists = await tx.getOptional(
+        'SELECT 1 FROM saved_posts WHERE user_id = ? AND post_id = ?',
+        [me, postId],
+      );
+      if (exists == null) {
+        await tx.execute(
+          '''
           INSERT INTO saved_posts(id, user_id, post_id, created_at)
             VALUES(uuid(), ?, ?, ?)
       ''',
-        [currentUserId, postId, DateTime.timestamp().toIso8601String()],
+          [me, postId, DateTime.timestamp().toIso8601String()],
+        );
+        return;
+      }
+      await tx.execute(
+        'DELETE FROM saved_posts WHERE user_id = ? AND post_id = ?',
+        [me, postId],
       );
-      return;
-    }
-    await _powerSyncRepository.db().execute(
-      'DELETE FROM saved_posts WHERE user_id = ? AND post_id = ?',
-      [currentUserId, postId],
-    );
+    });
   }
 
   @override
@@ -2299,47 +2308,48 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
     required String followToId,
     String? followerId,
   }) async {
-    if (currentUserId == null) return;
-    if (followToId == currentUserId) return;
-    final exists = await isFollowed(
-      followerId: followerId ?? currentUserId!,
-      userId: followToId,
-    );
-    if (!exists) {
-      // A private account is followed by REQUEST: the row lands as 'pending'
-      // and only unlocks content once the owner accepts it. A public account
-      // is followed outright ('accepted'), exactly as before.
-      final targetPrivate = await _isPrivateProfile(followToId);
-      await _powerSyncRepository.db().execute(
-        '''
+    final me = currentUserId;
+    if (me == null) return;
+    if (followToId == me) return;
+    final follower = followerId ?? me;
+    // Check and write in one transaction: two quick taps both saw "not
+    // following" and inserted twice — the server had no unique pair, so the
+    // follower count went up by two.
+    await _powerSyncRepository.db().writeTransaction((tx) async {
+      final exists = await tx.getOptional(
+        'SELECT 1 FROM subscriptions '
+        'WHERE subscriber_id = ? AND subscribed_to_id = ?',
+        [follower, followToId],
+      );
+      if (exists == null) {
+        // A private account is followed by REQUEST: the row lands as
+        // 'pending' and only unlocks content once the owner accepts it. A
+        // public account is followed outright ('accepted').
+        final profile = await tx.getOptional(
+          'SELECT is_private FROM profiles WHERE id = ?',
+          [followToId],
+        );
+        final private = profile?['is_private'];
+        final targetPrivate = private == 1 || private == true;
+        await tx.execute(
+          '''
           INSERT INTO subscriptions(id, subscriber_id, subscribed_to_id, status)
             VALUES(uuid(), ?, ?, ?)
       ''',
-        [
-          followerId ?? currentUserId!,
-          followToId,
-          targetPrivate ? 'pending' : 'accepted',
-        ],
+          [follower, followToId, targetPrivate ? 'pending' : 'accepted'],
+        );
+        return;
+      }
+      // Already following OR a request is pending — tapping again cancels
+      // either (a plain delete works for both, so a request is withdrawn).
+      await tx.execute(
+        'DELETE FROM subscriptions '
+        'WHERE subscriber_id = ? AND subscribed_to_id = ?',
+        [follower, followToId],
       );
-      return;
-    }
-    // Already following OR a request is pending — tapping again cancels either
-    // (a plain delete works for both, so a pending request is withdrawn).
-    await unfollow(
-      unfollowId: followToId,
-      unfollowerId: followerId ?? currentUserId!,
-    );
+    });
   }
 
-  /// Whether [userId]'s profile is private, read from the local mirror.
-  Future<bool> _isPrivateProfile(String userId) async {
-    final row = await _powerSyncRepository.db().getOptional(
-      'SELECT is_private FROM profiles WHERE id = ?',
-      [userId],
-    );
-    final value = row?['is_private'];
-    return value == 1 || value == true;
-  }
 
   @override
   Future<void> acceptFollowRequest({required String requesterId}) async {

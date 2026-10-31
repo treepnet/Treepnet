@@ -132,7 +132,7 @@ class PostBloc extends Bloc<PostEvent, PostState> {
     Emitter<PostState> emit,
   ) async {
     try {
-      await _postsRepository.like(id: id);
+      await _postsRepository.like(id: id, liked: event.liked);
       emit(state.copyWith(status: PostStatus.success));
     } catch (error, stackTrace) {
       unawaited(
