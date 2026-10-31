@@ -251,6 +251,8 @@ class _ChatOverflowMenu extends StatelessWidget {
         );
       case _ChatMenuAction.delete:
         final navigator = Navigator.of(context);
+        final messenger = ScaffoldMessenger.of(context);
+        final couldNotDelete = context.l10n.couldNotDeleteChatText;
         context.confirmAction(
           title: context.l10n.deleteChatText,
           content: context.l10n.chatDeleteConfirmationText,
@@ -258,10 +260,15 @@ class _ChatOverflowMenu extends StatelessWidget {
           noText: context.l10n.cancelText,
           yesTextStyle: const TextStyle(color: AppColors.red),
           fn: () async {
-            if (ChatSession.instance.isStarted) {
+            if (!ChatSession.instance.isStarted) return;
+            try {
               await ChatSession.instance.listTransport.deleteConversation(
                 conversationId,
               );
+            } catch (_) {
+              // It is still there: stay in it and say so.
+              messenger.showSnackBar(SnackBar(content: Text(couldNotDelete)));
+              return;
             }
             navigator.maybePop();
           },

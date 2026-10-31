@@ -302,6 +302,14 @@ class DmListTransport implements ChatListTransport {
   /// whenever [_conversations] changes.
   final ValueNotifier<int> unreadTotal = ValueNotifier<int>(0);
 
+  /// Unread in the conversations not loaded on the phone, by the server's
+  /// last count (`unreadTotal` with each page): the list loads 50 at a time,
+  /// and the badge counted only those.
+  int _unreadElsewhere = 0;
+
+  int get _loadedUnread =>
+      _conversations.values.fold<int>(0, (sum, c) => sum + c.unreadCount);
+
   /// [refresh] runs at most this often, so a flaky connection or quick app
   /// switches don't pile up requests.
   static const _refreshGap = Duration(seconds: 30);
@@ -336,10 +344,7 @@ class DmListTransport implements ChatListTransport {
   }
 
   void _recomputeUnread() {
-    final total = _conversations.values.fold<int>(
-      0,
-      (sum, c) => sum + c.unreadCount,
-    );
+    final total = _unreadElsewhere + _loadedUnread;
     if (total == unreadTotal.value) return;
     unreadTotal.value = total;
     // The badge shows the saved count until the chat connects.
@@ -364,6 +369,9 @@ class DmListTransport implements ChatListTransport {
       for (final conversation in conversations) {
         _conversations[conversation.id] = conversation;
       }
+      // The saved total covered the chats not saved too.
+      _unreadElsewhere = saved.unread - _loadedUnread;
+      if (_unreadElsewhere < 0) _unreadElsewhere = 0;
       _recomputeUnread();
     }
     return conversations;
@@ -476,6 +484,12 @@ class DmListTransport implements ChatListTransport {
 
     for (final conversation in conversations) {
       _conversations[conversation.id] = conversation;
+    }
+    // The server counts every conversation; what isn't loaded is the rest.
+    final serverTotal = response.data?['unreadTotal'];
+    if (serverTotal is num) {
+      _unreadElsewhere = serverTotal.toInt() - _loadedUnread;
+      if (_unreadElsewhere < 0) _unreadElsewhere = 0;
     }
     _recomputeUnread();
     // The first page is what the inbox shows next time it opens offline.

@@ -132,7 +132,15 @@ router.get('/conversations', apiLimiter, checkUser, async (req, res, next) => {
                 };
             });
 
-        res.json({ data, hasMore, page });
+        // Unread across ALL the user's conversations, not just this page: the
+        // app's badge would otherwise count only the chats it has loaded. A
+        // hidden (cleared) conversation has 0 until a new message shows it.
+        const unread = await prisma.conversationParticipant.aggregate({
+            where: { userId: req.user.id },
+            _sum: { unreadCount: true },
+        });
+
+        res.json({ data, hasMore, page, unreadTotal: unread._sum.unreadCount || 0 });
     } catch (err) {
         next(err);
     }

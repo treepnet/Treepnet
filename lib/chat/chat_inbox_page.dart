@@ -438,6 +438,13 @@ class _ChatsListState extends State<_ChatsList> {
   Timer? _retryTimer;
   int _retries = 0;
 
+  /// The list loads [_pageSize] conversations at a time; scrolling near the
+  /// end loads the next page while there are more.
+  static const _pageSize = 50;
+  int _nextPage = 2;
+  bool _hasMore = false;
+  bool _loadingMore = false;
+
   /// Everyone I blocked or who blocked me. The chat backend doesn't know about
   /// blocks, so their conversations are hidden here (opening one is already
   /// refused in `openChatWithUser`).
@@ -524,10 +531,12 @@ class _ChatsListState extends State<_ChatsList> {
     }
     try {
       await transport.connect();
-      final page = await transport.loadConversations(page: 1, size: 50);
+      final page = await transport.loadConversations(page: 1, size: _pageSize);
       for (final c in page.conversations) {
         _map[c.id] = c;
       }
+      _nextPage = 2;
+      _hasMore = page.hasMore;
       _retries = 0;
       if (mounted) _watchProfiles();
     } catch (e) {
@@ -535,6 +544,44 @@ class _ChatsListState extends State<_ChatsList> {
       _retryLater();
     }
     if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore || !ChatSession.instance.isStarted) return;
+    setState(() => _loadingMore = true);
+    try {
+      final page = await ChatSession.instance.listTransport.loadConversations(
+        page: _nextPage,
+        size: _pageSize,
+      );
+      if (!mounted) return;
+      setState(() {
+        for (final c in page.conversations) {
+          _map[c.id] = c;
+        }
+        _nextPage++;
+        _hasMore = page.hasMore;
+      });
+      _watchProfiles();
+    } catch (_) {
+      // The next scroll to the end tries again.
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
+  /// Whether [c] matches the search: by the name the row shows (the peer's
+  /// live username) as well as the one the chat saved.
+  bool _matches(ChatConversation c) {
+    final query = widget.query;
+    if (query.isEmpty) return true;
+    final uuid = ChatSession.instance.listTransport.peerUuidOf(c.id);
+    final profile = uuid == null ? null : _profiles[uuid];
+    return [
+      c.peer.name,
+      profile?.username,
+      profile?.fullName,
+    ].any((name) => name != null && name.toLowerCase().contains(query));
   }
 
   void _retryLater() {
@@ -633,11 +680,7 @@ class _ChatsListState extends State<_ChatsList> {
                 ChatSession.instance.listTransport.peerUuidOf(c.id),
               ),
             )
-            .where(
-              (c) =>
-                  widget.query.isEmpty ||
-                  c.peer.name.toLowerCase().contains(widget.query),
-            )
+            .where(_matches)
             .toList()
           ..sort((a, b) {
             final at = a.lastMessageAt;
@@ -652,24 +695,42 @@ class _ChatsListState extends State<_ChatsList> {
       return _ChatsEmpty(onStartChat: widget.onStartChat);
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      itemCount: conversations.length,
-      separatorBuilder: (_, __) => Divider(
-        height: 1,
-        color: AppColors.borderOutline.withValues(alpha: 0.4),
-      ),
-      itemBuilder: (context, index) {
-        final conversation = conversations[index];
-        final peerUuid = ChatSession.instance.isStarted
-            ? ChatSession.instance.listTransport.peerUuidOf(conversation.id)
-            : null;
-        return _ConversationTile(
-          conversation: conversation,
-          peerUuid: peerUuid,
-          profile: peerUuid == null ? null : _profiles[peerUuid],
-        );
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification.metrics.extentAfter < 600) unawaited(_loadMore());
+        return false;
       },
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        itemCount: conversations.length + (_loadingMore ? 1 : 0),
+        separatorBuilder: (_, __) => Divider(
+          height: 1,
+          color: AppColors.borderOutline.withValues(alpha: 0.4),
+        ),
+        itemBuilder: (context, index) {
+          if (index == conversations.length) {
+            return const Padding(
+              padding: EdgeInsets.all(AppSpacing.md),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            );
+          }
+          final conversation = conversations[index];
+          final peerUuid = ChatSession.instance.isStarted
+              ? ChatSession.instance.listTransport.peerUuidOf(conversation.id)
+              : null;
+          return _ConversationTile(
+            conversation: conversation,
+            peerUuid: peerUuid,
+            profile: peerUuid == null ? null : _profiles[peerUuid],
+          );
+        },
+      ),
     );
   }
 }
@@ -720,7 +781,8 @@ class _ConversationTile extends StatelessWidget {
         '${dt.month.toString().padLeft(2, '0')}';
   }
 
-  /// Long-press → confirm → delete the whole conversation (both sides).
+  /// Long-press → confirm → delete the conversation for the user only (the
+  /// peer keeps it; it comes back here with their next message).
   Future<void> _confirmDelete(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     final couldNotDelete = context.l10n.couldNotDeleteChatText;
@@ -819,13 +881,14 @@ class _ConversationTile extends StatelessWidget {
             Container(
               constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
               padding: const EdgeInsets.symmetric(horizontal: 6),
-              decoration: const BoxDecoration(
+              // A pill, so "99+" fits; one digit still makes a circle.
+              decoration: BoxDecoration(
                 color: AppColors.white,
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(11),
               ),
               alignment: Alignment.center,
               child: Text(
-                '$unread',
+                unread > 99 ? '99+' : '$unread',
                 style: context.labelSmall?.copyWith(
                   color: AppColors.black,
                   fontWeight: AppFontWeight.bold,

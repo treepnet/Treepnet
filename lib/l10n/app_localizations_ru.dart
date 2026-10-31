@@ -126,7 +126,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get chatDeleteConfirmationText =>
-      'Вы уверены что хотите удалить этот чат?';
+      'Чат удалится только у вас — у собеседника он останется.';
 
   @override
   String get deleteReelText => 'Удалить видео Reels';

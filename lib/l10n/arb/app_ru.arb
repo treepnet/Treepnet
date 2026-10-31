@@ -46,7 +46,7 @@
   "deleteMessageText": "Удалить сообщение",
   "messageDeleteConfirmationText": "Вы уверены что хотите удалить это сообщение?",
   "deleteChatText": "Удалить чат",
-  "chatDeleteConfirmationText": "Вы уверены что хотите удалить этот чат?",
+  "chatDeleteConfirmationText": "Чат удалится только у вас — у собеседника он останется.",
   "deleteReelText": "Удалить видео Reels",
   "reelDeleteConfirmationText": "Вы уверены что хотите удалить это видео Reels?",
   "deleteStoryText": "Удалить историю",

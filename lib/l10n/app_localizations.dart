@@ -300,7 +300,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatDeleteConfirmationText.
   ///
   /// In en, this message translates to:
-  /// **'Are you sure you want to delete this chat?'**
+  /// **'This chat will be deleted only for you. The other person will still have it.'**
   String get chatDeleteConfirmationText;
 
   /// No description provided for @deleteReelText.

@@ -132,7 +132,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatDeleteConfirmationText =>
-      'Are you sure you want to delete this chat?';
+      'This chat will be deleted only for you. The other person will still have it.';
 
   @override
   String get deleteReelText => 'Delete Reel';

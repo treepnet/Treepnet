@@ -152,8 +152,9 @@ class _ChatTabIconState extends State<_ChatTabIcon> {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<int>(
       valueListenable: ChatSession.instance.unreadTotal,
-      builder: (context, count, _) => Badge.count(
-        count: count,
+      // Badge.count stops at 999+; a tab badge reads better at 99+.
+      builder: (context, count, _) => Badge(
+        label: Text(count > 99 ? '99+' : '$count'),
         isLabelVisible: count > 0,
         // White pill, black number — the default red-on-white badge was the
         // only saturated colour left in the bar.

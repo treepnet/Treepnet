@@ -84,7 +84,7 @@
   "deleteMessageText": "Delete message",
   "messageDeleteConfirmationText": "Are you sure you want to delete this message?",
   "deleteChatText": "Delete chat",
-  "chatDeleteConfirmationText": "Are you sure you want to delete this chat?",
+  "chatDeleteConfirmationText": "This chat will be deleted only for you. The other person will still have it.",
   "deleteReelText": "Delete Reel",
   "reelDeleteConfirmationText": "Are you sure you want to delete this Reel?",
   "deleteStoryText": "Delete story",
