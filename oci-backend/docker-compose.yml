@@ -67,7 +67,9 @@ services:
       retries: 20
 
   powersync:
-    image: journeyapps/powersync-service:latest
+    # Pinned: the exact image that runs (was :latest, which changes under us
+    # on any pull). Upgrade on purpose: new tag + digest, then verify sync.
+    image: journeyapps/powersync-service:1.25.0@sha256:bf46f66e5dcc8f6a084de02ab51155dfa655bc610aa95009fff1c36f949c0acf
     container_name: treepnet-powersync
     restart: unless-stopped
     depends_on:
@@ -91,7 +93,8 @@ services:
       - treepnet
 
   postgrest:
-    image: postgrest/postgrest:latest
+    # Pinned like powersync above (was :latest).
+    image: postgrest/postgrest:v16.2@sha256:85258123312dc496ad4c2ed832154a65e9746f84df0d6d09b44229ff9230c08e
     container_name: treepnet-postgrest
     restart: unless-stopped
     depends_on:

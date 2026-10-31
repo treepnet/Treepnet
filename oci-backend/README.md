@@ -54,6 +54,18 @@ reload Caddy for the new `/log/*` route
    `verify.sql`, …) are diagnostic queries; `sql/setup-roles.sql` documents the
    `authenticator`/`authenticated` role setup PostgREST relies on.
 
+## Scheduled jobs (ubuntu's crontab on the server)
+
+| When (UTC) | What |
+|---|---|
+| every 5 min | `~/treepnet-monitor.sh` (`monitor/`): health checks → Telegram |
+| every 5 min | `refresh_story_visibility()` (`sql/stories_private_archive.sql`) |
+| every 6 h | `postgrest/refresh-jwks.sh` |
+| 01:30 daily | PowerSync compact: `docker exec treepnet-powersync node service/lib/entry.js compact >> /home/ubuntu/powersync-compact.log 2>&1` — drops superseded sync history so new devices download less; safe while the service runs |
+| 22:30 daily | `~/treepnet-backup.sh` (`backup/`) |
+| 23:30 Sun | `~/treepnet-backup-check.sh` |
+| 23:55 daily | `~/analytics-rollup.sh` |
+
 ## Notes
 
 - All secrets are injected at runtime (`${VAR}` from `.env`, mounted JSON
