@@ -40,6 +40,7 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
       final posts = await _postsRepository.getPage(
         limit: _pageSize,
         offset: _pageSize * currentPage,
+        order: PostOrder.trending,
       );
 
       final newPage = currentPage + 1;
@@ -82,6 +83,7 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
       final posts = await _postsRepository.getPage(
         limit: _pageSize,
         offset: _pageSize * currentPage,
+        order: PostOrder.trending,
       );
 
       const newPage = currentPage + 1;

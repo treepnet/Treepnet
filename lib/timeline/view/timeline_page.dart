@@ -232,6 +232,8 @@ class TimelineGridView extends StatelessWidget {
           block: block,
           index: index,
           showComments: false,
+          // A tap scrolls on through Trends in its own order.
+          postOrder: PostOrder.trending,
           builder: (_) => PostSmall(
             pinned: false,
             isReel: block.isReel,

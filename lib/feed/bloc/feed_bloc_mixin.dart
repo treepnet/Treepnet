@@ -193,9 +193,11 @@ mixin FeedBlocMixin on Bloc<FeedEvent, FeedState> {
     ListPostMapper? mapper,
   }) async {
     final currentPage = page;
+    // People you follow and your own posts first, then everyone else's.
     final posts = await postsRepository.getPage(
       offset: currentPage * feedPageLimit,
       limit: feedPageLimit,
+      order: PostOrder.feed,
     );
     final newPage = currentPage + 1;
     final hasMore = posts.length >= feedPageLimit;

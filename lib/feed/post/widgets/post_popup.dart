@@ -64,6 +64,7 @@ class PostPopup extends StatelessWidget {
     required this.builder,
     this.showComments = true,
     this.feedPosts,
+    this.postOrder = PostOrder.newest,
     super.key,
   });
 
@@ -72,9 +73,12 @@ class PostPopup extends StatelessWidget {
   final WidgetBuilder builder;
   final bool showComments;
 
-  /// The feed a tap should scroll through. Null falls back to the newest posts
-  /// across everyone — right for explore and a profile, wrong for a place.
+  /// The feed a tap should scroll through. Null falls back to every post in
+  /// [postOrder] — right for Trends and a profile, wrong for a place.
   final List<Post>? feedPosts;
+
+  /// The order of that fallback: the grid's own (Trends ranks its posts).
+  final PostOrder postOrder;
 
   @override
   Widget build(BuildContext context) {
@@ -92,6 +96,7 @@ class PostPopup extends StatelessWidget {
         builder: builder,
         showComments: showComments,
         feedPosts: feedPosts,
+        postOrder: postOrder,
       ),
     );
   }
@@ -104,6 +109,7 @@ class PopupModal extends StatefulWidget {
     required this.builder,
     required this.showComments,
     this.feedPosts,
+    this.postOrder = PostOrder.newest,
     super.key,
   });
 
@@ -112,6 +118,7 @@ class PopupModal extends StatefulWidget {
   final WidgetBuilder builder;
   final bool showComments;
   final List<Post>? feedPosts;
+  final PostOrder postOrder;
 
   @override
   State<PopupModal> createState() => _PostPopupState();
@@ -209,6 +216,7 @@ class _PostPopupState extends State<PopupModal>
               builder: (_) => NewestPostsPage(
                 startPostId: widget.block.id,
                 posts: widget.feedPosts,
+                order: widget.postOrder,
               ),
             ),
           ),

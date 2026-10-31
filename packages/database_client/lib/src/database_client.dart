@@ -262,6 +262,21 @@ abstract class UserBaseRepository {
   Stream<DateTime?> lastSeenOf({required String userId});
 }
 
+/// The order of a list of posts ([PostsBaseRepository.getPage]).
+enum PostOrder {
+  /// Newest first.
+  newest,
+
+  /// The home feed: posts by the people you follow and your own first, then
+  /// everyone else's; each part newest first. A new account still sees posts.
+  feed,
+
+  /// Trends: the last 14 days first, then everything older; each part by
+  /// score — likes plus twice the comments, plus one, divided by the age in
+  /// days plus two, so a post fades as it ages.
+  trending,
+}
+
 /// Abstract base class for a posts repository.
 abstract class PostsBaseRepository {
   /// Reads the associated post from the database by the [id].
@@ -343,17 +358,22 @@ abstract class PostsBaseRepository {
     required int limit,
   });
 
-  /// Returns the page of posts with provided [offset] and [limit].
+  /// Returns the page of posts with provided [offset] and [limit], in
+  /// [order].
   Future<List<Post>> getPage({
     required int offset,
     required int limit,
     bool onlyReels = false,
+    PostOrder order = PostOrder.newest,
   });
 
-  /// How many posts come before [postId] in [getPage]'s order (its offset
-  /// there), or null when it isn't in that feed (deleted, hidden, not
+  /// How many posts come before [postId] in [getPage]'s [order] (its offset
+  /// there), or null when it isn't in that list (deleted, hidden, not
   /// visible).
-  Future<int?> feedPositionOf({required String postId});
+  Future<int?> feedPositionOf({
+    required String postId,
+    PostOrder order = PostOrder.newest,
+  });
 
   /// Create a new post with provided details.
   Future<Post?> createPost({
@@ -1592,25 +1612,25 @@ ${limit != null ? 'LIMIT ?' : ''}
   ];
 
   @override
-  Future<int?> feedPositionOf({required String postId}) async {
-    // Same filters as getPage, so the count is that post's offset there.
+  Future<int?> feedPositionOf({
+    required String postId,
+    PostOrder order = PostOrder.newest,
+  }) async {
+    // Same filters and order as getPage, so the row number is that post's
+    // offset there.
     final result = await _powerSyncRepository.db().getAll(
       '''
-SELECT
-  (SELECT COUNT(*) FROM posts
-    WHERE ${_visibleAuthorSql('posts.user_id')}
-      AND ${_postReadySql('posts')}
-      AND posts.id NOT IN (
-        SELECT post_id FROM hidden_posts WHERE user_id = $_viewerSql
-      )
-      AND posts.created_at > target.created_at) AS position
-FROM posts AS target
-WHERE target.id = ?1
-  AND ${_visibleAuthorSql('target.user_id')}
-  AND ${_postReadySql('target')}
-  AND target.id NOT IN (
-    SELECT post_id FROM hidden_posts WHERE user_id = $_viewerSql
-  )
+SELECT position FROM (
+  SELECT posts.id AS id,
+         ROW_NUMBER() OVER (ORDER BY ${_postOrderSql(order)}) - 1 AS position
+  FROM posts
+  WHERE ${_visibleAuthorSql('posts.user_id')}
+    AND ${_postReadySql('posts')}
+    AND posts.id NOT IN (
+      SELECT post_id FROM hidden_posts WHERE user_id = $_viewerSql
+    )
+)
+WHERE id = ?1
     ''',
       [postId],
     );
@@ -1618,11 +1638,39 @@ WHERE target.id = ?1
     return result.first['position'] as int?;
   }
 
+  /// [PostOrder] as an ORDER BY list over `posts`. The id last, so posts
+  /// that tie keep the same order from page to page.
+  String _postOrderSql(PostOrder order) {
+    final me = _viewerSql;
+    return switch (order) {
+      PostOrder.newest => 'posts.created_at DESC, posts.id',
+      PostOrder.feed => '''
+CASE WHEN posts.user_id = $me OR EXISTS (
+  SELECT 1 FROM subscriptions f
+   WHERE f.subscriber_id = $me AND f.subscribed_to_id = posts.user_id
+     AND (f.status = 'accepted' OR f.status IS NULL)
+) THEN 0 ELSE 1 END,
+posts.created_at DESC, posts.id''',
+      // The first 19 characters are the UTC date and time in every format
+      // the column has held; julianday() reads them whatever follows.
+      PostOrder.trending => '''
+CASE WHEN julianday(substr(posts.created_at, 1, 19)) >= julianday('now') - 14
+  THEN 0 ELSE 1 END,
+((SELECT COUNT(*) FROM likes l WHERE l.post_id = posts.id)
+  + 2 * (SELECT COUNT(*) FROM comments c
+          WHERE c.post_id = posts.id AND ${_notBlockedSql('c.user_id')})
+  + 1) * 1.0
+  / (julianday('now') - julianday(substr(posts.created_at, 1, 19)) + 2) DESC,
+posts.created_at DESC, posts.id''',
+    };
+  }
+
   @override
   Future<List<Post>> getPage({
     required int offset,
     required int limit,
     bool onlyReels = false,
+    PostOrder order = PostOrder.newest,
   }) async {
     //     if (onlyReels) {
     //       final result = await _powerSyncRepository.db().execute(
@@ -1672,7 +1720,7 @@ WHERE ${_visibleAuthorSql('posts.user_id')}
   AND posts.id NOT IN (
     SELECT post_id FROM hidden_posts WHERE user_id = $_viewerSql
   )
-ORDER BY created_at DESC LIMIT ?1 OFFSET ?2
+ORDER BY ${_postOrderSql(order)} LIMIT ?1 OFFSET ?2
     ''',
       [limit, offset],
     );

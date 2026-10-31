@@ -22,12 +22,22 @@ import 'package:treepnet/l10n/l10n.dart';
 /// fixed set instead: a place's grid has to stay inside that place, otherwise
 /// tapping a photo of one spot walks you into everyone else's.
 class NewestPostsPage extends StatefulWidget {
-  const NewestPostsPage({required this.startPostId, this.posts, super.key});
+  const NewestPostsPage({
+    required this.startPostId,
+    this.posts,
+    this.order = PostOrder.newest,
+    super.key,
+  });
 
   final String startPostId;
 
-  /// The exact feed to scroll, in order. Null means "the newest posts".
+  /// The exact feed to scroll, in order. Null means every post, in [order].
   final List<Post>? posts;
+
+  /// The order it pages in when [posts] is null: the grid it was opened from
+  /// (Trends ranks its posts), so the posts around the tapped one are the
+  /// ones that were around it there.
+  final PostOrder order;
 
   @override
   State<NewestPostsPage> createState() => _NewestPostsPageState();
@@ -114,9 +124,16 @@ class _NewestPostsPageState extends State<NewestPostsPage> {
     PostsRepository repo,
     String startPostId,
   ) async {
-    final position = await repo.feedPositionOf(postId: startPostId);
+    final position = await repo.feedPositionOf(
+      postId: startPostId,
+      order: widget.order,
+    );
     final offset = position == null ? 0 : max(0, position - _newerAbove);
-    final batch = await repo.getPage(offset: offset, limit: _pageSize);
+    final batch = await repo.getPage(
+      offset: offset,
+      limit: _pageSize,
+      order: widget.order,
+    );
     return (batch, offset, batch.length < _pageSize);
   }
 
@@ -143,6 +160,7 @@ class _NewestPostsPageState extends State<NewestPostsPage> {
       final batch = await context.read<PostsRepository>().getPage(
         offset: _nextOffset,
         limit: _pageSize,
+        order: widget.order,
       );
       _nextOffset += batch.length;
       if (!mounted) return;

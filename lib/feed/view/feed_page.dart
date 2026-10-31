@@ -6,7 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 // `show`: the package also exports sqlite3's `Row`, which collides with the
 // widget of the same name.
-import 'package:posts_repository/posts_repository.dart' show PostsRepository;
+import 'package:posts_repository/posts_repository.dart'
+    show PostOrder, PostsRepository;
 import 'package:powersync_repository/powersync_repository.dart'
     show PowerSyncRepository;
 import 'package:treepnet/feed/feed.dart';
@@ -230,9 +231,13 @@ class _FeedBodyState extends State<FeedBody> {
     _checking = true;
     _lastCheck = now;
     try {
+      // The top of the feed in its own order: a new post that doesn't go to
+      // the top (someone you don't follow, while you follow people) isn't
+      // "new posts" above you.
       final newest = await context.read<PostsRepository>().getPage(
         offset: 0,
         limit: 1,
+        order: PostOrder.feed,
       );
       if (!mounted || newest.isEmpty) return;
       final id = newest.first.id;

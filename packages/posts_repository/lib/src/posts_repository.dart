@@ -30,15 +30,19 @@ class PostsRepository implements PostsBaseRepository {
     required int offset,
     required int limit,
     bool onlyReels = false,
+    PostOrder order = PostOrder.newest,
   }) => _databaseClient.getPage(
     offset: offset,
     limit: limit,
     onlyReels: onlyReels,
+    order: order,
   );
 
   @override
-  Future<int?> feedPositionOf({required String postId}) =>
-      _databaseClient.feedPositionOf(postId: postId);
+  Future<int?> feedPositionOf({
+    required String postId,
+    PostOrder order = PostOrder.newest,
+  }) => _databaseClient.feedPositionOf(postId: postId, order: order);
 
   @override
   Future<void> like({
