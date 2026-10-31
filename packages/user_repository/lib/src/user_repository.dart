@@ -270,6 +270,11 @@ class UserRepository implements UserBaseRepository {
   @override
   Stream<User> profile({required String id}) => _databaseClient.profile(id: id);
 
+  /// Clears this user's push token on the server right away (signing out).
+  @override
+  Future<void> clearPushTokenOnServer() =>
+      _databaseClient.clearPushTokenOnServer();
+
   /// Live public profiles of [ids] from one query, keyed by id.
   @override
   Stream<Map<String, User>> profilesOf({required List<String> ids}) =>

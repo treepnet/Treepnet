@@ -25,7 +25,7 @@ class SettingsPage extends StatelessWidget {
 
   void _logout(BuildContext context) {
     context.confirmAction(
-      fn: () => context.read<AppBloc>().add(const AppLogoutRequested()),
+      fn: () => logOutSafely(context),
       title: context.l10n.logOutText,
       content: context.l10n.logOutConfirmationText,
       noText: context.l10n.cancelText,

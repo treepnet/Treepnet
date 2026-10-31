@@ -970,5 +970,14 @@
     }
   },
   "deleteAccountFailedText": "Couldn't delete the account. Try again.",
+  "logOutUnsavedChangesText": "Unsaved changes: {count}. They haven't reached the server yet and will be lost if you log out now.",
+  "@logOutUnsavedChangesText": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "logOutAnywayText": "Log out anyway",
   "searchNothingFoundText": "Nothing found"
 }

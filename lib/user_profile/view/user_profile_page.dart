@@ -1,5 +1,6 @@
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'dart:async';
 import 'dart:ui';
 import 'package:app_ui/app_ui.dart';
 import 'package:collection/collection.dart';
@@ -728,8 +729,11 @@ class LogoutModalOption extends StatelessWidget {
     return Tappable.faded(
       onTap: () => context.confirmAction(
         fn: () {
+          // The menu closes; the root navigator's context outlives it for the
+          // "unsaved changes" question.
+          final root = rootNavigatorKey.currentContext;
           context.pop();
-          context.read<AppBloc>().add(const AppLogoutRequested());
+          if (root != null) unawaited(logOutSafely(root));
         },
         title: context.l10n.logOutText,
         content: context.l10n.logOutConfirmationText,

@@ -3159,6 +3159,18 @@ abstract class AppLocalizations {
   /// **'Couldn\'t delete the account. Try again.'**
   String get deleteAccountFailedText;
 
+  /// No description provided for @logOutUnsavedChangesText.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsaved changes: {count}. They haven\'t reached the server yet and will be lost if you log out now.'**
+  String logOutUnsavedChangesText(int count);
+
+  /// No description provided for @logOutAnywayText.
+  ///
+  /// In en, this message translates to:
+  /// **'Log out anyway'**
+  String get logOutAnywayText;
+
   /// No description provided for @searchNothingFoundText.
   ///
   /// In en, this message translates to:

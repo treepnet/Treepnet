@@ -1855,5 +1855,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Couldn\'t delete the account. Try again.';
 
   @override
+  String logOutUnsavedChangesText(int count) {
+    return 'Unsaved changes: $count. They haven\'t reached the server yet and will be lost if you log out now.';
+  }
+
+  @override
+  String get logOutAnywayText => 'Log out anyway';
+
+  @override
   String get searchNothingFoundText => 'Nothing found';
 }

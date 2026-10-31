@@ -176,7 +176,15 @@ class PushNotifications {
     await _tokenRefresh?.cancel();
     _tokenRefresh = null;
     try {
-      await userRepository.updateUser(pushToken: '');
+      // Straight to the server: a local write would wait in the upload queue,
+      // which signing out wipes, and the token stayed on the server.
+      await userRepository.clearPushTokenOnServer().timeout(
+        const Duration(seconds: 5),
+      );
+    } catch (_) {
+      // Offline: FCM revokes the token itself just below.
+    }
+    try {
       if (_fcmReady) await FirebaseMessaging.instance.deleteToken();
     } catch (_) {
       // Best-effort; logout must not fail because of this.

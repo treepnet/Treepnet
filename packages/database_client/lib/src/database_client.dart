@@ -23,6 +23,10 @@ abstract class UserBaseRepository {
   /// one query — keyed by id; ids not on this device are left out.
   Stream<Map<String, User>> profilesOf({required List<String> ids});
 
+  /// Clears the signed-in user's push token on the server right away, not
+  /// through the local upload queue (which signing out wipes).
+  Future<void> clearPushTokenOnServer();
+
   /// Updates currently authenticated database user's metadata.
   Future<void> updateUser({
     String? fullName,
@@ -2416,6 +2420,17 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
       followers.add(follower);
     }
     return followers;
+  }
+
+  @override
+  Future<void> clearPushTokenOnServer() async {
+    final id = currentUserId;
+    if (id == null) return;
+    await _powerSyncRepository
+        .postgrest()
+        .from('profiles')
+        .update({'push_token': ''})
+        .eq('id', id);
   }
 
   @override

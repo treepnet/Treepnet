@@ -245,6 +245,11 @@ class PowerSyncRepository {
   /// event per dropped transaction. See [RejectedUpload].
   Stream<RejectedUpload> get rejectedUploads => _rejectedUploads.stream;
 
+  /// How many local changes haven't been uploaded to the server yet. Signing
+  /// out wipes them along with the local database.
+  Future<int> pendingUploads() async =>
+      (await db().getUploadQueueStats()).count;
+
   /// Checks if a user is logged in.
   bool isLoggedIn() {
     return EntraSession.instance.isAuthenticated;

@@ -1882,5 +1882,13 @@ class AppLocalizationsRu extends AppLocalizations {
       'Не удалось удалить аккаунт. Попробуйте ещё раз.';
 
   @override
+  String logOutUnsavedChangesText(int count) {
+    return 'Несохранённых изменений: $count. Они ещё не дошли до сервера и пропадут, если выйти сейчас.';
+  }
+
+  @override
+  String get logOutAnywayText => 'Всё равно выйти';
+
+  @override
   String get searchNothingFoundText => 'Ничего не найдено';
 }
