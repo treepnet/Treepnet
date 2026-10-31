@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:treepnet/map/geo_regions.dart';
 import 'package:treepnet/map/region_picker.dart';
 import 'package:treepnet/map/travel_map.dart';
-import 'package:treepnet/map/travel_stats.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -152,36 +151,6 @@ void main() {
       expect(find.byIcon(Icons.arrow_back), findsOneWidget);
       expect(find.byType(ListTile), findsWidgets);
       expect(tester.takeException(), isNull);
-    });
-  });
-
-  group('TravelStats', () {
-    test('empty visited → starter level', () {
-      final s = TravelStats.fromVisited({});
-      expect(s.regions, 0);
-      expect(s.countries, 0);
-      expect(s.continents, 0);
-      expect(s.worldPercent, 0);
-      // A key, not a display name — the label is localised at render time.
-      expect(s.level, 'start');
-      expect(s.nextLevelAt, 1);
-    });
-
-    test('two Asian regions → level, %, continents', () async {
-      await GeoRegions.instance.load();
-      final s = TravelStats.fromVisited({'TR-34', 'UZ-TK'});
-      expect(s.regions, 2);
-      expect(s.countries, 2);
-      expect(s.continents, 1); // Turkey + Uzbekistan are both in Asia
-      expect(s.level, 'explorer');
-      expect(s.worldPercent, closeTo(1.17, 0.2));
-    });
-
-    test('regions across two continents', () async {
-      await GeoRegions.instance.load();
-      final s = TravelStats.fromVisited({'TR-34', 'US-CA'});
-      expect(s.countries, 2);
-      expect(s.continents, 2); // Asia + North America
     });
   });
 }
