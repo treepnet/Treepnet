@@ -7,18 +7,9 @@ sealed class CommentEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-final class CommentLikesSubscriptionRequested extends CommentEvent {
-  const CommentLikesSubscriptionRequested();
-}
-
-final class CommentIsLikedByOwnerSubscriptionRequested extends CommentEvent {
-  const CommentIsLikedByOwnerSubscriptionRequested(this.ownerId);
-
-  final String ownerId;
-}
-
-final class CommentIsLikedSubscriptionRequested extends CommentEvent {
-  const CommentIsLikedSubscriptionRequested();
+/// The comment's likes and whether you and the post's author liked it.
+final class CommentStatsSubscriptionRequested extends CommentEvent {
+  const CommentStatsSubscriptionRequested();
 }
 
 final class CommentsRepliedCommentsSubscriptionRequested extends CommentEvent {

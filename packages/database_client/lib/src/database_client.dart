@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:database_client/src/invite_badge.dart';
+import 'package:database_client/src/comment_stats.dart';
 import 'package:database_client/src/post_stats.dart';
 import 'package:powersync_repository/powersync_repository.dart';
 import 'package:shared/shared.dart';
@@ -315,6 +316,12 @@ abstract class PostsBaseRepository {
   /// live query, keyed by post id. A post that isn't on this device is left
   /// out.
   Stream<Map<String, PostStats>> postStatsOf({required List<String> postIds});
+
+  /// Likes and liked-by state for each of [commentIds], in one live query,
+  /// keyed by comment id — see [CommentStats].
+  Stream<Map<String, CommentStats>> commentStatsOf({
+    required List<String> commentIds,
+  });
 
   /// Returns a real-time stream of whether the post by [id] is liked by user
   /// identified by [userId].
@@ -1798,6 +1805,43 @@ WHERE $statement = ? AND $statement IS NOT NULL
         )
         .map(
           (result) => result.safeMap((row) => row['total_likes']).first as int,
+        );
+  }
+
+  /// One row per comment: what its own three queries used to read
+  /// ([likesOf] and [isLiked] for the viewer and for the post's author).
+  @override
+  Stream<Map<String, CommentStats>> commentStatsOf({
+    required List<String> commentIds,
+  }) {
+    if (commentIds.isEmpty) return Stream.value(const {});
+    return _powerSyncRepository
+        .db()
+        .watch(
+          '''
+SELECT
+  c.id AS comment_id,
+  (SELECT COUNT(*) FROM likes l WHERE l.comment_id = c.id) AS likes,
+  EXISTS (SELECT 1 FROM likes l
+     WHERE l.user_id = ?2 AND l.comment_id = c.id) AS is_liked,
+  EXISTS (SELECT 1 FROM likes l
+     JOIN posts p ON p.id = c.post_id
+     WHERE l.user_id = p.user_id AND l.comment_id = c.id) AS is_liked_by_author
+FROM comments c
+WHERE c.id IN (SELECT value FROM json_each(?1))
+''',
+          parameters: [jsonEncode(commentIds), currentUserId],
+        )
+        .map(
+          (rows) => {
+            for (final row in rows)
+              row['comment_id'] as String: CommentStats(
+                likes: (row['likes'] as int?) ?? 0,
+                isLiked: ((row['is_liked'] as int?) ?? 0) == 1,
+                isLikedByPostAuthor:
+                    ((row['is_liked_by_author'] as int?) ?? 0) == 1,
+              ),
+          },
         );
   }
 

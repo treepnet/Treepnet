@@ -11,22 +11,38 @@ import 'package:database_client/database_client.dart';
 /// `DatabaseClient.postStatsOf` query over all subscribed ids (restarted,
 /// shortly after, when cards come and go) and passes each card only its own
 /// stats, and only when they changed.
-class PostStatsHub {
+class PostStatsHub extends StatsHub<PostStats> {
   /// Creates a [PostStatsHub] that queries through the given client.
-  PostStatsHub(this._databaseClient);
+  PostStatsHub(DatabaseClient databaseClient)
+    : super((ids) => databaseClient.postStatsOf(postIds: ids));
+}
 
-  final DatabaseClient _databaseClient;
+/// [PostStatsHub] for comments: every comment on screen reads its likes and
+/// liked-by state from one `DatabaseClient.commentStatsOf` query (each used
+/// to open three).
+class CommentStatsHub extends StatsHub<CommentStats> {
+  /// Creates a [CommentStatsHub] that queries through the given client.
+  CommentStatsHub(DatabaseClient databaseClient)
+    : super((ids) => databaseClient.commentStatsOf(commentIds: ids));
+}
 
-  final _listeners = <String, Set<StreamController<PostStats>>>{};
-  final _latest = <String, PostStats>{};
-  StreamSubscription<Map<String, PostStats>>? _query;
+/// One live query over every subscribed id, each subscriber getting only its
+/// own value, and only when it changed (see [PostStatsHub]).
+class StatsHub<T> {
+  /// Creates a [StatsHub] that runs [_queryOf] for the subscribed ids.
+  StatsHub(this._queryOf);
+
+  final Stream<Map<String, T>> Function(List<String> ids) _queryOf;
+
+  final _listeners = <String, Set<StreamController<T>>>{};
+  final _latest = <String, T>{};
+  StreamSubscription<Map<String, T>>? _query;
   Timer? _restart;
 
-  /// The live stats of the post [postId]. The current value, if any, comes
-  /// first.
-  Stream<PostStats> statsOf(String postId) {
-    late final StreamController<PostStats> controller;
-    controller = StreamController<PostStats>(
+  /// The live value for [postId]. The current value, if any, comes first.
+  Stream<T> statsOf(String postId) {
+    late final StreamController<T> controller;
+    controller = StreamController<T>(
       onListen: () {
         final listeners = _listeners.putIfAbsent(postId, () => {});
         final isNew = listeners.isEmpty;
@@ -61,12 +77,10 @@ class PostStatsHub {
     final ids = _listeners.keys.toList();
     _query = ids.isEmpty
         ? null
-        : _databaseClient
-              .postStatsOf(postIds: ids)
-              .listen(_deliver, onError: _deliverError);
+        : _queryOf(ids).listen(_deliver, onError: _deliverError);
   }
 
-  void _deliver(Map<String, PostStats> stats) {
+  void _deliver(Map<String, T> stats) {
     stats.forEach((postId, value) {
       final listeners = _listeners[postId];
       if (listeners == null || _latest[postId] == value) return;

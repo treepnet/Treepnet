@@ -10,20 +10,32 @@ class PostsRepository implements PostsBaseRepository {
   /// {@macro posts_repository}
   PostsRepository({required DatabaseClient databaseClient})
     : _databaseClient = databaseClient,
-      _statsHub = PostStatsHub(databaseClient);
+      _statsHub = PostStatsHub(databaseClient),
+      _commentStatsHub = CommentStatsHub(databaseClient);
 
   final DatabaseClient _databaseClient;
   final PostStatsHub _statsHub;
+  final CommentStatsHub _commentStatsHub;
 
   /// The live counts and viewer state a post card shows for [postId]. All
   /// cards share one query (see [PostStatsHub]).
   Stream<PostStats> statsOf({required String postId}) =>
       _statsHub.statsOf(postId);
 
+  /// A comment's likes and liked-by state. Every comment on screen shares
+  /// one query (see [CommentStatsHub]).
+  Stream<CommentStats> commentStatsOfComment({required String commentId}) =>
+      _commentStatsHub.statsOf(commentId);
+
   @override
   Stream<Map<String, PostStats>> postStatsOf({
     required List<String> postIds,
   }) => _databaseClient.postStatsOf(postIds: postIds);
+
+  @override
+  Stream<Map<String, CommentStats>> commentStatsOf({
+    required List<String> commentIds,
+  }) => _databaseClient.commentStatsOf(commentIds: commentIds);
 
   @override
   Future<List<Post>> getPage({

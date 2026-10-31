@@ -15,16 +15,8 @@ class CommentBloc extends Bloc<CommentEvent, CommentState> {
   }) : _commentId = commentId,
        _postsRepository = postsRepository,
        super(const CommentState.initial()) {
-    on<CommentLikesSubscriptionRequested>(
-      _onCommentLikesSubscriptionRequested,
-      transformer: throttleDroppable(),
-    );
-    on<CommentIsLikedSubscriptionRequested>(
-      _onCommentIsLikedSubscriptionRequested,
-      transformer: throttleDroppable(),
-    );
-    on<CommentIsLikedByOwnerSubscriptionRequested>(
-      _onCommentIsLikedByOwnerSubscriptionRequested,
+    on<CommentStatsSubscriptionRequested>(
+      _onCommentStatsSubscriptionRequested,
       transformer: throttleDroppable(),
     );
     on<CommentsRepliedCommentsSubscriptionRequested>(
@@ -63,42 +55,19 @@ class CommentBloc extends Bloc<CommentEvent, CommentState> {
     }
   }
 
-  Future<void> _onCommentLikesSubscriptionRequested(
-    CommentLikesSubscriptionRequested event,
+  /// One shared query for every comment on screen (CommentStatsHub); each
+  /// comment used to open three of its own.
+  Future<void> _onCommentStatsSubscriptionRequested(
+    CommentStatsSubscriptionRequested event,
     Emitter<CommentState> emit,
   ) async {
     await emit.forEach(
-      _postsRepository.likesOf(id: id, post: false),
-      onData: (likes) => state.copyWith(likes: likes),
-      onError: (error, stackTrace) {
-        addError(error, stackTrace);
-        return state.copyWith(status: CommentStatus.failure);
-      },
-    );
-  }
-
-  Future<void> _onCommentIsLikedSubscriptionRequested(
-    CommentIsLikedSubscriptionRequested event,
-    Emitter<CommentState> emit,
-  ) async {
-    await emit.forEach(
-      _postsRepository.isLiked(id: id, post: false),
-      onData: (isLiked) => state.copyWith(isLiked: isLiked),
-      onError: (error, stackTrace) {
-        addError(error, stackTrace);
-        return state.copyWith(status: CommentStatus.failure);
-      },
-    );
-  }
-
-  Future<void> _onCommentIsLikedByOwnerSubscriptionRequested(
-    CommentIsLikedByOwnerSubscriptionRequested event,
-    Emitter<CommentState> emit,
-  ) async {
-    await emit.forEach(
-      _postsRepository.isLiked(id: id, userId: event.ownerId, post: false),
-      onData: (isLikedByOwner) =>
-          state.copyWith(isLikedByOwner: isLikedByOwner),
+      _postsRepository.commentStatsOfComment(commentId: id),
+      onData: (stats) => state.copyWith(
+        likes: stats.likes,
+        isLiked: stats.isLiked,
+        isLikedByOwner: stats.isLikedByPostAuthor,
+      ),
       onError: (error, stackTrace) {
         addError(error, stackTrace);
         return state.copyWith(status: CommentStatus.failure);

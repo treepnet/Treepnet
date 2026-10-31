@@ -31,9 +31,7 @@ class CommentView extends StatelessWidget {
               commentId: comment.id,
               postsRepository: context.read<PostsRepository>(),
             )
-            ..add(const CommentLikesSubscriptionRequested())
-            ..add(const CommentIsLikedSubscriptionRequested())
-            ..add(CommentIsLikedByOwnerSubscriptionRequested(post.author.id)),
+            ..add(const CommentStatsSubscriptionRequested()),
       child: CommentGroup(comment: comment, post: post, isReplied: isReplied),
     );
   }
