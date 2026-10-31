@@ -27,6 +27,7 @@ class NotificationItem {
     this.actorAvatarUrl,
     this.actorFullName,
     this.postId,
+    this.postThumbUrl,
     this.content,
     this.createdAt,
   });
@@ -39,6 +40,10 @@ class NotificationItem {
 
   /// The post the like/comment is on (null for follows).
   final String? postId;
+
+  /// A small picture of that post (its grid thumbnail when it has one), read
+  /// with the notification — each row used to fetch its whole post.
+  final String? postThumbUrl;
 
   /// The comment text (only for [NotificationType.comment]).
   final String? content;

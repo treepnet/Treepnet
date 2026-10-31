@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:app_ui/app_ui.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:posts_repository/posts_repository.dart';
 import 'package:shared/shared.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/chat/chat.dart';
@@ -81,8 +81,16 @@ class _NotificationTile extends StatelessWidget {
 
   void _onTap(BuildContext context) {
     if (item.actorId.isEmpty) return;
-    // Message notifications open the conversation; the rest open the actor's
-    // profile.
+    // A like or comment opens the post it's about; a message opens the
+    // conversation; a follow opens the person's profile. (Likes and comments
+    // used to open the liker's profile.)
+    final postId = item.postId;
+    if ((item.type == NotificationType.like ||
+            item.type == NotificationType.comment) &&
+        postId != null) {
+      context.pushNamed(AppRoutes.post.name, pathParameters: {'id': postId});
+      return;
+    }
     if (item.type == NotificationType.message) {
       unawaited(
         openChat(
@@ -112,8 +120,9 @@ class _NotificationTile extends StatelessWidget {
       leading: CircleAvatar(
         radius: 20,
         backgroundColor: Colors.white.withValues(alpha: 0.1),
+        // Cached, and decoded at the avatar's size.
         backgroundImage: (avatar != null && avatar.isNotEmpty)
-            ? NetworkImage(avatar)
+            ? ResizeImage(CachedNetworkImageProvider(avatar), width: 120)
             : null,
         child: (avatar == null || avatar.isEmpty)
             ? const Icon(Icons.person, color: Colors.white54)
@@ -168,7 +177,7 @@ class _NotificationTile extends StatelessWidget {
         return _FollowRequestButtons(requesterId: item.actorId);
       case NotificationType.like:
       case NotificationType.comment:
-        return item.postId == null ? null : _PostThumb(postId: item.postId!);
+        return item.postId == null ? null : _PostThumb(url: item.postThumbUrl);
       case NotificationType.message:
         return null;
     }
@@ -315,35 +324,33 @@ class _FollowRequestButtons extends StatelessWidget {
   }
 }
 
-/// The small post thumbnail on a like / comment notification.
+/// The small post thumbnail on a like / comment notification. Its address
+/// comes with the notification; each row used to fetch its whole post — again
+/// on every rebuild of the list — and decode the full photo uncached.
 class _PostThumb extends StatelessWidget {
-  const _PostThumb({required this.postId});
+  const _PostThumb({required this.url});
 
-  final String postId;
+  final String? url;
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Post?>(
-      future: context.read<PostsRepository>().getPostBy(id: postId),
-      builder: (context, snapshot) {
-        final media = snapshot.data?.media ?? const <Media>[];
-        final first = media.isEmpty ? null : media.first;
-        final url = first is ImageMedia
-            ? (first.thumbUrl ?? first.url)
-            : first?.url;
-        return Container(
-          width: 42,
-          height: 42,
-          clipBehavior: Clip.hardEdge,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            color: Colors.white.withValues(alpha: 0.08),
-          ),
-          child: url == null
-              ? null
-              : Image.network(url, fit: BoxFit.cover),
-        );
-      },
+    final url = this.url;
+    return Container(
+      width: 42,
+      height: 42,
+      clipBehavior: Clip.hardEdge,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.white.withValues(alpha: 0.08),
+      ),
+      child: url == null || url.isEmpty
+          ? null
+          : CachedNetworkImage(
+              imageUrl: url,
+              fit: BoxFit.cover,
+              memCacheWidth: 126,
+              errorWidget: (_, __, ___) => const SizedBox.shrink(),
+            ),
     );
   }
 }

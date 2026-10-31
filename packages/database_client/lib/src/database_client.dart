@@ -1500,16 +1500,31 @@ ORDER BY s.created_at DESC
             '''
 SELECT act.type AS type, act.actor_id AS actor_id, act.post_id AS post_id,
        act.content AS content, act.created_at AS created_at,
+       act.post_thumb AS post_thumb,
        pr.username AS actor_username, pr.avatar_url AS actor_avatar,
        pr.full_name AS actor_name
 FROM (
   SELECT 'like' AS type, l.user_id AS actor_id, l.post_id AS post_id,
-         NULL AS content, l.created_at AS created_at
+         NULL AS content, l.created_at AS created_at,
+         CASE WHEN json_valid(p.media) THEN
+           CASE json_extract(p.media, '\$[0].type')
+             WHEN '__video_media__' THEN json_extract(p.media, '\$[0].first_frame_url')
+             ELSE coalesce(json_extract(p.media, '\$[0].thumb_url'),
+                           json_extract(p.media, '\$[0].url'))
+           END
+         END AS post_thumb
   FROM likes l
   JOIN posts p ON p.id = l.post_id
   WHERE p.user_id = ?1 AND l.user_id != ?1 AND l.post_id IS NOT NULL
   UNION ALL
-  SELECT 'comment', c.user_id, c.post_id, c.content, c.created_at
+  SELECT 'comment', c.user_id, c.post_id, c.content, c.created_at,
+         CASE WHEN json_valid(p.media) THEN
+           CASE json_extract(p.media, '\$[0].type')
+             WHEN '__video_media__' THEN json_extract(p.media, '\$[0].first_frame_url')
+             ELSE coalesce(json_extract(p.media, '\$[0].thumb_url'),
+                           json_extract(p.media, '\$[0].url'))
+           END
+         END
   FROM comments c
   JOIN posts p ON p.id = c.post_id
   WHERE p.user_id = ?1 AND c.user_id != ?1
@@ -1517,7 +1532,7 @@ FROM (
   -- A pending row is a follow REQUEST (Accept/Decline); an accepted row is a
   -- plain "started following you" notice.
   SELECT (CASE WHEN s.status = 'pending' THEN 'follow_request' ELSE 'follow' END),
-         s.subscriber_id, NULL, NULL, s.created_at
+         s.subscriber_id, NULL, NULL, s.created_at, NULL
   FROM subscriptions s
   WHERE s.subscribed_to_id = ?1 AND s.subscriber_id != ?1
 ) act
@@ -1541,6 +1556,7 @@ LIMIT 80
                     actorAvatarUrl: row['actor_avatar'] as String?,
                     actorFullName: row['actor_name'] as String?,
                     postId: row['post_id'] as String?,
+                    postThumbUrl: row['post_thumb'] as String?,
                     content: row['content'] as String?,
                     createdAt: DateTime.tryParse(
                       (row['created_at'] as String?) ?? '',
