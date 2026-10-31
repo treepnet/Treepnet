@@ -115,6 +115,7 @@ class StoryItem {
     Map<String, dynamic>? requestHeaders,
     Widget? loadingWidget,
     Widget? errorWidget,
+    StoryErrorBuilder? errorBuilder,
     EdgeInsetsGeometry? captionOuterPadding,
     Duration? duration,
   }) {
@@ -131,6 +132,7 @@ class StoryItem {
               requestHeaders: requestHeaders,
               loadingWidget: loadingWidget,
               errorWidget: errorWidget,
+              errorBuilder: errorBuilder,
             ),
             SafeArea(
               child: Align(
@@ -171,6 +173,7 @@ class StoryItem {
     bool roundedBottom = false,
     Widget? loadingWidget,
     Widget? errorWidget,
+    StoryErrorBuilder? errorBuilder,
     EdgeInsetsGeometry? captionOuterPadding,
     Duration? duration,
   }) {
@@ -190,6 +193,7 @@ class StoryItem {
                   requestHeaders: requestHeaders,
                   loadingWidget: loadingWidget,
                   errorWidget: errorWidget,
+                  errorBuilder: errorBuilder,
                 ),
                 Container(
                   margin: EdgeInsets.only(bottom: 16),
@@ -450,6 +454,7 @@ class StoryViewState extends State<StoryView> with TickerProviderStateMixin {
   Timer? _nextDebouncer;
 
   StreamSubscription<PlaybackState>? _playbackSubscription;
+  StreamSubscription<void>? _rewindSubscription;
 
   VerticalDragInfo? verticalDragInfo;
 
@@ -506,6 +511,15 @@ class StoryViewState extends State<StoryView> with TickerProviderStateMixin {
       }
     });
 
+    _rewindSubscription = widget.controller.rewinds.listen((_) {
+      final controller = _animationController;
+      if (controller == null) return;
+      final playing = controller.isAnimating;
+      // Setting the value stops the animation.
+      controller.value = 0;
+      if (playing) controller.forward();
+    });
+
     _play();
   }
 
@@ -515,6 +529,7 @@ class StoryViewState extends State<StoryView> with TickerProviderStateMixin {
 
     _animationController?.dispose();
     _playbackSubscription?.cancel();
+    _rewindSubscription?.cancel();
 
     super.dispose();
   }

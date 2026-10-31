@@ -11,6 +11,11 @@ class StoryController {
   /// Stream that broadcasts the playback state of the stories.
   final playbackNotifier = BehaviorSubject<PlaybackState>();
 
+  final _rewinds = PublishSubject<void>();
+
+  /// Fires when the current page's progress should go back to the start.
+  Stream<void> get rewinds => _rewinds.stream;
+
   /// Notify listeners with a [PlaybackState.pause] state
   void pause() {
     playbackNotifier.add(PlaybackState.pause);
@@ -29,9 +34,16 @@ class StoryController {
     playbackNotifier.add(PlaybackState.previous);
   }
 
+  /// Puts the current page's progress back to the start, leaving it paused or
+  /// playing as it was — e.g. when its media is being loaded again.
+  void rewind() {
+    _rewinds.add(null);
+  }
+
   /// Remember to call dispose when the story screen is disposed to close
   /// the notifier stream.
   void dispose() {
     playbackNotifier.close();
+    _rewinds.close();
   }
 }

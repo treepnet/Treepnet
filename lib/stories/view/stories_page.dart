@@ -146,6 +146,29 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
 
   /// Called when the last story of the current batch finishes — which is also
   /// what a forward tap on the last story triggers.
+  /// Starts downloading the story the next profile opens on, while this
+  /// profile's last one plays — rolling on used to wait for it from scratch.
+  /// The continuation is asked again when this one ends; it only reads the
+  /// local database.
+  Future<void> _prefetchNextProfile() async {
+    final continuation = _props.continuation;
+    if (continuation == null) return;
+    try {
+      final next = await continuation();
+      if (next == null || next.stories.isEmpty) return;
+      // The viewer opens on the first unseen story, else on the first.
+      final opening = next.stories.firstWhere(
+        (story) => !story.seen,
+        orElse: () => next.stories.first,
+      );
+      if (opening.contentType == StoryContentType.image) {
+        ImageLoader.prefetch(opening.contentUrl);
+      }
+    } catch (_) {
+      // Only a head start: the viewer loads it anyway when it gets there.
+    }
+  }
+
   Future<void> _onStoriesComplete() async {
     final continuation = _props.continuation;
     if (continuation == null) {
@@ -479,6 +502,10 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
                                           StoryContentType.image) {
                                         ImageLoader.prefetch(next.contentUrl);
                                       }
+                                    } else {
+                                      // The profile's last story: warm the
+                                      // next profile's opening one instead.
+                                      _prefetchNextProfile();
                                     }
                                     // Record the view for the "seen by" list — but never your
                                     // own story.
@@ -782,6 +809,7 @@ extension on List<Story> {
         controller: controller,
         duration: 5.seconds,
         roundedTop: false,
+        errorBuilder: (context, retry) => _StoryLoadError(onRetry: retry),
       ),
       StoryContentType.video => StoryItem.pageVideo(
         story.contentUrl,
@@ -791,6 +819,74 @@ extension on List<Story> {
       ),
     },
   ).toList();
+}
+
+/// What a story shows when its photo won't load: what happened, and Retry.
+/// The progress bar keeps running meanwhile, so the viewer still moves on by
+/// itself.
+class _StoryLoadError extends StatelessWidget {
+  const _StoryLoadError({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xlg),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.cloud_off_rounded,
+            color: AppColors.white,
+            size: 40,
+          ),
+          const Gap.v(AppSpacing.md),
+          Text(
+            context.l10n.storyLoadFailedText,
+            textAlign: TextAlign.center,
+            style: context.bodyMedium?.copyWith(color: AppColors.white),
+          ),
+          const Gap.v(AppSpacing.lg),
+          // Not a regular button: the story's own tap-to-advance would take
+          // the tap and skip to the next story.
+          StoryTapTarget(
+            onTap: onRetry,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg,
+                  vertical: AppSpacing.sm,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.refresh_rounded,
+                      color: AppColors.white,
+                      size: 18,
+                    ),
+                    const Gap.h(AppSpacing.xs),
+                    Text(
+                      context.l10n.retryText,
+                      style: context.labelLarge?.copyWith(
+                        color: AppColors.white,
+                        fontWeight: AppFontWeight.semiBold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Back closes the reply keyboard before it leaves the story.

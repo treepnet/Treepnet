@@ -1875,6 +1875,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get storyNotReadyText => 'Couldn\'t prepare the story. Try again.';
 
   @override
+  String get storyLoadFailedText => 'Couldn\'t load the story';
+
+  @override
   String get placeRegionUnknownText =>
       'Couldn\'t tell which region this place is in.';
 

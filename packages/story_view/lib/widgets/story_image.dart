@@ -22,6 +22,14 @@ class ImageLoader {
   /// arriving during that async gap doesn't start a duplicate decode.
   bool _decoding = false;
 
+  /// How long a load may take before it counts as failed. On a stalled
+  /// connection the download never errors — it just never finishes — and the
+  /// story sat on a spinner for good.
+  static const timeout = Duration(seconds: 15);
+
+  StreamSubscription<FileResponse>? _subscription;
+  Timer? _timeout;
+
   ImageLoader(this.url, {this.requestHeaders});
 
   /// Warms the disk cache for [url] so a story opens without a network wait
@@ -42,16 +50,30 @@ class ImageLoader {
 
   /// Load image from disk cache first, if not found then load from network.
   /// `onComplete` is called when [imageBytes] become available.
+  ///
+  /// Calling it again after a failure is a retry. The download itself carries
+  /// on in the cache manager after a timeout, so a retry often finds it done.
   void loadImage(VoidCallback onComplete) {
     if (this.frames != null) {
       this.state = LoadState.success;
       onComplete();
+      return;
     }
+
+    cancel();
+    this.state = LoadState.loading;
+    _timeout = Timer(timeout, () {
+      // The file is here and being decoded: that finishes on its own.
+      if (_decoding) return;
+      cancel();
+      this.state = LoadState.failure;
+      onComplete();
+    });
 
     final fileStream = DefaultCacheManager().getFileStream(this.url,
         headers: this.requestHeaders as Map<String, String>?);
 
-    fileStream.listen(
+    _subscription = fileStream.listen(
       (fileResponse) async {
         if (!(fileResponse is FileInfo)) return;
         // the reason for this is that, when the cache manager fetches
@@ -77,15 +99,33 @@ class ImageLoader {
         } finally {
           _decoding = false;
         }
+        cancel();
         onComplete();
       },
       onError: (error) {
+        cancel();
         this.state = LoadState.failure;
         onComplete();
       },
     );
   }
+
+  /// Stops listening for this load (the page went away, or it is being
+  /// retried). The download, if any, still lands in the disk cache.
+  void cancel() {
+    _timeout?.cancel();
+    _timeout = null;
+    _subscription?.cancel();
+    _subscription = null;
+  }
 }
+
+/// Builds what a story shows when its media fails to load. [retry] loads it
+/// again.
+typedef StoryErrorBuilder = Widget Function(
+  BuildContext context,
+  VoidCallback retry,
+);
 
 /// Widget to display animated gifs or still images. Shows a loader while image
 /// is being loaded. Listens to playback states from [controller] to pause and
@@ -99,6 +139,9 @@ class StoryImage extends StatefulWidget {
   final Widget? loadingWidget;
   final Widget? errorWidget;
 
+  /// Takes precedence over [errorWidget], and can offer a retry.
+  final StoryErrorBuilder? errorBuilder;
+
   StoryImage(
     this.imageLoader, {
     Key? key,
@@ -106,6 +149,7 @@ class StoryImage extends StatefulWidget {
     this.fit,
     this.loadingWidget,
     this.errorWidget,
+    this.errorBuilder,
   }) : super(key: key ?? UniqueKey());
 
   /// Use this shorthand to fetch images/gifs from the provided [url]
@@ -116,6 +160,7 @@ class StoryImage extends StatefulWidget {
     BoxFit fit = BoxFit.fitWidth,
     Widget? loadingWidget,
     Widget? errorWidget,
+    StoryErrorBuilder? errorBuilder,
     Key? key,
   }) {
     return StoryImage(
@@ -127,6 +172,7 @@ class StoryImage extends StatefulWidget {
         fit: fit,
         loadingWidget: loadingWidget,
         errorWidget: errorWidget,
+        errorBuilder: errorBuilder,
         key: key,
     );
   }
@@ -162,6 +208,10 @@ class StoryImageState extends State<StoryImage> {
       });
     }
 
+    _load();
+  }
+
+  void _load() {
     widget.controller?.pause();
 
     widget.imageLoader.loadImage(() async {
@@ -170,17 +220,28 @@ class StoryImageState extends State<StoryImage> {
           widget.controller?.play();
           forward();
         } else {
-          // refresh to show error
+          // Show the error, and let the progress bar run: the viewer moves on
+          // by itself instead of sitting on a story that won't load.
           setState(() {});
+          widget.controller?.play();
         }
       }
     });
+  }
+
+  /// Loads the image again, from the start of its progress bar.
+  void _retry() {
+    widget.controller?.pause();
+    widget.controller?.rewind();
+    _load();
+    setState(() {});
   }
 
   @override
   void dispose() {
     _timer?.cancel();
     _streamSubscription?.cancel();
+    widget.imageLoader.cancel();
 
     super.dispose();
   }
@@ -222,7 +283,8 @@ class StoryImageState extends State<StoryImage> {
         fit: widget.fit,
         currentFrame: this.currentFrame,
         loadingWidget: widget.loadingWidget,
-        errorWidget: widget.errorWidget,
+        errorWidget: widget.errorBuilder?.call(context, _retry) ??
+            widget.errorWidget,
       ),
     );
   }

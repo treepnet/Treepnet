@@ -983,6 +983,7 @@
   "signInIdInvalidText": "Enter your username or email.",
   "newPostsText": "New posts",
   "storyNotReadyText": "Couldn't prepare the story. Try again.",
+  "storyLoadFailedText": "Couldn't load the story",
   "placeRegionUnknownText": "Couldn't tell which region this place is in.",
   "sharedToSomeText": "Sent to {sent} of {total}",
   "@sharedToSomeText": {

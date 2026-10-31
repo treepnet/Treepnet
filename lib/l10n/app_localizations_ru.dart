@@ -1905,6 +1905,9 @@ class AppLocalizationsRu extends AppLocalizations {
       'Не удалось подготовить историю. Попробуйте ещё раз.';
 
   @override
+  String get storyLoadFailedText => 'Не удалось загрузить историю';
+
+  @override
   String get placeRegionUnknownText =>
       'Не удалось определить регион этого места.';
 
