@@ -15,6 +15,9 @@ Future<void> _removeLegacyOutbox() => _legacyOutboxRemoval ??= () async {
       Hive.init(dir.path);
     }
     await Hive.deleteBoxFromDisk('crm_outbox');
+    // Also an old version's list of every sent message's key, rewritten in
+    // the keychain on each message and never used.
+    await _SecureStorage.storage.delete(key: _SecureStorage.messageKeyList);
   } catch (e) {
     _ChatLogger.failure('Old outbox not removed: $e');
   }

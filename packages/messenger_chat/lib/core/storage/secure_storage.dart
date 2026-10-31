@@ -27,33 +27,6 @@ mixin _SecureStorage {
     await storage.write(key: baseUrl, value: value);
   }
 
-  /// Writes to the keychain, recovering from iOS's errSecDuplicateItem (-25299)
-  /// — which a plain `write` can throw ("item already exists in this keychain")
-  /// — by deleting the stale item and writing once more. Never throws.
-  static Future<void> _safeWrite(String key, String value) async {
-    try {
-      await storage.write(key: key, value: value);
-    } catch (_) {
-      try {
-        await storage.delete(key: key);
-        await storage.write(key: key, value: value);
-      } catch (_) {
-        // Best-effort: on a persistent keychain failure, skip rather than crash.
-      }
-    }
-  }
-
-  static Future<void> setMessageKeyList(List<String> values) async {
-    final encoded = jsonEncode(values);
-    await _safeWrite(messageKeyList, encoded);
-  }
-
-  static Future<List<String>> getMessageKeyList() async {
-    final value = await storage.read(key: messageKeyList);
-    if (value == null) return [];
-    return List<String>.from(jsonDecode(value));
-  }
-
   static Future<String> getUserUuid() async {
     final value = await storage.read(key: userUuid);
     return value ?? '';

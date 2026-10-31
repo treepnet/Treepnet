@@ -42,6 +42,14 @@ class _MessageListState extends State<_MessageList> {
 
   @override
   Widget build(BuildContext context) => BlocBuilder<ChatCubit, ChatState>(
+    // Not on "typing…" and other state the list doesn't show: it used to
+    // rebuild every message each time the peer started or stopped typing.
+    buildWhen: (previous, current) =>
+        previous.messages != current.messages ||
+        previous.isLoading != current.isLoading ||
+        previous.isLoadMore != current.isLoadMore ||
+        previous.failure != current.failure ||
+        previous.config != current.config,
     builder: (context, state) => RefreshIndicator(
       notificationPredicate: (scrollNotification) {
         if (scrollNotification is ScrollEndNotification) {
@@ -215,15 +223,10 @@ class _MessageListState extends State<_MessageList> {
                                   !message.isFromPeer)
                                 return;
 
-                              unawaited(
-                                _ChatSocket.markRead(
-                                  messageId: message.id,
-                                ),
-                              );
-
-                              context.read<ChatCubit>().markMessageAsRead(
-                                message.id,
-                              );
+                              // One signal for all of them (see markAsRead).
+                              context.read<ChatCubit>()
+                                ..markAsRead()
+                                ..markMessageAsRead(message.id);
                             },
                             child: _SwipeToReply(
                               enabled:

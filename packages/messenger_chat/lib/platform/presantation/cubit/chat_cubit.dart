@@ -233,14 +233,6 @@ class ChatCubit extends Cubit<ChatState> {
     }
     _ChatLogger.print('📥 Cubit: Adding message ID=${message.id} to UI state');
 
-    if (message.key.isNotEmpty) {
-      final messageKeys = await _SecureStorage.getMessageKeyList();
-      if (!messageKeys.contains(message.key)) {
-        messageKeys.add(message.key);
-        await _SecureStorage.setMessageKeyList(messageKeys);
-      }
-    }
-
     if (state.isBackgroundApp) {
       MessengerChat.notificationController.add(
         ChatModel(
@@ -283,8 +275,26 @@ class ChatCubit extends Cubit<ChatState> {
     }
   }
 
+  Timer? _readTimer;
+
+  /// Marks the conversation read — once for a burst. Every unread message
+  /// that scrolled into view, and every one that arrived, used to send its
+  /// own signal (20 unread on opening = 20+ signals).
   void markAsRead() {
-    unawaited(_ChatSocket.markRead());
+    _readTimer?.cancel();
+    _readTimer = Timer(
+      const Duration(milliseconds: 300),
+      () => unawaited(_ChatSocket.markRead()),
+    );
+  }
+
+  @override
+  Future<void> close() {
+    // Leaving within the burst window: still send it.
+    if (_readTimer?.isActive ?? false) unawaited(_ChatSocket.markRead());
+    _readTimer?.cancel();
+    _typingTimer?.cancel();
+    return super.close();
   }
 
   /// Serverga yetmagan xabarni o'chiradi.
@@ -317,8 +327,6 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   Future<void> updateMessage(_MessageModel message) async {
-    final messageKeys = await _SecureStorage.getMessageKeyList();
-
     bool matched = false;
     final updatedMessages = state.messages.messages.map((e) {
       if (message.key.isNotEmpty && e.key == message.key) {
@@ -359,16 +367,12 @@ class ChatCubit extends Cubit<ChatState> {
       }
     }
 
-    messageKeys.remove(message.key);
-
     emit(
       state.copyWith(
         messages: state.messages.copyWith(messages: updatedMessages),
         unreadCount: 0,
       ),
     );
-
-    await _SecureStorage.setMessageKeyList(messageKeys);
   }
 
   Timer? _typingTimer;

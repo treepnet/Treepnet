@@ -441,9 +441,6 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
       ),
     );
 
-    final List<String> data = await _SecureStorage.getMessageKeyList();
-    _SecureStorage.setMessageKeyList(data..add(key));
-
     await _ChatSocket.send(
       ChatOutgoingMessage(
         clientKey: key,
@@ -834,6 +831,9 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
                     children: [
                       // Typing indicator
                       BlocBuilder<ChatCubit, ChatState>(
+                        buildWhen: (previous, current) =>
+                            previous.isTyping != current.isTyping ||
+                            previous.typingType != current.typingType,
                         builder: (context, state) {
                           return _AnimatedVisible(
                             visible:
