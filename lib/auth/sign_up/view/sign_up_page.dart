@@ -2,6 +2,8 @@ import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
+import 'package:treepnet/auth/auth_error_text.dart';
+import 'package:treepnet/auth/resend_code_button.dart';
 import 'package:treepnet/auth/sign_up/cubit/sign_up_cubit.dart';
 import 'package:treepnet/auth/sign_up/widgets/widgets.dart';
 import 'package:treepnet/l10n/l10n.dart';
@@ -41,8 +43,9 @@ class SignUpView extends StatelessWidget {
               SignUpError.usernameTaken => l10n.signUpUsernameTakenError,
               SignUpError.invalidEmail => l10n.signUpInvalidEmailError,
               SignUpError.invalidCode => l10n.signUpInvalidCodeError,
-              // No local cause: the identity service explained why.
-              null => state.errorMessage ?? l10n.signUpGenericError,
+              // No local cause: the identity service's reason, in the app's
+              // language (its own text is English only).
+              null => authErrorTextFor(l10n, state.errorCode),
             };
             openSnackbar(
               SnackbarMessage.error(title: title),
@@ -120,7 +123,25 @@ class _CodeStep extends StatelessWidget {
   const _CodeStep();
 
   @override
-  Widget build(BuildContext context) => const CodeTextField();
+  Widget build(BuildContext context) {
+    final sentAt = context.select((SignUpCubit c) => c.state.codeSentAt);
+    final busy = context.select(
+      (SignUpCubit c) => c.state.submissionStatus.isLoading,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const CodeTextField(),
+        const Gap.v(AppSpacing.sm),
+        ResendCodeButton(
+          sentAt: sentAt,
+          wait: SignUpCubit.resendCodeAfter,
+          enabled: !busy,
+          onPressed: () => context.read<SignUpCubit>().resendCode(),
+        ),
+      ],
+    );
+  }
 }
 
 class _StepTitle extends StatelessWidget {

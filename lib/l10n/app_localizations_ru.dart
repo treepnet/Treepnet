@@ -1857,5 +1857,30 @@ class AppLocalizationsRu extends AppLocalizations {
   String get chatMessageDeletedPreviewText => 'Сообщение удалено';
 
   @override
+  String get authCodeExpiredText =>
+      'Срок действия кода истёк. Отправьте новый.';
+
+  @override
+  String get authCodeAttemptsText =>
+      'Слишком много попыток. Отправьте новый код.';
+
+  @override
+  String get enterUsernameOrEmailText => 'Введите имя пользователя или почту.';
+
+  @override
+  String enterCodeText(int length) {
+    return 'Введите $length-значный код.';
+  }
+
+  @override
+  String resendCodeInText(String time) {
+    return 'Отправить снова через $time';
+  }
+
+  @override
+  String get deleteAccountFailedText =>
+      'Не удалось удалить аккаунт. Попробуйте ещё раз.';
+
+  @override
   String get searchNothingFoundText => 'Ничего не найдено';
 }

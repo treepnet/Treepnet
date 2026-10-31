@@ -1,7 +1,8 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:treepnet/app/app.dart';
+import 'package:treepnet/auth/auth_error_text.dart';
+import 'package:treepnet/auth/resend_code_button.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:user_repository/user_repository.dart';
 
@@ -31,6 +32,10 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   String? _error;
   bool _obscure = true;
 
+  /// When the last code was emailed ("Send again" waits a minute).
+  DateTime? _codeSentAt;
+  static const _resendAfter = Duration(seconds: 60);
+
   @override
   void dispose() {
     _identifier.dispose();
@@ -44,7 +49,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   Future<void> _sendCode() async {
     final id = _identifier.text.trim();
     if (id.isEmpty) {
-      setState(() => _error = 'Enter your username or email.');
+      setState(() => _error = context.l10n.enterUsernameOrEmailText);
       return;
     }
     setState(() {
@@ -57,10 +62,11 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       setState(() {
         _continuationToken = result.continuationToken;
         _codeLength = result.codeLength;
+        _codeSentAt = DateTime.now();
         _step = _Step.verify;
       });
     } catch (error) {
-      if (mounted) setState(() => _error = _message(error));
+      if (mounted) setState(() => _error = authErrorText(context.l10n, error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -70,11 +76,11 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     final code = _code.text.trim();
     final password = _password.text;
     if (code.length < _codeLength) {
-      setState(() => _error = 'Enter the $_codeLength-digit code.');
+      setState(() => _error = context.l10n.enterCodeText(_codeLength));
       return;
     }
     if (password.length < 8) {
-      setState(() => _error = 'Password must be at least 8 characters.');
+      setState(() => _error = context.l10n.passwordLengthErrorText(8));
       return;
     }
     setState(() {
@@ -90,26 +96,10 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       if (!mounted) return;
       setState(() => _step = _Step.done);
     } catch (error) {
-      if (mounted) setState(() => _error = _message(error));
+      if (mounted) setState(() => _error = authErrorText(context.l10n, error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  static String _message(Object error) {
-    final text = error.toString();
-    // Transport failures surface as a wall of Dio/HttpException detail; say
-    // something a person can act on instead.
-    if (text.contains('DioException') ||
-        text.contains('SocketException') ||
-        text.contains('HttpException') ||
-        text.contains('connection abort')) {
-      return l10nGlobal.networkProblemText;
-    }
-    // The failures carry a friendly sentence; strip the wrapper noise.
-    final match = RegExp(r'\((.+)\)$', dotAll: true).firstMatch(text);
-    final inner = match?.group(1) ?? text;
-    return inner.replaceAll('Instance of ', '').trim();
   }
 
   @override
@@ -198,9 +188,11 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       const Gap.v(AppSpacing.lg),
       _primaryButton(label: context.l10n.changePasswordText, onTap: _submit),
       const Gap.v(AppSpacing.md),
-      TextButton(
-        onPressed: _busy ? null : _sendCode,
-        child: Text(context.l10n.sendCodeAgainText),
+      ResendCodeButton(
+        sentAt: _codeSentAt,
+        wait: _resendAfter,
+        enabled: !_busy,
+        onPressed: _sendCode,
       ),
     ],
   );

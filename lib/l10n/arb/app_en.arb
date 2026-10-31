@@ -950,5 +950,25 @@
   "chatVoicePreviewText": "Voice message",
   "chatFilePreviewText": "File",
   "chatMessageDeletedPreviewText": "Message deleted",
+  "authCodeExpiredText": "This code has expired. Send a new one.",
+  "authCodeAttemptsText": "Too many attempts. Send a new code.",
+  "enterUsernameOrEmailText": "Enter your username or email.",
+  "enterCodeText": "Enter the {length}-digit code.",
+  "@enterCodeText": {
+    "placeholders": {
+      "length": {
+        "type": "int"
+      }
+    }
+  },
+  "resendCodeInText": "Send again in {time}",
+  "@resendCodeInText": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteAccountFailedText": "Couldn't delete the account. Try again.",
   "searchNothingFoundText": "Nothing found"
 }

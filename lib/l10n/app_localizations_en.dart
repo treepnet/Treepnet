@@ -1832,5 +1832,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatMessageDeletedPreviewText => 'Message deleted';
 
   @override
+  String get authCodeExpiredText => 'This code has expired. Send a new one.';
+
+  @override
+  String get authCodeAttemptsText => 'Too many attempts. Send a new code.';
+
+  @override
+  String get enterUsernameOrEmailText => 'Enter your username or email.';
+
+  @override
+  String enterCodeText(int length) {
+    return 'Enter the $length-digit code.';
+  }
+
+  @override
+  String resendCodeInText(String time) {
+    return 'Send again in $time';
+  }
+
+  @override
+  String get deleteAccountFailedText =>
+      'Couldn\'t delete the account. Try again.';
+
+  @override
   String get searchNothingFoundText => 'Nothing found';
 }

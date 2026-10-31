@@ -91,7 +91,8 @@ class SignupState extends Equatable {
     required this.code,
     this.continuationToken,
     this.codeLength = 6,
-    this.errorMessage,
+    this.codeSentAt,
+    this.errorCode,
     this.error,
   });
 
@@ -122,9 +123,13 @@ class SignupState extends Equatable {
   /// How many digits the emailed code has.
   final int codeLength;
 
-  /// Text supplied by the identity service (already human-readable) when the
-  /// backend rejected the step — e.g. the password was refused.
-  final String? errorMessage;
+  /// When the last code was emailed — "Send again" waits a minute after it.
+  final DateTime? codeSentAt;
+
+  /// The auth service's code for why it refused the step (`invalid_code`,
+  /// `user_already_exists`, ...), shown as text in the app's language
+  /// (`authErrorTextFor`). Its own messages are English only.
+  final String? errorCode;
 
   /// Locally-detected cause, rendered by the screen in the current language.
   final SignUpError? error;
@@ -163,7 +168,8 @@ class SignupState extends Equatable {
     Otp? code,
     String? continuationToken,
     int? codeLength,
-    String? errorMessage,
+    DateTime? codeSentAt,
+    String? errorCode,
     SignUpError? error,
   }) => SignupState._(
     email: email ?? this.email,
@@ -177,8 +183,9 @@ class SignupState extends Equatable {
     code: code ?? this.code,
     continuationToken: continuationToken ?? this.continuationToken,
     codeLength: codeLength ?? this.codeLength,
+    codeSentAt: codeSentAt ?? this.codeSentAt,
     // Not `??` — a new step must be able to clear a stale error.
-    errorMessage: errorMessage,
+    errorCode: errorCode,
     error: error,
   );
 
@@ -195,7 +202,8 @@ class SignupState extends Equatable {
     code,
     continuationToken,
     codeLength,
-    errorMessage,
+    codeSentAt,
+    errorCode,
     error,
   ];
 }

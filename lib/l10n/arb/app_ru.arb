@@ -896,5 +896,11 @@
   "chatVoicePreviewText": "Голосовое сообщение",
   "chatFilePreviewText": "Файл",
   "chatMessageDeletedPreviewText": "Сообщение удалено",
+  "authCodeExpiredText": "Срок действия кода истёк. Отправьте новый.",
+  "authCodeAttemptsText": "Слишком много попыток. Отправьте новый код.",
+  "enterUsernameOrEmailText": "Введите имя пользователя или почту.",
+  "enterCodeText": "Введите {length}-значный код.",
+  "resendCodeInText": "Отправить снова через {time}",
+  "deleteAccountFailedText": "Не удалось удалить аккаунт. Попробуйте ещё раз.",
   "searchNothingFoundText": "Ничего не найдено"
 }

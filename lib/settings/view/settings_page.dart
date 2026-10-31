@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
+import 'package:treepnet/auth/auth_error_text.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/selector/selector.dart';
 import 'package:treepnet/stories/view/story_archive_page.dart';
@@ -87,25 +88,26 @@ class SettingsPage extends StatelessWidget {
       );
       // A successful delete signs out; AppBloc routes back to login on its own.
     } on LogInWithPasswordFailure catch (error, stackTrace) {
-      // The password step failed. Usually a wrong password, but network
-      // errors land here too — show the real reason rather than assuming.
+      // The password step failed: usually a wrong password, sometimes the
+      // network — said in the app's language, not as the exception's text.
       debugPrint('DELETE_ACCT password step failed: $error\n$stackTrace');
-      openSnackbar(SnackbarMessage.error(title: _shortError(error)));
+      if (!context.mounted) return;
+      openSnackbar(
+        SnackbarMessage.error(title: authErrorText(context.l10n, error)),
+      );
     } catch (error, stackTrace) {
       // Password was accepted but the delete itself failed (RPC/permission).
       debugPrint('DELETE_ACCT delete step failed: $error\n$stackTrace');
+      if (!context.mounted) return;
+      final l10n = context.l10n;
       openSnackbar(
-        SnackbarMessage.error(title: context.l10n.deleteFailedText(_shortError(error))),
+        SnackbarMessage.error(
+          title: authErrorCode(error) == AuthServiceError.networkCode
+              ? l10n.networkProblemText
+              : l10n.deleteAccountFailedText,
+        ),
       );
     }
-  }
-
-  /// Trims the wrapper noise off an exception so the snackbar is readable.
-  static String _shortError(Object error) {
-    final text = error.toString().replaceAll('Instance of ', '');
-    final match = RegExp(r'\((.+)\)$', dotAll: true).firstMatch(text);
-    final inner = (match?.group(1) ?? text).trim();
-    return inner.length > 140 ? '${inner.substring(0, 140)}…' : inner;
   }
 
   @override

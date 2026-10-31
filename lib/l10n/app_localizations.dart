@@ -3123,6 +3123,42 @@ abstract class AppLocalizations {
   /// **'Message deleted'**
   String get chatMessageDeletedPreviewText;
 
+  /// No description provided for @authCodeExpiredText.
+  ///
+  /// In en, this message translates to:
+  /// **'This code has expired. Send a new one.'**
+  String get authCodeExpiredText;
+
+  /// No description provided for @authCodeAttemptsText.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many attempts. Send a new code.'**
+  String get authCodeAttemptsText;
+
+  /// No description provided for @enterUsernameOrEmailText.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your username or email.'**
+  String get enterUsernameOrEmailText;
+
+  /// No description provided for @enterCodeText.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the {length}-digit code.'**
+  String enterCodeText(int length);
+
+  /// No description provided for @resendCodeInText.
+  ///
+  /// In en, this message translates to:
+  /// **'Send again in {time}'**
+  String resendCodeInText(String time);
+
+  /// No description provided for @deleteAccountFailedText.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t delete the account. Try again.'**
+  String get deleteAccountFailedText;
+
   /// No description provided for @searchNothingFoundText.
   ///
   /// In en, this message translates to:

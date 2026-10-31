@@ -1,12 +1,10 @@
 
 import 'package:bloc/bloc.dart';
 import 'package:firebase_authentication_client/firebase_authentication_client.dart'
-    show
-        AuthServiceError,
-        FirebaseAuthenticationClient,
-        SignUpWithPasswordFailure;
+    show FirebaseAuthenticationClient;
 import 'package:equatable/equatable.dart';
 import 'package:form_fields/form_fields.dart';
+import 'package:treepnet/auth/auth_error_text.dart';
 import 'package:treepnet/referral/pending_referral.dart';
 import 'package:user_repository/user_repository.dart';
 
@@ -231,6 +229,7 @@ class SignUpCubit extends Cubit<SignupState> {
           step: SignUpStep.code,
           continuationToken: result.continuationToken,
           codeLength: result.codeLength,
+          codeSentAt: DateTime.now(),
           submissionStatus: SignUpSubmissionStatus.idle,
         ),
       );
@@ -244,7 +243,7 @@ class SignUpCubit extends Cubit<SignupState> {
           state.copyWith(
             step: SignUpStep.details,
             submissionStatus: SignUpSubmissionStatus.error,
-            errorMessage: _describe(e),
+            errorCode: authErrorCode(e),
           ),
         );
         return;
@@ -252,6 +251,41 @@ class SignUpCubit extends Cubit<SignupState> {
       _errorFormatter(e, stackTrace);
     }
   }
+
+  /// "Send again" on the code screen: emails a new code — a minute after the
+  /// last one at the earliest (the service keeps the first code for a repeat
+  /// within a minute anyway).
+  Future<void> resendCode() async {
+    final sentAt = state.codeSentAt;
+    if (sentAt != null &&
+        DateTime.now().difference(sentAt) < resendCodeAfter) {
+      return;
+    }
+    emit(state.copyWith(submissionStatus: SignUpSubmissionStatus.inProgress));
+    try {
+      final result = await _userRepository.signUpSendCode(
+        email: state.email.value.trim(),
+        password: state.password.value,
+        fullName: state.fullName.value.trim().isEmpty
+            ? state.username.value.trim()
+            : state.fullName.value.trim(),
+      );
+      if (isClosed) return;
+      emit(
+        state.copyWith(
+          continuationToken: result.continuationToken,
+          codeLength: result.codeLength,
+          codeSentAt: DateTime.now(),
+          submissionStatus: SignUpSubmissionStatus.idle,
+        ),
+      );
+    } catch (e, stackTrace) {
+      _errorFormatter(e, stackTrace);
+    }
+  }
+
+  /// How long "Send again" waits after a code was emailed.
+  static const resendCodeAfter = Duration(seconds: 60);
 
   /// Final screen. Verifies the code, signs in and provisions the profile.
   Future<void> submitCode() async {
@@ -280,6 +314,19 @@ class SignUpCubit extends Cubit<SignupState> {
       if (isClosed) return;
       emit(state.copyWith(submissionStatus: SignUpSubmissionStatus.success));
     } catch (e, stackTrace) {
+      // Someone took the username since the first step: back to it, where
+      // it can be changed.
+      if (authErrorCode(e) == 'username_taken') {
+        addError(e, stackTrace);
+        emit(
+          state.copyWith(
+            step: SignUpStep.details,
+            submissionStatus: SignUpSubmissionStatus.error,
+            error: SignUpError.usernameTaken,
+          ),
+        );
+        return;
+      }
       _errorFormatter(e, stackTrace);
     }
   }
@@ -303,27 +350,17 @@ class SignUpCubit extends Cubit<SignupState> {
     await PendingReferral.clear();
   }
 
-  /// Surfaces why a step failed. The auth client already translates Entra's
-  /// codes (banned password, address taken, wrong code) into readable text, so
-  /// carry that through to the screen rather than showing a generic failure.
+  /// Surfaces why a step failed: the service's error code, which the screen
+  /// shows as text in the app's language (wrong code, address taken, ...).
   void _errorFormatter(Object e, StackTrace stackTrace) {
     addError(e, stackTrace);
 
     emit(
       state.copyWith(
         submissionStatus: SignUpSubmissionStatus.error,
-        errorMessage: _describe(e),
+        errorCode: authErrorCode(e),
       ),
     );
-  }
-
-  /// Renders an error from the identity service as text worth showing.
-  String _describe(Object e) {
-    final inner = e is SignUpWithPasswordFailure ? e.error : e;
-    if (inner is AuthServiceError) {
-      return FirebaseAuthenticationClient.friendlyMessage(inner);
-    }
-    return inner.toString();
   }
 
   /// Reports a locally-detected problem; the screen renders [cause] in the

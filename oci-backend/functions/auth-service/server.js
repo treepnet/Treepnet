@@ -180,24 +180,27 @@ async function credentialsIfPassword(email, password, changedColumn) {
   return row.user_id;
 }
 
-// Validates a code for `email`; returns null on success or an error string.
-// Increments attempts on a wrong code. Deletes nothing (caller decides).
+// Validates a code for `email`; returns null on success or { error, code }
+// (the app shows its own text for each code, in its language). Increments
+// attempts on a wrong code. Deletes nothing (caller decides).
 async function checkCode(email, code, purpose) {
   const r = await pool.query(
     'select code, purpose, expires_at, attempts from auth_codes where email = $1',
     [email],
   );
   const row = r.rows[0];
-  if (!row || row.purpose !== purpose) return 'Invalid or expired code.';
+  if (!row || row.purpose !== purpose)
+    return { error: 'Invalid or expired code.', code: 'invalid_code' };
   if (new Date(row.expires_at) < new Date())
-    return 'Code has expired. Request a new one.';
-  if (row.attempts >= 5) return 'Too many attempts. Request a new code.';
+    return { error: 'Code has expired. Request a new one.', code: 'code_expired' };
+  if (row.attempts >= 5)
+    return { error: 'Too many attempts. Request a new code.', code: 'code_attempts' };
   if (!codeMatches(row.code, email, purpose, code)) {
     await pool.query(
       'update auth_codes set attempts = attempts + 1 where email = $1',
       [email],
     );
-    return 'Invalid code.';
+    return { error: 'Invalid code.', code: 'invalid_code' };
   }
   return null;
 }
@@ -339,7 +342,8 @@ async function revokeSessions(uid) {
 async function signupSendCode(res, b) {
   const email = (b.email || '').trim().toLowerCase();
   const password = b.password || '';
-  if (!isEmail(email)) return fail(res, 400, 'Enter a valid email address.');
+  if (!isEmail(email))
+    return fail(res, 400, 'Enter a valid email address.', 'invalid_email');
   if (password.length < 8)
     return fail(res, 400, 'Password must be at least 8 characters.', 'password_too_short');
   const existing = await pool.query(
@@ -365,7 +369,8 @@ async function signupVerify(res, b) {
   const password = b.password || '';
   const birthday = b.birthday || null;
 
-  if (!isEmail(email) || !code) return fail(res, 400, 'Invalid or expired code.');
+  if (!isEmail(email) || !code)
+    return fail(res, 400, 'Invalid or expired code.', 'invalid_code');
   if (!isUsername(username))
     return fail(res, 400, 'That username is not valid.', 'invalid_username');
   if (password.length < 8)
@@ -376,7 +381,7 @@ async function signupVerify(res, b) {
     // The same sign-up again: the first created the account. Sign in.
     const uid = await credentialsIfPassword(email, password, 'created_at');
     if (uid) return send(res, 200, { token: await mintToken(uid), userId: uid });
-    return fail(res, 400, codeErr, 'invalid_oob_value');
+    return fail(res, 400, codeErr.error, codeErr.code);
   }
 
   const client = await pool.connect();
@@ -488,7 +493,8 @@ async function resetVerify(res, b) {
   const email = (b.continuationToken || b.email || '').trim().toLowerCase();
   const code = (b.code || '').trim();
   const newPassword = b.newPassword || '';
-  if (!isEmail(email) || !code) return fail(res, 400, 'Invalid or expired code.');
+  if (!isEmail(email) || !code)
+    return fail(res, 400, 'Invalid or expired code.', 'invalid_code');
   if (newPassword.length < 8)
     return fail(res, 400, 'Choose a stronger password.', 'password_too_short');
 
@@ -498,7 +504,7 @@ async function resetVerify(res, b) {
     if (await credentialsIfPassword(email, newPassword, 'updated_at')) {
       return send(res, 200, { ok: true });
     }
-    return fail(res, 400, codeErr, 'invalid_oob_value');
+    return fail(res, 400, codeErr.error, codeErr.code);
   }
 
   const r = await pool.query(
@@ -508,7 +514,7 @@ async function resetVerify(res, b) {
     [email],
   );
   const uid = r.rows[0]?.user_id;
-  if (!uid) return fail(res, 400, 'Invalid or expired code.');
+  if (!uid) return fail(res, 400, 'Invalid or expired code.', 'invalid_code');
 
   // Before the password changes: if revoking fails, nothing has changed and
   // the same code still works for a retry.
