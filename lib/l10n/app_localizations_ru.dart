@@ -1901,6 +1901,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get newPostsText => 'Новые посты';
 
   @override
+  String get storyNotReadyText =>
+      'Не удалось подготовить историю. Попробуйте ещё раз.';
+
+  @override
   String sharedToSomeText(int sent, int total) {
     return 'Отправлено $sent из $total';
   }

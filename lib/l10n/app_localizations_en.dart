@@ -1872,6 +1872,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get newPostsText => 'New posts';
 
   @override
+  String get storyNotReadyText => 'Couldn\'t prepare the story. Try again.';
+
+  @override
   String sharedToSomeText(int sent, int total) {
     return 'Sent to $sent of $total';
   }

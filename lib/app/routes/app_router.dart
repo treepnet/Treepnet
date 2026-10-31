@@ -48,6 +48,7 @@ CreatePostProps? _lastPublishProps;
 /// rebuilds the same page instead of force-unwrapping a null `extra`.
 PostBlock? _lastEditPost;
 StoriesProps? _lastStoriesProps;
+CreateStoryProps? _lastCreateStoryProps;
 
 /// Shown when a route that needs `extra` is rebuilt without it *and* nothing was
 /// cached — only reachable by an unexpected cold entry (these routes are always
@@ -418,17 +419,27 @@ class AppRouter {
                     name: AppRoutes.createStories.name,
                     parentNavigatorKey: _rootNavigatorKey,
                     pageBuilder: (context, state) {
-                      final props = state.extra as CreateStoryProps?;
+                      // Cached like the routes above: without it a rebuild
+                      // lost onDone and "Done" crashed on `onDone!`.
+                      final props =
+                          state.extra as CreateStoryProps? ??
+                          _lastCreateStoryProps;
+                      if (props == null) {
+                        return const NoTransitionPage(
+                          child: _MissingRouteData(),
+                        );
+                      }
+                      _lastCreateStoryProps = props;
 
                       return CustomTransitionPage(
                         key: state.pageKey,
                         child: StoriesEditor(
-                          onDone: props?.onDone,
-                          initialMediaPath: props?.initialMediaPath,
+                          onDone: props.onDone,
+                          initialMediaPath: props.initialMediaPath,
                           // The editor cannot read EXIF or reverse-geocode; the
                           // app owns both, so it hands the lookup down.
                           onResolvePlace: (_) => resolveStoryPlaceLabel(
-                            mediaPath: props?.initialMediaPath,
+                            mediaPath: props.initialMediaPath,
                           ),
                           storiesEditorLocalizationDelegate:
                               storiesEditorLocalizationDelegate(context),

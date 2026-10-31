@@ -408,8 +408,10 @@ class _MainViewState extends State<MainView> with SafeSetStateMixin {
                                   context: context,
                                   onResolvePlace: widget.onResolvePlace,
                                   onDone: (bytes) {
+                                    // Null only if the route lost its data;
+                                    // nothing to hand the story to then.
                                     safeSetState(() {
-                                      widget.onDone!(bytes);
+                                      widget.onDone?.call(bytes);
                                     });
                                   },
                                 )),

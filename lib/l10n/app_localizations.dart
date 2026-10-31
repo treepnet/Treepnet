@@ -3189,6 +3189,12 @@ abstract class AppLocalizations {
   /// **'New posts'**
   String get newPostsText;
 
+  /// No description provided for @storyNotReadyText.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t prepare the story. Try again.'**
+  String get storyNotReadyText;
+
   /// No description provided for @sharedToSomeText.
   ///
   /// In en, this message translates to:

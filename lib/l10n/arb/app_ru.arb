@@ -907,6 +907,7 @@
   "avatarUpdateFailedText": "Не удалось обновить фото. Попробуйте ещё раз.",
   "signInIdInvalidText": "Введите имя пользователя или email.",
   "newPostsText": "Новые посты",
+  "storyNotReadyText": "Не удалось подготовить историю. Попробуйте ещё раз.",
   "sharedToSomeText": "Отправлено {sent} из {total}",
   "searchNothingFoundText": "Ничего не найдено",
   "cameraAccessDeniedText": "Чтобы снять историю, разрешите доступ к камере в настройках.",

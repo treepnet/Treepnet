@@ -99,5 +99,6 @@ StoriesEditorLocalizationDelegate storiesEditorLocalizationDelegate(
     successfullySavedText: l10n.successfullySavedText,
     tapToTypeText: l10n.tapToTypeText,
     uploadText: l10n.uploadText,
+    storyNotReadyText: l10n.storyNotReadyText,
   );
 }

@@ -31,6 +31,7 @@ class StoriesEditorLocalizationDelegate {
     this.discardText = 'Discard',
     this.draftEmpty = 'Draft empty',
     this.saveDraft = 'Save Draft',
+    this.storyNotReadyText = "Couldn't prepare the story. Try again.",
   });
 
   final String uploadText;
@@ -44,4 +45,8 @@ class StoriesEditorLocalizationDelegate {
   final String discardText;
   final String draftEmpty;
   final String saveDraft;
+
+  /// "Done" couldn't render the story (e.g. low memory); it can be tapped
+  /// again.
+  final String storyNotReadyText;
 }

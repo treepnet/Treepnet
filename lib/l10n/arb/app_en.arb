@@ -982,6 +982,7 @@
   "avatarUpdateFailedText": "Couldn't update the photo. Try again.",
   "signInIdInvalidText": "Enter your username or email.",
   "newPostsText": "New posts",
+  "storyNotReadyText": "Couldn't prepare the story. Try again.",
   "sharedToSomeText": "Sent to {sent} of {total}",
   "@sharedToSomeText": {
     "placeholders": {

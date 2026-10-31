@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,7 @@ import 'package:stories_editor/src/domain/providers/notifiers/control_provider.d
 import 'package:stories_editor/src/domain/providers/notifiers/draggable_widget_notifier.dart';
 import 'package:stories_editor/src/domain/providers/notifiers/painting_notifier.dart';
 import 'package:stories_editor/src/domain/sevices/save_as_image.dart';
+import 'package:stories_editor/src/l10n/stories_editor_localization.dart';
 import 'package:stories_editor/src/presentation/utils/constants/app_enums.dart';
 import 'package:stories_editor/src/presentation/utils/mixins/safe_set_state_mixin.dart';
 import 'package:stories_editor/src/presentation/utils/modal_sheets.dart';
@@ -129,17 +131,22 @@ class _TopToolsState extends State<TopTools> with SafeSetStateMixin {
   Future<void> _finish() async {
     if (_finishing) return;
     safeSetState(() => _finishing = true);
-    final bytes = await takePicture(
+    final result = await takePicture(
       contentKey: widget.contentKey,
       context: context,
       saveToGallery: false,
     );
-    if (bytes != null) {
+    if (result is String) {
       // Stays disabled — the editor closes behind this.
-      widget.onDone(bytes);
+      widget.onDone(result);
       return;
     }
-    // Rendering failed: let them try again.
+    // Rendering failed. It answers false then, not null: that read as
+    // success, passed false on as the file and left this button dead.
+    Fluttertoast.showToast(
+      msg: StoriesEditorLocalization().delegate.storyNotReadyText,
+      backgroundColor: const Color(0xFF262626),
+    );
     if (mounted) safeSetState(() => _finishing = false);
   }
 
