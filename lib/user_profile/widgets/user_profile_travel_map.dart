@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -65,102 +66,129 @@ class _UserProfileTravelMapState extends State<UserProfileTravelMap>
   @override
   void dispose() {
     _overlapHandle?.removeListener(_onOverlapChanged);
+    _unsubscribe();
     super.dispose();
+  }
+
+  // The travel data, kept here and subscribed to once. The streams used to be
+  // created inside build, so every rebuild — any data change, the header
+  // collapsing — closed the database queries and opened them again.
+  final _subscriptions = <StreamSubscription<Object?>>[];
+  Map<String, int> _visited = const {};
+  List<({double lat, double lng, String? name})> _postPoints = const [];
+  List<({double lat, double lng, String? name})> _storyPoints = const [];
+
+  /// Posts' and stories' pins together. Rebuilt only when one of them
+  /// changes, so the globe sees the same list until then and keeps what it
+  /// worked out from it.
+  List<({double lat, double lng, String? name})> _points = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _subscribe();
+  }
+
+  @override
+  void didUpdateWidget(covariant UserProfileTravelMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.userId == widget.userId) return;
+    _unsubscribe();
+    _visited = const {};
+    _postPoints = const [];
+    _storyPoints = const [];
+    _points = const [];
+    _subscribe();
+  }
+
+  void _subscribe() {
+    final posts = context.read<PostsRepository>();
+    final userId = widget.userId;
+    // Errors leave the last data in place, as the StreamBuilders did.
+    void ignore(Object _) {}
+    _subscriptions.addAll([
+      // Story pins are counted in here too, by the region saved with each pin.
+      posts
+          .visitedRegionCountsOf(userId: userId)
+          .listen(
+            (visited) => setState(() => _visited = visited),
+            onError: ignore,
+          ),
+      posts
+          .visitedPointsOf(userId: userId)
+          .listen(
+            (points) => setState(() {
+              _postPoints = points;
+              _points = [..._postPoints, ..._storyPoints];
+            }),
+            onError: ignore,
+          ),
+      // Story locations also drop a pin — and they persist here even after
+      // the 24h story has expired.
+      posts
+          .storyPointsOf(userId: userId)
+          .listen(
+            (points) => setState(() {
+              _storyPoints = points;
+              _points = [..._postPoints, ..._storyPoints];
+            }),
+            onError: ignore,
+          ),
+    ]);
+  }
+
+  void _unsubscribe() {
+    for (final subscription in _subscriptions) {
+      unawaited(subscription.cancel());
+    }
+    _subscriptions.clear();
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final postsRepository = context.read<PostsRepository>();
-    // Story points are reverse-geocoded below, which needs the region polygons
-    // in memory. `load()` caches, so this resolves instantly after the first
-    // call — but without it the first build would silently find no regions.
+    // The globe draws the region polygons, so they must be in memory first.
+    // `load()` caches, so this resolves instantly after the first call.
     return FutureBuilder<void>(
       future: _geoReady,
-      builder: (context, _) => _buildMap(context, postsRepository),
+      builder: (context, _) => _buildMap(context),
     );
   }
 
-  Widget _buildMap(BuildContext context, PostsRepository postsRepository) {
-    return StreamBuilder<Map<String, int>>(
-      stream: postsRepository.visitedRegionCountsOf(userId: widget.userId),
-      builder: (context, regionSnap) {
-        final visited = regionSnap.data ?? const <String, int>{};
-        return StreamBuilder<List<({double lat, double lng, String? name})>>(
-          stream: postsRepository.visitedPointsOf(userId: widget.userId),
-          builder: (context, pointSnap) {
-            final postPoints =
-                pointSnap.data ??
-                const <({double lat, double lng, String? name})>[];
-            // Story locations also drop a pin — and they persist here even
-            // after the 24h story has expired.
-            return StreamBuilder<List<({double lat, double lng, String? name})>>(
-              stream: postsRepository.storyPointsOf(userId: widget.userId),
-              builder: (context, storySnap) {
-                final storyPoints = storySnap.data ?? const [];
-                final points = <({double lat, double lng, String? name})>[
-                  ...postPoints,
-                  ...storyPoints,
-                ];
-                return Padding(
-                  padding: const EdgeInsets.all(UserProfileTravelMap._inset),
-                  // Fills whatever the tab gives it, header collapsed or not.
-                  child: GlobeView(
-                    visitedCounts: _withStoryRegions(visited, storyPoints),
-                    points: points,
-                    autoRotate: true,
-                    padding: EdgeInsets.only(
-                      top: math.max(0, _overlap - UserProfileTravelMap._inset),
-                    ),
-                    onTargetTap: (target) => LocationPostsPage.push(
-                      context,
-                      userId: widget.userId,
-                      regionIso: target.region.iso,
-                      // Localized to the app language (matches the map labels).
-                      regionName: target.region.localizedDisplayName(
-                        Localizations.localeOf(context).languageCode,
-                      ),
-                      // The name the author gave this spot — the heading of the
-                      // page, since "Magic city bogi" is what they remember,
-                      // not the province it happens to fall in. User content —
-                      // never translated.
-                      placeName: target.point?.name,
-                      countryName: target.region.localizedCountryName(
-                        Localizations.localeOf(context).languageCode,
-                      ),
-                      scope: target.point == null
-                          ? LocationPostsScope.region
-                          : LocationPostsScope.point,
-                      lat: target.point?.lat,
-                      lng: target.point?.lng,
-                    ),
-                  ),
-                );
-              },
-            );
-          },
-        );
-      },
+  Widget _buildMap(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(UserProfileTravelMap._inset),
+      // Fills whatever the tab gives it, header collapsed or not.
+      child: GlobeView(
+        visitedCounts: _visited,
+        points: _points,
+        autoRotate: true,
+        padding: EdgeInsets.only(
+          top: math.max(0, _overlap - UserProfileTravelMap._inset),
+        ),
+        onTargetTap: (target) => LocationPostsPage.push(
+          context,
+          userId: widget.userId,
+          regionIso: target.region.iso,
+          // Localized to the app language (matches the map labels).
+          regionName: target.region.localizedDisplayName(
+            Localizations.localeOf(context).languageCode,
+          ),
+          // The name the author gave this spot — the heading of the
+          // page, since "Magic city bogi" is what they remember,
+          // not the province it happens to fall in. User content —
+          // never translated.
+          placeName: target.point?.name,
+          countryName: target.region.localizedCountryName(
+            Localizations.localeOf(context).languageCode,
+          ),
+          scope: target.point == null
+              ? LocationPostsScope.region
+              : LocationPostsScope.point,
+          lat: target.point?.lat,
+          lng: target.point?.lng,
+        ),
+      ),
     );
   }
-}
-
-/// Region shading comes from `posts.location_region`, but stories only store a
-/// lat/lng — no region code. So a story pinned to a place used to drop a pin
-/// without ever colouring the region it sits in. Reverse-geocode each story
-/// point here and fold it into the counts, so posting a story lights up its
-/// region just like a post does.
-Map<String, int> _withStoryRegions(
-  Map<String, int> postCounts,
-  List<({double lat, double lng, String? name})> storyPoints,
-) {
-  if (storyPoints.isEmpty) return postCounts;
-  final geo = GeoRegions.instance;
-  final merged = Map<String, int>.of(postCounts);
-  for (final point in storyPoints) {
-    final region = geo.regionAt(point.lng, point.lat);
-    if (region == null) continue;
-    merged.update(region.iso, (count) => count + 1, ifAbsent: () => 1);
-  }
-  return merged;
 }

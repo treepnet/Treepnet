@@ -374,8 +374,9 @@ abstract class PostsBaseRepository {
   Stream<Set<String>> visitedRegionsOf({required String userId});
 
   /// Returns a real-time stream mapping each ISO 3166-2 region code to the
-  /// number of posts [userId] has placed there — used to shade each region on
-  /// the travel map by post density.
+  /// number of posts and story pins [userId] has placed there (plus regions
+  /// marked visited without either) — used to shade each region on the
+  /// travel map by density.
   Stream<Map<String, int>> visitedRegionCountsOf({required String userId});
 
   /// Returns a real-time stream of the exact `(lat, lng)` of every post by
@@ -1071,6 +1072,15 @@ SELECT * FROM profiles WHERE id = ?
       -- Regions marked without a post still colour the map.
       SELECT region_iso AS region, 1 AS c FROM visited_regions
       WHERE user_id = ?1
+      UNION ALL
+      -- So does a story pinned to a place, by the region saved with the pin
+      -- (the same pins storyPointsOf draws). The maps used to work this out
+      -- from each pin's coordinates on every repaint.
+      SELECT ls.region_iso AS region, COUNT(*) AS c FROM location_stories ls
+        INNER JOIN stories s ON s.id = ls.story_id AND s.user_id = ls.user_id
+      WHERE ls.user_id = ?1 AND ls.lat IS NOT NULL AND ls.lng IS NOT NULL
+        AND ls.region_iso IS NOT NULL AND ls.region_iso != ''
+      GROUP BY ls.region_iso
     )
     WHERE ${_visibleAuthorSql('?1')}
     GROUP BY region
