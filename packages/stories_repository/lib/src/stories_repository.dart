@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:shared/shared.dart';
 import 'package:storage/storage.dart';
+import 'package:stories_repository/src/active_stories.dart';
 import 'package:stories_repository/stories_repository.dart';
 import 'package:user_repository/user_repository.dart' show User;
 
@@ -18,14 +19,18 @@ part 'stories_storage.dart';
 /// {@endtemplate}
 class StoriesRepository extends StoriesBaseRepository {
   /// {@macro stories_repository}
-  const StoriesRepository({
+  StoriesRepository({
     required DatabaseClient databaseClient,
     required StoriesStorage storage,
   }) : _databaseClient = databaseClient,
-       _storage = storage;
+       _storage = storage,
+       _active = ActiveStories(databaseClient);
 
   final DatabaseClient _databaseClient;
   final StoriesStorage _storage;
+
+  /// The one live query behind every story ring.
+  final ActiveStories _active;
 
   @override
   Future<void> createStory({
@@ -108,13 +113,20 @@ class StoriesRepository extends StoriesBaseRepository {
   Stream<List<Story>> archivedStoriesOf({required String userId}) =>
       _databaseClient.archivedStoriesOf(userId: userId);
 
-  /// Broadcasts stories from database and local storage. Combines and merges
-  /// into a single stories data flow.
+  @override
+  Stream<List<Story>> activeStories() => _databaseClient.activeStories();
+
+  /// [authorId]'s active stories, each marked seen or not. Combines the shared
+  /// active-stories query ([ActiveStories]) with the local seen list.
+  ///
+  /// Single-subscription: it was `asBroadcastStream()`, which never cancels
+  /// its source, so every avatar that ever scrolled past kept its live query
+  /// running until the app was closed.
   Stream<List<Story>> mergedStories({
     required String authorId,
     String? userId,
   }) => Rx.combineLatest2(
-    getStories(userId: authorId, includeAuthor: false),
+    _active.of(authorId),
     _storage._seenStoriesStreamController,
     (dbStories, localStories) => _storage.mergeStories(
       dbStories,
@@ -123,7 +135,7 @@ class StoriesRepository extends StoriesBaseRepository {
           .firstWhereOrNull((seenStories) => seenStories.userId == userId)
           ?.stories,
     ),
-  ).asBroadcastStream();
+  );
 
   /// Stories hand-pinned to one place on [userId]'s travel map.
   @override

@@ -540,6 +540,11 @@ abstract class StoriesBaseRepository {
     bool includeAuthor = true,
   });
 
+  /// Every active story the signed-in user may see, from everyone, oldest
+  /// first — one live query that every story ring reads from (see
+  /// `ActiveStories` in stories_repository). Without author profiles.
+  Stream<List<Story>> activeStories();
+
   /// The single story identified by [id] (with its author), or `null` if it no
   /// longer exists. Not filtered by expiry, so a shared story still resolves.
   Future<Story?> getStoryBy({required String id});
@@ -3739,6 +3744,20 @@ ${limit != null ? 'LIMIT ?' : ''}
             parameters: [storyId],
           )
           .map((rows) => (rows.first['c'] as int?) ?? 0);
+
+  @override
+  Stream<List<Story>> activeStories() => _powerSyncRepository
+      .db()
+      .watch(
+        '''
+SELECT s.*
+FROM stories s
+WHERE s.expires_at > current_timestamp
+  AND ${_visibleAuthorSql('s.user_id')}
+ORDER BY s.created_at ASC
+''',
+      )
+      .map((event) => event.safeMap(Story.fromJson).toList(growable: false));
 
   @override
   Stream<List<Story>> getStories({
