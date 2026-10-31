@@ -145,9 +145,15 @@ class PushNotifications {
       await _saveToken(userRepository, token);
     }
 
-    // A token can rotate; keep the stored value fresh.
-    messaging.onTokenRefresh.listen((t) => _saveToken(userRepository, t));
+    // A token can rotate; keep the stored value fresh. One listener, for the
+    // user signed in now — every sign-in used to add another, never removed.
+    await _tokenRefresh?.cancel();
+    _tokenRefresh = messaging.onTokenRefresh.listen(
+      (t) => _saveToken(userRepository, t),
+    );
   }
+
+  static StreamSubscription<String>? _tokenRefresh;
 
   /// Requests the runtime notification permission via the local-notifications
   /// plugin (iOS + Android 13+). Independent of Firebase.
@@ -167,6 +173,8 @@ class PushNotifications {
   /// Clears the stored token so a signed-out device stops receiving pushes.
   /// Call *before* `logOut()` while the user id is still valid.
   static Future<void> disableForUser(UserRepository userRepository) async {
+    await _tokenRefresh?.cancel();
+    _tokenRefresh = null;
     try {
       await userRepository.updateUser(pushToken: '');
       if (_fcmReady) await FirebaseMessaging.instance.deleteToken();

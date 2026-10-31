@@ -17,6 +17,9 @@ import 'package:user_repository/user_repository.dart';
 /// Handles both cases: a fresh sign-in (the `unauthenticated → authenticated`
 /// transition) *and* a cold start where the session is already restored (so no
 /// transition ever fires) — the latter is covered by the initState check.
+/// It sits above the router for the whole run, so signing out resets it: a
+/// later sign-in (the same account or another) registers again — it used to
+/// stay "registered", and pushes stopped until the app was restarted.
 class PushNotificationListener extends StatefulWidget {
   const PushNotificationListener({super.key});
 
@@ -26,7 +29,9 @@ class PushNotificationListener extends StatefulWidget {
 }
 
 class _PushNotificationListenerState extends State<PushNotificationListener> {
-  bool _registered = false;
+  /// The user this device is registered for; null while signed out.
+  String? _registeredFor;
+  bool get _registered => _registeredFor != null;
   StreamSubscription<Map<String, String>>? _taps;
 
   /// The language last written to the profile this run.
@@ -51,8 +56,11 @@ class _PushNotificationListenerState extends State<PushNotificationListener> {
   }
 
   void _register() {
-    if (_registered || !mounted) return;
-    _registered = true;
+    if (!mounted) return;
+    final userId = context.read<AppBloc>().state.user.id;
+    if (_registeredFor == userId) return;
+    _registeredFor = userId;
+    _syncedLang = null;
     PushNotifications.registerForUser(context.read<UserRepository>());
     _syncLanguage();
     _taps ??= PushNotifications.taps.listen(_open);
@@ -92,9 +100,18 @@ class _PushNotificationListenerState extends State<PushNotificationListener> {
   Widget build(BuildContext context) {
     return BlocListener<AppBloc, AppState>(
       listenWhen: (previous, current) =>
-          previous.status != AppStatus.authenticated &&
-          current.status == AppStatus.authenticated,
-      listener: (context, _) => _register(),
+          (previous.status == AppStatus.authenticated) !=
+              (current.status == AppStatus.authenticated) ||
+          previous.user.id != current.user.id,
+      listener: (context, state) {
+        if (state.status == AppStatus.authenticated) {
+          _register();
+        } else {
+          // Signed out: the next sign-in registers its own token again.
+          _registeredFor = null;
+          _syncedLang = null;
+        }
+      },
       child: const SizedBox.shrink(),
     );
   }
