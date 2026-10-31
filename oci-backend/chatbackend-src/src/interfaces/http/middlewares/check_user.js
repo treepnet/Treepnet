@@ -32,7 +32,6 @@ const checkUserMiddleware = async (req, res, next) => {
             lang: req.headers['x-lang'] || 'uz',
             phone: req.headers['x-phone'] || null,
             email: req.headers['x-email'] || null,
-            avatar: req.headers['x-avatar'] || null,
             ipAddress: req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress
         };
 
@@ -40,7 +39,8 @@ const checkUserMiddleware = async (req, res, next) => {
             uuid,
             apiKey,
             appName,
-            name: req.headers['x-name'] || null,
+            // Ism/avatar (`x-name` / `x-avatar`) bu yerda o'qilmaydi: ular
+            // profiles jadvalidan olinadi (auth_user.js).
             deviceData
         });
 

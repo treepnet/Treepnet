@@ -41,4 +41,5 @@ async function isBlockedBetween(uuidA, uuidB) {
     }
 }
 
-module.exports = { isBlockedBetween };
+// `db` profiles.js uchun ham: ism/avatar ham shu ulanish orqali so'raladi.
+module.exports = { isBlockedBetween, db };

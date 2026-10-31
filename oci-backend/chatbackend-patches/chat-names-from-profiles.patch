@@ -1,0 +1,217 @@
+Chat backend (./chatbackend on the server): take every user's name and avatar
+from their profile, never from the app.
+
+The server stored whatever the app sent — a user's own x-name / x-avatar
+headers, and the peerName / peerAvatar of someone who had never opened chat —
+so anyone could appear in pushes and chat lists under any name. Now
+auth_user.js and POST /chat/dm/conversations ask
+public.chat_profile_card(id) (username, avatar_url) over the existing
+chat_blocks_ro connection (oci-backend/sql/chat_profile_card.sql). Cached for
+10 minutes; if the lookup fails the stored values stay. Opening a chat also
+puts the profile's name back on an older peer row.
+
+Applied on the server 2026-10-31 (backups: <file>.bak-names next to each file).
+Apply after chat-blocks.patch:
+  cd ~/treepnet/chatbackend && patch -p1 < chat-names-from-profiles.patch
+  cd .. && docker compose build chatbackend && docker compose up -d chatbackend
+
+diff --git a/src/application/use-cases/auth_user.js b/src/application/use-cases/auth_user.js
+index 7f553fc..f599382 100644
+--- a/src/application/use-cases/auth_user.js
++++ b/src/application/use-cases/auth_user.js
+@@ -1,5 +1,6 @@
+ const userRepository = require('../../infrastructure/repositories/user_repository');
+ const cacheService = require('../../infrastructure/cache/cache_service');
++const { profileCard } = require('../../infrastructure/external/profiles');
+ 
+ /**
+  * Mijozni sarlavhalar asosida tanib oladi.
+@@ -40,14 +41,17 @@ class AuthUserUseCase {
+ 
+         // 3. Yaratish/yangilash
+         //
+-        // Ism, telefon va boshqalar faqat yangi qiymat kelganda yoziladi:
+-        // socket orqali ulanishda ular yuborilmaydi va aks holda mavjud
+-        // qiymat null bilan o'chib ketardi.
++        // Telefon va email faqat yangi qiymat kelganda yoziladi: socket
++        // orqali ulanishda ular yuborilmaydi va aks holda mavjud qiymat null
++        // bilan o'chib ketardi.
++        //
++        // Ism va avatar esa ilovadan olinmaydi (`x-name` / `x-avatar` e'tiborsiz
++        // qoldiriladi): ular profiles jadvalidan keladi, aks holda har kim
++        // push xabarlarda o'zini boshqa ism bilan ko'rsata olardi. Profilni
++        // so'rab bo'lmasa, saqlangan qiymat o'zgarmaydi.
+         const optional = {
+-            name: params.name,
+             phone: deviceData.phone,
+             email: deviceData.email,
+-            avatar: deviceData.avatar,
+         };
+ 
+         const userData = { ...deviceData };
+@@ -61,6 +65,12 @@ class AuthUserUseCase {
+             }
+         }
+ 
++        const card = await profileCard(uuid);
++        if (card) {
++            userData.name = card.name;
++            userData.avatar = card.avatar;
++        }
++
+         const user = await userRepository.upsertUser(uuid, project.id, userData);
+ 
+         await cacheService.set(userCacheKey, JSON.stringify(user), 600);
+diff --git a/src/infrastructure/external/blocks.js b/src/infrastructure/external/blocks.js
+index 6bc85c2..9847af6 100644
+--- a/src/infrastructure/external/blocks.js
++++ b/src/infrastructure/external/blocks.js
+@@ -41,4 +41,5 @@ async function isBlockedBetween(uuidA, uuidB) {
+     }
+ }
+ 
+-module.exports = { isBlockedBetween };
++// `db` profiles.js uchun ham: ism/avatar ham shu ulanish orqali so'raladi.
++module.exports = { isBlockedBetween, db };
+diff --git a/src/infrastructure/external/profiles.js b/src/infrastructure/external/profiles.js
+new file mode 100644
+index 0000000..567bbd7
+--- /dev/null
++++ b/src/infrastructure/external/profiles.js
+@@ -0,0 +1,48 @@
++const { db } = require('./blocks');
++
++/**
++ * Foydalanuvchining ilovadagi ismi (username) va avatari.
++ *
++ * Ilgari ularni ilova o'zi yuborardi (`x-name` / `x-avatar`, suhbat
++ * ochilganda esa suhbatdoshniki - `peerName` / `peerAvatar`) va server
++ * tekshirmay saqlardi: har kim push xabarlarda o'zini yoki boshqani istalgan
++ * ism bilan ko'rsata olardi. Endi ular asosiy bazadagi profiles jadvalidan
++ * olinadi - `chat_profile_card(id)` funksiyasi orqali, bloklar bilan bir xil
++ * `chat_blocks_ro` ulanishida (oci-backend/sql/chat_profile_card.sql).
++ *
++ * Natija 10 daqiqa keshlanadi: username o'zgarsa, ko'pi bilan 10 daqiqada
++ * yangilanadi. Baza javob bermasa `undefined` qaytadi (1 daqiqa eslab
++ * qolinadi) va chaqiruvchi saqlangan qiymatga tegmaydi.
++ */
++const TTL_MS = 10 * 60 * 1000;
++const FAILED_TTL_MS = 60 * 1000;
++const cache = new Map(); // uuid -> { card, expiresAt }
++
++/**
++ * @returns {Promise<{name: string|null, avatar: string|null}|null|undefined>}
++ *   `null` - bunday profil yo'q, `undefined` - so'rab bo'lmadi.
++ */
++async function profileCard(uuid) {
++    if (!db || !uuid) return undefined;
++    const hit = cache.get(uuid);
++    if (hit && hit.expiresAt > Date.now()) return hit.card;
++    let card;
++    let ttl = TTL_MS;
++    try {
++        const rows = await db.$queryRaw`
++            select username, avatar_url from public.chat_profile_card(${uuid}::uuid)`;
++        const row = rows[0];
++        card = row
++            ? { name: row.username || null, avatar: row.avatar_url || null }
++            : null;
++    } catch (error) {
++        console.error('[Profiles] lookup failed:', error.message);
++        card = undefined;
++        ttl = FAILED_TTL_MS;
++    }
++    if (cache.size > 10000) cache.clear();
++    cache.set(uuid, { card, expiresAt: Date.now() + ttl });
++    return card;
++}
++
++module.exports = { profileCard };
+diff --git a/src/interfaces/http/middlewares/check_user.js b/src/interfaces/http/middlewares/check_user.js
+index bb70302..5b2a430 100644
+--- a/src/interfaces/http/middlewares/check_user.js
++++ b/src/interfaces/http/middlewares/check_user.js
+@@ -32,7 +32,6 @@ const checkUserMiddleware = async (req, res, next) => {
+             lang: req.headers['x-lang'] || 'uz',
+             phone: req.headers['x-phone'] || null,
+             email: req.headers['x-email'] || null,
+-            avatar: req.headers['x-avatar'] || null,
+             ipAddress: req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress
+         };
+ 
+@@ -40,7 +39,8 @@ const checkUserMiddleware = async (req, res, next) => {
+             uuid,
+             apiKey,
+             appName,
+-            name: req.headers['x-name'] || null,
++            // Ism/avatar (`x-name` / `x-avatar`) bu yerda o'qilmaydi: ular
++            // profiles jadvalidan olinadi (auth_user.js).
+             deviceData
+         });
+ 
+diff --git a/src/interfaces/http/routes/dm_routes.js b/src/interfaces/http/routes/dm_routes.js
+index 7acc559..225d33d 100644
+--- a/src/interfaces/http/routes/dm_routes.js
++++ b/src/interfaces/http/routes/dm_routes.js
+@@ -6,6 +6,7 @@ const multer = require('multer');
+ const prisma = require('../../../infrastructure/database/prisma');
+ const checkUser = require('../middlewares/check_user');
+ const { isBlockedBetween } = require('../../../infrastructure/external/blocks');
++const { profileCard } = require('../../../infrastructure/external/profiles');
+ const { apiLimiter } = require('../middlewares/rate_limiter');
+ const { fileFilter } = require('../../../infrastructure/utils/file_filter');
+ const mediaService = require('../../../infrastructure/external/media_service');
+@@ -201,7 +202,7 @@ function allowNewChat(userId) {
+ 
+ router.post('/conversations', apiLimiter, checkUser, async (req, res, next) => {
+     try {
+-        const { peerId, peerUuid, peerName, peerAvatar } = req.body || {};
++        const { peerId, peerUuid } = req.body || {};
+         if (!peerId && !peerUuid) {
+             return res.status(400).json({ error: 'peerId or peerUuid is required' });
+         }
+@@ -214,12 +215,15 @@ router.post('/conversations', apiLimiter, checkUser, async (req, res, next) => {
+                 where: { uuid_projectId: { uuid: peerUuid, projectId: req.projectId } },
+             });
+ 
++        // The peer's name/avatar come from their profile, never from the
++        // caller: `peerName` / `peerAvatar` are ignored, or anyone could label
++        // someone else in pushes and chat lists (profiles.js).
++        const card = await profileCard(peer?.uuid || peerUuid);
++
+         // Cold-start: in a social app you can message anyone from their profile,
+         // even a user who has never opened chat (so has no row yet). Create a
+         // stub keyed by their stable app uuid; device fields are placeholders
+-        // that their own first connection overwrites. Name/avatar come from the
+-        // caller's copy of the profile and are only set on create - a later real
+-        // connection won't clobber them unless it sends its own x-name/x-avatar.
++        // that their own first connection overwrites.
+         if (!peer && peerUuid) {
+             peer = await prisma.user.upsert({
+                 where: { uuid_projectId: { uuid: peerUuid, projectId: req.projectId } },
+@@ -227,8 +231,8 @@ router.post('/conversations', apiLimiter, checkUser, async (req, res, next) => {
+                 create: {
+                     uuid: peerUuid,
+                     projectId: req.projectId,
+-                    name: peerName || null,
+-                    avatar: peerAvatar || null,
++                    name: card?.name ?? null,
++                    avatar: card?.avatar ?? null,
+                     appName: req.headers['x-app'] || 'unknown',
+                     deviceId: 'pending',
+                     deviceName: 'pending',
+@@ -241,6 +245,14 @@ router.post('/conversations', apiLimiter, checkUser, async (req, res, next) => {
+         if (peer.id === req.user.id) {
+             return res.status(400).json({ error: 'Cannot open a chat with yourself' });
+         }
++        // An older row may still carry a name a caller wrote: put the
++        // profile's back.
++        if (card && (peer.name !== card.name || peer.avatar !== card.avatar)) {
++            peer = await prisma.user.update({
++                where: { id: peer.id },
++                data: { name: card.name, avatar: card.avatar },
++            });
++        }
+         // Ikkalasidan biri ikkinchisini bloklagan bo'lsa - suhbat ochilmaydi.
+         if (await isBlockedBetween(req.user.uuid, peer.uuid)) {
+             return res.status(403).json({ error: 'Blocked', code: 'BLOCKED' });

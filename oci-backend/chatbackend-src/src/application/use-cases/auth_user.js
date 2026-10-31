@@ -1,5 +1,6 @@
 const userRepository = require('../../infrastructure/repositories/user_repository');
 const cacheService = require('../../infrastructure/cache/cache_service');
+const { profileCard } = require('../../infrastructure/external/profiles');
 
 /**
  * Mijozni sarlavhalar asosida tanib oladi.
@@ -40,14 +41,17 @@ class AuthUserUseCase {
 
         // 3. Yaratish/yangilash
         //
-        // Ism, telefon va boshqalar faqat yangi qiymat kelganda yoziladi:
-        // socket orqali ulanishda ular yuborilmaydi va aks holda mavjud
-        // qiymat null bilan o'chib ketardi.
+        // Telefon va email faqat yangi qiymat kelganda yoziladi: socket
+        // orqali ulanishda ular yuborilmaydi va aks holda mavjud qiymat null
+        // bilan o'chib ketardi.
+        //
+        // Ism va avatar esa ilovadan olinmaydi (`x-name` / `x-avatar` e'tiborsiz
+        // qoldiriladi): ular profiles jadvalidan keladi, aks holda har kim
+        // push xabarlarda o'zini boshqa ism bilan ko'rsata olardi. Profilni
+        // so'rab bo'lmasa, saqlangan qiymat o'zgarmaydi.
         const optional = {
-            name: params.name,
             phone: deviceData.phone,
             email: deviceData.email,
-            avatar: deviceData.avatar,
         };
 
         const userData = { ...deviceData };
@@ -59,6 +63,12 @@ class AuthUserUseCase {
             if (value !== undefined && value !== null && value !== '') {
                 userData[field] = value;
             }
+        }
+
+        const card = await profileCard(uuid);
+        if (card) {
+            userData.name = card.name;
+            userData.avatar = card.avatar;
         }
 
         const user = await userRepository.upsertUser(uuid, project.id, userData);
