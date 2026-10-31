@@ -1,0 +1,73 @@
+Chat backend (./chatbackend on the server, not in this repo): rate limits
+that work behind Caddy, and a cap on new conversations.
+
+- index.js: app.set('trust proxy', 1). The server sits behind Caddy, so
+  without it every request had Caddy's address and all users shared one
+  express-rate-limit allowance (2000 per 15 min): a busy hour, or one
+  abuser, locked everyone out of chat.
+- dm_routes.js: one account may start at most 30 new conversations an
+  hour (opening an existing one doesn't count) — 429 TOO_MANY_NEW_CHATS.
+
+(Message size — 8000 characters — empty messages, and the per-socket
+send/typing rate were already limited in dm_socket.js.)
+
+Applied on the server 2026-10-31 (backup:
+~/backups/chatbackend-src-20261031-pre-ratelimits.tgz).
+  cd ~/treepnet/chatbackend && patch -p1 < chat-rate-limits.patch
+  cd .. && docker compose build chatbackend && docker compose up -d chatbackend
+
+--- a/index.js
++++ b/index.js
+@@ -18,6 +18,11 @@
+ const { apiLimiter } = require('./src/interfaces/http/middlewares/rate_limiter');
+ 
+ const app = express();
++// Behind Caddy (one proxy hop): take the client's address from
++// X-Forwarded-For. Without this every request came from Caddy's address, so
++// all users shared one rate-limit allowance — a busy hour (or one abuser)
++// locked everyone out of chat.
++app.set('trust proxy', 1);
+ const server = http.createServer(app);
+ 
+ app.use(loggerMiddleware);
+--- a/src/interfaces/http/routes/dm_routes.js
++++ b/src/interfaces/http/routes/dm_routes.js
+@@ -181,6 +181,24 @@
+  * `senderId`, `/users` javobidagi `id`), shuning uchun `peerId` asosiy yo'l.
+  * `peerUuid` mos kelish uchun qoldirilgan.
+  */
++/**
++ * Spam guard: one account may start at most NEW_CHATS_PER_HOUR new
++ * conversations an hour (opening an existing one doesn't count), so it
++ * can't message an endless stream of strangers.
++ */
++const NEW_CHATS_PER_HOUR = 30;
++const newChatsByUser = new Map();
++
++function allowNewChat(userId) {
++    const hourAgo = Date.now() - 60 * 60 * 1000;
++    const recent = (newChatsByUser.get(userId) || []).filter((t) => t > hourAgo);
++    const allowed = recent.length < NEW_CHATS_PER_HOUR;
++    if (allowed) recent.push(Date.now());
++    if (recent.length) newChatsByUser.set(userId, recent);
++    else newChatsByUser.delete(userId);
++    return allowed;
++}
++
+ router.post('/conversations', apiLimiter, checkUser, async (req, res, next) => {
+     try {
+         const { peerId, peerUuid, peerName, peerAvatar } = req.body || {};
+@@ -239,6 +257,13 @@
+             },
+         });
+ 
++        if (!existing && !allowNewChat(req.user.id)) {
++            return res.status(429).json({
++                error: 'Too many new chats, try again later',
++                code: 'TOO_MANY_NEW_CHATS',
++            });
++        }
++
+         const conversation = existing
+             ? existing
+             : await prisma.conversation.create({

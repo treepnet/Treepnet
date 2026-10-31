@@ -392,7 +392,9 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
   }
 
   Future<void> _sendMessage() async {
-    if (_controller.text.isEmpty) return;
+    // Only spaces/new lines: nothing to send (the server would refuse it and
+    // the bubble would just turn red).
+    if (_controller.text.trim().isEmpty) return;
 
     final message = _controller.text;
     _controller.clear();

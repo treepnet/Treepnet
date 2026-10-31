@@ -1,5 +1,8 @@
 part of messenger_chat;
 
+/// The longest message the text field takes.
+const _maxMessageLength = 4000;
+
 class _ChatTextField extends StatefulWidget {
   const _ChatTextField({
     required this.style,
@@ -171,6 +174,14 @@ class _ChatTextFieldState extends State<_ChatTextField> {
                                         TextFormField(
                                           controller: widget.controller,
                                           focusNode: widget.focusNode,
+                                          // Well under the server's 8000, so
+                                          // a long text stops here instead of
+                                          // failing to send with no reason.
+                                          inputFormatters: [
+                                            LengthLimitingTextInputFormatter(
+                                              _maxMessageLength,
+                                            ),
+                                          ],
                                           clipBehavior: Clip.hardEdge,
                                           enabled:
                                               !(widget.config?.textIsBlock ??
@@ -414,7 +425,9 @@ class _ChatTextFieldState extends State<_ChatTextField> {
                           child: ValueListenableBuilder<TextEditingValue>(
                             valueListenable: widget.controller!,
                             builder: (context, textValue, _) {
-                              final sendEnabled = textValue.text.isNotEmpty;
+                              final sendEnabled = textValue.text
+                                  .trim()
+                                  .isNotEmpty;
                               return AnimatedSwitcher(
                                 duration: const Duration(milliseconds: 200),
                                 transitionBuilder: (child, animation) =>
