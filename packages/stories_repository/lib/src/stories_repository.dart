@@ -9,7 +9,6 @@ import 'package:rxdart/rxdart.dart';
 import 'package:shared/shared.dart';
 import 'package:storage/storage.dart';
 import 'package:stories_repository/src/active_stories.dart';
-import 'package:stories_repository/stories_repository.dart';
 import 'package:user_repository/user_repository.dart' show User;
 
 part 'stories_storage.dart';
@@ -127,13 +126,10 @@ class StoriesRepository extends StoriesBaseRepository {
     String? userId,
   }) => Rx.combineLatest2(
     _active.of(authorId),
-    _storage._seenStoriesStreamController,
-    (dbStories, localStories) => _storage.mergeStories(
+    _storage._seen,
+    (dbStories, seen) => _storage.mergeStories(
       dbStories,
-      userId: _databaseClient.currentUserId,
-      list2: localStories
-          .firstWhereOrNull((seenStories) => seenStories.userId == userId)
-          ?.stories,
+      seenIds: seen[userId]?.keys.toSet() ?? const {},
     ),
   );
 

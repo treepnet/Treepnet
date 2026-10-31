@@ -2,119 +2,133 @@ part of 'stories_repository.dart';
 
 /// Storage keys for the [StoriesStorage].
 abstract class StoriesStorageKeys {
-  /// The collection of the stories that user has already seen.
+  /// The stories the user has seen, kept whole — the old format. Read once,
+  /// moved to [seenStoryIds], then removed.
   static const userSeenStoriesCollection = '__user_seen_stories_collection__';
+
+  /// The stories the user has seen: viewer id → story id → when it expires.
+  static const seenStoryIds = '__user_seen_story_ids__';
 }
+
+/// Viewer id → seen story id → when that story expires.
+typedef SeenStoryIds = Map<String, Map<String, DateTime>>;
 
 /// {@template stories_storage}
 /// Manages storage and retrieval of seen stories for users.
+///
+/// Keeps only ids and expiry, and drops stories once they expire. The old
+/// list kept every story whole (author and all), rewrote it twice per story
+/// viewed, and never shrank — its clean-up was a lazy `.map` that never ran
+/// — while the app read it all in on every start.
 /// {@endtemplate}
 class StoriesStorage {
   /// {@macro stories_storage}
   StoriesStorage({
     required Storage storage,
   }) : _storage = storage {
-    _init();
+    _ready = _init();
   }
 
   final Storage _storage;
+  late final Future<void> _ready;
 
-  final _seenStoriesStreamController =
-      BehaviorSubject<List<SeenStories>>.seeded(const []);
+  final _seen = BehaviorSubject<SeenStoryIds>.seeded(const {});
 
-  FutureOr<String?> _getValue() =>
-      _storage.read(key: StoriesStorageKeys.userSeenStoriesCollection);
-  Future<void> _setValue(String value) => _storage.write(
-    key: StoriesStorageKeys.userSeenStoriesCollection,
-    value: value,
+  Future<void> _init() async {
+    try {
+      final current = await _storage.read(key: StoriesStorageKeys.seenStoryIds);
+      if (current != null) {
+        _seen.add(_pruned(_decode(current)));
+        return;
+      }
+      final legacy = await _storage.read(
+        key: StoriesStorageKeys.userSeenStoriesCollection,
+      );
+      if (legacy == null) return;
+      final seen = _pruned(await compute(_fromLegacy, legacy));
+      _seen.add(seen);
+      await _save(seen);
+      await _storage.delete(key: StoriesStorageKeys.userSeenStoriesCollection);
+    } catch (_) {
+      // Unreadable: start from nothing seen rather than not at all.
+    }
+  }
+
+  static SeenStoryIds _decode(String value) => {
+    for (final MapEntry(key: userId, value: stories)
+        in (jsonDecode(value) as Map<String, dynamic>).entries)
+      userId: {
+        for (final MapEntry(key: storyId, value: expires)
+            in (stories as Map<String, dynamic>).entries)
+          storyId: DateTime.parse(expires as String),
+      },
+  };
+
+  /// The old list: `[{user_id, stories: [<whole story>]}]`.
+  static SeenStoryIds _fromLegacy(String value) {
+    final result = <String, Map<String, DateTime>>{};
+    for (final entry in jsonDecode(value) as List<dynamic>) {
+      final seen = entry as Map<String, dynamic>;
+      final stories = <String, DateTime>{};
+      for (final item in seen['stories'] as List<dynamic>? ?? const []) {
+        final story = item as Map<String, dynamic>;
+        final id = story['id'] as String?;
+        final expires = DateTime.tryParse(
+          story['expires_at'] as String? ?? '',
+        );
+        if (id != null && expires != null) stories[id] = expires;
+      }
+      if (stories.isNotEmpty) {
+        result[seen['user_id'] as String? ?? ''] = stories;
+      }
+    }
+    return result;
+  }
+
+  /// Without the stories that have expired, and the viewers left with none.
+  static SeenStoryIds _pruned(SeenStoryIds seen) {
+    final now = DateTime.now();
+    final result = <String, Map<String, DateTime>>{};
+    seen.forEach((userId, stories) {
+      final live = {
+        for (final story in stories.entries)
+          if (story.value.isAfter(now)) story.key: story.value,
+      };
+      if (live.isNotEmpty) result[userId] = live;
+    });
+    return result;
+  }
+
+  Future<void> _save(SeenStoryIds seen) => _storage.write(
+    key: StoriesStorageKeys.seenStoryIds,
+    value: json.encode({
+      for (final MapEntry(key: userId, value: stories) in seen.entries)
+        userId: {
+          for (final story in stories.entries)
+            story.key: story.value.toIso8601String(),
+        },
+    }),
   );
 
-  static List<Map<String, dynamic>> _computeSeenStories(
-    String seenStoriesJson,
-  ) {
-    return List<Map<String, dynamic>>.from(jsonDecode(seenStoriesJson) as List);
-  }
-
-  FutureOr<void> _init() async {
-    final seenStoriesJson = await _getValue();
-    if (seenStoriesJson != null) {
-      final seenStoriesResult = await compute(
-        _computeSeenStories,
-        seenStoriesJson,
-      );
-      final seenStories = seenStoriesResult.map(SeenStories.fromJson).toList();
-      _seenStoriesStreamController.add(seenStories);
-      await _clearExpiredStories();
-    } else {
-      _seenStoriesStreamController.add(const []);
-    }
-  }
-
-  /// Finds stories in `list2` that have `IDs` not present in [list1].
-  /// Iterates over the merged list and checks if the current story exists
-  /// in list2. If found, it creates a copy of the story with the seen flag set
-  /// to true. Otherwise, it returns the original story unchanged.
+  /// [stories], those in [seenIds] marked seen.
   List<Story> mergeStories(
-    List<Story> list1, {
-    String? userId,
-    List<Story>? list2,
-  }) {
-    list2 ??= [
-      ...?_seenStoriesStreamController.value
-          .firstWhereOrNull((seenStories) => seenStories.userId == userId)
-          ?.stories,
-    ];
+    List<Story> stories, {
+    required Set<String> seenIds,
+  }) => [
+    for (final story in stories)
+      seenIds.contains(story.id) ? story.copyWith(seen: true) : story,
+  ];
 
-    // Merge lists and update seen flag if story is found in list2
-    return list1
-        .map(
-          (story) => list2!.map((e) => e.id).contains(story.id)
-              ? story.copyWith(seen: true)
-              : story,
-        )
-        .toList();
-  }
-
-  /// Adds [story] to the local list of seen stories.
+  /// Adds [story] to the stories [userId] has seen: one write, expired
+  /// stories dropped on the way.
   Future<void> setUserStorySeen(Story story, String userId) async {
-    final seenStories = [..._seenStoriesStreamController.value];
-    await _clearExpiredStories(seenStories: seenStories);
-    final seenStoriesByUser = seenStories.firstWhere(
-      (seenStories) => seenStories.userId == userId,
-      orElse: () => SeenStories.empty,
-    );
-    if (seenStoriesByUser.stories.map((story) => story.id).contains(story.id)) {
-      return;
-    }
-    if (seenStoriesByUser != SeenStories.empty) {
-      seenStories
-          .firstWhereOrNull(
-            (seenStories) => seenStories.userId == seenStoriesByUser.userId,
-          )
-          ?.stories
-          .add(story.copyWith(seen: true));
-    } else {
-      seenStories.add(
-        seenStoriesByUser.copyWith(
-          userId: userId,
-          stories: [story.copyWith(seen: true)],
-        ),
-      );
-    }
-
-    _seenStoriesStreamController.add(seenStories);
-    return _setValue(json.encode(seenStories));
-  }
-
-  Future<void> _clearExpiredStories({List<SeenStories>? seenStories}) async {
-    seenStories ??= [..._seenStoriesStreamController.value];
-    seenStories.map(
-      (seenStories) => seenStories.stories.retainWhere(
-        (story) => story.expiresAt.isAfter(DateTime.now()),
-      ),
-    );
-
-    _seenStoriesStreamController.add(seenStories);
-    return _setValue(json.encode(seenStories));
+    await _ready;
+    final seen = _pruned(_seen.value);
+    final mine = {...?seen[userId]};
+    if (mine.containsKey(story.id)) return;
+    mine[story.id] = story.expiresAt;
+    seen[userId] = mine;
+    _seen.add(seen);
+    await _save(seen);
   }
 }

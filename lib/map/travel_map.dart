@@ -145,6 +145,9 @@ class _TravelMapState extends State<TravelMap> {
   static const _seenStoreKey = 'treepnet_seen_map_pins'; // legacy List<String>
   static const _seenCountsKey = 'treepnet_seen_map_counts'; // JSON {key: count}
 
+  /// How many opened pins are remembered.
+  static const _maxSeenPins = 2000;
+
   static String _pointKey(double lat, double lng) => '$lat,$lng';
 
   Future<void> _loadSeenPoints() async {
@@ -515,7 +518,15 @@ class _TravelMapState extends State<TravelMap> {
       // and the pin goes white again.
       final current = _pinCounts[key] ?? 1;
       if (_seenCounts[key] != current) {
-        _seenCounts[key] = current;
+        // Last opened goes last; past [_maxSeenPins] the longest-unopened
+        // drop off (they show as unseen again), so the stored map can't grow
+        // without end.
+        _seenCounts
+          ..remove(key)
+          ..[key] = current;
+        while (_seenCounts.length > _maxSeenPins) {
+          _seenCounts.remove(_seenCounts.keys.first);
+        }
         _legacySeen.remove(key);
         _seenVersion++; // invalidate the pin-marker memo so this pin recolours
         _safeSetState(() {});
