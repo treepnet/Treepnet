@@ -16,6 +16,7 @@ export 'src/insta_block.dart' show InstaBlock;
 export 'src/models/models.dart' show Feed, FeedPage, PostAuthor, ReelsPage;
 export 'src/post_block.dart'
     show
+        AppendPageExtension,
         PostBlock,
         PostBlockActions,
         PostBlockListExtension,

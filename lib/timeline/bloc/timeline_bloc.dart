@@ -47,11 +47,14 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
         blocks.add(block);
       }
 
+      // Without the posts already shown: offset pages shift when one is
+      // added or synced meanwhile.
+      final updatedBlocks = state.timeline.blocks.appendNew(blocks);
       final timeline = state.timeline.copyWith(
         page: newPage,
         hasMore: hasMore,
-        blocks: [...state.timeline.blocks, ...blocks],
-        totalBlocks: state.timeline.totalBlocks + blocks.length,
+        blocks: updatedBlocks,
+        totalBlocks: updatedBlocks.length,
       );
 
       emit(

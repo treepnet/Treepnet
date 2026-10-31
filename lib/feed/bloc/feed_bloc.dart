@@ -69,12 +69,15 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> with FeedBlocMixin {
         page: currentPage,
       );
 
+      // Without the posts already shown: offset pages shift when one is
+      // added or synced meanwhile.
+      final updatedBlocks = state.feed.feedPage.blocks.appendNew(blocks);
       final feed = state.feed.copyWith(
         feedPage: state.feed.feedPage.copyWith(
           page: newPage,
           hasMore: hasMore,
-          blocks: [...state.feed.feedPage.blocks, ...blocks],
-          totalBlocks: state.feed.feedPage.totalBlocks + blocks.length,
+          blocks: updatedBlocks,
+          totalBlocks: updatedBlocks.length,
         ),
       );
 
@@ -106,12 +109,13 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> with FeedBlocMixin {
         mapper: postsToReelBlockMapper,
       );
 
+      final updatedReels = state.feed.reelsPage.blocks.appendNew(blocks);
       final feed = state.feed.copyWith(
         reelsPage: state.feed.reelsPage.copyWith(
           page: newPage,
           hasMore: hasMore,
-          blocks: [...state.feed.reelsPage.blocks, ...blocks],
-          totalBlocks: state.feed.reelsPage.totalBlocks + blocks.length,
+          blocks: updatedReels,
+          totalBlocks: updatedReels.length,
         ),
       );
       emit(state.populated(feed: feed));
@@ -180,10 +184,13 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> with FeedBlocMixin {
         PostsRepository.recommendedPosts.withNavigateToPostAuthorAction,
       );
 
+      final updatedBlocks = state.feed.feedPage.blocks.appendNew(
+        recommendedBlocks,
+      );
       final feed = state.feed.copyWith(
         feedPage: state.feed.feedPage.copyWith(
-          blocks: [...state.feed.feedPage.blocks, ...recommendedBlocks],
-          totalBlocks: state.feed.feedPage.totalBlocks + recommendedBlocks.length,
+          blocks: updatedBlocks,
+          totalBlocks: updatedBlocks.length,
         ),
       );
 

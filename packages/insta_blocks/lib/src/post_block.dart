@@ -145,6 +145,26 @@ extension PostBlockListExtension on List<PostLargeBlock> {
   ).toList();
 }
 
+/// Appending a loaded page to the blocks already shown.
+extension AppendPageExtension on List<InstaBlock> {
+  /// This list followed by the blocks of [page] it doesn't have yet: a post
+  /// is matched by its id; other blocks (headers, dividers) always go in.
+  ///
+  /// Pages are read by offset, so a post created or synced in the meantime
+  /// shifts the next page by one and repeated the post at the boundary.
+  List<InstaBlock> appendNew(Iterable<InstaBlock> page) {
+    final shown = {
+      for (final block in this)
+        if (block is PostBlock) block.id,
+    };
+    return [
+      ...this,
+      for (final block in page)
+        if (block is! PostBlock || shown.add(block.id)) block,
+    ];
+  }
+}
+
 /// {@template post_converter_extension}
 /// Converts a [Post] instance into different types of [PostBlock] instances.
 ///
