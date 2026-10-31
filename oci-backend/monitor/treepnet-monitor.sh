@@ -89,10 +89,12 @@ endpoints() {
 }
 
 # PowerSync reads changes through a replication slot: inactive or far behind
-# means devices stop getting new data.
+# means devices stop getting new data. wal_status 'unreserved' = close to the
+# 4GB max_slot_wal_keep_size (sql/wal_slot_limit.sql), 'lost' = past it and
+# given up: PowerSync then has to replicate everything again.
 replication() {
   local row
-  row=$(sql "select slot_name || ' active=' || active || ' lag_mb=' || (pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn) / 1048576)::int from pg_replication_slots where slot_name like 'powersync%' and (not active or pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn) > 268435456)")
+  row=$(sql "select slot_name || ' active=' || active || ' wal=' || coalesce(wal_status, '?') || ' lag_mb=' || (pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn) / 1048576)::int from pg_replication_slots where slot_name like 'powersync%' and (not active or wal_status in ('unreserved', 'lost') or pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn) > 268435456)")
   [ -n "$row" ] && echo "PowerSync replication: $row"
 }
 
