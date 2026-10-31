@@ -27,8 +27,7 @@ class UserProfileHeader extends StatelessWidget {
   void _pushToUserStatistics(BuildContext context, {required int tabIndex}) =>
       context.pushNamed(
         AppRoutes.userStatistics.name,
-        extra: tabIndex,
-        queryParameters: {'user_id': userId},
+        queryParameters: {'user_id': userId, 'tab': '$tabIndex'},
       );
 
   @override

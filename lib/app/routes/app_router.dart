@@ -538,8 +538,18 @@ class AppRouter {
                     name: AppRoutes.userStatistics.name,
                     parentNavigatorKey: _rootNavigatorKey,
                     pageBuilder: (context, state) {
-                      final userId = state.uri.queryParameters['user_id']!;
-                      final tabIndex = state.extra! as int;
+                      final query = state.uri.queryParameters;
+                      final userId = query['user_id'] ?? '';
+                      // The tab travels in the URL: `extra` is dropped when
+                      // GoRouter rebuilds the route, and `extra! as int` then
+                      // crashed (like the post/edit/story screens did).
+                      // Older links still pass it as extra; else the first.
+                      final tabIndex =
+                          (int.tryParse(query['tab'] ?? '') ??
+                                  (state.extra is int
+                                      ? state.extra! as int
+                                      : 0))
+                              .clamp(0, 1);
 
                       return CustomTransitionPage(
                         key: state.pageKey,
