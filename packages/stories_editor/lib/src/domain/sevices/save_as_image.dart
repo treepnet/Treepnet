@@ -78,13 +78,20 @@ Future<dynamic> takePicture({
     final compressedBytes = await ImageCompress.compressByte(pngBytes);
 
     /// create file
-    final dir = (await getApplicationDocumentsDirectory()).path;
+    // In the temp folder: the upload queue copies it straight away (and then
+    // deletes this one), a gallery save reads it once. It used to go to the
+    // Documents folder, where every story left a 0.5-2 MB file for good —
+    // backed up to iCloud on iOS.
+    final dir = (await getTemporaryDirectory()).path;
     final imagePath = '$dir/${DateTime.now()}.png';
     final capturedFile = File(imagePath);
     await capturedFile.writeAsBytes(compressedBytes!);
 
     if (saveToGallery) {
       final result = await saveAttachmentToGallery(imagePath);
+      try {
+        await capturedFile.delete();
+      } catch (_) {}
       return result;
     } else {
       return imagePath;

@@ -482,6 +482,31 @@ class MediaUploadQueue {
     // Run initial processing trigger on startup.
     triggerProcessing();
     unawaited(_refreshStatus());
+    unawaited(_removeOldEditorExports());
+  }
+
+  /// Files the story editor left in Documents before it wrote to the temp
+  /// folder: its export (`2026-10-31 12:34:56.789012.png`) and the older
+  /// re-encoded copy next to it (`…_story.jpg`). Only names in exactly that
+  /// shape, at the top of Documents — the queue's own files live in
+  /// `pending_uploads/`.
+  static final _editorExportName = RegExp(
+    r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+(_story)?\.(png|jpg)$',
+  );
+
+  Future<void> _removeOldEditorExports() async {
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      await for (final entity in docs.list(followLinks: false)) {
+        if (entity is! File) continue;
+        if (!_editorExportName.hasMatch(p.basename(entity.path))) continue;
+        try {
+          await entity.delete();
+        } catch (_) {}
+      }
+    } catch (e) {
+      shared.logW('MediaUploadQueue: Clearing old editor files failed: $e');
+    }
   }
 
   /// Disposes resources.
@@ -541,6 +566,12 @@ class MediaUploadQueue {
         locationLng: locationLng,
       ),
     );
+    // The editor's export is a throwaway in the temp folder; the queue keeps
+    // its own copy until the story is created.
+    try {
+      final temp = (await getTemporaryDirectory()).path;
+      if (p.isWithin(temp, filePath)) await File(filePath).delete();
+    } catch (_) {}
     shared.logI('MediaUploadQueue: Queued story $storyId.');
     await _refreshStatus();
     triggerProcessing();
