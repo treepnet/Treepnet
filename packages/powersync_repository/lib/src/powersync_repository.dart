@@ -105,6 +105,10 @@ class SupabaseConnector extends PowerSyncBackendConnector {
       tokens = EntraSession.instance.current;
       if (tokens == null) return null;
     }
+    // The app opened before it had a token (offline) and none came yet:
+    // PowerSync tries again shortly, and so fetches it once the connection is
+    // back.
+    if (tokens.idToken.isEmpty) throw StateError('No ID token yet');
 
     // The id token (aud == client id) is validated by PowerSync against
     // Entra's JWKS.
@@ -138,14 +142,16 @@ class SupabaseConnector extends PowerSyncBackendConnector {
       return;
     }
 
-    // Upload writes to the self-hosted PostgREST (Azure). The Entra id token
-    // authorises the request; PostgREST validates it against Entra's JWKS.
-    final tokens = EntraSession.instance.current;
+    // Upload writes to the self-hosted PostgREST. The Firebase ID token
+    // authorises the request, fetched first if it expired or the app opened
+    // before it had one. Without a token the upload is retried later: sent
+    // unauthenticated, the server would refuse it as a row-level-security
+    // violation and the changes would be dropped.
+    final token = await EntraSession.instance.idToken();
+    if (token == null) throw StateError('No ID token yet');
     final rest = PostgrestClient(
       _postgrestUrl,
-      headers: {
-        if (tokens != null) 'Authorization': 'Bearer ${tokens.idToken}',
-      },
+      headers: {'Authorization': 'Bearer $token'},
     );
     CrudEntry? lastOp;
     try {
@@ -258,7 +264,8 @@ class PowerSyncRepository {
     return PostgrestClient(
       _postgrestUrl,
       headers: {
-        if (tokens != null) 'Authorization': 'Bearer ${tokens.idToken}',
+        if (tokens != null && tokens.idToken.isNotEmpty)
+          'Authorization': 'Bearer ${tokens.idToken}',
       },
     );
   }

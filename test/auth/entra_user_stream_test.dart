@@ -68,4 +68,47 @@ void main() {
     // The whole RLS layer compares this against `profiles.id`.
     expect(tokens.userId, '15f0f1a5-76d2-4b98-a895-f1d9b59aa3b4');
   });
+
+  group('a session opened before its token came (offline start)', () {
+    // What the auth client's restoreSession publishes when the token doesn't
+    // come within two seconds: the user, and a token that counts as expired.
+    final pending = EntraTokens(
+      idToken: '',
+      accessToken: '',
+      refreshToken: null,
+      idTokenExpiry: DateTime.fromMillisecondsSinceEpoch(0),
+      claims: const {'sub': '15f0f1a5-76d2-4b98-a895-f1d9b59aa3b4'},
+    );
+
+    tearDown(() => EntraSession.instance.registerRefresher(() async {}));
+
+    test('is signed in as the user, with no usable token', () {
+      EntraSession.instance.update(pending);
+      expect(EntraSession.instance.isAuthenticated, isTrue);
+      expect(pending.userId, '15f0f1a5-76d2-4b98-a895-f1d9b59aa3b4');
+      expect(pending.isIdTokenValid, isFalse);
+    });
+
+    test('idToken fetches the real one first', () async {
+      EntraSession.instance.update(pending);
+      EntraSession.instance.registerRefresher(
+        () async => EntraSession.instance.update(tokens),
+      );
+      expect(await EntraSession.instance.idToken(), 'id');
+    });
+
+    test('idToken throws while offline, so the caller retries', () async {
+      EntraSession.instance.update(pending);
+      EntraSession.instance.registerRefresher(
+        () async => throw Exception('network-request-failed'),
+      );
+      await expectLater(EntraSession.instance.idToken(), throwsException);
+    });
+
+    test('idToken never hands out the empty token', () async {
+      EntraSession.instance.update(pending);
+      EntraSession.instance.registerRefresher(() async {});
+      expect(await EntraSession.instance.idToken(), isNull);
+    });
+  });
 }

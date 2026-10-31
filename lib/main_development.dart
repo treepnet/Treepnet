@@ -23,8 +23,9 @@ void main() {
     );
     // Restore any persisted Firebase session before the app reads the first
     // user.
-    // Bounded: the token refresh is a network call, so on a bad connection this
-    // must not block first render — fall through to the (unauthenticated) app.
+    // It returns within ~2 s even offline: a signed-in user opens straight into
+    // the app with what's on the phone, and the token follows in the
+    // background. The timeout is only a safety net.
     debugPrint('TREEP_BOOT: 9a restoreSession (start)');
     await authenticationClient.restoreSession().timeout(
       const Duration(seconds: 10),

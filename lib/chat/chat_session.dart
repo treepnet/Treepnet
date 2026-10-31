@@ -129,7 +129,9 @@ class ChatSession {
       await session.refresh().timeout(const Duration(seconds: 10));
       tokens = session.current;
     }
+    // An empty token: the app opened offline and none has come yet.
     if (tokens == null || tokens.userId != myUuid) return null;
+    if (tokens.idToken.isEmpty) return null;
     return tokens.idToken;
   }
 

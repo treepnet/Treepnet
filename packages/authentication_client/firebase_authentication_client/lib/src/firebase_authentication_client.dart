@@ -43,22 +43,10 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
         EntraSession.instance.clear();
       } else {
         try {
-          await _publish(user);
-        } catch (e) {
-          // If the account was deleted/disabled server-side, getIdToken throws
-          // (e.g. firebase_auth/user-not-found). Recover to a clean signed-out
-          // state instead of looping on a dead user and logging the throw.
-          // Transient refresh failures are left alone — the listener re-fires on
-          // the next token refresh.
-          final msg = e.toString();
-          if (msg.contains('user-not-found') ||
-              msg.contains('user-disabled') ||
-              msg.contains('user-token-expired')) {
-            EntraSession.instance.clear();
-            try {
-              await _auth.signOut();
-            } catch (_) {}
-          }
+          await _publishOrSignOut(user);
+        } catch (_) {
+          // Transient refresh failures are left alone — the listener re-fires
+          // on the next token refresh, and PowerSync keeps asking for one.
         }
       }
     });
@@ -82,7 +70,7 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
   // --- Session ------------------------------------------------------------
 
   /// Restores any persisted session so the app's first user read sees the
-  /// signed-in state.
+  /// signed-in state. Returns within about two seconds, even offline.
   ///
   /// The native SDK finishes rehydrating the persisted user during
   /// `Firebase.initializeApp()` (awaited before this runs), so `currentUser` is
@@ -92,20 +80,65 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
   /// dropped a valid session and stranded the user on the login screen after
   /// every restart. Fall back to the stream only if `currentUser` is somehow
   /// still null.
+  ///
+  /// A still-valid ID token comes from Firebase's cache at once. An expired
+  /// one (the app was closed for over an hour) needs the network: that used
+  /// to hold the splash for up to 10 s, and with no connection it failed and
+  /// the app showed the login screen, although the account and its data are
+  /// on the phone — and stayed there when the connection came back. Now, if
+  /// the token isn't here within two seconds, the app opens signed in with
+  /// what's on the phone ([_pendingTokens]) and the token arrives in the
+  /// background. An account deleted or disabled on the server, or signed out
+  /// everywhere by a password reset, is signed out once that's found out.
   Future<void> restoreSession() async {
     final user = _auth.currentUser ?? await _auth.authStateChanges().first;
     if (user == null) return;
-    try {
-      await _publish(user);
-    } catch (_) {
-      // A slow or failed token refresh here must not strand startup; the
-      // idTokenChanges listener re-publishes once the SDK recovers a token.
+    await _publishOrSignOut(user)
+        .then((_) => true, onError: (Object _) => false)
+        .timeout(const Duration(seconds: 2), onTimeout: () => false);
+    if (EntraSession.instance.current == null && _auth.currentUser != null) {
+      EntraSession.instance.update(_pendingTokens(user));
     }
   }
 
+  /// The session of a signed-in [user] whose ID token isn't here yet. It names
+  /// the user, and its token counts as expired, so whatever talks to the
+  /// server fetches a real one first (`EntraSession.idToken`, PowerSync's
+  /// `fetchCredentials`, which retries until the connection is back).
+  EntraTokens _pendingTokens(User user) => EntraTokens(
+    idToken: '',
+    accessToken: '',
+    refreshToken: user.refreshToken,
+    idTokenExpiry: DateTime.fromMillisecondsSinceEpoch(0),
+    claims: {'sub': user.uid},
+  );
+
   Future<void> _refresh() async {
     final user = _auth.currentUser;
-    if (user != null) await _publish(user, forceRefresh: true);
+    if (user != null) await _publishOrSignOut(user, forceRefresh: true);
+  }
+
+  /// [_publish], but an account that can no longer get a token — deleted or
+  /// disabled on the server, or signed out everywhere by a password reset
+  /// (getIdToken throws e.g. firebase_auth/user-not-found) — is signed out
+  /// instead of retried forever. Other failures (no connection) are rethrown
+  /// and leave the session as it is.
+  Future<void> _publishOrSignOut(User user, {bool forceRefresh = false}) async {
+    try {
+      await _publish(user, forceRefresh: forceRefresh);
+    } catch (e) {
+      final msg = e.toString();
+      if (msg.contains('user-not-found') ||
+          msg.contains('user-disabled') ||
+          msg.contains('user-token-expired')) {
+        EntraSession.instance.clear();
+        try {
+          await _auth.signOut();
+        } catch (_) {}
+        return;
+      }
+      rethrow;
+    }
   }
 
   Future<void> _publish(User user, {bool forceRefresh = false}) async {

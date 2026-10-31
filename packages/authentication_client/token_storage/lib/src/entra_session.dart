@@ -94,7 +94,9 @@ class EntraSession {
   Future<void> refresh() async => _refresher?.call();
 
   /// The current ID token, refreshed first when it is about to expire (or
-  /// when [forceRefresh]); `null` when signed out.
+  /// when [forceRefresh]); `null` when signed out, or when the app opened
+  /// before it had one and it still couldn't be fetched. Throws when the
+  /// refresh fails (e.g. no connection).
   Future<String?> idToken({bool forceRefresh = false}) async {
     var tokens = _tokens;
     if (tokens == null) return null;
@@ -102,7 +104,8 @@ class EntraSession {
       await refresh().timeout(const Duration(seconds: 10));
       tokens = _tokens;
     }
-    return tokens?.idToken;
+    final token = tokens?.idToken;
+    return token == null || token.isEmpty ? null : token;
   }
 
   /// Replaces the current session and notifies listeners.
