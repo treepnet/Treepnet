@@ -14,7 +14,7 @@ final class _English {
     'takePhoto': 'Take photo',
     'uploadFile': 'Upload file',
     'uploadWitGallery': 'Upload from gallery',
-    'socketConnectionNot': 'No socket connection',
+    'socketConnectionNot': 'Waiting for network…',
     'writeHere': 'Write here...',
     'cancelRecording': 'Cancel',
     'noAppFound': 'No app found to open this document',
@@ -44,5 +44,6 @@ final class _English {
     'deleteMessageConfirm': 'Delete this message for everyone?',
     'editFailed': "Couldn't save the change",
     'deleteFailed': "Couldn't delete the message",
+    'sending': 'Sending…',
 };
 }

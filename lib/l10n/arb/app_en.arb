@@ -338,7 +338,7 @@
   "notFoundingCameraText": "No secondary camera found",
   "holdButtonText": "Press and hold to record",
   "noMediaFound": "There is no media",
-  "acceptAllPermissionsText": "Failed! accept all access permissions.",
+  "acceptAllPermissionsText": "Allow access in Settings to continue.",
   "noLastMessagesText": "No last messages",
   "onlineText": "online",
   "moreText": "More",
@@ -980,5 +980,18 @@
   },
   "logOutAnywayText": "Log out anyway",
   "avatarUpdateFailedText": "Couldn't update the photo. Try again.",
-  "searchNothingFoundText": "Nothing found"
+  "searchNothingFoundText": "Nothing found",
+  "cameraAccessDeniedText": "Allow camera access in Settings to take a story.",
+  "openSettingsText": "Open Settings",
+  "noNotificationsHintText": "Likes, comments and new followers will show up here.",
+  "noSuggestionsHintText": "You're following everyone we could find. Check back later.",
+  "notificationChannelDescriptionText": "Likes, comments, follows and messages",
+  "regionsCountText": "{count, plural, =1{1 region} other{{count} regions}}",
+  "@regionsCountText": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

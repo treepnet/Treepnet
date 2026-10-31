@@ -505,7 +505,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get acceptAllPermissionsText =>
-      'Failed! accept all access permissions.';
+      'Allow access in Settings to continue.';
 
   @override
   String get noLastMessagesText => 'No last messages';
@@ -1867,4 +1867,34 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchNothingFoundText => 'Nothing found';
+
+  @override
+  String get cameraAccessDeniedText =>
+      'Allow camera access in Settings to take a story.';
+
+  @override
+  String get openSettingsText => 'Open Settings';
+
+  @override
+  String get noNotificationsHintText =>
+      'Likes, comments and new followers will show up here.';
+
+  @override
+  String get noSuggestionsHintText =>
+      'You\'re following everyone we could find. Check back later.';
+
+  @override
+  String get notificationChannelDescriptionText =>
+      'Likes, comments, follows and messages';
+
+  @override
+  String regionsCountText(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count regions',
+      one: '1 region',
+    );
+    return '$_temp0';
+  }
 }

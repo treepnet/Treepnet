@@ -1,6 +1,7 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:treepnet/app/app.dart';
+import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/map/geo_regions.dart';
 
 /// Opens a bottom sheet to pick a country then a region (ISO 3166-2).
@@ -169,7 +170,7 @@ class _RegionPickerSheetState extends State<_RegionPickerSheet> {
             style: const TextStyle(color: Colors.white),
           ),
           subtitle: Text(
-            '${country.regions.length} viloyat',
+            context.l10n.regionsCountText(country.regions.length),
             style: const TextStyle(color: Colors.white38, fontSize: 12),
           ),
           trailing: const Icon(Icons.chevron_right, color: Colors.white38),

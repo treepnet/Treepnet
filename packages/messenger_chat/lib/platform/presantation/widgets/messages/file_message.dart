@@ -132,7 +132,7 @@ class _FileMessageState extends State<_FileMessage> {
                         ),
                         Text(
                           widget.message.status.isSending
-                              ? 'Yuborilyapti...'
+                              ? _AppTexts.sending
                               : '${widget.message.content.size} • ${widget.message.content.content.split('.').last.toUpperCase()}',
                           textAlign: TextAlign.start,
                           style:

@@ -253,7 +253,7 @@
   "notFoundingCameraText": "Дополнительная камера не найдена",
   "holdButtonText": "Нажмите и удерживайте, чтобы записать",
   "noMediaFound": "Галерея пуста",
-  "acceptAllPermissionsText": "Примите все необходимые разрешения!",
+  "acceptAllPermissionsText": "Чтобы продолжить, разрешите доступ в настройках.",
   "addMessageText": "Сообщение",
   "messageText": "Сообщение",
   "editPictureText": "Изменить фото",
@@ -905,5 +905,11 @@
   "logOutUnsavedChangesText": "Несохранённых изменений: {count}. Они ещё не дошли до сервера и пропадут, если выйти сейчас.",
   "logOutAnywayText": "Всё равно выйти",
   "avatarUpdateFailedText": "Не удалось обновить фото. Попробуйте ещё раз.",
-  "searchNothingFoundText": "Ничего не найдено"
+  "searchNothingFoundText": "Ничего не найдено",
+  "cameraAccessDeniedText": "Чтобы снять историю, разрешите доступ к камере в настройках.",
+  "openSettingsText": "Открыть настройки",
+  "noNotificationsHintText": "Здесь появятся лайки, комментарии и новые подписчики.",
+  "noSuggestionsHintText": "Вы уже подписаны на всех, кого мы нашли. Загляните позже.",
+  "notificationChannelDescriptionText": "Лайки, комментарии, подписки и сообщения",
+  "regionsCountText": "{count, plural, one{{count} регион} few{{count} региона} many{{count} регионов} other{{count} региона}}"
 }

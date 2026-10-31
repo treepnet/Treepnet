@@ -1021,7 +1021,7 @@ class _ReplyPreviewBar extends StatelessWidget {
                         children: [
                           Text(
                             isEdit
-                                ? 'Tahrirlash'
+                                ? _AppTexts.edit
                                 : (m.isMine
                                       ? _ChatRuntime.instance.me.name
                                       : (_ChatRuntime.instance.peer?.name ??

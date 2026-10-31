@@ -67,4 +67,5 @@ mixin _AppTexts {
       _translate('deleteMessageConfirm');
   static String get editFailed => _translate('editFailed');
   static String get deleteFailed => _translate('deleteFailed');
+  static String get sending => _translate('sending');
 }

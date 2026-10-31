@@ -208,10 +208,10 @@ class _EmptyDiscover extends StatelessWidget {
               ),
             ),
             const Gap.v(AppSpacing.sm),
-            const Text(
-              "You're following everyone we could find. Check back later.",
+            Text(
+              context.l10n.noSuggestionsHintText,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white54, fontSize: 14),
+              style: const TextStyle(color: Colors.white54, fontSize: 14),
             ),
           ],
         ),

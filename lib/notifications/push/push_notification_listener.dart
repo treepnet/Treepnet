@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/chat/chat_session.dart';
+import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/notifications/push/push_navigation.dart';
 import 'package:treepnet/notifications/push/push_notifications.dart';
 import 'package:user_repository/user_repository.dart';
@@ -85,6 +86,13 @@ class _PushNotificationListenerState extends State<PushNotificationListener> {
     ChatSession.instance.setLanguage(lang);
     if (lang == _syncedLang) return;
     _syncedLang = lang;
+    final l10n = context.l10n;
+    unawaited(
+      PushNotifications.localizeChannel(
+        name: l10n.notificationsText,
+        description: l10n.notificationChannelDescriptionText,
+      ).catchError((Object _) {}),
+    );
     unawaited(
       context.read<UserRepository>().updateUser(lang: lang).catchError((_) {}),
     );

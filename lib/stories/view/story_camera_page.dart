@@ -42,6 +42,10 @@ class _StoryCameraPageState extends State<StoryCameraPage>
   bool _backgrounded = false;
   String? _error;
 
+  /// The error is a refused camera permission: offer the Settings shortcut
+  /// (coming back re-opens the camera through the lifecycle hook).
+  bool _accessDenied = false;
+
   /// Serialises camera swaps — see [_select].
   Future<void> _cameraQueue = Future<void>.value();
 
@@ -108,7 +112,7 @@ class _StoryCameraPageState extends State<StoryCameraPage>
       if (_cameras.isEmpty) {
         if (!mounted) return;
         setState(() {
-          _error = 'No camera found';
+          _error = context.l10n.noCameraFoundText;
           _initializing = false;
         });
         return;
@@ -120,11 +124,22 @@ class _StoryCameraPageState extends State<StoryCameraPage>
       await _select(back == -1 ? 0 : back);
     } on CameraException catch (e) {
       if (!mounted) return;
-      setState(() {
-        _error = e.description ?? context.l10n.cameraUnavailableText;
-        _initializing = false;
-      });
+      setState(() => _showCameraError(e));
     }
+  }
+
+  /// The plugin's own description is English system text ("Camera access
+  /// permission was denied."); the user gets ours, in the app's language.
+  void _showCameraError(CameraException e) {
+    _accessDenied = const {
+      'CameraAccessDenied',
+      'CameraAccessDeniedWithoutPrompt',
+      'CameraAccessRestricted',
+    }.contains(e.code);
+    _error = _accessDenied
+        ? context.l10n.cameraAccessDeniedText
+        : context.l10n.cameraUnavailableText;
+    _initializing = false;
   }
 
   /// Queues camera swaps so only one ever runs at a time.
@@ -160,10 +175,7 @@ class _StoryCameraPageState extends State<StoryCameraPage>
     } on CameraException catch (e) {
       await controller.dispose();
       if (!mounted) return;
-      setState(() {
-        _error = e.description ?? context.l10n.cameraUnavailableText;
-        _initializing = false;
-      });
+      setState(() => _showCameraError(e));
       return;
     }
     if (!mounted) {
@@ -175,6 +187,7 @@ class _StoryCameraPageState extends State<StoryCameraPage>
       _cameraIndex = target;
       _initializing = false;
       _error = null;
+      _accessDenied = false;
     });
     // Off explicitly: the plugin defaults to auto, and with no flash control on
     // screen the lamp must never fire on its own.
@@ -328,10 +341,26 @@ class _StoryCameraPageState extends State<StoryCameraPage>
       return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Text(
-            _error!,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white70),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70),
+              ),
+              if (_accessDenied) ...[
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: PhotoManager.openSetting,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
+                  ),
+                  child: Text(context.l10n.openSettingsText),
+                ),
+              ],
+            ],
           ),
         ),
       );

@@ -508,7 +508,8 @@ class AppLocalizationsRu extends AppLocalizations {
   String get noMediaFound => 'Галерея пуста';
 
   @override
-  String get acceptAllPermissionsText => 'Примите все необходимые разрешения!';
+  String get acceptAllPermissionsText =>
+      'Чтобы продолжить, разрешите доступ в настройках.';
 
   @override
   String get noLastMessagesText => 'Нет последних сообщений';
@@ -1895,4 +1896,36 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get searchNothingFoundText => 'Ничего не найдено';
+
+  @override
+  String get cameraAccessDeniedText =>
+      'Чтобы снять историю, разрешите доступ к камере в настройках.';
+
+  @override
+  String get openSettingsText => 'Открыть настройки';
+
+  @override
+  String get noNotificationsHintText =>
+      'Здесь появятся лайки, комментарии и новые подписчики.';
+
+  @override
+  String get noSuggestionsHintText =>
+      'Вы уже подписаны на всех, кого мы нашли. Загляните позже.';
+
+  @override
+  String get notificationChannelDescriptionText =>
+      'Лайки, комментарии, подписки и сообщения';
+
+  @override
+  String regionsCountText(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count региона',
+      many: '$count регионов',
+      few: '$count региона',
+      one: '$count регион',
+    );
+    return '$_temp0';
+  }
 }

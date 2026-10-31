@@ -14,7 +14,7 @@ final class _Russian {
     'takePhoto': 'Сделать фото',
     'uploadFile': 'Загрузить файл',
     'uploadWitGallery': 'Загрузить из галереи',
-    'socketConnectionNot': 'Нет соединения с сокетом',
+    'socketConnectionNot': 'Ожидание сети…',
     'writeHere': 'Напишите здесь...',
     'cancelRecording': 'Отмена',
     'noAppFound': 'Программа для открытия документа не найдена',
@@ -44,5 +44,6 @@ final class _Russian {
     'deleteMessageConfirm': 'Удалить это сообщение у всех?',
     'editFailed': 'Не удалось сохранить изменение',
     'deleteFailed': 'Не удалось удалить сообщение',
+    'sending': 'Отправка…',
 };
 }

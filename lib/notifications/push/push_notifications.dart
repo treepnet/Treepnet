@@ -96,6 +96,10 @@ class PushNotifications {
           >()
           ?.createNotificationChannel(_channel);
       _localReady = true;
+      final texts = _channelTexts;
+      if (texts != null) {
+        await localizeChannel(name: texts.name, description: texts.description);
+      }
     }
 
     // 2) FCM transport — remote push. No-ops without a Firebase config.
@@ -154,6 +158,32 @@ class PushNotifications {
   }
 
   static StreamSubscription<String>? _tokenRefresh;
+
+  static ({String name, String description})? _channelTexts;
+
+  /// Puts the channel's name and description — what Android settings show —
+  /// in the app's language; they were always English. Re-creating a channel
+  /// with the same id only updates its texts (the user's own choices for it
+  /// stay). Before [initialize] has run, it's applied there.
+  static Future<void> localizeChannel({
+    required String name,
+    required String description,
+  }) async {
+    _channelTexts = (name: name, description: description);
+    if (!_localReady) return;
+    await _local
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(
+          AndroidNotificationChannel(
+            _channel.id,
+            name,
+            description: description,
+            importance: _channel.importance,
+          ),
+        );
+  }
 
   /// Requests the runtime notification permission via the local-notifications
   /// plugin (iOS + Android 13+). Independent of Firebase.

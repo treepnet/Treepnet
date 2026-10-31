@@ -906,7 +906,7 @@ abstract class AppLocalizations {
   /// No description provided for @acceptAllPermissionsText.
   ///
   /// In en, this message translates to:
-  /// **'Failed! accept all access permissions.'**
+  /// **'Allow access in Settings to continue.'**
   String get acceptAllPermissionsText;
 
   /// No description provided for @noLastMessagesText.
@@ -3182,6 +3182,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Nothing found'**
   String get searchNothingFoundText;
+
+  /// No description provided for @cameraAccessDeniedText.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow camera access in Settings to take a story.'**
+  String get cameraAccessDeniedText;
+
+  /// No description provided for @openSettingsText.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Settings'**
+  String get openSettingsText;
+
+  /// No description provided for @noNotificationsHintText.
+  ///
+  /// In en, this message translates to:
+  /// **'Likes, comments and new followers will show up here.'**
+  String get noNotificationsHintText;
+
+  /// No description provided for @noSuggestionsHintText.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re following everyone we could find. Check back later.'**
+  String get noSuggestionsHintText;
+
+  /// No description provided for @notificationChannelDescriptionText.
+  ///
+  /// In en, this message translates to:
+  /// **'Likes, comments, follows and messages'**
+  String get notificationChannelDescriptionText;
+
+  /// No description provided for @regionsCountText.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 region} other{{count} regions}}'**
+  String regionsCountText(int count);
 }
 
 class _AppLocalizationsDelegate

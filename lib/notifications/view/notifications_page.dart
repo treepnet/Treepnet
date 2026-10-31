@@ -158,7 +158,7 @@ class _NotificationTile extends StatelessWidget {
             children: [
               TextSpan(text: _action(item)),
               TextSpan(
-                text: ' ${_ago(item.createdAt)}',
+                text: ' ${_ago(context, item.createdAt)}',
                 style: const TextStyle(color: Colors.white38),
               ),
             ],
@@ -206,14 +206,14 @@ class _NotificationTile extends StatelessWidget {
     }
   }
 
-  static String _ago(DateTime? time) {
+  /// In the app's language ("5 min." / "5 мин."), like comments; the
+  /// letters "5m / 3h / 2d" were English for everyone.
+  static String _ago(BuildContext context, DateTime? time) {
     if (time == null) return '';
-    final d = DateTime.now().difference(time);
-    if (d.inSeconds < 60) return l10nGlobal.nowText;
-    if (d.inMinutes < 60) return '${d.inMinutes}m';
-    if (d.inHours < 24) return '${d.inHours}h';
-    if (d.inDays < 7) return '${d.inDays}d';
-    return '${(d.inDays / 7).floor()}w';
+    if (DateTime.now().difference(time).inSeconds < 60) {
+      return context.l10n.nowText;
+    }
+    return time.timeAgoShort(context);
   }
 }
 
@@ -398,10 +398,10 @@ class _EmptyNotifications extends StatelessWidget {
               ),
             ),
             const Gap.v(AppSpacing.sm),
-            const Text(
-              'Likes, comments and new followers will show up here.',
+            Text(
+              context.l10n.noNotificationsHintText,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white54, fontSize: 14),
+              style: const TextStyle(color: Colors.white54, fontSize: 14),
             ),
           ],
         ),
