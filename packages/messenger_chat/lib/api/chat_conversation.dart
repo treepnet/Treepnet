@@ -7,6 +7,8 @@ class ChatConversation extends Equatable {
     required this.peer,
     this.lastMessage = '',
     this.lastMessageKind = ChatMessageKind.text,
+    this.lastMessageId,
+    this.lastMessageDeleted = false,
     this.lastMessageAt,
     this.lastMessageIsMine = false,
     this.lastMessageIsRead = false,
@@ -26,6 +28,13 @@ class ChatConversation extends Equatable {
 
   final ChatMessageKind lastMessageKind;
 
+  /// Oxirgi xabarning ID si - u tahrirlansa yoki o'chirilsa, ro'yxatdagi
+  /// matnni yangilash uchun. Null - suhbatda hali xabar yo'q.
+  final String? lastMessageId;
+
+  /// Oxirgi xabar o'chirilgan: matni ko'rsatilmaydi.
+  final bool lastMessageDeleted;
+
   final DateTime? lastMessageAt;
 
   /// Oxirgi xabarni o'zimiz yuborganmizmi - yonida o'qildi belgisi
@@ -44,6 +53,8 @@ class ChatConversation extends Equatable {
     ChatUser? peer,
     String? lastMessage,
     ChatMessageKind? lastMessageKind,
+    String? lastMessageId,
+    bool? lastMessageDeleted,
     DateTime? lastMessageAt,
     bool? lastMessageIsMine,
     bool? lastMessageIsRead,
@@ -54,6 +65,8 @@ class ChatConversation extends Equatable {
     peer: peer ?? this.peer,
     lastMessage: lastMessage ?? this.lastMessage,
     lastMessageKind: lastMessageKind ?? this.lastMessageKind,
+    lastMessageId: lastMessageId ?? this.lastMessageId,
+    lastMessageDeleted: lastMessageDeleted ?? this.lastMessageDeleted,
     lastMessageAt: lastMessageAt ?? this.lastMessageAt,
     lastMessageIsMine: lastMessageIsMine ?? this.lastMessageIsMine,
     lastMessageIsRead: lastMessageIsRead ?? this.lastMessageIsRead,
@@ -67,6 +80,8 @@ class ChatConversation extends Equatable {
     peer,
     lastMessage,
     lastMessageKind,
+    lastMessageId,
+    lastMessageDeleted,
     lastMessageAt,
     lastMessageIsMine,
     lastMessageIsRead,

@@ -283,7 +283,8 @@ class DmListTransport implements ChatListTransport {
   Set<String> get messagedPeerUuids {
     final result = <String>{};
     for (final c in _conversations.values) {
-      if (c.lastMessage.isNotEmpty) {
+      // Any message — a photo or a deleted one has no preview text.
+      if (c.lastMessageId != null) {
         final uuid = _peerUuidById[c.id];
         if (uuid != null) result.add(uuid);
       }
@@ -355,6 +356,8 @@ class DmListTransport implements ChatListTransport {
                 ? _previewText(message.content)
                 : '',
             lastMessageKind: message.kind,
+            lastMessageId: message.id,
+            lastMessageDeleted: false,
             lastMessageAt: message.date,
             lastMessageIsMine: isMine,
             lastMessageIsRead: false,
@@ -364,6 +367,21 @@ class DmListTransport implements ChatListTransport {
           );
           _conversations[updated.id] = updated;
           _recomputeUnread();
+          _events.add(ChatConversationUpserted(updated));
+
+        // An edited or deleted message: if it's the one the list shows, the
+        // preview follows — a deleted text must not stay readable here.
+        case DmMessageUpdatedEvent(:final message):
+          final current = _conversations[message.conversationId];
+          if (current == null || current.lastMessageId != message.id) return;
+          final isText = message.kind == ChatMessageKind.text;
+          final updated = current.copyWith(
+            lastMessage: message.isDeleted || !isText
+                ? ''
+                : _previewText(message.content),
+            lastMessageDeleted: message.isDeleted,
+          );
+          _conversations[updated.id] = updated;
           _events.add(ChatConversationUpserted(updated));
 
         case DmReadEvent(:final conversationId, :final readerId):
@@ -477,10 +495,14 @@ class DmListTransport implements ChatListTransport {
         isOnline: peer?['isOnline'] == true,
         lastSeen: DateTime.tryParse(peer?['lastSeen']?.toString() ?? ''),
       ),
-      lastMessage: message?.kind == ChatMessageKind.text
-          ? _previewText(message?.content ?? '')
+      lastMessage: message != null &&
+              !message.isDeleted &&
+              message.kind == ChatMessageKind.text
+          ? _previewText(message.content)
           : '',
       lastMessageKind: message?.kind ?? ChatMessageKind.text,
+      lastMessageId: message?.id,
+      lastMessageDeleted: message?.isDeleted ?? false,
       lastMessageAt:
           DateTime.tryParse(json['lastMessageAt']?.toString() ?? '') ??
           message?.date,

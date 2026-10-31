@@ -3117,6 +3117,12 @@ abstract class AppLocalizations {
   /// **'File'**
   String get chatFilePreviewText;
 
+  /// No description provided for @chatMessageDeletedPreviewText.
+  ///
+  /// In en, this message translates to:
+  /// **'Message deleted'**
+  String get chatMessageDeletedPreviewText;
+
   /// No description provided for @searchNothingFoundText.
   ///
   /// In en, this message translates to:

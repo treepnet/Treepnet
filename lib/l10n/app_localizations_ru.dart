@@ -1854,5 +1854,8 @@ class AppLocalizationsRu extends AppLocalizations {
   String get chatFilePreviewText => 'Файл';
 
   @override
+  String get chatMessageDeletedPreviewText => 'Сообщение удалено';
+
+  @override
   String get searchNothingFoundText => 'Ничего не найдено';
 }

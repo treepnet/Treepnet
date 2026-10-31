@@ -949,5 +949,6 @@
   "chatVideoPreviewText": "Video",
   "chatVoicePreviewText": "Voice message",
   "chatFilePreviewText": "File",
+  "chatMessageDeletedPreviewText": "Message deleted",
   "searchNothingFoundText": "Nothing found"
 }

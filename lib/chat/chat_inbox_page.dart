@@ -577,8 +577,10 @@ class _ChatsListState extends State<_ChatsList> {
     final conversations =
         _map.values
             // Only conversations with an actual message — a freshly opened but
-            // empty one stays out of Chats until something is written.
-            .where((c) => c.lastMessage.isNotEmpty)
+            // empty one stays out of Chats until something is written. (It
+            // used to test for preview text, which hid every chat whose last
+            // message was a photo, voice message, video, file or deleted.)
+            .where((c) => c.lastMessageId != null)
             // The peer's app uuid (the conversation's own peer id is the
             // chat backend's).
             .where(
@@ -624,8 +626,11 @@ class _ConversationTile extends StatelessWidget {
   final ChatConversation conversation;
 
   String _preview(BuildContext context) {
-    if (conversation.lastMessage.isNotEmpty) return conversation.lastMessage;
     final l10n = context.l10n;
+    if (conversation.lastMessageDeleted) {
+      return l10n.chatMessageDeletedPreviewText;
+    }
+    if (conversation.lastMessage.isNotEmpty) return conversation.lastMessage;
     return switch (conversation.lastMessageKind) {
       ChatMessageKind.photo => '📷 ${l10n.chatPhotoPreviewText}',
       ChatMessageKind.video => '🎬 ${l10n.chatVideoPreviewText}',

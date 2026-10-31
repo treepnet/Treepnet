@@ -1829,5 +1829,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatFilePreviewText => 'File';
 
   @override
+  String get chatMessageDeletedPreviewText => 'Message deleted';
+
+  @override
   String get searchNothingFoundText => 'Nothing found';
 }
