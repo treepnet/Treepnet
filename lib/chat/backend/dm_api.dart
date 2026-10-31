@@ -388,11 +388,43 @@ class DmApi {
         if (messageId != null) 'messageId': messageId,
       });
 
-  void edit({required String messageId, required String content}) =>
-      _socket?.emit('dm.edit', {'messageId': messageId, 'content': content});
+  /// Edits our message and waits (up to [_sendTimeout]) for the backend to
+  /// confirm. It used to fire and forget: a refused or lost edit left the new
+  /// text on screen while the server kept the old one.
+  Future<DmSendResult> edit({
+    required String messageId,
+    required String content,
+  }) => _emitConfirmed('dm.edit', {
+    'messageId': messageId,
+    'content': content,
+  });
 
-  void deleteMessage({required String messageId}) =>
-      _socket?.emit('dm.delete', {'messageId': messageId});
+  /// Deletes our message, confirmed like [edit].
+  Future<DmSendResult> deleteMessage({required String messageId}) =>
+      _emitConfirmed('dm.delete', {'messageId': messageId});
+
+  Future<DmSendResult> _emitConfirmed(String event, Map<String, dynamic> data) {
+    final socket = _socket;
+    if (socket == null) {
+      return Future.value(const DmSendResult.timedOut());
+    }
+    if (socket.disconnected) socket.connect();
+    final result = Completer<DmSendResult>();
+    final timeout = Timer(_sendTimeout, () {
+      if (!result.isCompleted) result.complete(const DmSendResult.timedOut());
+    });
+    socket.emitWithAck(
+      event,
+      data,
+      ack: ([dynamic response]) {
+        timeout.cancel();
+        if (!result.isCompleted) {
+          result.complete(DmSendResult.fromAck(response));
+        }
+      },
+    );
+    return result.future;
+  }
 
   /// Tells the backend the app language changed (it refreshes its copy of this
   /// user on the next request that isn't cached).

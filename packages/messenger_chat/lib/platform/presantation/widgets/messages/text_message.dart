@@ -93,11 +93,14 @@ class _TextMessageState extends State<_TextMessage> {
 
     // App-provided shared-content card (e.g. a shared post/story sent as a
     // sentinel-encoded text message). When the app returns a widget for this
-    // content, render it instead of the plain text bubble.
-    final shared = _ChatRuntime.instance.sharedMessageBuilder?.call(
-      context,
-      widget.message.content.content,
-    );
+    // content, render it instead of the plain text bubble — unless the
+    // message was deleted (checked below first; the card used to stay).
+    final shared = widget.message.isDeleted
+        ? null
+        : _ChatRuntime.instance.sharedMessageBuilder?.call(
+            context,
+            widget.message.content.content,
+          );
     if (shared != null) return shared;
 
     if (widget.message.isDeleted) {

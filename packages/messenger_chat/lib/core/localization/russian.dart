@@ -39,5 +39,10 @@ final class _Russian {
     'delete': 'Удалить',
     'messageDeleted': 'Сообщение удалено',
     'edited': 'изменено',
+    'copy': 'Копировать',
+    'copied': 'Скопировано',
+    'deleteMessageConfirm': 'Удалить это сообщение у всех?',
+    'editFailed': 'Не удалось сохранить изменение',
+    'deleteFailed': 'Не удалось удалить сообщение',
 };
 }

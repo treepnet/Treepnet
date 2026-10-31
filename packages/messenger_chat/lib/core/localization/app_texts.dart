@@ -61,4 +61,10 @@ mixin _AppTexts {
   static String get delete => _translate('delete');
   static String get messageDeleted => _translate('messageDeleted');
   static String get edited => _translate('edited');
+  static String get copy => _translate('copy');
+  static String get copied => _translate('copied');
+  static String get deleteMessageConfirm =>
+      _translate('deleteMessageConfirm');
+  static String get editFailed => _translate('editFailed');
+  static String get deleteFailed => _translate('deleteFailed');
 }

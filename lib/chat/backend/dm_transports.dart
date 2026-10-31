@@ -215,11 +215,18 @@ class DmChatTransport implements ChatTransport {
   Future<void> editMessage({
     required String messageId,
     required String content,
-  }) async => api.edit(messageId: messageId, content: content);
+  }) async => _confirmChange(
+    await api.edit(messageId: messageId, content: content),
+  );
 
   @override
   Future<void> deleteMessage({required String messageId}) async =>
-      api.deleteMessage(messageId: messageId);
+      _confirmChange(await api.deleteMessage(messageId: messageId));
+
+  /// The plugin learns of a refused or lost edit / delete from the throw.
+  static void _confirmChange(DmSendResult result) {
+    if (!result.ok) throw StateError(result.error ?? 'not confirmed');
+  }
 
   @override
   Future<void> dispose() async {

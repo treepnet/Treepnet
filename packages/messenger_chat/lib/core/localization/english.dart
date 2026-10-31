@@ -39,5 +39,10 @@ final class _English {
     'delete': 'Delete',
     'messageDeleted': 'Message deleted',
     'edited': 'edited',
+    'copy': 'Copy',
+    'copied': 'Copied',
+    'deleteMessageConfirm': 'Delete this message for everyone?',
+    'editFailed': "Couldn't save the change",
+    'deleteFailed': "Couldn't delete the message",
 };
 }

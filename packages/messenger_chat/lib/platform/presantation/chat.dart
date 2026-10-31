@@ -405,7 +405,15 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
         _cubit?.updateMessage(
           editing.copyWith(content: Message(content: message), isEdited: true),
         );
-        await _ChatSocket.editMessage(messageId: editing.id, content: message);
+        final saved = await _ChatSocket.editMessage(
+          messageId: editing.id,
+          content: message,
+        );
+        if (!saved) {
+          // Not saved on the server: put the old text back and say so.
+          _cubit?.updateMessage(editing);
+          _showNotice(_AppTexts.editFailed);
+        }
       }
       _focusNode.requestFocus();
       return;
@@ -546,7 +554,35 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
   /// O'z xabaringizni o'chirish (tasdiqlash bilan).
   Future<void> _deleteMessage(_MessageModel message) async {
     if (message.id.isEmpty) return;
-    await _ChatSocket.deleteMessage(messageId: message.id);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        content: Text(_AppTexts.deleteMessageConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(_AppTexts.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              _AppTexts.delete,
+              style: const TextStyle(color: Color(0xffEE1D23)),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final deleted = await _ChatSocket.deleteMessage(messageId: message.id);
+    if (!deleted) _showNotice(_AppTexts.deleteFailed);
+  }
+
+  void _showNotice(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.maybeOf(context)
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text)));
   }
 
   /// Xabarga uzoq bosilganda amallar menyusini ochadi.
@@ -554,6 +590,15 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
     if (message.isDeleted) return;
     final canModify = message.isMine && !message.id.isEmpty;
     final isText = message.contentType == _ContentType.text;
+    // A shared post/story travels as an internal link in a text message:
+    // nothing to copy or edit there.
+    final isShared =
+        isText &&
+        _ChatRuntime.instance.sharedMessageBuilder?.call(
+              context,
+              message.content.content,
+            ) !=
+            null;
 
     showModalBottomSheet<void>(
       context: context,
@@ -576,7 +621,24 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
                 _startReply(message);
               },
             ),
-            if (canModify && isText)
+            if (isText && !isShared)
+              ListTile(
+                leading: const Icon(Icons.copy_outlined, color: Colors.white),
+                title: Text(
+                  _AppTexts.copy,
+                  style: const TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  unawaited(
+                    Clipboard.setData(
+                      ClipboardData(text: message.content.content),
+                    ),
+                  );
+                  _showNotice(_AppTexts.copied);
+                },
+              ),
+            if (canModify && isText && !isShared)
               ListTile(
                 leading: const Icon(Icons.edit_outlined, color: Colors.white),
                 title: Text(
@@ -611,10 +673,10 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
 
   /// Iqtibosda ko'rsatiladigan qisqa matn (media uchun yorliq).
   static String _replyPreview(_MessageModel m) => switch (m.contentType) {
-    _ContentType.photo => '📷 Rasm',
-    _ContentType.video => '🎬 Video',
-    _ContentType.voice => '🎤 Ovozli xabar',
-    _ContentType.document => '📎 Fayl',
+    _ContentType.photo => '📷 ${_AppTexts.photo}',
+    _ContentType.video => '🎬 ${_AppTexts.video}',
+    _ContentType.voice => '🎤 ${_AppTexts.voiceMessage}',
+    _ContentType.document => '📎 ${_AppTexts.file}',
     // Shared post/story sentinels → a friendly label, via the app hook.
     _ =>
       _ChatRuntime.instance.sharedReplyPreview?.call(m.content.content) ??

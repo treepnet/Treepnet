@@ -270,13 +270,15 @@ abstract class ChatTransport {
   Future<void> markRead({String? messageId});
 
   /// O'z xabaringizni tahrirlaydi. Natija [ChatMessageUpdated] bilan keladi.
+  /// Server saqlamasa (rad etsa yoki javob kelmasa) istisno tashlash kerak -
+  /// plagin eski matnni qaytaradi va xatoni ko'rsatadi.
   Future<void> editMessage({
     required String messageId,
     required String content,
   });
 
   /// O'z xabaringizni o'chiradi (soft-delete). Natija [ChatMessageUpdated]
-  /// bilan keladi (`isDeleted = true`).
+  /// bilan keladi (`isDeleted = true`). Xato bo'lsa istisno tashlash kerak.
   Future<void> deleteMessage({required String messageId});
 
   /// Kiruvchi hodisalar oqimi.

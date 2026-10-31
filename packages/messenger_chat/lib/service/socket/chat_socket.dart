@@ -160,22 +160,33 @@ class _ChatSocket {
     }
   }
 
-  static Future<void> editMessage({
+  /// Server tahrirni saqlaganmi - ekran saqlanmaganini bilib, eski matnni
+  /// qaytaradi.
+  static Future<bool> editMessage({
     required String messageId,
     required String content,
   }) async {
+    final transport = _transport;
+    if (transport == null) return false;
     try {
-      await _transport?.editMessage(messageId: messageId, content: content);
+      await transport.editMessage(messageId: messageId, content: content);
+      return true;
     } catch (e) {
-      _ChatLogger.print('editMessage yuborilmadi: $e');
+      _ChatLogger.print('editMessage saqlanmadi: $e');
+      return false;
     }
   }
 
-  static Future<void> deleteMessage({required String messageId}) async {
+  /// Server xabarni o'chirganmi.
+  static Future<bool> deleteMessage({required String messageId}) async {
+    final transport = _transport;
+    if (transport == null) return false;
     try {
-      await _transport?.deleteMessage(messageId: messageId);
+      await transport.deleteMessage(messageId: messageId);
+      return true;
     } catch (e) {
-      _ChatLogger.print('deleteMessage yuborilmadi: $e');
+      _ChatLogger.print('deleteMessage bajarilmadi: $e');
+      return false;
     }
   }
 }
