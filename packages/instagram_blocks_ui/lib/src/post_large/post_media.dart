@@ -39,7 +39,9 @@ class _PostMediaState extends State<PostMedia> {
     ValueNotifier<int> currentIndex,
   ) => MediaCarouselSettings.create(
     videoPlayerBuilder: widget.videoPlayerBuilder,
-    aspectRatio: widget.media.isReel ? kDefaultVideoAspectRatio : null,
+    aspectRatio: widget.media.isReel
+        ? kDefaultVideoAspectRatio
+        : _photoAspectRatio(widget.media),
     fit: widget.media.hasVideo ? kDefaultVideoMediaBoxFit : null,
     withInViewNotifier: widget.withInViewNotifier,
     onPageChanged: (index, _) {
@@ -48,6 +50,15 @@ class _PostMediaState extends State<PostMedia> {
       widget.onPageChanged?.call(index);
     },
   );
+
+  /// The first photo's own shape, between 4:5 (tall, the picker's crop) and
+  /// 1:1, so a tall photo isn't cut down to a square. Posts without a size
+  /// (older ones) stay square. Only this card: grids keep uniform cells.
+  static double? _photoAspectRatio(List<Media> media) {
+    final first = media.firstOrNull;
+    if (first is! ImageMedia) return null;
+    return first.aspectRatio?.clamp(4 / 5, 1.0);
+  }
 
   bool get singleImage => widget.media.length == 1;
   bool get showMediaCount => !singleImage && widget.media.isNotEmpty;

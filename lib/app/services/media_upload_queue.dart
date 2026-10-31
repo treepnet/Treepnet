@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -916,6 +917,7 @@ class MediaUploadQueue {
       } catch (e) {
         shared.logW('MediaUploadQueue: No thumbnail for $postId/$index: $e');
       }
+      final size = await _imageSize(bytes);
       await enqueueTask(
         postId: postId,
         bytes: bytes,
@@ -933,6 +935,9 @@ class MediaUploadQueue {
         'url': '',
         'type': shared.ImageMedia.identifier,
         'blur_hash': blurHash,
+        // Shapes the feed card (4:5 to 1:1); grids keep their fixed cells.
+        if (size != null) 'width': size.width,
+        if (size != null) 'height': size.height,
       };
     }
 
@@ -945,6 +950,24 @@ class MediaUploadQueue {
           if (s['index'] != index) s,
       ],
     );
+  }
+
+  /// Width and height of encoded image [bytes], from its header (no pixel
+  /// decode). The compressor has already turned the photo upright, so these
+  /// are the sizes as shown. Null when they can't be read.
+  static Future<({int width, int height})?> _imageSize(Uint8List bytes) async {
+    ui.ImmutableBuffer? buffer;
+    ui.ImageDescriptor? descriptor;
+    try {
+      buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+      descriptor = await ui.ImageDescriptor.encoded(buffer);
+      return (width: descriptor.width, height: descriptor.height);
+    } catch (_) {
+      return null;
+    } finally {
+      descriptor?.dispose();
+      buffer?.dispose();
+    }
   }
 
   /// Recomputes [status] from the queued posts and their uploads.

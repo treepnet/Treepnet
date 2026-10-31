@@ -15,6 +15,8 @@ ImageMedia _$ImageMediaFromJson(Map<String, dynamic> json) =>
         url: $checkedConvert('url', (v) => v as String),
         blurHash: $checkedConvert('blur_hash', (v) => v as String?),
         thumbUrl: $checkedConvert('thumb_url', (v) => v as String?),
+        width: $checkedConvert('width', (v) => (v as num?)?.toInt()),
+        height: $checkedConvert('height', (v) => (v as num?)?.toInt()),
         type: $checkedConvert(
           'type',
           (v) => v as String? ?? ImageMedia.identifier,
@@ -34,6 +36,8 @@ Map<String, dynamic> _$ImageMediaToJson(ImageMedia instance) =>
       'blur_hash': ?instance.blurHash,
       'media_id': instance.id,
       'thumb_url': ?instance.thumbUrl,
+      'width': ?instance.width,
+      'height': ?instance.height,
     };
 
 MemoryImageMedia _$MemoryImageMediaFromJson(Map<String, dynamic> json) =>

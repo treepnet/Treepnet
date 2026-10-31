@@ -20,6 +20,8 @@ class ImageMedia extends Media {
     required super.url,
     super.blurHash,
     this.thumbUrl,
+    this.width,
+    this.height,
     super.type = ImageMedia.identifier,
   }) : super(id: id);
 
@@ -35,6 +37,23 @@ class ImageMedia extends Media {
   /// the photo has none; show [url] then.
   final String? thumbUrl;
 
+  /// The uploaded photo's width in pixels, for the feed card's shape. Null on
+  /// posts made before it was recorded.
+  final int? width;
+
+  /// The uploaded photo's height in pixels; see [width].
+  final int? height;
+
+  /// Width over height, or null when the size isn't known.
+  double? get aspectRatio {
+    final width = this.width;
+    final height = this.height;
+    if (width == null || height == null || width <= 0 || height <= 0) {
+      return null;
+    }
+    return width / height;
+  }
+
   /// The image media block type identifier.
   static const identifier = '__image_media__';
 
@@ -42,7 +61,7 @@ class ImageMedia extends Media {
   Map<String, dynamic> toJson() => _$ImageMediaToJson(this);
 
   @override
-  List<Object?> get props => [...super.props, thumbUrl];
+  List<Object?> get props => [...super.props, thumbUrl, width, height];
 }
 
 /// Converts to and from [Uint8List] and [List]<[int]>.
