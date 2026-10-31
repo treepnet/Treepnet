@@ -285,7 +285,7 @@ class _PeerStatus extends StatelessWidget {
         : peer.lastSeen == null
         ? _AppTexts.offline
         : '${_AppTexts.lastSeen} '
-              '${_DateUtility.getFormattedTime(peer.lastSeen!.toIso8601String())}';
+              '${_DateUtility.getFormattedLastSeen(peer.lastSeen!)}';
 
     return Row(
       children: [

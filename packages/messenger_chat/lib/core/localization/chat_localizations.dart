@@ -9,6 +9,9 @@ class _ChatLocalizations {
 
   ChatLanguage _language = ChatLanguage.russian;
 
+  /// Locale code of the chat language, for dates (`ru`, `en`, ...).
+  String get locale => _language.locale;
+
   void initialize(ChatLanguage? lan) {
     if (lan != null && lan != _language) _language = lan;
   }
