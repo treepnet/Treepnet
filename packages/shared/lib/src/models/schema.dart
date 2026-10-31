@@ -68,6 +68,8 @@ const schema = Schema([
     ],
     indexes: [
       Index('blocker', [IndexedColumn('blocker_id')]),
+      // The blocked-either-way check runs inside most queries.
+      Index('blocked', [IndexedColumn('blocked_id')]),
     ],
   ),
   Table(
@@ -87,6 +89,8 @@ const schema = Schema([
     ],
     indexes: [
       Index('user', [IndexedColumn('user_id')]),
+      // The feed pages newest first.
+      Index('created', [IndexedColumn('created_at')]),
     ],
   ),
   Table(
@@ -246,6 +250,9 @@ const schema = Schema([
         'user',
         [IndexedColumn('subscriber_id'), IndexedColumn('subscribed_to_id')],
       ),
+      // Followers lists, counts and "started following you": by the person
+      // followed, which the index above (subscriber first) can't serve.
+      Index('to', [IndexedColumn('subscribed_to_id')]),
     ],
   ),
   Table(

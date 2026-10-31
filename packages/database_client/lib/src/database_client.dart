@@ -2415,27 +2415,31 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
 
   @override
   Future<List<User>> getFollowers({String? userId}) async {
-    // A private account's list only shows to its followers, and blocked
-    // people are left out of anyone's list.
-    final followersId = await _powerSyncRepository.db().getAll(
-      'SELECT subscriber_id FROM subscriptions WHERE subscribed_to_id = ?1 '
-      "AND COALESCE(status, 'accepted') = 'accepted' "
-      "AND ${_visibleAuthorSql('?1')} AND ${_notBlockedSql('subscriber_id')}",
+    final rows = await _powerSyncRepository.db().getAll(
+      _followListSql(followers: true, limited: false),
       [userId ?? currentUserId],
     );
-    if (followersId.isEmpty) return [];
+    return rows.safeMap(User.fromJson).toList(growable: false);
+  }
 
-    final followers = <User>[];
-    for (final followerId in followersId) {
-      final result = await _powerSyncRepository.db().execute(
-        'SELECT * FROM profiles WHERE id = ?',
-        [followerId['subscriber_id']],
-      );
-      if (result.isEmpty) continue;
-      final follower = User.fromJson(result.first);
-      followers.add(follower);
-    }
-    return followers;
+  /// The people following [?1] ([followers]) or followed by them, with their
+  /// profiles, newest follow first — one query. It used to fetch the ids,
+  /// then each profile with its own query, in no particular order. A private
+  /// account's list only shows to its followers, and blocked people are left
+  /// out of anyone's list. [limited]: `LIMIT ?2`, for scroll pagination.
+  String _followListSql({required bool followers, required bool limited}) {
+    final person = followers ? 's.subscriber_id' : 's.subscribed_to_id';
+    final owner = followers ? 's.subscribed_to_id' : 's.subscriber_id';
+    return '''
+SELECT p.*
+FROM subscriptions s
+  JOIN profiles p ON p.id = $person
+WHERE $owner = ?1
+  AND COALESCE(s.status, 'accepted') = 'accepted'
+  AND ${_visibleAuthorSql('?1')}
+  AND ${_notBlockedSql(person)}
+ORDER BY s.created_at DESC
+${limited ? 'LIMIT ?2' : ''}''';
   }
 
   @override
@@ -2479,67 +2483,25 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
   }
 
   @override
-  Stream<List<User>> followers({required String userId, int? limit}) async* {
-    // `limit` caps the reactive window so a huge follower list isn't fetched
-    // (one profile query PER follower) all at once. Null = all (unchanged for
-    // other callers). Growing the limit re-subscribes with a wider window.
-    // A private account's list only shows to its followers, and blocked
-    // people are left out of anyone's list.
-    final streamResult = _powerSyncRepository.db().watch(
-      'SELECT subscriber_id FROM subscriptions WHERE subscribed_to_id = ?1 '
-      "AND COALESCE(status, 'accepted') = 'accepted' "
-      "AND ${_visibleAuthorSql('?1')} AND ${_notBlockedSql('subscriber_id')} "
-      '${limit != null ? 'LIMIT ?2' : ''}',
-      parameters: [userId, if (limit != null) limit],
-    );
-    await for (final result in streamResult) {
-      final followers = <User>[];
-      final followersFutures = await Future.wait(
-        result
-            .where((row) => row.isNotEmpty)
-            .safeMap(
-              (row) => _powerSyncRepository.db().getOptional(
-                'SELECT * FROM profiles WHERE id = ?',
-                [row['subscriber_id']],
-              ),
-            ),
-      );
-      for (final user in followersFutures) {
-        if (user == null) continue;
-        final follower = User.fromJson(user);
-        followers.add(follower);
-      }
-      yield followers;
-    }
-  }
+  Stream<List<User>> followers({required String userId, int? limit}) =>
+      // `limit` caps the live window; growing it re-subscribes wider.
+      _powerSyncRepository
+          .db()
+          .watch(
+            _followListSql(followers: true, limited: limit != null),
+            parameters: [userId, if (limit != null) limit],
+          )
+          .map((rows) => rows.safeMap(User.fromJson).toList(growable: false));
 
   @override
   Future<List<User>> getFollowings({String? userId, int? limit}) async {
-    // `limit` caps how many followings are fetched (one profile query each);
-    // null = all. Callers grow the limit for scroll pagination.
-    // A private account's list only shows to its followers, and blocked
-    // people are left out of anyone's list.
-    final followingsUserId = await _powerSyncRepository.db().getAll(
-      'SELECT subscribed_to_id FROM subscriptions WHERE subscriber_id = ?1 '
-      "AND COALESCE(status, 'accepted') = 'accepted' "
-      "AND ${_visibleAuthorSql('?1')} "
-      "AND ${_notBlockedSql('subscribed_to_id')} "
-      '${limit != null ? 'LIMIT ?2' : ''}',
+    // `limit` caps how many are fetched; callers grow it for scroll
+    // pagination. Null = all.
+    final rows = await _powerSyncRepository.db().getAll(
+      _followListSql(followers: false, limited: limit != null),
       [userId ?? currentUserId, if (limit != null) limit],
     );
-    if (followingsUserId.isEmpty) return [];
-
-    final followings = <User>[];
-    for (final followingsUserId in followingsUserId) {
-      final result = await _powerSyncRepository.db().execute(
-        'SELECT * FROM profiles WHERE id = ?',
-        [followingsUserId['subscribed_to_id']],
-      );
-      if (result.isEmpty) continue;
-      final following = User.fromJson(result.first);
-      followings.add(following);
-    }
-    return followings;
+    return rows.safeMap(User.fromJson).toList(growable: false);
   }
 
   @override

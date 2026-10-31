@@ -13,7 +13,6 @@ import 'package:treepnet/feed/post/post.dart';
 import 'package:treepnet/app/services/media_upload_queue.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/stories/stories.dart';
-import 'package:treepnet/user_profile/user_profile.dart';
 import 'package:inview_notifier_list/inview_notifier_list.dart';
 import 'package:shared/shared.dart';
 import 'package:sliver_tools/sliver_tools.dart';
@@ -35,9 +34,9 @@ class FeedPageState extends State<FeedPage> with RouteAware {
   void initState() {
     super.initState();
     _controller = PageController(initialPage: widget.initialPage);
-    context.read<UserProfileBloc>().add(
-      const UserProfileFetchFollowingsRequested(),
-    );
+    // Followings aren't loaded here any more: only the share sheets use them,
+    // and they load their own when opened. Every feed open used to fetch them
+    // all — seconds for someone following hundreds.
   }
 
   @override
