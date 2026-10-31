@@ -56,15 +56,45 @@ reload Caddy for the new `/log/*` route
 
 ## Scheduled jobs (ubuntu's crontab on the server)
 
+`crontab.txt` is the crontab, verbatim — install it with
+`crontab oci-backend/crontab.txt` (as ubuntu) after copying the scripts below
+to their places.
+
 | When (UTC) | What |
 |---|---|
 | every 5 min | `~/treepnet-monitor.sh` (`monitor/`): health checks → Telegram |
 | every 5 min | `refresh_story_visibility()` (`sql/stories_private_archive.sql`) |
-| every 6 h | `postgrest/refresh-jwks.sh` |
-| 01:30 daily | PowerSync compact: `docker exec treepnet-powersync node service/lib/entry.js compact >> /home/ubuntu/powersync-compact.log 2>&1` — drops superseded sync history so new devices download less; safe while the service runs |
+| every hour | `postgrest/refresh-jwks.sh`: Google's token keys for PostgREST |
+| 01:30 daily | PowerSync compact — drops superseded sync history so new devices download less; safe while the service runs |
 | 22:30 daily | `~/treepnet-backup.sh` (`backup/`) |
 | 23:30 Sun | `~/treepnet-backup-check.sh` |
-| 23:55 daily | `~/analytics-rollup.sh` |
+| 23:55 daily | `~/analytics-rollup.sh` (`analytics/`): DAU/WAU/MAU snapshot for the admin panel |
+
+## Where each file lives on the server
+
+Everything the server runs is in this folder; the secrets (`.env`, the
+service-account JSON, `postgrest/jwks.json`) come from the nightly backup.
+
+| In the repo | On the server |
+|---|---|
+| `docker-compose.yml`, `sql/`, `functions/`, `powersync/`, `postgres/` | `~/treepnet/` (same layout) |
+| `caddy/Caddyfile`, `caddy/web/` | `~/treepnet/caddy/` (reload: `docker exec treepnet-caddy caddy reload --adapter caddyfile --config /etc/caddy/Caddyfile`) |
+| `../admin-panel/` (built `dist/`) | `~/treepnet/caddy/admin/` — see `admin-panel/README.md` |
+| `postgrest/refresh-jwks.sh` | `~/treepnet/postgrest/refresh-jwks.sh` |
+| `monitor/treepnet-monitor.sh`, `backup/*.sh`, `analytics/analytics-rollup.sh` | `~/` |
+| `chatbackend-src/` | `~/treepnet/chatbackend/` |
+| `crontab.txt` | ubuntu's crontab |
+
+### Chat backend
+
+`chatbackend-src/` is a snapshot of the code that runs (2026-10-31), with every
+patch in `chatbackend-patches/` already applied (the upstream
+`messenger-chat-backend` repo may not have them). To deploy it, copy the folder to
+`~/treepnet/chatbackend/` (its `.env` comes from the backup) and run
+`docker compose up -d --build chatbackend`. Two files contain a literal NUL
+inside a regex and one has CRLF line endings: edit them byte-safely, check with
+`docker run --rm -v "$PWD":/app -w /app node:20-slim node --check <file>`, and
+copy any change back here.
 
 ## Notes
 

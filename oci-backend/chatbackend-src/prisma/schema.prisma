@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Ilova (tenant). Har bir foydalanuvchi bitta loyihaga tegishli va faqat
+/// shu loyiha ichida yozisha oladi.
+model Project {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  /// Mijoz `x-app-key` sarlavhasida yuboradigan kalit.
+  apiKey    String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  users         User[]
+  conversations Conversation[]
+}
+
+/// Messenger foydalanuvchisi.
+///
+/// Ro'yxatdan o'tish yo'q: mijoz `x-uuid` sarlavhasi bilan keladi va shu
+/// asosda avtomatik yaratiladi/yangilanadi.
+model User {
+  id        Int    @id @default(autoincrement())
+  uuid      String
+  projectId Int
+
+  name   String?
+  phone  String?
+  email  String?
+  avatar String?
+
+  appName        String
+  appVersion     String?
+  packageVersion String?
+  deviceId       String
+  deviceName     String
+  deviceType     String
+  osVersion      String?
+  lang           String
+  ipAddress      String?
+  customData     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project                  Project                   @relation(fields: [projectId], references: [id])
+  conversationParticipants ConversationParticipant[]
+  directMessages           DirectMessage[]
+  deviceTokens             DeviceToken[]
+
+  @@unique([uuid, projectId])
+}
+
+/// 1:1 suhbat.
+model Conversation {
+  id            Int       @id @default(autoincrement())
+  projectId     Int
+  createdAt     DateTime  @default(now())
+  /// Ro'yxatni tartiblash uchun. Bo'sh suhbatda ham to'ldiriladi - NULL
+  /// bo'lsa Postgres uni `DESC` da eng tepaga chiqarib yuboradi.
+  lastMessageAt DateTime?
+
+  project      Project                   @relation(fields: [projectId], references: [id])
+  participants ConversationParticipant[]
+  messages     DirectMessage[]
+}
+
+model ConversationParticipant {
+  id             Int       @id @default(autoincrement())
+  conversationId Int
+  userId         Int
+  unreadCount    Int       @default(0)
+  lastReadAt     DateTime?
+  /// When this participant last "deleted" (cleared) the conversation from their
+  /// own view. Per-user, NOT a mutual delete: the peer keeps the conversation.
+  /// The list hides a cleared conversation until a newer message arrives, and
+  /// message history is filtered to messages after this timestamp. Null = never
+  /// cleared.
+  clearedAt      DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+}
+
+model DirectMessage {
+  id             Int      @id @default(autoincrement())
+  conversationId Int
+  senderId       Int
+  content        String
+  contentType    String   @default("text") // text, photo, video, voice, document
+  /// Mijoz bergan kalit - qayta yuborishda dublikat yaratmaslik uchun.
+  key            String   @unique
+  isRead         Boolean  @default(false)
+  isEdited       Boolean  @default(false)
+  isDeleted      Boolean  @default(false)
+  date           DateTime @default(now())
+
+  svg      String?
+  png      String?
+  duration String?
+  size     String?
+
+  /// Reply snapshot (denormalised so no join is needed on read): the id,
+  /// content and sender of the message this one replies to. Null = not a reply.
+  replyToId        String?
+  replyToContent   String?
+  replyToSenderId  String?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  sender       User         @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId, date])
+}
+
+/// Push (FCM) qurilma tokenlari. Bitta foydalanuvchida ko'p qurilma bo'lishi
+/// mumkin. Xabar kelganda oflayn qabul qiluvchining tokenlariga push yuboriladi.
+model DeviceToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  token     String   @unique
+  platform  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}

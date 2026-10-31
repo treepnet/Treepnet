@@ -1,0 +1,3 @@
+# Two files hold a literal NUL inside a regex (stripping NULs from input);
+# without this git would show them as binary.
+*.js diff

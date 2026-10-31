@@ -1,0 +1,17 @@
+node_modules/
+uploads/*
+!uploads/.gitkeep
+
+# Muhit fayllari - maxfiy qiymatlar
+.env
+.env.*
+!.env.example
+
+# Prisma
+prisma/*.db
+prisma/migrations/dev/
+
+# Loglar va vaqtinchalik fayllar
+*.log
+npm-debug.log*
+.DS_Store

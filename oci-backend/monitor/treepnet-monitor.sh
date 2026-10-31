@@ -98,6 +98,37 @@ replication() {
   [ -n "$row" ] && echo "PowerSync replication: $row"
 }
 
+# PostgREST checks signed-in requests against a copy of Google's signing keys
+# (postgrest/refresh-jwks.sh, hourly). A key Google signs with that the copy
+# lacks — or a copy PostgREST never loaded — refuses every signed-in write
+# with 401, which the endpoint checks can't see (they call without a token).
+# Google publishes a new key a while before signing with it, so a missing key
+# is reported only after 90 minutes: the hourly refresh had its chance.
+jwks() {
+  local file=/home/ubuntu/treepnet/postgrest/jwks.json live missing since now started
+  live=$(curl -fsS -m 15 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com') || return 0
+  missing=$(printf '%s' "$live" | python3 -c '
+import json, sys
+live = {k.get("kid") for k in json.load(sys.stdin).get("keys", [])}
+try:
+    have = {k.get("kid") for k in json.load(open(sys.argv[1])).get("keys", [])}
+except Exception:
+    have = set()
+print(" ".join(sorted(k for k in live - have if k)))' "$file" 2>/dev/null)
+  now=$(date +%s)
+  if [ -n "$missing" ]; then
+    since=$(cat "$STATE_DIR/jwks.missing-since" 2>/dev/null || echo "$now")
+    echo "$since" >"$STATE_DIR/jwks.missing-since"
+    [ $((now - since)) -ge 5400 ] &&
+      echo "PostgREST lacks Google signing key(s) $missing for $(((now - since) / 60)) min: signed-in writes get 401 (see postgrest/refresh-jwks.log)"
+  else
+    rm -f "$STATE_DIR/jwks.missing-since"
+  fi
+  started=$(date -d "$(docker inspect -f '{{.State.StartedAt}}' treepnet-postgrest)" +%s 2>/dev/null || echo 0)
+  [ "$(stat -c %Y "$file")" -gt $((started + 60)) ] &&
+    echo "PostgREST wasn't restarted after jwks.json changed: it still checks tokens with the old keys"
+}
+
 push_queue() {
   local row
   row=$(sql "select count(*) || ' unsent, oldest ' || coalesce(extract(epoch from now() - min(created_at))::int / 60, 0) || ' min' from push_outbox where status not in ('sent', 'failed') having count(*) > 200 or min(created_at) < now() - interval '15 minutes'")
@@ -120,5 +151,6 @@ check containers containers
 restarts
 check endpoints endpoints
 check replication replication
+check jwks jwks
 check push_queue push_queue
 check deletions deletions
