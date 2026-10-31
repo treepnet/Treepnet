@@ -416,13 +416,22 @@ class UserRepository implements UserBaseRepository {
   /// A wrong password throws [LogInWithPasswordFailure] and nothing is deleted.
   /// On success every owned row is removed server-side and the session is
   /// signed out, dropping the app back to the login screen.
+  ///
+  /// [beforeSignOut] runs once the account is deleted, while the session is
+  /// still valid — for the app to stop this device's pushes and chat.
   Future<void> deleteAccount({
     required String email,
     required String password,
+    Future<void> Function()? beforeSignOut,
   }) async {
     // Verify the password by re-authenticating; this throws on a wrong one.
     await logInWithPassword(email: email, password: password);
     await _databaseClient.deleteAccount();
+    try {
+      await beforeSignOut?.call();
+    } catch (_) {
+      // The account is gone already; signing out must still happen.
+    }
     // Remove the auth-provider user too (and sign out), not just sign out.
     await _authenticationClient.deleteAuthUser();
   }

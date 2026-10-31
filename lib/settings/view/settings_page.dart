@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:app_ui/app_ui.dart';
 import 'package:firebase_authentication_client/firebase_authentication_client.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
+import 'package:treepnet/app/bloc/session_teardown.dart';
 import 'package:treepnet/auth/auth_error_text.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/selector/selector.dart';
@@ -81,16 +84,48 @@ class SettingsPage extends StatelessWidget {
     if (password == null || password.isEmpty || !context.mounted) return;
 
     final userRepository = context.read<UserRepository>();
+    // Nothing else can be tapped while the account is being erased.
+    BuildContext? progress;
+    void closeProgress() {
+      final c = progress;
+      progress = null;
+      if (c != null && c.mounted) Navigator.of(c).pop();
+    }
+
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          progress = dialogContext;
+          return const PopScope(
+            canPop: false,
+            child: Center(child: CircularProgressIndicator()),
+          );
+        },
+      ),
+    );
     try {
       await userRepository.deleteAccount(
         email: identifier,
         password: password,
+        // Like signing out: this phone stops getting the account's pushes and
+        // its chat closes, so nothing reaches the next account here.
+        beforeSignOut: () async {
+          try {
+            await tearDownUserSession(userRepository);
+          } finally {
+            closeProgress();
+          }
+        },
       );
+      closeProgress();
       // A successful delete signs out; AppBloc routes back to login on its own.
     } on LogInWithPasswordFailure catch (error, stackTrace) {
       // The password step failed: usually a wrong password, sometimes the
       // network — said in the app's language, not as the exception's text.
       debugPrint('DELETE_ACCT password step failed: $error\n$stackTrace');
+      closeProgress();
       if (!context.mounted) return;
       openSnackbar(
         SnackbarMessage.error(title: authErrorText(context.l10n, error)),
@@ -98,6 +133,7 @@ class SettingsPage extends StatelessWidget {
     } catch (error, stackTrace) {
       // Password was accepted but the delete itself failed (RPC/permission).
       debugPrint('DELETE_ACCT delete step failed: $error\n$stackTrace');
+      closeProgress();
       if (!context.mounted) return;
       final l10n = context.l10n;
       openSnackbar(

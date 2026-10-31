@@ -3,10 +3,8 @@ import 'dart:async';
 import 'package:app_ui/app_ui.dart';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
-import 'package:messenger_chat/messenger_chat.dart';
+import 'package:treepnet/app/bloc/session_teardown.dart';
 import 'package:treepnet/app/view/view.dart';
-import 'package:treepnet/chat/chat_session.dart';
-import 'package:treepnet/notifications/push/push_notifications.dart';
 import 'package:user_repository/user_repository.dart';
 
 part 'app_event.dart';
@@ -62,18 +60,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     Emitter<AppState> emit,
   ) async {
     try {
-      // Stop this device's chat pushes for this user, then clear the push
-      // token, while the user id is still valid, so a signed-out device stops
-      // receiving notifications (and the next account doesn't get these).
-      await ChatSession.instance.unregisterPushToken();
-      await PushNotifications.disableForUser(_userRepository);
-      // Tear down the chat connection so the next account starts a clean
-      // session — otherwise the previous user's socket/identity lingers and
-      // their messages cross into the new user's threads. stop() closes the
-      // app-side socket; wipeSession() clears the plugin's cached state too
-      // (runtime identity, the persisted outbox, and secure storage).
-      await ChatSession.instance.stop();
-      await MessengerChat.wipeSession();
+      await tearDownUserSession(_userRepository);
       await _userRepository.logOut();
       openSnackbar(
         SnackbarMessage.success(title: l10nGlobal.loggedOutSuccessfullyText),
