@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:database_client/src/invite_badge.dart';
 import 'package:database_client/src/post_stats.dart';
 import 'package:powersync_repository/powersync_repository.dart';
@@ -1660,12 +1659,7 @@ posts.user_id = ?
     final jsonListMedia = result
         .map((row) => Map<String, dynamic>.from(row)['media'] as String)
         .toList();
-    final rootToken = RootIsolateToken.instance!;
-    final media =
-        await compute<List<dynamic>, List<List<Map<String, dynamic>>>>(
-          _computeJsonListMedia,
-          [rootToken, jsonListMedia],
-        );
+    final media = await _decodeMediaLists(jsonListMedia);
     final posts = <Post>[];
     for (var i = 0; i < result.length; i++) {
       final json = Map<String, dynamic>.from(result[i]);
@@ -1720,12 +1714,7 @@ ${limit != null ? 'LIMIT ?' : ''}
               return json['media'] as String;
             }).toList();
 
-            final rootToken = RootIsolateToken.instance!;
-            final media =
-                await compute<List<dynamic>, List<List<Map<String, dynamic>>>>(
-                  _computeJsonListMedia,
-                  [rootToken, jsonListMedia],
-                );
+            final media = await _decodeMediaLists(jsonListMedia);
 
             final posts = <Post>[];
             for (var i = 0; i < result.length; i++) {
@@ -1751,24 +1740,29 @@ ${limit != null ? 'LIMIT ?' : ''}
     return result.first['id'] as String;
   }
 
-  static List<List<Map<String, dynamic>>> _computeJsonListMedia(
-    List<dynamic> args,
-  ) {
-    final rootToken = args[0] as RootIsolateToken;
-    BackgroundIsolateBinaryMessenger.ensureInitialized(rootToken);
-    final jsonListMedia = args[1] as List<String?>;
-    final listMedia = jsonListMedia
-        .map(
-          (jsonMedia) =>
-              (jsonMedia == null
-                      ? <Map<String, dynamic>>[]
-                      : jsonDecode(jsonMedia) as List<dynamic>)
-                  .cast<Map<String, dynamic>>(),
-        )
-        .toList();
-
-    return listMedia;
+  /// A page's media JSON, decoded here when small (a page of posts is a few
+  /// KB) and on a background isolate only for a big batch. Every page used
+  /// to start an isolate — and set up platform channels in it it never used
+  /// — which cost more than the decoding, on each refresh of a profile or
+  /// place page.
+  static Future<List<List<Map<String, dynamic>>>> _decodeMediaLists(
+    List<String?> jsons,
+  ) async {
+    final size = jsons.fold<int>(0, (sum, json) => sum + (json?.length ?? 0));
+    if (size < _isolateDecodeBytes) return _decodeMediaListsNow(jsons);
+    return compute(_decodeMediaListsNow, jsons);
   }
+
+  static const int _isolateDecodeBytes = 50 * 1024;
+
+  static List<List<Map<String, dynamic>>> _decodeMediaListsNow(
+    List<String?> jsons,
+  ) => [
+    for (final json in jsons)
+      json == null
+          ? <Map<String, dynamic>>[]
+          : (jsonDecode(json) as List<dynamic>).cast<Map<String, dynamic>>(),
+  ];
 
   /// One post's media JSON (a few hundred bytes), decoded in place. It used
   /// to start a background isolate per post — far more work than the decoding
@@ -1841,11 +1835,7 @@ ORDER BY created_at DESC LIMIT ?1 OFFSET ?2
       return json['media'] as String;
     }).toList();
 
-    final rootToken = RootIsolateToken.instance!;
-    final media = await compute(
-      _computeJsonListMedia,
-      [rootToken, jsonListMedia],
-    );
+    final media = await _decodeMediaLists(jsonListMedia);
 
     final posts = <Post>[];
     for (var i = 0; i < result.length; i++) {
@@ -2156,11 +2146,7 @@ ORDER BY saved_posts.created_at DESC LIMIT ?2 OFFSET ?3
       return json['media'] as String;
     }).toList();
 
-    final rootToken = RootIsolateToken.instance!;
-    final media = await compute(
-      _computeJsonListMedia,
-      [rootToken, jsonListMedia],
-    );
+    final media = await _decodeMediaLists(jsonListMedia);
 
     final posts = <Post>[];
     for (var i = 0; i < result.length; i++) {
@@ -2246,11 +2232,7 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
       return json['media'] as String;
     }).toList();
 
-    final rootToken = RootIsolateToken.instance!;
-    final media = await compute(
-      _computeJsonListMedia,
-      [rootToken, jsonListMedia],
-    );
+    final media = await _decodeMediaLists(jsonListMedia);
 
     final posts = <Post>[];
     for (var i = 0; i < result.length; i++) {
@@ -3064,10 +3046,7 @@ order by created_at asc
               final listMediaJson = result
                   .map((e) => e['shared_post_media'] as String?)
                   .toList();
-              final resultMedia = await compute(
-                _computeJsonListMedia,
-                [RootIsolateToken.instance!, listMediaJson],
-              );
+              final resultMedia = await _decodeMediaLists(listMediaJson);
               for (var i = 0; i < result.length; i++) {
                 final json = Map<String, dynamic>.from(result[i]);
                 final indexedMedia = resultMedia[i];
@@ -4045,10 +4024,7 @@ LIMIT ?2 OFFSET ?3
         !listMediaJson.any((element) => element != null)) {
       return result.safeMap(Message.fromRow).toList(growable: false);
     }
-    final resultMedia = await compute(
-      _computeJsonListMedia,
-      [RootIsolateToken.instance!, listMediaJson],
-    );
+    final resultMedia = await _decodeMediaLists(listMediaJson);
     for (var i = 0; i < result.length; i++) {
       final json = Map<String, dynamic>.from(result[i]);
       final indexedMedia = resultMedia[i];
