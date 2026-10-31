@@ -37,6 +37,10 @@ class PostsRepository implements PostsBaseRepository {
   );
 
   @override
+  Future<int?> feedPositionOf({required String postId}) =>
+      _databaseClient.feedPositionOf(postId: postId);
+
+  @override
   Future<void> like({
     required String id,
     bool post = true,

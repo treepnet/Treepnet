@@ -349,6 +349,11 @@ abstract class PostsBaseRepository {
     bool onlyReels = false,
   });
 
+  /// How many posts come before [postId] in [getPage]'s order (its offset
+  /// there), or null when it isn't in that feed (deleted, hidden, not
+  /// visible).
+  Future<int?> feedPositionOf({required String postId});
+
   /// Create a new post with provided details.
   Future<Post?> createPost({
     required String id,
@@ -1770,6 +1775,33 @@ ${limit != null ? 'LIMIT ?' : ''}
     for (final item in jsonDecode(jsonMedia) as List<dynamic>)
       Media.fromJson(item as Map<String, dynamic>),
   ];
+
+  @override
+  Future<int?> feedPositionOf({required String postId}) async {
+    // Same filters as getPage, so the count is that post's offset there.
+    final result = await _powerSyncRepository.db().getAll(
+      '''
+SELECT
+  (SELECT COUNT(*) FROM posts
+    WHERE ${_visibleAuthorSql('posts.user_id')}
+      AND ${_postReadySql('posts')}
+      AND posts.id NOT IN (
+        SELECT post_id FROM hidden_posts WHERE user_id = $_viewerSql
+      )
+      AND posts.created_at > target.created_at) AS position
+FROM posts AS target
+WHERE target.id = ?1
+  AND ${_visibleAuthorSql('target.user_id')}
+  AND ${_postReadySql('target')}
+  AND target.id NOT IN (
+    SELECT post_id FROM hidden_posts WHERE user_id = $_viewerSql
+  )
+    ''',
+      [postId],
+    );
+    if (result.isEmpty) return null;
+    return result.first['position'] as int?;
+  }
 
   @override
   Future<List<Post>> getPage({

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -80,13 +82,13 @@ class _NewestPostsPageState extends State<NewestPostsPage> {
       initial = widget.posts!;
       _hasMore = false;
     } else {
-      final (posts, reachedEnd) = await _loadNewestIncluding(
+      final (posts, offset, reachedEnd) = await _loadAround(
         context.read<PostsRepository>(),
         widget.startPostId,
       );
       initial = posts;
       _hasMore = !reachedEnd;
-      _nextOffset = posts.length;
+      _nextOffset = offset + posts.length;
     }
     if (!mounted) return;
     setState(() {
@@ -98,31 +100,24 @@ class _NewestPostsPageState extends State<NewestPostsPage> {
     });
   }
 
-  /// Loads the newest posts, paging until the tapped post ([startPostId]) is
-  /// included, so it can be scrolled to. The explore/trend grid keeps paging in
-  /// tiles well past a single page, so a lower tile's post could fall outside a
-  /// fixed first-page fetch — and the id lookup would then miss and fall back to
-  /// index 0, opening the wrong (first) post. Paging by id (not position) also
-  /// stays correct if a new post lands between the grid load and this one.
-  /// Bounded so it can never spin. Matches the grid's `created_at DESC` order
-  /// (same `getPage`). Returns whether the end of the feed was reached, so the
-  /// caller knows if there is more to page in on scroll.
-  Future<(List<Post>, bool)> _loadNewestIncluding(
+  /// Newer posts kept above the tapped one, to scroll up to.
+  static const _newerAbove = 10;
+
+  /// One page of the newest-posts feed (`getPage`'s order, like the grid)
+  /// around the tapped post: up to [_newerAbove] newer ones, then it and older
+  /// ones. Its place comes from one count, not from paging in 50 at a time
+  /// until it showed up — up to 20 reads, 1000 posts, for an old one, all
+  /// for nothing when it had been deleted. Not in the feed any more: the
+  /// newest posts. Returns the page, the offset it starts at, and whether
+  /// the feed ends with it.
+  Future<(List<Post>, int, bool)> _loadAround(
     PostsRepository repo,
     String startPostId,
   ) async {
-    final all = <Post>[];
-    var reachedEnd = false;
-    for (var offset = 0; offset < 1000; offset += _pageSize) {
-      final batch = await repo.getPage(offset: offset, limit: _pageSize);
-      all.addAll(batch);
-      if (batch.length < _pageSize) {
-        reachedEnd = true;
-        break;
-      }
-      if (all.any((p) => p.id == startPostId)) break;
-    }
-    return (all, reachedEnd);
+    final position = await repo.feedPositionOf(postId: startPostId);
+    final offset = position == null ? 0 : max(0, position - _newerAbove);
+    final batch = await repo.getPage(offset: offset, limit: _pageSize);
+    return (batch, offset, batch.length < _pageSize);
   }
 
   void _addPosts(Iterable<Post> posts) {
