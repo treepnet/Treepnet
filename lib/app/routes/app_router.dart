@@ -438,9 +438,13 @@ class AppRouter {
                           initialMediaPath: props.initialMediaPath,
                           // The editor cannot read EXIF or reverse-geocode; the
                           // app owns both, so it hands the lookup down.
-                          onResolvePlace: (_) => resolveStoryPlaceLabel(
-                            mediaPath: props.initialMediaPath,
-                          ),
+                          onResolvePlace: (editorContext) =>
+                              resolveStoryPlaceLabel(
+                                mediaPath: props.initialMediaPath,
+                                lang: Localizations.localeOf(
+                                  editorContext,
+                                ).languageCode,
+                              ),
                           storiesEditorLocalizationDelegate:
                               storiesEditorLocalizationDelegate(context),
                           galleryThumbnailQuality: 900,

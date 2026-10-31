@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:exif/exif.dart';
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:treepnet/map/geo_regions.dart';
 
@@ -16,16 +17,20 @@ import 'package:treepnet/map/geo_regions.dart';
 /// caller simply adds nothing.
 ///
 /// The country/region name comes from the offline admin-1 index, so this works
-/// with no network and no geocoding key.
-Future<String?> resolveStoryPlaceLabel({required String? mediaPath}) async {
-  final fromPhoto = await _placeFromExif(mediaPath);
+/// with no network and no geocoding key. It is written in the app's language
+/// ([lang], e.g. `ru`), the same names the map uses.
+Future<String?> resolveStoryPlaceLabel({
+  required String? mediaPath,
+  required String lang,
+}) async {
+  final fromPhoto = await _placeFromExif(mediaPath, lang);
   if (fromPhoto != null) return fromPhoto;
-  return _placeFromDevice();
+  return _placeFromDevice(lang);
 }
 
 /// Where the phone is now, as a region label. Null when the permission is
 /// refused or location services are off — nothing is stamped in that case.
-Future<String?> _placeFromDevice() async {
+Future<String?> _placeFromDevice(String lang) async {
   try {
     if (!await Geolocator.isLocationServiceEnabled()) return null;
 
@@ -51,18 +56,23 @@ Future<String?> _placeFromDevice() async {
       position.longitude,
       position.latitude,
     );
-    return region == null ? null : _label(region);
+    return region == null ? null : storyPlaceLabel(region, lang);
   } catch (_) {
     // Timeout, no fix, or a platform refusal — the chip is optional.
     return null;
   }
 }
 
-String _label(GeoRegion region) => '${region.name}, ${region.countryName}';
+/// "Region, Country" in [lang]. It used to be the English names whatever the
+/// app's language.
+@visibleForTesting
+String storyPlaceLabel(GeoRegion region, String lang) =>
+    '${region.localizedDisplayName(lang)}, '
+    '${region.localizedCountryName(lang)}';
 
 /// Reads the photo's GPS tag and maps it to a region, or null when the file has
 /// no coordinates.
-Future<String?> _placeFromExif(String? mediaPath) async {
+Future<String?> _placeFromExif(String? mediaPath, String lang) async {
   if (mediaPath == null || mediaPath.isEmpty) return null;
   final file = File(mediaPath);
   if (!file.existsSync()) return null;
@@ -75,7 +85,7 @@ Future<String?> _placeFromExif(String? mediaPath) async {
 
     await GeoRegions.instance.load();
     final region = GeoRegions.instance.regionAt(lng, lat);
-    return region == null ? null : _label(region);
+    return region == null ? null : storyPlaceLabel(region, lang);
   } catch (_) {
     // A corrupt or unreadable header is not worth failing the whole button
     // over; the map fallback still works.
