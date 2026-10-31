@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:app_ui/app_ui.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -264,6 +262,33 @@ class _StoryCard extends StatelessWidget {
   }
 }
 
+/// The dark placeholder cross-fades into the cover once it is ready, as
+/// `CachedNetworkImage` did. Already in the cache: shown straight away.
+Widget _fadeIn(
+  BuildContext context,
+  Widget child,
+  int? frame,
+  bool wasSynchronouslyLoaded,
+) {
+  if (wasSynchronouslyLoaded) return child;
+  const duration = Duration(milliseconds: 300);
+  return Stack(
+    fit: StackFit.expand,
+    children: [
+      AnimatedOpacity(
+        opacity: frame == null ? 1 : 0,
+        duration: duration,
+        child: const ColoredBox(color: AppColors.dark),
+      ),
+      AnimatedOpacity(
+        opacity: frame == null ? 0 : 1,
+        duration: duration,
+        child: child,
+      ),
+    ],
+  );
+}
+
 /// Card body: cover photo, a hairline outline, and the name near the top.
 class _Card extends StatelessWidget {
   const _Card({
@@ -287,25 +312,34 @@ class _Card extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final coverUrl = cover;
-    Widget coverImage = coverUrl != null
-        ? CachedNetworkImage(
-            imageUrl: coverUrl,
-            fit: BoxFit.cover,
-            memCacheHeight: 600,
-            placeholder: (_, _) => const ColoredBox(color: AppColors.dark),
-            errorWidget: (_, _, _) => const ColoredBox(color: AppColors.dark),
-          )
-        : const ColoredBox(color: AppColors.dark);
-    if (blurred && coverUrl != null) {
-      coverImage = ImageFiltered(
-        // Blurs the photo itself. A BackdropFilter samples beyond the card and
-        // rendered as a dark vignette around the edges.
-        imageFilter: ui.ImageFilter.blur(
-          sigmaX: 14,
-          sigmaY: 14,
-          tileMode: TileMode.decal,
-        ),
-        child: coverImage,
+    final Widget coverImage;
+    if (coverUrl == null) {
+      coverImage = const ColoredBox(color: AppColors.dark);
+    } else if (blurred) {
+      // Blurred once, from a tiny copy, then stretched over the card — a live
+      // blur here re-ran for every card on every frame of a scroll.
+      coverImage = LayoutBuilder(
+        builder: (context, constraints) => constraints.biggest.isEmpty
+            ? const SizedBox.shrink()
+            : Image(
+                image: BlurredCoverImage.forCard(
+                  coverUrl,
+                  card: constraints.biggest,
+                  blurSigma: 14,
+                ),
+                fit: BoxFit.cover,
+                frameBuilder: _fadeIn,
+                errorBuilder: (_, _, _) =>
+                    const ColoredBox(color: AppColors.dark),
+              ),
+      );
+    } else {
+      coverImage = CachedNetworkImage(
+        imageUrl: coverUrl,
+        fit: BoxFit.cover,
+        memCacheHeight: 600,
+        placeholder: (_, _) => const ColoredBox(color: AppColors.dark),
+        errorWidget: (_, _, _) => const ColoredBox(color: AppColors.dark),
       );
     }
 
