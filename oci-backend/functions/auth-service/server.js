@@ -145,6 +145,41 @@ async function upsertCode(email, code, purpose) {
   );
 }
 
+// The app repeats a request whose answer was slow. Within this many seconds
+// a repeated send-code keeps the code already mailed instead of mailing a new
+// one that would void it (codes are stored hashed, so the same code can't be
+// sent again).
+const RESEND_GAP_SEC = 60;
+
+async function codeJustSent(email, purpose) {
+  const r = await pool.query(
+    `select 1 from auth_codes
+      where email = $1 and purpose = $2 and attempts = 0
+        and expires_at - make_interval(mins => $3::int)
+              > now() - make_interval(secs => $4::int)`,
+    [email, purpose, CODE_TTL_MIN, RESEND_GAP_SEC],
+  );
+  return r.rowCount > 0;
+}
+
+// A repeated verify after a slow answer finds its code already used up by the
+// first, which succeeded. These recognise that first success — only for a
+// change made in the last few minutes, by someone who knows the password.
+const REPEAT_WINDOW = "interval '10 minutes'";
+
+async function credentialsIfPassword(email, password, changedColumn) {
+  const r = await pool.query(
+    `select c.user_id, c.password_hash
+       from profiles p join auth_credentials c on c.user_id = p.id
+      where lower(p.email) = $1 and c.${changedColumn} > now() - ${REPEAT_WINDOW}
+      limit 1`,
+    [email],
+  );
+  const row = r.rows[0];
+  if (!row || !(await bcrypt.compare(password, row.password_hash))) return null;
+  return row.user_id;
+}
+
 // Validates a code for `email`; returns null on success or an error string.
 // Increments attempts on a wrong code. Deletes nothing (caller decides).
 async function checkCode(email, code, purpose) {
@@ -314,9 +349,11 @@ async function signupSendCode(res, b) {
   if (existing.rowCount > 0)
     return fail(res, 409, 'An account with this email already exists.', 'user_already_exists');
 
-  const code = genCode();
-  await upsertCode(email, code, 'signup');
-  await sendCodeEmail(email, code, 'signup');
+  if (!(await codeJustSent(email, 'signup'))) {
+    const code = genCode();
+    await upsertCode(email, code, 'signup');
+    await sendCodeEmail(email, code, 'signup');
+  }
   return send(res, 200, { ok: true, continuationToken: email, codeLength: CODE_LENGTH });
 }
 
@@ -335,7 +372,12 @@ async function signupVerify(res, b) {
     return fail(res, 400, 'Password must be at least 8 characters.', 'password_too_short');
 
   const codeErr = await checkCode(email, code, 'signup');
-  if (codeErr) return fail(res, 400, codeErr, 'invalid_oob_value');
+  if (codeErr) {
+    // The same sign-up again: the first created the account. Sign in.
+    const uid = await credentialsIfPassword(email, password, 'created_at');
+    if (uid) return send(res, 200, { token: await mintToken(uid), userId: uid });
+    return fail(res, 400, codeErr, 'invalid_oob_value');
+  }
 
   const client = await pool.connect();
   try {
@@ -432,7 +474,7 @@ async function resetSendCode(res, b) {
         where lower(p.email) = $1 limit 1`,
       [email],
     );
-    if (hasCreds.rowCount > 0) {
+    if (hasCreds.rowCount > 0 && !(await codeJustSent(email, 'reset'))) {
       const code = genCode();
       await upsertCode(email, code, 'reset');
       await sendCodeEmail(email, code, 'reset');
@@ -451,7 +493,13 @@ async function resetVerify(res, b) {
     return fail(res, 400, 'Choose a stronger password.', 'password_too_short');
 
   const codeErr = await checkCode(email, code, 'reset');
-  if (codeErr) return fail(res, 400, codeErr, 'invalid_oob_value');
+  if (codeErr) {
+    // The same reset again: the first already set this very password.
+    if (await credentialsIfPassword(email, newPassword, 'updated_at')) {
+      return send(res, 200, { ok: true });
+    }
+    return fail(res, 400, codeErr, 'invalid_oob_value');
+  }
 
   const r = await pool.query(
     `select c.user_id

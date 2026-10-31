@@ -40,11 +40,13 @@ class AuthServiceApi {
 
   final Dio _dio;
 
+  /// At most ~15 s per try (sending the code email is the slowest step);
+  /// three tries at 30 s each could keep a person waiting 90 s.
   static Dio _build() => Dio(
     BaseOptions(
-      connectTimeout: const Duration(seconds: 30),
-      sendTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 30),
+      connectTimeout: const Duration(seconds: 10),
+      sendTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 15),
     ),
   );
 
@@ -91,12 +93,14 @@ class AuthServiceApi {
             message: 'Something went wrong. Please try again.',
           );
         }
-        // Only connection-level failures are worth retrying on a fresh
-        // connection.
+        // Only retried when the request can't have reached the service: it
+        // couldn't connect (or a stale pooled connection broke). A slow
+        // answer isn't retried — the service may have done it already, and a
+        // repeat used to mail a second code (voiding the first) or report
+        // "invalid code" for a sign-up or reset that had worked. (The service
+        // also takes such repeats in its stride now.)
         final retriable = e.type == DioExceptionType.connectionError ||
             e.type == DioExceptionType.connectionTimeout ||
-            e.type == DioExceptionType.sendTimeout ||
-            e.type == DioExceptionType.receiveTimeout ||
             e.type == DioExceptionType.unknown;
         if (!retriable || attempt == maxAttempts - 1) break;
         await Future<void>.delayed(
