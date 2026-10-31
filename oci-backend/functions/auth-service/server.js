@@ -133,15 +133,16 @@ async function sendCodeEmail(email, code, purpose) {
   });
 }
 
-async function upsertCode(email, code, purpose) {
+async function upsertCode(email, code, purpose, payload = null) {
   const expires = new Date(Date.now() + CODE_TTL_MIN * 60000).toISOString();
   await pool.query(
-    `insert into auth_codes(email, code, purpose, expires_at, attempts)
-       values ($1, $2, $3, $4, 0)
+    `insert into auth_codes(email, code, purpose, expires_at, attempts, payload)
+       values ($1, $2, $3, $4, 0, $5)
      on conflict (email) do update
        set code = excluded.code, purpose = excluded.purpose,
-           expires_at = excluded.expires_at, attempts = 0`,
-    [email, hashCode(email, purpose, code), purpose, expires],
+           expires_at = excluded.expires_at, attempts = 0,
+           payload = excluded.payload`,
+    [email, hashCode(email, purpose, code), purpose, expires, payload],
   );
 }
 
@@ -151,15 +152,53 @@ async function upsertCode(email, code, purpose) {
 // sent again).
 const RESEND_GAP_SEC = 60;
 
+// The row of a code mailed less than RESEND_GAP_SEC ago, if any.
 async function codeJustSent(email, purpose) {
   const r = await pool.query(
-    `select 1 from auth_codes
+    `select payload from auth_codes
       where email = $1 and purpose = $2 and attempts = 0
         and expires_at - make_interval(mins => $3::int)
               > now() - make_interval(secs => $4::int)`,
     [email, purpose, CODE_TTL_MIN, RESEND_GAP_SEC],
   );
-  return r.rowCount > 0;
+  return r.rows[0] || null;
+}
+
+// The password-reset flow's continuation token: random and meaningless. It
+// used to be the account's email, so anyone could look up the address behind
+// a username (and tell which usernames exist). The token is kept with the
+// code (auth_codes.payload) and leads back to the email on verify.
+const newResetToken = () => crypto.randomBytes(24).toString('hex');
+
+async function emailForResetToken(token) {
+  if (!token) return null;
+  const r = await pool.query(
+    `select email from auth_codes
+      where purpose in ('reset', 'reset_done') and payload->>'token' = $1`,
+    [token],
+  );
+  return r.rows[0]?.email || null;
+}
+
+// "Your password was changed", to the account's owner — in their app
+// language. Best-effort: a reset doesn't fail over it.
+async function sendPasswordChangedEmail(uid, email) {
+  const r = await pool.query('select lang from profiles where id = $1', [uid]);
+  const ru = r.rows[0]?.lang === 'ru';
+  await transporter.sendMail({
+    from: `Treepnet <${process.env.SMTP_USER}>`,
+    to: email,
+    subject: ru ? 'Пароль Treepnet изменён' : 'Your Treepnet password was changed',
+    text: ru
+      ? 'Пароль вашего аккаунта Treepnet только что изменён, и все устройства ' +
+        'вышли из аккаунта.\n\nЕсли это сделали вы, ничего делать не нужно.\n\n' +
+        'Если это были не вы, сразу восстановите пароль в приложении ' +
+        '(«Забыли пароль?»).'
+      : 'The password of your Treepnet account was just changed, and every ' +
+        'device was signed out.\n\nIf this was you, there is nothing else to ' +
+        "do.\n\nIf it wasn't you, reset your password in the app right away " +
+        '("Forgot password?").',
+  });
 }
 
 // A repeated verify after a slow answer finds its code already used up by the
@@ -472,25 +511,37 @@ async function verifyPassword(res, b) {
 
 async function resetSendCode(res, b) {
   const email = await emailForUsernameOrEmail(b.usernameOrEmail);
-  // Always return ok so the endpoint can't confirm which accounts exist.
+  // Always the same answer — ok and a fresh-looking token — so the endpoint
+  // tells nothing about which accounts exist or their email addresses.
+  let token = newResetToken();
   if (email) {
     const hasCreds = await pool.query(
       `select 1 from profiles p join auth_credentials c on c.user_id = p.id
         where lower(p.email) = $1 limit 1`,
       [email],
     );
-    if (hasCreds.rowCount > 0 && !(await codeJustSent(email, 'reset'))) {
-      const code = genCode();
-      await upsertCode(email, code, 'reset');
-      await sendCodeEmail(email, code, 'reset');
+    if (hasCreds.rowCount > 0) {
+      const recent = await codeJustSent(email, 'reset');
+      if (recent?.payload?.token) {
+        // A repeat: the code already mailed stays, with its token.
+        token = recent.payload.token;
+      } else {
+        const code = genCode();
+        await upsertCode(email, code, 'reset', { token });
+        await sendCodeEmail(email, code, 'reset');
+      }
     }
   }
-  return send(res, 200, { ok: true, continuationToken: email || '', codeLength: CODE_LENGTH });
+  return send(res, 200, { ok: true, continuationToken: token, codeLength: CODE_LENGTH });
 }
 
 async function resetVerify(res, b) {
-  // continuationToken is the email we returned from reset/send-code.
-  const email = (b.continuationToken || b.email || '').trim().toLowerCase();
+  // continuationToken is the token reset/send-code returned. A reset begun
+  // before the tokens were opaque carries the email itself.
+  const token = (b.continuationToken || '').trim();
+  const email =
+    (await emailForResetToken(token)) ||
+    (token || b.email || '').trim().toLowerCase();
   const code = (b.code || '').trim();
   const newPassword = b.newPassword || '';
   if (!isEmail(email) || !code)
@@ -525,7 +576,17 @@ async function resetVerify(res, b) {
     'update auth_credentials set password_hash = $2, updated_at = now() where user_id = $1',
     [uid, hash],
   );
-  await pool.query('delete from auth_codes where email = $1', [email]);
+  // The code is used up, but its token still leads to the email for a few
+  // minutes, so a repeat of this request (after a slow answer) is recognised.
+  await pool.query(
+    `update auth_codes set code = '', purpose = 'reset_done',
+       expires_at = now() + interval '10 minutes'
+     where email = $1`,
+    [email],
+  );
+  sendPasswordChangedEmail(uid, email).catch((e) =>
+    console.error('auth-service password-changed email failed:', e.message),
+  );
   return send(res, 200, { ok: true });
 }
 
