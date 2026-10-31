@@ -5,9 +5,12 @@ import 'package:android_play_install_referrer/android_play_install_referrer.dart
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:treepnet/app/bloc/app_bloc.dart';
 import 'package:treepnet/referral/pending_referral.dart';
 import 'package:treepnet/referral/referral_config.dart';
+import 'package:user_repository/user_repository.dart';
 
 /// Captures referral invite links and PERSISTS the handle for the sign-up flow
 /// to redeem.
@@ -49,6 +52,17 @@ class _ReferralLinkListenerState extends State<ReferralLinkListener> {
     });
     _checkInstallReferrer();
     _checkIosClipboard();
+    // A redeem that couldn't reach the server at sign-up: finish it.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _retryRedeem());
+  }
+
+  void _retryRedeem() {
+    if (!mounted) return;
+    final state = context.read<AppBloc>().state;
+    if (state.status != AppStatus.authenticated) return;
+    unawaited(
+      PendingReferral.retryFor(context.read<UserRepository>(), state.user.id),
+    );
   }
 
   static const _kIosClipChecked = 'ios_referral_clip_checked';
@@ -95,20 +109,39 @@ class _ReferralLinkListenerState extends State<ReferralLinkListener> {
     unawaited(PendingReferral.save(handle));
   }
 
+  static const _kPlayReferrerChecked = 'play_referrer_checked';
+
   /// Reads the Play Store install referrer exactly once per install. If a link
   /// was tapped before the app existed, the invite handle rides along in the
   /// referrer string and is picked up here on first launch.
+  ///
+  /// It used to run on every launch: the install's referrer came back after
+  /// the first account had used it (so a second account made on this phone
+  /// counted again) and overwrote an invite link tapped later.
   Future<void> _checkInstallReferrer() async {
+    if (!Platform.isAndroid) return;
     try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_kPlayReferrerChecked) ?? false) return;
       final details = await AndroidPlayInstallReferrer.installReferrer;
+      // Read successfully: never again for this install.
+      await prefs.setBool(_kPlayReferrerChecked, true);
       final handle = ReferralConfig.handleFromReferrer(details.installReferrer);
       if (handle == null) return;
+      // A link tapped since (more recent, and deliberate) wins.
+      if (await PendingReferral.read() != null) return;
       await PendingReferral.save(handle);
     } catch (_) {
-      // No Play install (sideload, iOS, emulator) — nothing to read.
+      // No Play install (sideload, emulator) or not ready — try next launch.
     }
   }
 
   @override
-  Widget build(BuildContext context) => const SizedBox.shrink();
+  Widget build(BuildContext context) => BlocListener<AppBloc, AppState>(
+    listenWhen: (previous, current) =>
+        previous.status != AppStatus.authenticated &&
+        current.status == AppStatus.authenticated,
+    listener: (_, __) => _retryRedeem(),
+    child: const SizedBox.shrink(),
+  );
 }

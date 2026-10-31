@@ -335,19 +335,9 @@ class SignUpCubit extends Cubit<SignupState> {
   /// times because the freshly-signed-in session's token can take a moment to
   /// reach the API; clears the handle afterwards so it is used exactly once.
   Future<void> _redeemPendingReferral() async {
-    final handle = await PendingReferral.read();
-    if (handle == null) return;
-    for (var attempt = 0; attempt < 3; attempt++) {
-      try {
-        final status = await _userRepository.redeemReferral(handle: handle);
-        // Anything other than "not signed in yet" is a definitive answer.
-        if (status != 'unauthenticated') break;
-      } catch (_) {
-        // Network / token not ready — fall through to a short retry.
-      }
-      await Future<void>.delayed(const Duration(seconds: 1));
-    }
-    await PendingReferral.clear();
+    final userId = _userRepository.currentUserId;
+    if (userId == null) return;
+    await PendingReferral.redeemFor(_userRepository, userId: userId);
   }
 
   /// Surfaces why a step failed: the service's error code, which the screen
