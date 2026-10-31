@@ -2,6 +2,12 @@ part of 'user_profile_bloc.dart';
 
 enum UserProfileStatus { initial, userUpdated, userUpdateFailed }
 
+/// Whether the viewer sees the profile's map and posts: [visible] for its
+/// owner, a public account or an accepted follower; [locked] for a private
+/// account they don't follow, or when its owner blocked them; [loading] until
+/// that is known (rather than flashing the lock).
+enum ProfileAccess { loading, visible, locked }
+
 class UserProfileState extends Equatable {
   const UserProfileState._({
     required this.status,
@@ -11,9 +17,10 @@ class UserProfileState extends Equatable {
     required this.postsCount,
     required this.followingsCount,
     required this.followersCount,
+    required this.access,
   });
 
-  const UserProfileState.initial()
+  const UserProfileState.initial({ProfileAccess access = ProfileAccess.loading})
     : this._(
         status: UserProfileStatus.initial,
         user: User.anonymous,
@@ -22,6 +29,7 @@ class UserProfileState extends Equatable {
         postsCount: 0,
         followersCount: 0,
         followingsCount: 0,
+        access: access,
       );
 
   final UserProfileStatus status;
@@ -31,9 +39,11 @@ class UserProfileState extends Equatable {
   final int postsCount;
   final int followingsCount;
   final int followersCount;
+  final ProfileAccess access;
 
   @override
   List<Object> get props => [
+    access,
     status,
     user,
     followings,
@@ -51,8 +61,10 @@ class UserProfileState extends Equatable {
     int? postsCount,
     int? followingsCount,
     int? followersCount,
+    ProfileAccess? access,
   }) {
     return UserProfileState._(
+      access: access ?? this.access,
       status: status ?? this.status,
       user: user ?? this.user,
       followings: followings ?? this.followings,

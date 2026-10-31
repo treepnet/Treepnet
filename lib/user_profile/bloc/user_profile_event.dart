@@ -8,6 +8,12 @@ sealed class UserProfileEvent extends Equatable {
   List<Object> get props => [];
 }
 
+/// Who may see the profile's content: watched once, for the bloc's life (see
+/// [ProfileAccess]).
+final class UserProfileAccessSubscriptionRequested extends UserProfileEvent {
+  const UserProfileAccessSubscriptionRequested();
+}
+
 final class UserProfileUpdateRequested extends UserProfileEvent {
   const UserProfileUpdateRequested({
     this.fullName,

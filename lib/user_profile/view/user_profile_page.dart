@@ -120,7 +120,7 @@ class _UserProfileViewState extends State<UserProfileView>
                   // both tabs now and the tab bar is pinned, so dragging the
                   // bars brings the header back.)
                   final onMap = tabController.index == 0;
-                  Widget buildScaffold(bool tabsHidden) {
+                  Widget buildScaffold(ProfileAccess access) {
                     // No pull-to-refresh on the profile — the header, counts and
                     // grid are all live streams, so there is nothing to re-fetch.
                     return NestedScrollView(
@@ -159,9 +159,10 @@ class _UserProfileViewState extends State<UserProfileView>
                                     sponsoredPost: props.sponsoredPost,
                                   ),
                                   // On a locked private account the Map/Posts
-                                  // tabs are hidden entirely — they appear only
-                                  // once the content is actually viewable.
-                                  if (!tabsHidden)
+                                  // tabs are hidden entirely. While access is
+                                  // still being worked out they stay, as they
+                                  // do for nearly everyone.
+                                  if (access != ProfileAccess.locked)
                                     SliverPersistentHeader(
                                     // Always pinned: the tab bar has to stay on screen so
                                     // that a tab whose content fills the viewport (the
@@ -211,9 +212,18 @@ class _UserProfileViewState extends State<UserProfileView>
                           ),
                         ];
                       },
-                      body: tabsHidden
-                          ? const _PrivateAccountNotice()
-                          : TabBarView(
+                      body: switch (access) {
+                        ProfileAccess.locked => const _PrivateAccountNotice(),
+                        // Not the lock: it would flash for someone who may
+                        // see the profile.
+                        ProfileAccess.loading => const Center(
+                          child: SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                        ProfileAccess.visible => TabBarView(
                               physics: onMap
                                   ? const NeverScrollableScrollPhysics()
                                   : null,
@@ -225,38 +235,15 @@ class _UserProfileViewState extends State<UserProfileView>
                                 ),
                               ],
                             ),
+                      },
                   );
                   }
 
-                  final bloc = context.read<UserProfileBloc>();
-                  final me = context.read<AppBloc>().state.user.id;
-                  final isPrivate = context.select(
-                    (UserProfileBloc b) => b.state.user.isPrivate,
-                  );
-
-                  // If the profile's owner has blocked me, the whole profile is
-                  // private TO ME ONLY — even if it is public to everyone else.
-                  return StreamBuilder<bool>(
-                    stream: context.read<UserRepository>().isBlocked(
-                      userId: widget.userId,
-                      otherUserId: me,
-                    ),
-                    initialData: false,
-                    builder: (context, blockSnap) {
-                      if (blockSnap.data ?? false) return buildScaffold(true);
-                      // Public account, or the owner's own profile: tabs on.
-                      if (!isPrivate || bloc.isOwner) {
-                        return buildScaffold(false);
-                      }
-                      // Private account viewed by someone else: locked until an
-                      // accepted follower.
-                      return StreamBuilder<bool>(
-                        stream: bloc.followingStatus(),
-                        initialData: false,
-                        builder: (context, snapshot) =>
-                            buildScaffold(!(snapshot.data ?? false)),
-                      );
-                    },
+                  // Locked for a private account the viewer doesn't follow,
+                  // and for everyone its owner blocked — even when it is
+                  // public to everyone else (see ProfileAccess).
+                  return buildScaffold(
+                    context.select((UserProfileBloc b) => b.state.access),
                   );
                 },
               );

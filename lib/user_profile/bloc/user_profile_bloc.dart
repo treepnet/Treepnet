@@ -17,7 +17,15 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
   }) : _userRepository = userRepository,
        _postsRepository = postsRepository,
        _userId = userId ?? userRepository.currentUserId ?? '',
-       super(const UserProfileState.initial()) {
+       super(
+         UserProfileState.initial(
+           access:
+               (userId ?? userRepository.currentUserId) ==
+                   userRepository.currentUserId
+               ? ProfileAccess.visible
+               : ProfileAccess.loading,
+         ),
+       ) {
     // Someone else's profile syncs only while it is open (the user's own and
     // those of the people they follow always do).
     _scope = _userRepository.profileScope(_userId);
@@ -54,6 +62,66 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
     on<UserProfileRemoveFollowerRequested>(
       _onUserProfileRemoveFollowerRequested,
     );
+    on<UserProfileAccessSubscriptionRequested>(
+      _onAccessSubscriptionRequested,
+    );
+    if (!isOwner) add(const UserProfileAccessSubscriptionRequested());
+  }
+
+  /// What [ProfileAccess] is worked out from, as each arrives: whether the
+  /// profile's owner blocked the viewer, whether the viewer follows them
+  /// (accepted), and whether the profile has synced at all (the user's own
+  /// and their followings' always have; anyone else's comes with [_scope]).
+  bool? _blockedByOwner;
+  bool? _following;
+  bool _scopeSynced = false;
+
+  ProfileAccess _accessFor(User user) {
+    if (isOwner) return ProfileAccess.visible;
+    final blocked = _blockedByOwner;
+    if (blocked == null) return ProfileAccess.loading;
+    if (blocked) return ProfileAccess.locked;
+    // No profile yet: still syncing — or, once synced, there is none.
+    if (user.isAnonymous) {
+      return _scopeSynced ? ProfileAccess.visible : ProfileAccess.loading;
+    }
+    if (!user.isPrivate) return ProfileAccess.visible;
+    final following = _following;
+    if (following == null) return ProfileAccess.loading;
+    return following ? ProfileAccess.visible : ProfileAccess.locked;
+  }
+
+  /// Watched once here: the page used to open these streams in `build`, so
+  /// every rebuild (each frame of a tab change) started them again from
+  /// "not following" — the lock flashed and the map and posts were rebuilt.
+  Future<void> _onAccessSubscriptionRequested(
+    UserProfileAccessSubscriptionRequested event,
+    Emitter<UserProfileState> emit,
+  ) async {
+    final me = _userRepository.currentUserId ?? '';
+    await Future.wait([
+      emit.forEach<bool>(
+        _userRepository.isBlocked(userId: _userId, otherUserId: me),
+        onData: (blocked) {
+          _blockedByOwner = blocked;
+          return state.copyWith(access: _accessFor(state.user));
+        },
+      ),
+      emit.forEach<bool>(
+        _userRepository.followingStatus(userId: _userId),
+        onData: (following) {
+          _following = following;
+          return state.copyWith(access: _accessFor(state.user));
+        },
+      ),
+      emit.forEach<void>(
+        Stream.fromFuture(_scope.synced),
+        onData: (_) {
+          _scopeSynced = true;
+          return state.copyWith(access: _accessFor(state.user));
+        },
+      ),
+    ]);
   }
 
   final String _userId;
@@ -96,8 +164,11 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
   ) async {
     await emit.forEach(
       isOwner ? _userRepository.user : _userRepository.profile(id: _userId),
-      onData: (user) =>
-          state.copyWith(user: user, status: UserProfileStatus.userUpdated),
+      onData: (user) => state.copyWith(
+        user: user,
+        status: UserProfileStatus.userUpdated,
+        access: _accessFor(user),
+      ),
     );
   }
 
