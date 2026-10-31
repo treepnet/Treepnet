@@ -934,12 +934,11 @@ WHERE p.id = ?''',
 
   @override
   Future<void> updatePresence({required String userId}) async {
-    // Local wall-clock, same basis as message timestamps, so a Dart-side
-    // "now - last_seen" comparison is apples-to-apples. profiles UPDATEs sync
-    // fine (unlike messages), so presence round-trips across devices.
+    // UTC, like what syncs back (the server stamps its own now() anyway, see
+    // track_presence): a local time without a zone read as UTC up there.
     await _powerSyncRepository.db().execute(
       'UPDATE profiles SET last_seen_at = ? WHERE id = ?',
-      [DateTime.now().toIso8601String(), userId],
+      [DateTime.timestamp().toIso8601String(), userId],
     );
   }
 
@@ -1284,7 +1283,7 @@ ORDER BY i.created_at ASC
     String? coverUrl,
   }) async {
     final highlightId = uuid.v4();
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.timestamp().toIso8601String();
     await _powerSyncRepository.db().writeTransaction((tx) async {
       await tx.execute(
         'INSERT INTO story_highlights(id, user_id, name, cover_url, created_at) '
@@ -1331,7 +1330,7 @@ ORDER BY i.created_at ASC
     await _powerSyncRepository.db().execute(
       'INSERT INTO story_highlight_items(id, highlight_id, story_id, created_at) '
       'VALUES (?, ?, ?, ?)',
-      [uuid.v4(), highlightId, storyId, DateTime.now().toIso8601String()],
+      [uuid.v4(), highlightId, storyId, DateTime.timestamp().toIso8601String()],
     );
   }
 
@@ -1441,7 +1440,7 @@ ORDER BY s.created_at DESC
     await db.execute(
       'INSERT INTO saved_profiles(id, saver_id, profile_id, created_at) '
       'VALUES (?, ?, ?, ?)',
-      [uuid.v4(), userId, profileId, DateTime.now().toIso8601String()],
+      [uuid.v4(), userId, profileId, DateTime.timestamp().toIso8601String()],
     );
   }
 
@@ -1469,7 +1468,7 @@ ORDER BY s.created_at DESC
         await tx.execute(
           'INSERT INTO visited_regions(id, user_id, region_iso, created_at) '
           'VALUES (?, ?, ?, ?)',
-          [uuid.v4(), userId, iso, DateTime.now().toIso8601String()],
+          [uuid.v4(), userId, iso, DateTime.timestamp().toIso8601String()],
         );
       }
     });
@@ -2069,7 +2068,7 @@ SELECT uuid(), ?1, ?2, ?3
 WHERE NOT EXISTS (
   SELECT 1 FROM hidden_posts WHERE user_id = ?1 AND post_id = ?2
 )''',
-      [me, postId, DateTime.now().toIso8601String()],
+      [me, postId, DateTime.timestamp().toIso8601String()],
     );
   }
 
@@ -2086,7 +2085,7 @@ WHERE NOT EXISTS (
           INSERT INTO saved_posts(id, user_id, post_id, created_at)
             VALUES(uuid(), ?, ?, ?)
       ''',
-        [currentUserId, postId, DateTime.now().toIso8601String()],
+        [currentUserId, postId, DateTime.timestamp().toIso8601String()],
       );
       return;
     }
@@ -2173,7 +2172,7 @@ ORDER BY saved_posts.created_at DESC LIMIT ?2 OFFSET ?3
           INSERT INTO archived_posts(id, user_id, post_id, created_at)
             VALUES(uuid(), ?, ?, ?)
       ''',
-        [currentUserId, postId, DateTime.now().toIso8601String()],
+        [currentUserId, postId, DateTime.timestamp().toIso8601String()],
       );
       return;
     }
@@ -3641,7 +3640,7 @@ DELETE FROM stories WHERE id = ?
     await _powerSyncRepository.db().execute(
       'INSERT INTO story_views (id, story_id, user_id, created_at) '
       'VALUES (?, ?, ?, ?)',
-      [uuid.v4(), storyId, viewerId, DateTime.now().toIso8601String()],
+      [uuid.v4(), storyId, viewerId, DateTime.timestamp().toIso8601String()],
     );
   }
 
@@ -3690,7 +3689,7 @@ ${limit != null ? 'LIMIT ?' : ''}
     await _powerSyncRepository.db().execute(
       'INSERT INTO story_likes (id, story_id, user_id, created_at) '
       'VALUES (?, ?, ?, ?)',
-      [uuid.v4(), storyId, userId, DateTime.now().toIso8601String()],
+      [uuid.v4(), storyId, userId, DateTime.timestamp().toIso8601String()],
     );
   }
 
@@ -3866,7 +3865,14 @@ WHERE user_id = ?1 AND story_id = ?2 AND region_iso = ?3
 INSERT INTO location_stories (id, user_id, story_id, region_iso, lat, lng, created_at)
 VALUES (uuid(), ?1, ?2, ?3, ?4, ?5, ?6)
 ''',
-      [userId, storyId, regionIso, lat, lng, DateTime.now().toIso8601String()],
+      [
+        userId,
+        storyId,
+        regionIso,
+        lat,
+        lng,
+        DateTime.timestamp().toIso8601String(),
+      ],
     );
   }
 
