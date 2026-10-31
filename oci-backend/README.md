@@ -48,11 +48,30 @@ reload Caddy for the new `/log/*` route
    docker compose up -d --build
    ```
    On first run, `postgres/initdb/01-powersync.sh` creates the PowerSync
-   replication role + `powersync` publication. Restore the app data into the
-   `treepnet` database separately (the DB dump is not kept in git).
+   replication role + `powersync` publication. Then the schema: create the
+   roles (`sql/setup-roles.sql`), run `sql/migrate.sh` (it builds everything
+   from `sql/migrations/000_baseline.sql` on), and restore the app data into
+   the `treepnet` database (the data dump is not kept in git).
 3. **Verify:** the `sql/` helpers (`check-auth.sql`, `check-push.sql`,
    `verify.sql`, …) are diagnostic queries; `sql/setup-roles.sql` documents the
    `authenticator`/`authenticated` role setup PostgREST relies on.
+
+## Database changes
+
+`sql/migrations/` is the treepnet database's history: `000_baseline.sql` is
+the whole schema as of 2026-11-01, and each change after it is the next
+numbered file (`002_what_it_does.sql`, …), without its own BEGIN/COMMIT. Copy
+the folder and `sql/migrate.sh` to `~/treepnet/sql/` and run
+`./migrate.sh --dry-run`, then `./migrate.sh`: it applies what is new, in
+order, each file in one transaction with its row in `schema_migrations`, and
+refuses to go on if an applied file was edited. `./migrate.sh --status` lists
+both. PostgREST reloads its schema by itself after any change
+(`001_postgrest_auto_reload.sql`); no `notify pgrst` needed.
+
+The other files in `sql/` are what was applied by hand before (each with its
+own notes and rollback) and diagnostic queries; they are history, already in
+the baseline. The chat database has its own migrations (Prisma, in
+`chatbackend-src/prisma/`).
 
 ## Scheduled jobs (ubuntu's crontab on the server)
 
