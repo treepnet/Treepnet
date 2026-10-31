@@ -6,6 +6,9 @@ abstract class _ChatNetworkDataSource {
   factory _ChatNetworkDataSource() => _$ChatNetworkDataSource();
 
   Future<_MessageResponse> getMessages(_ParamsGetMessage params);
+
+  /// Telefonda saqlangan oxirgi xabarlar ([ChatTransport.cachedHistory]).
+  Future<_MessageResponse?> getCachedMessages();
 }
 
 final class _$ChatNetworkDataSource implements _ChatNetworkDataSource {
@@ -30,4 +33,23 @@ final class _$ChatNetworkDataSource implements _ChatNetworkDataSource {
           hasPreviousPage: page > 1,
         );
       });
+
+  @override
+  Future<_MessageResponse?> getCachedMessages() async {
+    try {
+      final result = await _transport.cachedHistory();
+      if (result == null || result.messages.isEmpty) return null;
+      return _MessageResponse(
+        messages: _MessageModel.fromHistory(result, myId: _myId),
+        currentPage: 1,
+        totalPage: 1,
+        totalItems: result.messages.length,
+        // Older pages come from the network once it answers.
+        hasNextPage: false,
+        hasPreviousPage: false,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
 }

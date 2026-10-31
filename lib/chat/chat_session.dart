@@ -7,6 +7,7 @@ import 'package:messenger_chat/messenger_chat.dart';
 import 'package:token_storage/token_storage.dart';
 
 import 'package:treepnet/chat/backend/chat_backend_config.dart';
+import 'package:treepnet/chat/backend/chat_cache.dart';
 import 'package:treepnet/chat/backend/dm_api.dart';
 import 'package:treepnet/chat/backend/dm_transports.dart';
 
@@ -159,6 +160,14 @@ class ChatSession {
     final generation = _generation;
     await _teardown();
 
+    // Only this account's saved chat stays on the phone. What was saved shows
+    // until the connection is up: the badge right away, and — when our chat
+    // id is known from last time — the whole chat, offline too.
+    await ChatCache.instance.useAccount(myUuid);
+    final saved = await ChatCache.instance.readInbox(myUuid);
+    if (generation != _generation) return;
+    if (saved != null) unreadTotal.value = saved.unread;
+
     final deviceId = await MessengerChat.getDeviceId();
     final api = DmApi(
       baseUrl: chatBaseUrl,
@@ -176,19 +185,29 @@ class ChatSession {
     );
 
     // Our backend numeric id — the middleware auto-creates/updates our row.
-    final Map<String, dynamic>? me;
-    try {
-      me = (await api.dio.get<Map<String, dynamic>>('/chat/dm/me')).data;
-    } catch (_) {
-      await api.dispose();
-      rethrow;
+    // Known from last time: start now and check it in the background, so the
+    // chat opens without a connection. Otherwise it has to be asked first.
+    final savedId = saved?.myUserId ?? '';
+    final String myUserId;
+    if (savedId.isNotEmpty) {
+      myUserId = savedId;
+      unawaited(_checkMyUserId(api, myUuid, savedId));
+    } else {
+      final Map<String, dynamic>? me;
+      try {
+        me = (await api.dio.get<Map<String, dynamic>>('/chat/dm/me')).data;
+      } catch (_) {
+        await api.dispose();
+        rethrow;
+      }
+      myUserId = me?['id']?.toString() ?? '';
     }
     if (generation != _generation) {
       // Logged out meanwhile.
       await api.dispose();
       return;
     }
-    _myUserId = me?['id']?.toString() ?? '';
+    _myUserId = myUserId;
     _myUuid = myUuid;
     _myName = myName;
     _api = api;
@@ -203,6 +222,24 @@ class ChatSession {
     // updates arrive app-wide, even before the inbox is opened. Best-effort.
     unawaited(_warmUp(list));
     unawaited(_registerPushToken());
+  }
+
+  /// `/chat/dm/me` for a session started from the saved id: it also brings
+  /// our row on the server up to date. A different id (never expected) is
+  /// saved, so the next start uses it.
+  Future<void> _checkMyUserId(DmApi api, String myUuid, String savedId) async {
+    try {
+      final me = (await api.dio.get<Map<String, dynamic>>('/chat/dm/me')).data;
+      final id = me?['id']?.toString() ?? '';
+      if (id.isEmpty || id == savedId || !startedFor(myUuid)) return;
+      await ChatCache.instance.writeInbox(
+        myUuid,
+        myUserId: id,
+        unread: unreadTotal.value,
+      );
+    } catch (_) {
+      // Offline: the socket's reconnect brings the chat up to date.
+    }
   }
 
   /// The current Firebase ID token, refreshed first when it is about to expire
@@ -309,6 +346,11 @@ class ChatSession {
   }
 
   Future<void> _warmUp(DmListTransport list) async {
+    // The saved chats first: "Message" from a profile finds a known chat
+    // without the network, and the list is there before the inbox opens.
+    try {
+      await list.cachedConversations();
+    } catch (_) {}
     try {
       await list.connect();
       await list.loadConversations(page: 1, size: 50);

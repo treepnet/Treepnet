@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:messenger_chat/messenger_chat.dart';
 
+import 'package:treepnet/chat/backend/chat_cache.dart';
 import 'package:treepnet/chat/backend/dm_api.dart';
 import 'package:treepnet/chat/chat_share_ref.dart';
 
@@ -45,10 +46,12 @@ class DmChatTransport implements ChatTransport {
           // Only messages belonging to this conversation.
           if (message.conversationId != conversationId) return;
           _events.add(ChatMessageReceived(_toIncoming(message)));
+          _cacheMessage(message);
 
         case DmMessageUpdatedEvent(:final message)
             when message.conversationId == conversationId:
           _events.add(ChatMessageUpdated(_toIncoming(message)));
+          _cacheMessage(message);
 
         case DmTypingEvent(:final isTyping, :final contentType)
             when event.conversationId == conversationId:
@@ -108,14 +111,54 @@ class DmChatTransport implements ChatTransport {
       queryParameters: {'page': page, 'size': size},
     );
 
-    final items = (response.data?['data'] as List?) ?? const [];
+    final items = ((response.data?['data'] as List?) ?? const [])
+        .whereType<Map<dynamic, dynamic>>()
+        .toList(growable: false);
+    // The newest page is what opens the thread next time, offline too.
+    if (page == 1) {
+      unawaited(
+        ChatCache.instance.writeMessages(api.myUuid, conversationId, items),
+      );
+    }
     return ChatHistoryPage(
       messages: items
-          .whereType<Map<dynamic, dynamic>>()
           .map(DmMessage.fromJson)
           .map(_toIncoming)
           .toList(growable: false),
       hasMore: response.data?['hasMore'] == true,
+    );
+  }
+
+  @override
+  Future<ChatHistoryPage?> cachedHistory() async {
+    final saved = await ChatCache.instance.readMessages(
+      api.myUuid,
+      conversationId,
+    );
+    if (saved == null || saved.isEmpty) return null;
+    return ChatHistoryPage(
+      messages: saved
+          .map(DmMessage.fromJson)
+          .map(_toIncoming)
+          .toList(growable: false),
+      hasMore: false,
+    );
+  }
+
+  /// A message that arrived or changed while the thread is open goes into
+  /// the saved page too, so the thread opens up to date next time.
+  void _cacheMessage(DmMessage message) {
+    final json = message.toJson();
+    unawaited(
+      ChatCache.instance.updateMessages(api.myUuid, conversationId, (saved) {
+        final index = saved.indexWhere(
+          (m) =>
+              m['id']?.toString() == message.id ||
+              (message.key != null && m['key']?.toString() == message.key),
+        );
+        if (index >= 0) return [...saved]..[index] = json;
+        return [json, ...saved];
+      }),
     );
   }
 
@@ -293,10 +336,37 @@ class DmListTransport implements ChatListTransport {
   }
 
   void _recomputeUnread() {
-    unreadTotal.value = _conversations.values.fold<int>(
+    final total = _conversations.values.fold<int>(
       0,
       (sum, c) => sum + c.unreadCount,
     );
+    if (total == unreadTotal.value) return;
+    unreadTotal.value = total;
+    // The badge shows the saved count until the chat connects.
+    unawaited(
+      ChatCache.instance.writeInbox(
+        api.myUuid,
+        myUserId: myUserId,
+        unread: total,
+      ),
+    );
+  }
+
+  /// The inbox as last loaded, for while there's no connection. Fills the
+  /// list only if nothing newer came in first.
+  Future<List<ChatConversation>> cachedConversations() async {
+    final saved = await ChatCache.instance.readInbox(api.myUuid);
+    if (saved == null) return const [];
+    final conversations = saved.conversations
+        .map(_toConversation)
+        .toList(growable: false);
+    if (_conversations.isEmpty) {
+      for (final conversation in conversations) {
+        _conversations[conversation.id] = conversation;
+      }
+      _recomputeUnread();
+    }
+    return conversations;
   }
 
   @override
@@ -399,16 +469,26 @@ class DmListTransport implements ChatListTransport {
       queryParameters: {'page': page, 'size': size},
     );
 
-    final items = (response.data?['data'] as List?) ?? const [];
-    final conversations = items
+    final items = ((response.data?['data'] as List?) ?? const [])
         .whereType<Map<dynamic, dynamic>>()
-        .map(_toConversation)
         .toList(growable: false);
+    final conversations = items.map(_toConversation).toList(growable: false);
 
     for (final conversation in conversations) {
       _conversations[conversation.id] = conversation;
     }
     _recomputeUnread();
+    // The first page is what the inbox shows next time it opens offline.
+    if (page == 1) {
+      unawaited(
+        ChatCache.instance.writeInbox(
+          api.myUuid,
+          myUserId: myUserId,
+          unread: unreadTotal.value,
+          conversations: items,
+        ),
+      );
+    }
 
     return ChatConversationPage(
       conversations: conversations,

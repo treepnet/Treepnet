@@ -1,4 +1,5 @@
 import 'package:messenger_chat/messenger_chat.dart';
+import 'package:treepnet/chat/backend/chat_cache.dart';
 import 'package:treepnet/chat/chat_session.dart';
 import 'package:treepnet/notifications/push/push_notifications.dart';
 import 'package:user_repository/user_repository.dart';
@@ -17,4 +18,6 @@ Future<void> tearDownUserSession(UserRepository userRepository) async {
   // can't cross into the next user's threads.
   await ChatSession.instance.stop();
   await MessengerChat.wipeSession();
+  // The chat saved on the phone for offline use goes too.
+  await ChatCache.instance.clear();
 }

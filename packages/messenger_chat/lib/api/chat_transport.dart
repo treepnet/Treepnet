@@ -232,6 +232,12 @@ abstract class ChatTransport {
   /// Tarixni sahifalab yuklaydi. [page] 1 dan boshlanadi.
   Future<ChatHistoryPage> loadHistory({required int page, required int size});
 
+  /// Telefonda saqlangan oxirgi xabarlar (eng yangisi birinchi), tarmoqsiz.
+  /// Suhbat ochilganda ular darhol ko'rsatiladi, keyin [loadHistory] ning
+  /// javobi bilan almashtiriladi - internet bo'lmasa ham suhbat bo'sh
+  /// qolmaydi. Saqlanmagan bo'lsa `null`.
+  Future<ChatHistoryPage?> cachedHistory();
+
   /// Xabarni yuboradi. Xato bo'lsa istisno tashlash kerak - plagin xabarni
   /// chatda "xato" deb belgilaydi ("Qayta yuborish / O'chirish").
   Future<void> send(ChatOutgoingMessage message);

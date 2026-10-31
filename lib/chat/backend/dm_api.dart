@@ -547,6 +547,28 @@ class DmMessage {
   final String? replyToSenderId;
   final DateTime date;
 
+  /// The server's shape, as [DmMessage.fromJson] reads it — for the chat
+  /// cache (see ChatCache).
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'conversationId': conversationId,
+    'senderId': senderId,
+    'content': content,
+    'contentType': contentType,
+    'key': key,
+    'isRead': isRead,
+    'isEdited': isEdited,
+    'isDeleted': isDeleted,
+    'svg': svg,
+    'png': png,
+    'duration': duration,
+    'size': size,
+    'replyToId': replyToId,
+    'replyToContent': replyToContent,
+    'replyToSenderId': replyToSenderId,
+    'date': date.toIso8601String(),
+  };
+
   ChatMessageKind get kind => switch (contentType) {
     'photo' => ChatMessageKind.photo,
     'video' => ChatMessageKind.video,

@@ -507,6 +507,21 @@ class _ChatsListState extends State<_ChatsList> {
     }
     final transport = ChatSession.instance.listTransport;
     _sub = transport.events.listen(_onEvent);
+    // The chats saved on the phone show at once — offline too — and the
+    // network's answer below replaces them.
+    if (_map.isEmpty) {
+      final saved = await transport.cachedConversations();
+      if (!mounted) return;
+      if (saved.isNotEmpty) {
+        setState(() {
+          for (final c in saved) {
+            _map.putIfAbsent(c.id, () => c);
+          }
+          _loading = false;
+        });
+        _watchProfiles();
+      }
+    }
     try {
       await transport.connect();
       final page = await transport.loadConversations(page: 1, size: 50);

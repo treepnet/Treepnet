@@ -32,6 +32,24 @@ class ChatCubit extends Cubit<ChatState> {
   Future<void> getMessages({bool isRefresh = false, int page = 1}) async {
     if (!state.messages.hasNextPage || state.isLoading || state.isLoadMore)
       return;
+    if (isRefresh && page == 1 && state.messages.messages.isEmpty) {
+      // Saved on the phone: shown at once (offline too), then replaced by
+      // what the network sends.
+      final cached = await chatRepository.cachedMessages();
+      if (isClosed) return;
+      if (cached != null && state.messages.messages.isEmpty) {
+        emit(
+          state.copyWith(messages: cached, isLoading: false, failure: ''),
+        );
+        await _loadPage(
+          page: 1,
+          isRefresh: true,
+          retryOnce: true,
+          overCache: true,
+        );
+        return;
+      }
+    }
     if (isRefresh) {
       emit(state.copyWith(isLoading: true));
     } else {
@@ -48,10 +66,14 @@ class ChatCubit extends Cubit<ChatState> {
     await getMessages(isRefresh: true);
   }
 
+  /// [overCache]: the saved messages are on screen. A failure then leaves
+  /// them there (no error over the conversation), and the answer replaces
+  /// them but keeps what was sent meanwhile and isn't confirmed yet.
   Future<void> _loadPage({
     required int page,
     required bool isRefresh,
     required bool retryOnce,
+    bool overCache = false,
   }) async {
     final getMessageUseCase = _GetMessageUseCase(
       chatRepository: chatRepository,
@@ -71,10 +93,18 @@ class ChatCubit extends Cubit<ChatState> {
         if (retryOnce) {
           await Future<void>.delayed(const Duration(seconds: 2));
           if (!isClosed) {
-            await _loadPage(page: page, isRefresh: isRefresh, retryOnce: false);
+            await _loadPage(
+              page: page,
+              isRefresh: isRefresh,
+              retryOnce: false,
+              overCache: overCache,
+            );
           }
           return;
         }
+        // Offline with the saved messages showing: they stay; the
+        // connection status says why nothing new comes.
+        if (overCache) return;
         emit(
           state.copyWith(
             failure: failure.message.toString(),
@@ -101,9 +131,22 @@ class ChatCubit extends Cubit<ChatState> {
             '➕ Adding ${shouldAddList.length} new unique messages to state',
           );
 
-          final combinedMessages = isRefresh
-              ? response.messages
-              : [...state.messages.messages, ...shouldAddList];
+          final List<_MessageModel> combinedMessages;
+          if (overCache) {
+            final fromServer = {
+              for (final m in response.messages)
+                if (m.key.isNotEmpty) m.key,
+            };
+            combinedMessages = [
+              for (final m in state.messages.messages)
+                if (m.isLocal && !fromServer.contains(m.key)) m,
+              ...response.messages,
+            ];
+          } else if (isRefresh) {
+            combinedMessages = response.messages;
+          } else {
+            combinedMessages = [...state.messages.messages, ...shouldAddList];
+          }
 
           emit(
             state.copyWith(
@@ -159,6 +202,13 @@ class ChatCubit extends Cubit<ChatState> {
       (response) async {
         final current = [...state.messages.messages];
         final existingIds = current.map((m) => m.id).toSet();
+        // A message we already have is replaced by the server's copy: it may
+        // have been edited or deleted while we were offline (the thread can
+        // be showing what was saved on the phone).
+        final indexById = <String, int>{
+          for (final (index, message) in current.indexed)
+            if (message.id.isNotEmpty) message.id: index,
+        };
         // Hali "yuborilmoqda" turgan nusxalar - kalit bo'yicha. Server o'sha
         // xabarni qaytarsa, nusxa almashtiriladi (aks holda ikki marta
         // chizilardi).
@@ -175,6 +225,11 @@ class ChatCubit extends Cubit<ChatState> {
           if (localIndex != null) {
             current[localIndex] = message;
             existingIds.add(message.id);
+            continue;
+          }
+          final knownIndex = indexById[message.id];
+          if (knownIndex != null) {
+            current[knownIndex] = message;
             continue;
           }
           if (!existingIds.contains(message.id)) {
