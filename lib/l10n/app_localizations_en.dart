@@ -1869,6 +1869,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get signInIdInvalidText => 'Enter your username or email.';
 
   @override
+  String get newPostsText => 'New posts';
+
+  @override
   String get searchNothingFoundText => 'Nothing found';
 
   @override

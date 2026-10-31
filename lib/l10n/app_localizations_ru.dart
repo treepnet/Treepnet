@@ -1898,6 +1898,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get signInIdInvalidText => 'Введите имя пользователя или email.';
 
   @override
+  String get newPostsText => 'Новые посты';
+
+  @override
   String get searchNothingFoundText => 'Ничего не найдено';
 
   @override

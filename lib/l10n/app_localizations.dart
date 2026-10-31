@@ -3183,6 +3183,12 @@ abstract class AppLocalizations {
   /// **'Enter your username or email.'**
   String get signInIdInvalidText;
 
+  /// No description provided for @newPostsText.
+  ///
+  /// In en, this message translates to:
+  /// **'New posts'**
+  String get newPostsText;
+
   /// No description provided for @searchNothingFoundText.
   ///
   /// In en, this message translates to:

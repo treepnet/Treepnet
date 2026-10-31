@@ -906,6 +906,7 @@
   "logOutAnywayText": "Всё равно выйти",
   "avatarUpdateFailedText": "Не удалось обновить фото. Попробуйте ещё раз.",
   "signInIdInvalidText": "Введите имя пользователя или email.",
+  "newPostsText": "Новые посты",
   "searchNothingFoundText": "Ничего не найдено",
   "cameraAccessDeniedText": "Чтобы снять историю, разрешите доступ к камере в настройках.",
   "openSettingsText": "Открыть настройки",

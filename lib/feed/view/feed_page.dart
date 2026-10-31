@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 // `show`: the package also exports sqlite3's `Row`, which collides with the
 // widget of the same name.
+import 'package:posts_repository/posts_repository.dart' show PostsRepository;
 import 'package:powersync_repository/powersync_repository.dart'
     show PowerSyncRepository;
 import 'package:treepnet/feed/feed.dart';
@@ -169,88 +170,247 @@ class _FeedViewState extends State<FeedView> {
   }
 }
 
-class FeedBody extends StatelessWidget {
+class FeedBody extends StatefulWidget {
   const FeedBody({super.key});
 
   @override
+  State<FeedBody> createState() => _FeedBodyState();
+}
+
+class _FeedBodyState extends State<FeedBody> {
+  StreamSubscription<void>? _syncSub;
+  DateTime? _lastSyncedAt;
+  DateTime? _lastCheck;
+  bool _checking = false;
+
+  /// Posts newer than any on screen came in (shown as a button).
+  bool _hasNewPosts = false;
+
+  /// The feed's scroll position, from its scroll notifications.
+  ScrollPosition? _position;
+
+  /// Close enough to the top to take new posts in place.
+  bool get _atTop => (_position?.pixels ?? 0) <= 48;
+
+  @override
+  void initState() {
+    super.initState();
+    final db = context.read<PowerSyncRepository>().db();
+    _lastSyncedAt = db.currentStatus.lastSyncedAt;
+    // Sync brings other people's posts, but the list only changed on a pull
+    // to refresh: new posts never showed up on their own.
+    _syncSub = db.statusStream.listen((status) {
+      final syncedAt = status.lastSyncedAt;
+      if (syncedAt == null || syncedAt == _lastSyncedAt) return;
+      _lastSyncedAt = syncedAt;
+      unawaited(_checkForNewPosts());
+    });
+  }
+
+  @override
+  void dispose() {
+    _syncSub?.cancel();
+    super.dispose();
+  }
+
+  /// Whether the newest post is on screen; if not, refreshes in place at the
+  /// top of the feed, or offers the "New posts" button further down (the
+  /// reader's place is left alone). An own new post is already at the top.
+  Future<void> _checkForNewPosts() async {
+    if (_checking || _hasNewPosts || !mounted) return;
+    final now = DateTime.now();
+    final last = _lastCheck;
+    if (last != null && now.difference(last) < const Duration(seconds: 10)) {
+      return;
+    }
+    final feed = context.read<FeedBloc>();
+    final shown = feed.state.feed.feedPage.blocks;
+    // An empty feed is FeedView's to fill (the first sync after sign-in).
+    if (shown.isEmpty || feed.state.status.isLoading) return;
+    _checking = true;
+    _lastCheck = now;
+    try {
+      final newest = await context.read<PostsRepository>().getPage(
+        offset: 0,
+        limit: 1,
+      );
+      if (!mounted || newest.isEmpty) return;
+      final id = newest.first.id;
+      if (shown.any((block) => block is PostBlock && block.id == id)) return;
+      if (_atTop) {
+        feed.add(const FeedRefreshRequested());
+      } else {
+        setState(() => _hasNewPosts = true);
+      }
+    } catch (_) {
+      // Only a hint: the next sync round looks again.
+    } finally {
+      _checking = false;
+    }
+  }
+
+  Future<void> _showNewPosts() async {
+    setState(() => _hasNewPosts = false);
+    final position = _position;
+    if (position != null && position.hasPixels) {
+      await position.animateTo(0, duration: 300.ms, curve: Curves.easeOut);
+    }
+    if (!mounted) return;
+    context.read<FeedBloc>().add(const FeedRefreshRequested());
+  }
+
+  Future<void> _onPullToRefresh() async {
+    setState(() => _hasNewPosts = false);
+    final feed = context.read<FeedBloc>()..add(const FeedRefreshRequested());
+    context.read<StoriesBloc>().add(const StoriesFetchUserFollowingsStories());
+    // The spinner stays until the new page is in. It used to wait a fixed
+    // second first, then close before anything had loaded.
+    await feed.stream
+        .firstWhere((state) => !state.status.isLoading)
+        .timeout(const Duration(seconds: 15), onTimeout: () => feed.state);
+    FeedPageController().markAnimationAsUnseen();
+  }
+
+  bool _trackScroll(ScrollNotification notification) {
+    if (notification.depth == 0 && notification.metrics.axis == Axis.vertical) {
+      final context = notification.context;
+      if (context != null) _position = Scrollable.maybeOf(context)?.position;
+    }
+    return false;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return RefreshIndicator.adaptive(
-      onRefresh: () async {
-        Future<void> refresh() async {
-          // Runs after a 1s delay; if the feed was left in the meantime the
-          // context is unmounted and context.read throws.
-          if (!context.mounted) return;
-          context.read<FeedBloc>().add(const FeedRefreshRequested());
-          context.read<StoriesBloc>().add(
-            const StoriesFetchUserFollowingsStories(),
-          );
-        }
-
-        await Future<void>.delayed(1.seconds);
-        await refresh();
-        FeedPageController().markAnimationAsUnseen();
-      },
-      child: InViewNotifierCustomScrollView(
-        initialInViewIds: const ['0'],
-        isInViewPortCondition: (deltaTop, deltaBottom, vpHeight) {
-          return deltaTop < (0.5 * vpHeight) + 80.0 &&
-              deltaBottom > (0.5 * vpHeight) - 80.0;
-        },
-        slivers: [
-          // Stories moved to their own tab, so the posts list starts at the top.
-          const _UploadProgressBanner(),
-          BlocBuilder<FeedBloc, FeedState>(
-            buildWhen: (previous, current) {
-              // `isFailure` has to be in here. Without it a failed fetch never
-              // rebuilt the widget, so the shimmer from the preceding `loading`
-              // build stayed on screen with no way out but a manual refresh.
-              return current.status.isFailure ||
-                  (current.status.isLoading &&
-                      current.feed.feedPage.page == 0) ||
-                  (previous.status.isLoading && current.status.isPopulated) ||
-                  (current.status.isPopulated &&
-                      !const ListEquality<InstaBlock>().equals(
-                        previous.feed.feedPage.blocks,
-                        current.feed.feedPage.blocks,
-                      ));
-            },
-            builder: (context, state) {
-              final feedPage = state.feed.feedPage;
-
-              // A failure with posts already on screen keeps the posts — only
-              // an empty feed has nothing better to show than the error.
-              if (state.status.isFailure && feedPage.blocks.isEmpty) {
-                return SliverToBoxAdapter(
-                  child: _FeedLoadFailure(
-                    onRetry: () => context.read<FeedBloc>().add(
-                      const FeedRefreshRequested(),
-                    ),
-                  ),
-                );
-              }
-
-              final isLoading = state.status.isLoading;
-
-              return SliverAnimatedSwitcher(
-                duration: 150.ms,
-                child: !isLoading
-                    ? FeedPageListView(
-                        blocks: feedPage.blocks,
-                        hasMore: feedPage.hasMore,
-                      )
-                    : const SliverToBoxAdapter(
-                        child: Column(
-                          children: [
-                            FeedLoadingBlock(),
-                            Gap.v(AppSpacing.md),
-                            FeedLoadingBlock(),
-                          ],
-                        ),
-                      ),
-              );
-            },
+    return Stack(
+      children: [
+        RefreshIndicator.adaptive(
+          onRefresh: _onPullToRefresh,
+          child: NotificationListener<ScrollNotification>(
+            onNotification: _trackScroll,
+            child: _feedScrollView(),
           ),
-        ],
+        ),
+        Positioned(
+          top: AppSpacing.md,
+          left: 0,
+          right: 0,
+          child: IgnorePointer(
+            ignoring: !_hasNewPosts,
+            child: AnimatedOpacity(
+              opacity: _hasNewPosts ? 1 : 0,
+              duration: 200.ms,
+              child: Center(child: _NewPostsButton(onTap: _showNewPosts)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _feedScrollView() {
+    return InViewNotifierCustomScrollView(
+      initialInViewIds: const ['0'],
+      isInViewPortCondition: (deltaTop, deltaBottom, vpHeight) {
+        return deltaTop < (0.5 * vpHeight) + 80.0 &&
+            deltaBottom > (0.5 * vpHeight) - 80.0;
+      },
+      slivers: [
+        // Stories moved to their own tab, so the posts list starts at the top.
+        const _UploadProgressBanner(),
+        BlocBuilder<FeedBloc, FeedState>(
+          buildWhen: (previous, current) {
+            // `isFailure` has to be in here. Without it a failed fetch never
+            // rebuilt the widget, so the shimmer from the preceding `loading`
+            // build stayed on screen with no way out but a manual refresh.
+            return current.status.isFailure ||
+                (current.status.isLoading && current.feed.feedPage.page == 0) ||
+                (previous.status.isLoading && current.status.isPopulated) ||
+                (current.status.isPopulated &&
+                    !const ListEquality<InstaBlock>().equals(
+                      previous.feed.feedPage.blocks,
+                      current.feed.feedPage.blocks,
+                    ));
+          },
+          builder: (context, state) {
+            final feedPage = state.feed.feedPage;
+
+            // A failure with posts already on screen keeps the posts — only
+            // an empty feed has nothing better to show than the error.
+            if (state.status.isFailure && feedPage.blocks.isEmpty) {
+              return SliverToBoxAdapter(
+                child: _FeedLoadFailure(
+                  onRetry: () => context.read<FeedBloc>().add(
+                    const FeedRefreshRequested(),
+                  ),
+                ),
+              );
+            }
+
+            final isLoading = state.status.isLoading;
+
+            return SliverAnimatedSwitcher(
+              duration: 150.ms,
+              child: !isLoading
+                  ? FeedPageListView(
+                      blocks: feedPage.blocks,
+                      hasMore: feedPage.hasMore,
+                    )
+                  : const SliverToBoxAdapter(
+                      child: Column(
+                        children: [
+                          FeedLoadingBlock(),
+                          Gap.v(AppSpacing.md),
+                          FeedLoadingBlock(),
+                        ],
+                      ),
+                    ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+/// The "New posts" button over the feed: back to the top, refreshed.
+class _NewPostsButton extends StatelessWidget {
+  const _NewPostsButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.deepBlue,
+      shape: const StadiumBorder(),
+      elevation: 4,
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.sm,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.arrow_upward_rounded,
+                size: 18,
+                color: AppColors.white,
+              ),
+              const Gap.h(AppSpacing.xs),
+              Text(
+                context.l10n.newPostsText,
+                style: context.labelLarge?.copyWith(
+                  color: AppColors.white,
+                  fontWeight: AppFontWeight.semiBold,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
