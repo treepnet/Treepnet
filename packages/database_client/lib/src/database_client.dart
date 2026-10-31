@@ -3868,6 +3868,9 @@ FROM location_stories ls
   INNER JOIN stories s ON s.id = ls.story_id
   LEFT JOIN profiles p ON s.user_id = p.id
 WHERE ls.user_id = ?1 AND ls.region_iso = ?2
+  -- Only the place owner's own stories (the server now refuses pinning
+  -- anyone else's; this ignores any pinned in before), like highlights.
+  AND s.user_id = ls.user_id
   AND ${_visibleAuthorSql('s.user_id')}
   ${scoped ? 'AND ls.lat IS NOT NULL AND ABS(ls.lat - ?3) <= ?4 '
                     'AND ls.lng IS NOT NULL AND ABS(ls.lng - ?5) <= ?4' : ''}
