@@ -1,5 +1,13 @@
 name: treepnet
 
+# Every container keeps at most 3 log files of 10MB (Docker's default keeps
+# everything, until the disk is full).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 networks:
   treepnet:
 
@@ -14,6 +22,14 @@ services:
     image: caddy:2
     container_name: treepnet-caddy
     restart: unless-stopped
+    logging: *logging
+    # Marks a stuck service unhealthy; the server monitor reports it.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     environment:
       # bcrypt hash for the admin panel's basic_auth (admin.treepnet.com).
       # Generated with `caddy hash-password`; stored only in the server .env,
@@ -39,6 +55,7 @@ services:
     image: postgres:16
     container_name: treepnet-postgres
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -72,6 +89,14 @@ services:
     image: journeyapps/powersync-service:1.25.0@sha256:bf46f66e5dcc8f6a084de02ab51155dfa655bc610aa95009fff1c36f949c0acf
     container_name: treepnet-powersync
     restart: unless-stopped
+    logging: *logging
+    # Marks a stuck service unhealthy; the server monitor reports it.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:80/probes/liveness').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     depends_on:
       postgres:
         condition: service_healthy
@@ -97,6 +122,7 @@ services:
     image: postgrest/postgrest:v16.2@sha256:85258123312dc496ad4c2ed832154a65e9746f84df0d6d09b44229ff9230c08e
     container_name: treepnet-postgrest
     restart: unless-stopped
+    logging: *logging
     # A leak or a flood stops here instead of starving the database.
     mem_limit: 256m
     depends_on:
@@ -128,6 +154,14 @@ services:
     build: ./functions/push-worker
     container_name: treepnet-pushworker
     restart: unless-stopped
+    logging: *logging
+    # Marks a stuck service unhealthy; the server monitor reports it.
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(Date.now()-require('fs').statSync('/tmp/push-worker-alive').mtimeMs<120000?0:1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     # A leak or a flood stops here instead of starving the database.
     mem_limit: 256m
     depends_on:
@@ -146,6 +180,14 @@ services:
     build: ./functions/delete-account
     container_name: treepnet-deleteaccount
     restart: unless-stopped
+    logging: *logging
+    # Marks a stuck service unhealthy; the server monitor reports it.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     # A leak or a flood stops here instead of starving the database.
     mem_limit: 384m
     depends_on:
@@ -173,6 +215,14 @@ services:
     build: ./functions/auth-service
     container_name: treepnet-authservice
     restart: unless-stopped
+    logging: *logging
+    # Marks a stuck service unhealthy; the server monitor reports it.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4100/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     # A leak or a flood stops here instead of starving the database.
     mem_limit: 256m
     depends_on:
@@ -203,6 +253,14 @@ services:
     build: ./chatbackend
     container_name: treepnet-chatbackend
     restart: unless-stopped
+    logging: *logging
+    # Marks a stuck service unhealthy; the server monitor reports it.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     # A leak or a flood stops here instead of starving the database.
     mem_limit: 512m
     depends_on:
@@ -235,6 +293,14 @@ services:
     build: ./functions/error-logger
     container_name: treepnet-errorlogger
     restart: unless-stopped
+    logging: *logging
+    # Marks a stuck service unhealthy; the server monitor reports it.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4200/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     # A leak or a flood stops here instead of starving the database.
     mem_limit: 128m
     environment:
@@ -253,6 +319,14 @@ services:
     build: ./functions/analytics-api
     container_name: treepnet-analyticsapi
     restart: unless-stopped
+    logging: *logging
+    # Marks a stuck service unhealthy; the server monitor reports it.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4300/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     # A leak or a flood stops here instead of starving the database.
     mem_limit: 256m
     depends_on:

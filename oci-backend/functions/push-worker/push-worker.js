@@ -199,9 +199,15 @@ async function runOnce() {
   console.log(`push: processed ${rows.length} row(s)`);
 }
 
+// Touched after every pass that reached the database; the container's
+// healthcheck reads its age (docker-compose.yml), so a worker that is stuck
+// or can't reach Postgres shows as unhealthy.
+const HEARTBEAT = '/tmp/push-worker-alive';
+
 async function loop() {
   try {
     await runOnce();
+    require('fs').writeFileSync(HEARTBEAT, String(Date.now()));
   } catch (e) {
     console.error('push loop error:', String(e).slice(0, 400));
   }

@@ -61,6 +61,12 @@ containers() {
     --format '{{.Names}} {{.State}}' | awk '$2 != "running" { printf "%s is %s; ", $1, $2 }'
 }
 
+# Running but failing its healthcheck (stuck, or can't reach what it needs).
+health() {
+  docker ps --filter label=com.docker.compose.project=treepnet \
+    --filter health=unhealthy --format '{{.Names}}' | awk '{ printf "%s is unhealthy; ", $1 }'
+}
+
 # Restarts are events: report each new one at once.
 restarts() {
   local name count prev
@@ -148,6 +154,7 @@ fi
 
 check disk disk
 check containers containers
+check health health
 restarts
 check endpoints endpoints
 check replication replication
