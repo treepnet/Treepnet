@@ -1,25 +1,27 @@
 import 'dart:convert';
+import 'dart:isolate';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter/services.dart' show rootBundle;
 
 /// A single administrative region (ISO 3166-2), e.g. Istanbul (`TR-34`).
 ///
-/// Geometry is parsed lazily (only when [rings] is first read) so loading the
-/// full world index stays cheap — the picker never touches geometry, and the
-/// map only materializes the handful of visited regions.
+/// Its outline and the measurements derived from it ([lngLatBounds],
+/// [centroidLngLat], [landArea]) are ready once [GeoRegions.load] completes:
+/// they are computed with the rest of the index, off the UI thread.
 class GeoRegion {
   GeoRegion({
     required this.iso,
     required this.name,
     required this.countryCode,
     required this.countryName,
-    required Map<String, dynamic> geometry,
+    required this.rings,
     this.nameEn = '',
     this.nameRu = '',
     this.countryNameRu = '',
-  }) : _geometry = geometry;
+  });
 
   /// ISO 3166-2 code, e.g. `TR-34`.
   final String iso;
@@ -84,14 +86,12 @@ class GeoRegion {
       ? (countryNameRu.isNotEmpty ? countryNameRu : countryName)
       : countryName;
 
-  final Map<String, dynamic> _geometry;
-  List<List<Offset>>? _rings;
   Rect? _bounds;
   Offset? _centroid;
 
   /// Polygon rings in raw `lng`/`lat` coordinates, stored as `Offset(lng, lat)`.
   /// Includes outer rings and holes; render with an even-odd fill rule.
-  List<List<Offset>> get rings => _rings ??= _parseGeometry(_geometry);
+  final List<List<Offset>> rings;
 
   /// Bounding box of the region in lng/lat (`Rect.fromLTRB(minLng, minLat,
   /// maxLng, maxLat)`). Used for viewport culling and label sizing.
@@ -171,29 +171,6 @@ class GeoRegion {
     return total;
   }
 
-  static List<List<Offset>> _parseGeometry(Map<String, dynamic> geometry) {
-    final type = geometry['type'];
-    final coords = geometry['coordinates'] as List;
-    final rings = <List<Offset>>[];
-    if (type == 'Polygon') {
-      for (final ring in coords) {
-        rings.add(parseRing(ring as List<dynamic>));
-      }
-    } else if (type == 'MultiPolygon') {
-      for (final polygon in coords) {
-        for (final ring in polygon as List) {
-          rings.add(parseRing(ring as List<dynamic>));
-        }
-      }
-    }
-    return rings;
-  }
-
-  /// Parses a GeoJSON ring into `Offset(lng, lat)` points.
-  static List<Offset> parseRing(List<dynamic> ring) => [
-    for (final pt in ring)
-      Offset((pt[0] as num).toDouble(), (pt[1] as num).toDouble()),
-  ];
 }
 
 /// A country grouping its [regions].
@@ -237,17 +214,18 @@ class CountryLabel {
 }
 
 /// {@template geo_regions}
-/// Loads and indexes the bundled world GeoJSON assets, exposing data for both
+/// Loads and indexes the bundled world map data, exposing data for both
 /// the location picker (countries → regions) and the travel map (a light
-/// country base + region polygons by ISO). Parsed once and cached.
+/// country base + region polygons by ISO). Loaded once and cached.
 /// {@endtemplate}
 class GeoRegions {
   GeoRegions._();
 
   static final GeoRegions instance = GeoRegions._();
 
-  static const _assetPath = 'assets/geo/world_admin1.min.json';
-  static const _basePath = 'assets/geo/world_countries.min.json';
+  /// Country outlines and every province, packed by scripts/build_geo_bin.py
+  /// from the GeoJSON sources next to it (see that script for the layout).
+  static const _geoPath = 'assets/geo/world_geo.bin';
   static const _countryNamesPath = 'assets/geo/country_names.min.json';
 
   bool _loaded = false;
@@ -463,56 +441,85 @@ class GeoRegions {
     return _basePicture!;
   }
 
-  /// Parses the bundled GeoJSON exactly once.
+  /// Loads the bundled map data exactly once.
   /// Always hands back the *same* future. Returning a fresh `Future.value()`
   /// once loaded made every `FutureBuilder` on it flip back to "waiting" on
   /// each rebuild, tearing down and re-creating its subtree — which reset the
   /// travel map's camera on every tap.
   Future<void> load() => _loading ??= _load();
 
+  /// Reading ~400k points and measuring ~4,500 provinces for the country
+  /// labels takes a mid-range phone a few seconds of CPU. It used to run on
+  /// the UI thread, from 6.8 MB of JSON, and froze the screen the first time
+  /// any map opened — the profile, onboarding, a story's place. Now it runs in
+  /// a background isolate, from a 2 MB compact copy, and the finished index
+  /// is handed over in one piece.
   Future<void> _load() async {
-    // Light country base for the map landmass (parsed eagerly — only ~288).
-    final baseRaw = await rootBundle.loadString(_basePath);
-    final baseData = json.decode(baseRaw) as Map<String, dynamic>;
-    for (final ring in baseData['rings'] as List) {
-      _countryRings.add(GeoRegion.parseRing(ring as List<dynamic>));
+    final data = await rootBundle.load(_geoPath);
+    var countryNames = '';
+    try {
+      countryNames = await rootBundle.loadString(
+        _countryNamesPath,
+        cache: false,
+      );
+    } catch (_) {
+      // Missing/older bundle: English country names only.
     }
+    final index = await _indexInBackground(data, countryNames);
+    _countryRings.addAll(index.countryRings);
+    _byIso.addAll(index.byIso);
+    _countries
+      ..clear()
+      ..addAll(index.countries);
+    _countryLabels
+      ..clear()
+      ..addAll(index.countryLabels);
+    _loaded = true;
+  }
 
+  /// Static, so the isolate gets only these two values to copy.
+  static Future<_GeoIndex> _indexInBackground(
+    ByteData data,
+    String countryNames,
+  ) => Isolate.run(() => GeoRegions._()._index(data, countryNames));
+
+  /// Builds the whole index into this (throwaway) instance — in the isolate.
+  _GeoIndex _index(ByteData data, String countryNamesJson) {
     // Country-name localization (cc -> {en, ru}). Small companion asset.
     final countryNames = <String, Map<String, dynamic>>{};
-    try {
-      final cnRaw = await rootBundle.loadString(_countryNamesPath);
-      (json.decode(cnRaw) as Map<String, dynamic>).forEach((cc, v) {
+    if (countryNamesJson.isNotEmpty) {
+      (json.decode(countryNamesJson) as Map<String, dynamic>).forEach((cc, v) {
         countryNames[cc] = (v as Map).cast<String, dynamic>();
       });
-    } catch (_) {
-      // Missing/older bundle: fall through with empty map (English fallback).
     }
 
-    // Admin-1 index — metadata now, geometry lazily per region.
-    final raw = await rootBundle.loadString(_assetPath);
-    final data = json.decode(raw) as Map<String, dynamic>;
-    final features = data['features'] as List;
+    final reader = _GeoReader(data);
+    // Light country base for the map landmass.
+    for (var i = reader.count(); i > 0; i--) {
+      _countryRings.add(reader.ring());
+    }
 
     final byCountry = <String, GeoCountry>{};
-    for (final feature in features) {
-      final props = (feature as Map)['properties'] as Map;
-      final iso = props['iso'] as String?;
-      if (iso == null || iso.isEmpty) continue;
-      final countryCode = (props['cc'] as String?) ?? '';
-      final countryName = (props['admin'] as String?) ?? countryCode;
-      final name = (props['name'] as String?) ?? iso;
-      final nameEn = (props['en'] as String?) ?? '';
-      final nameRu = (props['ru'] as String?) ?? '';
+    for (var i = reader.count(); i > 0; i--) {
+      final iso = reader.text();
+      final cc = reader.text();
+      final rawName = reader.text();
+      final admin = reader.text();
+      final nameEn = reader.text();
+      final nameRu = reader.text();
+      final rings = [for (var r = reader.count(); r > 0; r--) reader.ring()];
+      if (iso.isEmpty) continue;
+      final countryCode = cc;
+      final countryName = admin.isEmpty ? countryCode : admin;
+      final name = rawName.isEmpty ? iso : rawName;
       final countryNameRu = (countryNames[countryCode]?['ru'] as String?) ?? '';
-      final geometry = feature['geometry'] as Map<String, dynamic>;
 
       final region = GeoRegion(
         iso: iso,
         name: name,
         countryCode: countryCode,
         countryName: countryName,
-        geometry: geometry,
+        rings: rings,
         nameEn: nameEn,
         nameRu: nameRu,
         countryNameRu: countryNameRu,
@@ -542,7 +549,12 @@ class GeoRegions {
     _markNameClashes();
     _buildCountryLabels();
 
-    _loaded = true;
+    return (
+      countryRings: _countryRings,
+      byIso: _byIso,
+      countries: _countries,
+      countryLabels: _countryLabels,
+    );
   }
 
   /// Flags provinces that share a name with a city-sized region in the same
@@ -720,5 +732,65 @@ class GeoRegions {
         ),
       );
     }
+  }
+}
+
+/// What the background isolate hands back from [GeoRegions._index].
+typedef _GeoIndex = ({
+  List<List<Offset>> countryRings,
+  Map<String, GeoRegion> byIso,
+  List<GeoCountry> countries,
+  List<CountryLabel> countryLabels,
+});
+
+/// Reads `assets/geo/world_geo.bin` (layout: scripts/build_geo_bin.py).
+class _GeoReader {
+  _GeoReader(this._data) {
+    const magic = [0x54, 0x47, 0x45, 0x4F]; // "TGEO"
+    for (var i = 0; i < magic.length; i++) {
+      if (_data.getUint8(i) != magic[i]) {
+        throw const FormatException('Not a world_geo.bin');
+      }
+    }
+    _at = magic.length;
+    final version = _data.getUint16(_at, Endian.little);
+    if (version != 1) throw FormatException('world_geo.bin v$version');
+    _at += 2;
+  }
+
+  final ByteData _data;
+  int _at = 0;
+
+  int count() {
+    final value = _data.getUint32(_at, Endian.little);
+    _at += 4;
+    return value;
+  }
+
+  String text() {
+    final length = _data.getUint16(_at, Endian.little);
+    _at += 2;
+    final value = length == 0
+        ? ''
+        : utf8.decode(
+            _data.buffer.asUint8List(_data.offsetInBytes + _at, length),
+          );
+    _at += length;
+    return value;
+  }
+
+  /// Hundredths of a degree back to degrees: `n / 100` is the very double the
+  /// GeoJSON's two-decimal number parsed to.
+  List<Offset> ring() {
+    final points = count();
+    final ring = List<Offset>.generate(points, (i) {
+      final at = _at + i * 4;
+      return Offset(
+        _data.getInt16(at, Endian.little) / 100,
+        _data.getInt16(at + 2, Endian.little) / 100,
+      );
+    }, growable: false);
+    _at += points * 4;
+    return ring;
   }
 }

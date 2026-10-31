@@ -139,6 +139,7 @@ flutter:
   uses-material-design: true
   generate: true
   assets:
-    - assets/geo/world_admin1.min.json
-    - assets/geo/world_countries.min.json
+    # world_geo.bin is built from world_admin1/world_countries.min.json (the
+    # editable sources, not bundled) by scripts/build_geo_bin.py.
+    - assets/geo/world_geo.bin
     - assets/geo/country_names.min.json

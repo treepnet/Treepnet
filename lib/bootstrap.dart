@@ -14,6 +14,7 @@ import 'package:shared/shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:token_storage/token_storage.dart';
 import 'package:treepnet/app/services/media_upload_queue.dart';
+import 'package:treepnet/map/geo_regions.dart';
 import 'package:treepnet/monitoring/crash_reporter.dart';
 import 'package:treepnet/notifications/push/push_notifications.dart';
 
@@ -123,6 +124,16 @@ Future<void> bootstrap(
         ),
       );
       boot('10 runApp (done)');
+
+      // The world map data (profile globe, onboarding, place picker) loads in
+      // a background isolate; start it once the first screen is up, so it's
+      // ready before any of those opens.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future<void>.delayed(
+          const Duration(seconds: 2),
+          () => unawaited(GeoRegions.instance.load()),
+        );
+      });
     },
     (error, stack) {
       debugPrint('TREEP_BOOT: ERROR $error');
