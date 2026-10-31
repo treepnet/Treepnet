@@ -7,7 +7,6 @@ import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/stories/stories.dart';
 import 'package:treepnet/user_profile/user_profile.dart';
 import 'package:go_router/go_router.dart';
-import 'package:instagram_blocks_ui/instagram_blocks_ui.dart';
 import 'package:user_repository/user_repository.dart';
 
 class UserProfileListTile extends StatefulWidget {
@@ -193,19 +192,25 @@ class UserActionButton extends StatelessWidget {
       textStyle: textStyle,
       fadeStrength: fadeStrength,
     );
-    late final Widget followingButton = BetterStreamBuilder(
-      stream: context.read<UserRepository>().followingStatus(userId: user.id),
-      builder: (context, isFollowed) {
+    late final Widget followingButton = FollowStateBuilder(
+      userId: user.id,
+      builder: (context, relation) {
+        if (relation == null) return const SizedBox.shrink();
         // Same pill as every other follow button: white to follow, #414141
-        // once you do.
+        // once you do — or once you've asked (tapping withdraws the request).
+        final grey = relation != FollowRelation.none;
         return UserProfileButton(
           onTap: onTap,
-          label: isFollowed ? l10n.followingUser : l10n.followUser,
+          label: switch (relation) {
+            FollowRelation.following => l10n.followingUser,
+            FollowRelation.requested => l10n.requestedText,
+            FollowRelation.none => l10n.followUser,
+          },
           padding: padding,
           fadeStrength: fadeStrength,
-          color: isFollowed ? const Color(0xFF414141) : AppColors.white,
+          color: grey ? const Color(0xFF414141) : AppColors.white,
           textStyle: context.labelLarge?.copyWith(
-            color: isFollowed ? AppColors.white : AppColors.black,
+            color: grey ? AppColors.white : AppColors.black,
             fontWeight: AppFontWeight.semiBold,
           ),
         );
@@ -248,20 +253,21 @@ class FollowTextButton extends StatelessWidget {
         if (wasFollowed == null || wasFollowed) {
           return const SizedBox.shrink();
         }
-        return BetterStreamBuilder<bool>(
-          stream: context.read<UserRepository>().followingStatus(
-            userId: user.id,
-          ),
-          builder: (context, followed) {
-            if (followed && wasFollowed) {
-              return const SizedBox.shrink();
-            }
+        return FollowStateBuilder(
+          userId: user.id,
+          builder: (context, relation) {
+            if (relation == null) return const SizedBox.shrink();
+            final followed = relation != FollowRelation.none;
             return Text.rich(
               TextSpan(
                 children: [
                   TextSpan(text: ' • ', style: context.bodyMedium),
                   TextSpan(
-                    text: followed ? l10n.followingUser : l10n.followUser,
+                    text: switch (relation) {
+                      FollowRelation.following => l10n.followingUser,
+                      FollowRelation.requested => l10n.requestedText,
+                      FollowRelation.none => l10n.followUser,
+                    },
                     style: context.bodyMedium?.copyWith(
                       color: followed ? AppColors.white : AppColors.blue,
                     ),

@@ -15,6 +15,7 @@ class PostStats {
     required this.isAuthorFollowed,
     required this.authorTier,
     required this.authorPlaces,
+    this.isAuthorFollowRequested = false,
   });
 
   /// Likes on the post.
@@ -32,6 +33,9 @@ class PostStats {
   /// Whether the viewer follows the author (an accepted follow).
   final bool isAuthorFollowed;
 
+  /// Whether the viewer asked to follow the (private) author and is waiting.
+  final bool isAuthorFollowRequested;
+
   /// The author's travel tier badge, 0 for none or an expired one (as
   /// `travelTierOf`).
   final int authorTier;
@@ -48,6 +52,7 @@ class PostStats {
       other.isLiked == isLiked &&
       other.isBookmarked == isBookmarked &&
       other.isAuthorFollowed == isAuthorFollowed &&
+      other.isAuthorFollowRequested == isAuthorFollowRequested &&
       other.authorTier == authorTier &&
       other.authorPlaces == authorPlaces;
 
@@ -58,6 +63,7 @@ class PostStats {
     isLiked,
     isBookmarked,
     isAuthorFollowed,
+    isAuthorFollowRequested,
     authorTier,
     authorPlaces,
   );

@@ -60,7 +60,11 @@ class PostBloc extends Bloc<PostEvent, PostState> {
         isLiked: stats.isLiked,
         isBookmarked: stats.isBookmarked,
         isOwner: isOwner,
-        isFollowed: isOwner ? null : stats.isAuthorFollowed,
+        // Asked already counts here: the card's Follow button would otherwise
+        // stay, and tapping it again withdrew the request.
+        isFollowed: isOwner
+            ? null
+            : stats.isAuthorFollowed || stats.isAuthorFollowRequested,
         authorTier: stats.authorTier,
         authorPlaces: stats.authorPlaces,
       ),

@@ -1944,6 +1944,9 @@ SELECT
   EXISTS (SELECT 1 FROM subscriptions f
      WHERE f.subscriber_id = ?2 AND f.subscribed_to_id = p.user_id
        AND (f.status = 'accepted' OR f.status IS NULL)) AS is_followed,
+  EXISTS (SELECT 1 FROM subscriptions f
+     WHERE f.subscriber_id = ?2 AND f.subscribed_to_id = p.user_id
+       AND f.status = 'pending') AS is_follow_requested,
   a.referral_tier AS author_tier,
   a.referral_tier_expires_at AS author_tier_expires_at,
   CASE WHEN ${_visibleAuthorSql('p.user_id')} THEN
@@ -1967,6 +1970,8 @@ WHERE p.id IN (SELECT value FROM json_each(?1))
                 isLiked: (row['is_liked'] as int?) == 1,
                 isBookmarked: (row['is_bookmarked'] as int?) == 1,
                 isAuthorFollowed: (row['is_followed'] as int?) == 1,
+                isAuthorFollowRequested:
+                    (row['is_follow_requested'] as int?) == 1,
                 authorTier: _liveTier(
                   row['author_tier'] as int?,
                   row['author_tier_expires_at'] as String?,

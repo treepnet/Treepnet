@@ -8,6 +8,7 @@ import 'package:treepnet/app/app.dart';
 import 'package:treepnet/chat/chat.dart';
 import 'package:treepnet/feed/post/widgets/share_post.dart';
 import 'package:treepnet/l10n/l10n.dart';
+import 'package:treepnet/user_profile/widgets/follow_state_builder.dart';
 import 'package:user_repository/user_repository.dart';
 
 /// The bar under a story.
@@ -304,15 +305,15 @@ class _StoryFooterState extends State<StoryFooter> with WidgetsBindingObserver {
             Expanded(child: widget.leading!)
           else
             const Spacer(),
-          StreamBuilder<bool>(
-            stream: context.read<UserRepository>().followingStatus(
-              userId: widget.author.id,
-            ),
-            builder: (context, snap) {
-              // Default to "following" while unknown so the button never flashes
-              // for people you already follow.
-              final isFollowing = snap.data ?? true;
-              if (isFollowing) return const SizedBox.shrink();
+          FollowStateBuilder(
+            userId: widget.author.id,
+            builder: (context, relation) {
+              // Only when not following and not asked yet: unknown stays hidden
+              // so the button never flashes for people you already follow, and
+              // after a request it used to show "Follow", which withdrew it.
+              if (relation != FollowRelation.none) {
+                return const SizedBox.shrink();
+              }
               return Padding(
                 padding: const EdgeInsets.only(right: AppSpacing.sm),
                 child: _StoryFollowButton(
@@ -691,15 +692,15 @@ class _ViewerTile extends StatelessWidget {
                 ),
               ),
               if (!isMe)
-                StreamBuilder<bool>(
-                  stream: users.followingStatus(userId: user.id),
-                  builder: (context, snap) {
-                    final isFollowed = snap.data ?? false;
+                FollowStateBuilder(
+                  userId: user.id,
+                  builder: (context, relation) {
+                    final relationOrNone = relation ?? FollowRelation.none;
                     return _FollowButton(
-                      isFollowed: isFollowed,
-                      onTap: () => isFollowed
-                          ? users.unfollow(unfollowId: user.id)
-                          : users.follow(followToId: user.id),
+                      relation: relationOrNone,
+                      onTap: () => relationOrNone == FollowRelation.none
+                          ? users.follow(followToId: user.id)
+                          : users.unfollow(unfollowId: user.id),
                     );
                   },
                 ),
@@ -717,13 +718,14 @@ class _ViewerTile extends StatelessWidget {
 
 /// White when you can follow, grey once you already do.
 class _FollowButton extends StatelessWidget {
-  const _FollowButton({required this.isFollowed, required this.onTap});
+  const _FollowButton({required this.relation, required this.onTap});
 
-  final bool isFollowed;
+  final FollowRelation relation;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final isFollowed = relation != FollowRelation.none;
     return Tappable.scaled(
       onTap: onTap,
       child: Container(
@@ -734,7 +736,11 @@ class _FollowButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppSpacing.sm),
         ),
         child: Text(
-          isFollowed ? context.l10n.followingUser : context.l10n.followUser,
+          switch (relation) {
+            FollowRelation.following => context.l10n.followingUser,
+            FollowRelation.requested => context.l10n.requestedText,
+            FollowRelation.none => context.l10n.followUser,
+          },
           textAlign: TextAlign.center,
           style: context.labelLarge?.copyWith(
             color: isFollowed ? AppColors.white : AppColors.black,

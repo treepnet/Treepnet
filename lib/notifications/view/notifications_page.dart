@@ -10,6 +10,7 @@ import 'package:shared/shared.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/chat/chat.dart';
 import 'package:treepnet/l10n/l10n.dart';
+import 'package:treepnet/user_profile/widgets/follow_state_builder.dart';
 import 'package:user_repository/user_repository.dart';
 
 /// {@template notifications_page}
@@ -227,10 +228,13 @@ class _FollowBackButton extends StatelessWidget {
     if (actorId.isEmpty) return const SizedBox.shrink();
     final me = context.read<AppBloc>().state.user.id;
     final repo = context.read<UserRepository>();
-    return StreamBuilder<bool>(
-      stream: repo.followingStatus(userId: actorId, followerId: me),
-      builder: (context, snapshot) {
-        final following = snapshot.data ?? false;
+    return FollowStateBuilder(
+      userId: actorId,
+      followerId: me,
+      builder: (context, relation) {
+        // Grey once following or once asked (tapping withdraws the request).
+        final following = relation == FollowRelation.following ||
+            relation == FollowRelation.requested;
         return Tappable.scaled(
           onTap: () => following
               ? repo.unfollow(unfollowId: actorId, unfollowerId: me)
@@ -244,7 +248,11 @@ class _FollowBackButton extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              following ? context.l10n.followingUser : context.l10n.followUser,
+              switch (relation) {
+                FollowRelation.following => context.l10n.followingUser,
+                FollowRelation.requested => context.l10n.requestedText,
+                _ => context.l10n.followUser,
+              },
               style: context.labelLarge?.copyWith(
                 fontSize: 16,
                 color: following ? AppColors.white : AppColors.black,

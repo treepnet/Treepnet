@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/l10n/l10n.dart';
+import 'package:treepnet/user_profile/widgets/follow_state_builder.dart';
 import 'package:user_repository/user_repository.dart';
 
 /// {@template discover_people_page}
@@ -126,7 +127,7 @@ class _PersonTile extends StatelessWidget {
   }
 }
 
-/// Live Follow / Following toggle for a single suggested user.
+/// Live Follow / Requested / Following toggle for a single suggested user.
 class _FollowButton extends StatelessWidget {
   const _FollowButton({required this.userId});
 
@@ -135,12 +136,12 @@ class _FollowButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final repo = context.read<UserRepository>();
-    return StreamBuilder<bool>(
-      stream: repo.followingStatus(userId: userId),
-      initialData: false,
-      builder: (context, snapshot) {
-        final following = snapshot.data ?? false;
-        if (following) {
+    return FollowStateBuilder(
+      userId: userId,
+      builder: (context, relation) {
+        // Following, or asked (tapping withdraws the request).
+        if (relation == FollowRelation.following ||
+            relation == FollowRelation.requested) {
           return OutlinedButton(
             onPressed: () => repo.unfollow(unfollowId: userId),
             style: OutlinedButton.styleFrom(
@@ -149,7 +150,11 @@ class _FollowButton extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               minimumSize: const Size(0, 34),
             ),
-            child: Text(context.l10n.followingUser),
+            child: Text(
+              relation == FollowRelation.following
+                  ? context.l10n.followingUser
+                  : context.l10n.requestedText,
+            ),
           );
         }
         return ElevatedButton(
