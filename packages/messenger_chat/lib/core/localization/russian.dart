@@ -22,6 +22,7 @@ final class _Russian {
       'noMessages': 'Пока нет чатов',
     'somethingWentWrong': 'Произошла ошибка',
     'retry': 'Повторить',
+    'messagesLoadFailed': 'Не удалось загрузить сообщения',
     'photo': 'Фото',
     'video': 'Видео',
     'voiceMessage': 'Голосовое сообщение',

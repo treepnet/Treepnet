@@ -22,6 +22,7 @@ final class _English {
       'noMessages': 'No chats yet',
     'somethingWentWrong': 'Something went wrong',
     'retry': 'Retry',
+    'messagesLoadFailed': "Couldn't load messages",
     'photo': 'Photo',
     'video': 'Video',
     'voiceMessage': 'Voice message',

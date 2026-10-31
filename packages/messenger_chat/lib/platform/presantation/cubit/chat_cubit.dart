@@ -38,6 +38,21 @@ class ChatCubit extends Cubit<ChatState> {
       emit(state.copyWith(isLoadMore: true));
     }
 
+    await _loadPage(page: page, isRefresh: isRefresh, retryOnce: page == 1);
+  }
+
+  /// The first page failed and was retried once, and failed again: the list
+  /// shows the error with "Retry" ([reloadMessages]).
+  Future<void> reloadMessages() async {
+    emit(state.copyWith(failure: ''));
+    await getMessages(isRefresh: true);
+  }
+
+  Future<void> _loadPage({
+    required int page,
+    required bool isRefresh,
+    required bool retryOnce,
+  }) async {
     final getMessageUseCase = _GetMessageUseCase(
       chatRepository: chatRepository,
     );
@@ -47,9 +62,18 @@ class ChatCubit extends Cubit<ChatState> {
     );
 
     response.either(
-      (failure) {
+      (failure) async {
         if (failure.message == 'timeout') {
           _ChatLogger.warning('Messages loading timed out');
+        }
+        // A bad connection often recovers in a moment: the first page tries
+        // once more by itself (still loading) before the error shows.
+        if (retryOnce) {
+          await Future<void>.delayed(const Duration(seconds: 2));
+          if (!isClosed) {
+            await _loadPage(page: page, isRefresh: isRefresh, retryOnce: false);
+          }
+          return;
         }
         emit(
           state.copyWith(
@@ -93,6 +117,7 @@ class ChatCubit extends Cubit<ChatState> {
               ),
               isLoadMore: false,
               isLoading: false,
+              failure: '',
             ),
           );
         } catch (e, stack) {

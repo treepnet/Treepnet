@@ -35,8 +35,10 @@ class _ChatSocket {
     );
 
     try {
+      // The status comes from the transport's own events: connect() returns
+      // even when the socket couldn't connect, so marking it connected here
+      // showed "connected" with no connection at all.
       await transport.connect();
-      MessengerChat.controller.updateConnection(ChatConnectionStatus.connected);
     } catch (e) {
       _ChatLogger.failure('⛔️ Transport ulanmadi: $e');
       MessengerChat.controller.updateConnection(ChatConnectionStatus.error);

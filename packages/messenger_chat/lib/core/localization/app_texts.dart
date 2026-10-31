@@ -43,6 +43,8 @@ mixin _AppTexts {
   static String get noMessages => _translate('noMessages');
   static String get somethingWentWrong => _translate('somethingWentWrong');
   static String get retry => _translate('retry');
+
+  static String get messagesLoadFailed => _translate('messagesLoadFailed');
   static String get photo => _translate('photo');
   static String get video => _translate('video');
   static String get voiceMessage => _translate('voiceMessage');

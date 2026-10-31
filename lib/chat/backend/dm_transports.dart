@@ -91,6 +91,9 @@ class DmChatTransport implements ChatTransport {
     });
 
     await api.connect();
+    // connect() also returns when the socket couldn't connect, and a socket
+    // the inbox already opened sends no new event: report where it stands.
+    _events.add(ChatConnectionChanged(api.status));
   }
 
   @override
@@ -156,6 +159,9 @@ class DmChatTransport implements ChatTransport {
       '/chat/dm/upload',
       data: formData,
       onSendProgress: onProgress,
+      // A video takes a while to send and store; on some adapters this limit
+      // also covers sending.
+      options: Options(receiveTimeout: const Duration(minutes: 5)),
     );
 
     final body = response.data ?? const {};

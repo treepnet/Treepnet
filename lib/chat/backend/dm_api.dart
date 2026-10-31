@@ -53,7 +53,17 @@ class DmApi {
   String? userName;
   String? userAvatar;
 
-  late final Dio dio = Dio(BaseOptions(baseUrl: baseUrl, headers: _headers))
+  /// Bounded, so a bad connection fails in seconds (and the screen can say
+  /// so) instead of loading for minutes. Uploads get a longer wait for the
+  /// answer (see DmChatTransport.uploadAttachment).
+  late final Dio dio = Dio(
+    BaseOptions(
+      baseUrl: baseUrl,
+      headers: _headers,
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 20),
+    ),
+  )
     ..interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
@@ -116,7 +126,10 @@ class DmApi {
     if (!_paused) return;
     _paused = false;
     final socket = _socket;
-    if (socket != null && socket.disconnected) socket.connect();
+    if (socket != null && socket.disconnected) {
+      _status = ChatConnectionStatus.connecting;
+      socket.connect();
+    }
   }
 
   /// [idToken], never throwing: a failed token fetch must not break the chat.
@@ -191,6 +204,10 @@ class DmApi {
   Stream<DmEvent> get events => _events.stream;
 
   /// Connects the socket once; repeated calls await the same connection.
+  /// Where the socket stands right now, kept from its own events.
+  ChatConnectionStatus get status => _status;
+  ChatConnectionStatus _status = ChatConnectionStatus.disconnected;
+
   Future<void> connect() {
     final existing = _connecting;
     if (existing != null) {
@@ -201,6 +218,7 @@ class DmApi {
       final current = _socket;
       if (current != null && current.disconnected) {
         _paused = false;
+        _status = ChatConnectionStatus.connecting;
         current.connect();
       }
       return existing.future;
@@ -233,15 +251,16 @@ class DmApi {
 
     socket.onConnect((_) {
       _authRetries = 0;
+      _status = ChatConnectionStatus.connected;
       _events.add(const DmConnectionEvent(ChatConnectionStatus.connected));
       if (!completer.isCompleted) completer.complete();
     });
-    socket.onDisconnect(
-      (_) => _events.add(
-        const DmConnectionEvent(ChatConnectionStatus.disconnected),
-      ),
-    );
+    socket.onDisconnect((_) {
+      _status = ChatConnectionStatus.disconnected;
+      _events.add(const DmConnectionEvent(ChatConnectionStatus.disconnected));
+    });
     socket.onConnectError((e) {
+      _status = ChatConnectionStatus.error;
       _events.add(const DmConnectionEvent(ChatConnectionStatus.error));
       if (!completer.isCompleted) completer.complete();
     });
@@ -294,6 +313,7 @@ class DmApi {
     });
 
     _socket = socket;
+    _status = ChatConnectionStatus.connecting;
     socket.connect();
     return completer.future;
   }

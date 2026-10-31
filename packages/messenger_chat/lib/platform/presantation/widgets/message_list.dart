@@ -101,6 +101,25 @@ class _MessageListState extends State<_MessageList> {
                 );
               },
             )
+          : state.messages.messages.isEmpty && state.failure.isNotEmpty
+          // The first page didn't load (after one retry): say so, with Retry,
+          // instead of an empty conversation.
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _AppTexts.messagesLoadFailed,
+                    style: widget.messageStyle.dateSeparatorTextStyle,
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () => context.read<ChatCubit>().reloadMessages(),
+                    child: Text(_AppTexts.retry),
+                  ),
+                ],
+              ),
+            )
           : ValueListenableBuilder<double>(
               valueListenable:
                   widget.bottomPaddingNotifier ?? ValueNotifier<double>(0.0),
