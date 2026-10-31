@@ -97,6 +97,8 @@ services:
     image: postgrest/postgrest:v16.2@sha256:85258123312dc496ad4c2ed832154a65e9746f84df0d6d09b44229ff9230c08e
     container_name: treepnet-postgrest
     restart: unless-stopped
+    # A leak or a flood stops here instead of starving the database.
+    mem_limit: 256m
     depends_on:
       postgres:
         condition: service_healthy
@@ -126,6 +128,8 @@ services:
     build: ./functions/push-worker
     container_name: treepnet-pushworker
     restart: unless-stopped
+    # A leak or a flood stops here instead of starving the database.
+    mem_limit: 256m
     depends_on:
       postgres:
         condition: service_healthy
@@ -142,6 +146,8 @@ services:
     build: ./functions/delete-account
     container_name: treepnet-deleteaccount
     restart: unless-stopped
+    # A leak or a flood stops here instead of starving the database.
+    mem_limit: 384m
     depends_on:
       postgres:
         condition: service_healthy
@@ -167,6 +173,8 @@ services:
     build: ./functions/auth-service
     container_name: treepnet-authservice
     restart: unless-stopped
+    # A leak or a flood stops here instead of starving the database.
+    mem_limit: 256m
     depends_on:
       postgres:
         condition: service_healthy
@@ -195,6 +203,8 @@ services:
     build: ./chatbackend
     container_name: treepnet-chatbackend
     restart: unless-stopped
+    # A leak or a flood stops here instead of starving the database.
+    mem_limit: 512m
     depends_on:
       postgres:
         condition: service_healthy
@@ -225,6 +235,8 @@ services:
     build: ./functions/error-logger
     container_name: treepnet-errorlogger
     restart: unless-stopped
+    # A leak or a flood stops here instead of starving the database.
+    mem_limit: 128m
     environment:
       PORT: "4200"
       TG_LOG_BOT_TOKEN: ${TG_LOG_BOT_TOKEN}
@@ -241,6 +253,8 @@ services:
     build: ./functions/analytics-api
     container_name: treepnet-analyticsapi
     restart: unless-stopped
+    # A leak or a flood stops here instead of starving the database.
+    mem_limit: 256m
     depends_on:
       postgres:
         condition: service_healthy

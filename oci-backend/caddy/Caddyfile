@@ -86,10 +86,10 @@ api.treepnet.com, rest.130-61-138-104.sslip.io {
 chat.treepnet.com, chat.130-61-138-104.sslip.io {
 	import security_headers
 	import access_log
-	# Above the backend's own 50MB file limit, so any allowed upload passes
-	# (it accepted bodies up to 100MB).
+	# Text only: the chat has no uploads any more, and the backend takes JSON
+	# bodies up to 1MB (a message is at most 8000 characters).
 	request_body {
-		max_size 60MB
+		max_size 1MB
 	}
 	reverse_proxy chatbackend:3000
 }

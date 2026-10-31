@@ -30,17 +30,10 @@ app.use(loggerMiddleware);
 // Xavfsizlik
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(cors({ origin: CORS_ORIGIN }));
-app.use(express.json({ limit: '100mb' }));
-app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+// Chat is text only (no uploads): a message is at most 8000 characters.
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(apiLimiter);
-
-// Yuklangan media
-app.use(
-    '/uploads',
-    express.static(path.join(__dirname, 'uploads'), {
-        setHeaders: (res) => res.set('Cross-Origin-Resource-Policy', 'cross-origin'),
-    }),
-);
 
 cacheService.connect();
 socketManager.init(server);
