@@ -385,8 +385,9 @@ abstract class PostsBaseRepository {
   });
 
   /// Returns a real-time stream of the `(lat, lng, name)` of every story by
-  /// [userId] that was pinned to a location. Ignores `expires_at`, so a pin
-  /// stays on the map even after the 24h story itself has expired.
+  /// [userId] that is pinned to a place — one per pin, read from the pins
+  /// themselves, so removing one removes its marker. Ignores `expires_at`, so
+  /// a pin stays on the map even after the 24h story itself has expired.
   Stream<List<({double lat, double lng, String? name})>> storyPointsOf({
     required String userId,
   });
@@ -1091,9 +1092,13 @@ SELECT * FROM profiles WHERE id = ?
   }) => _powerSyncRepository
       .db()
       .watch(
+        // From the pins, not the story's own coordinates: unpinning left
+        // those behind, so the marker stayed and opened an empty place.
         '''
-    SELECT location_lat, location_lng, location_name FROM stories
-    WHERE user_id = ?1 AND location_lat IS NOT NULL AND location_lng IS NOT NULL
+    SELECT ls.lat AS location_lat, ls.lng AS location_lng, s.location_name
+    FROM location_stories ls
+      INNER JOIN stories s ON s.id = ls.story_id AND s.user_id = ls.user_id
+    WHERE ls.user_id = ?1 AND ls.lat IS NOT NULL AND ls.lng IS NOT NULL
       AND ${_visibleAuthorSql('?1')}
     ''',
         parameters: [userId],
@@ -3929,14 +3934,22 @@ VALUES (uuid(), ?1, ?2, ?3, ?4, ?5, ?6)
     double? lat,
     double? lng,
   }) => _powerSyncRepository.db().execute(
+    // The pins that put the story on this page: near the point, by the same
+    // radius the page lists them with — or, on a whole region's page (no
+    // point), all of them in the region. It matched lat/lng exactly and NULL
+    // only with NULL, so on a region's page it never matched anything.
     '''
 DELETE FROM location_stories
 WHERE user_id = ?1 AND story_id = ?2 AND region_iso = ?3
-  AND ((lat IS NULL AND ?4 IS NULL) OR lat = ?4)
-  AND ((lng IS NULL AND ?5 IS NULL) OR lng = ?5)
+  AND (?4 IS NULL OR (lat IS NOT NULL AND ABS(lat - ?4) <= ?6))
+  AND (?5 IS NULL OR (lng IS NOT NULL AND ABS(lng - ?5) <= ?6))
 ''',
-    [userId, storyId, regionIso, lat, lng],
+    [userId, storyId, regionIso, lat, lng, _pinRadiusDegrees],
   );
+
+  /// How near a pin has to be to a place's point to count as there; the
+  /// place pages list pins with the same default radius.
+  static const double _pinRadiusDegrees = 0.0002;
 
   @override
   Future<String> uploadStoryMedia({
