@@ -302,10 +302,19 @@ class ChatCubit extends Cubit<ChatState> {
       message,
       ...state.messages.messages,
     ];
+    // The peer's message is the end of their typing: "typing…" goes with it,
+    // not when its timeout runs out.
+    final typingEnds = message.isFromPeer && state.isTyping;
+    if (typingEnds) {
+      _typingTimer?.cancel();
+      MessengerChat.controller.updateTyping(false, '', userName: null);
+    }
     emit(
       state.copyWith(
         messages: state.messages.copyWith(messages: newMessages),
         unreadCount: 0,
+        isTyping: typingEnds ? false : null,
+        typingType: typingEnds ? '' : null,
       ),
     );
     // Not while the app is in the background: nobody has seen it yet. It is

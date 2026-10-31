@@ -28,10 +28,77 @@ class _TextMessageState extends State<_TextMessage> {
   /// asked for again each time the bubble scrolls back into view.
   static final _failedPreviews = <String>{};
 
+  /// A sentence's closing punctuation after a link isn't part of it.
+  static final _linkTail = RegExp(r'[.,!?;:)\]]+$');
+
+  /// Pictographs, flags and the joiners and modifiers that build them (and
+  /// keycaps: a digit or # * before U+20E3).
+  static final _emojiOnly = RegExp(
+    r'^(?:[\p{Extended_Pictographic}\p{Regional_Indicator}\u{1F3FB}-\u{1F3FF}\u{FE0F}\u{200D}\u{20E3}#*0-9]|\s)+$',
+    unicode: true,
+  );
+  static final _pictograph = RegExp(
+    r'[\p{Extended_Pictographic}\p{Regional_Indicator}]',
+    unicode: true,
+  );
+
+  /// One to three emoji and nothing else: shown large, as chats do.
+  static bool _isEmojiOnly(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty || !_emojiOnly.hasMatch(trimmed)) return false;
+    if (!_pictograph.hasMatch(trimmed)) return false;
+    final emoji = trimmed.characters.where((c) => c.trim().isNotEmpty);
+    return emoji.length <= 3;
+  }
+
+  /// The tap handlers of the links in the text, made again on each build.
+  final _linkRecognizers = <TapGestureRecognizer>[];
+
+  /// [text] with every http(s) link in it underlined and tappable.
+  List<InlineSpan> _withLinks(String text) {
+    for (final recognizer in _linkRecognizers) {
+      recognizer.dispose();
+    }
+    _linkRecognizers.clear();
+    final spans = <InlineSpan>[];
+    var start = 0;
+    for (final match in _urlPattern.allMatches(text)) {
+      final link = match.group(0)!.replaceFirst(_linkTail, '');
+      final uri = Uri.tryParse(link);
+      if (match.start > start) {
+        spans.add(TextSpan(text: text.substring(start, match.start)));
+      }
+      if (uri == null || uri.host.isEmpty) {
+        spans.add(TextSpan(text: link));
+      } else {
+        final recognizer = TapGestureRecognizer()..onTap = () => _open(uri);
+        _linkRecognizers.add(recognizer);
+        spans.add(
+          TextSpan(
+            text: link,
+            style: const TextStyle(decoration: TextDecoration.underline),
+            recognizer: recognizer,
+          ),
+        );
+      }
+      start = match.start + link.length;
+    }
+    if (start < text.length) spans.add(TextSpan(text: text.substring(start)));
+    return spans;
+  }
+
   @override
   void initState() {
     super.initState();
     _checkAndFetch();
+  }
+
+  @override
+  void dispose() {
+    for (final recognizer in _linkRecognizers) {
+      recognizer.dispose();
+    }
+    super.dispose();
   }
 
   @override
@@ -91,7 +158,10 @@ class _TextMessageState extends State<_TextMessage> {
   Future<void> _launchUrl() async {
     final url = _detectedUrl;
     if (url == null) return;
-    final uri = Uri.parse(url);
+    await _open(Uri.parse(url));
+  }
+
+  Future<void> _open(Uri uri) async {
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (e) {
@@ -232,50 +302,19 @@ class _TextMessageState extends State<_TextMessage> {
                   isAdmin: isAdmin,
                   style: style,
                 ),
-              Text(
-                content,
+              // Links tap open; one to three emoji alone are shown large.
+              Text.rich(
+                TextSpan(children: _withLinks(content)),
                 maxLines: 1000,
-                style: isAdmin
-                    ? style.adminMessageTextStyle
-                    : style.clientMessageTextStyle,
+                style: () {
+                  final base = isAdmin
+                      ? style.adminMessageTextStyle
+                      : style.clientMessageTextStyle;
+                  return _isEmojiOnly(content)
+                      ? base.copyWith(fontSize: 40, height: 1.15)
+                      : base;
+                }(),
               ),
-              if (_detectedUrl != null &&
-                  isAdmin &&
-                  Uri.tryParse(_detectedUrl!)?.host != null) ...[
-                const SizedBox(height: 6),
-                GestureDetector(
-                  onTap: _launchUrl,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: linkColor.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.link, size: 14, color: linkColor),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            Uri.parse(_detectedUrl!).host,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: linkColor,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
               if (_metadata != null &&
                   (_metadata!.title != null || _metadata!.desc != null)) ...[
                 const SizedBox(height: 8),
@@ -368,41 +407,46 @@ class _QuotedReply extends StatelessWidget {
         ? runtime.me.name
         : (runtime.peer?.name ?? '');
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.18),
-          borderRadius: BorderRadius.circular(8),
-          border: const Border(
-            left: BorderSide(color: Colors.white70, width: 2.5),
+    // Tapping it brings the original into view (see _MessageList).
+    final jump = _ReplyJumpScope.of(context);
+    return GestureDetector(
+      onTap: jump == null ? null : () => unawaited(jump(reply.messageId)),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(8),
+            border: const Border(
+              left: BorderSide(color: Colors.white70, width: 2.5),
+            ),
           ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (author.isNotEmpty)
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (author.isNotEmpty)
+                Text(
+                  author,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: base.copyWith(fontWeight: FontWeight.w700, fontSize: 12),
+                ),
               Text(
-                author,
+                // Shared post/story sentinels → a friendly label, via the app
+                // hook (was showing the raw `treepnet:share:...` text).
+                _ChatRuntime.instance.sharedReplyPreview?.call(reply.content) ??
+                    reply.content,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: base.copyWith(fontWeight: FontWeight.w700, fontSize: 12),
+                style: base.copyWith(
+                  fontSize: 12,
+                  color: (base.color ?? Colors.white).withValues(alpha: 0.85),
+                ),
               ),
-            Text(
-              // Shared post/story sentinels → a friendly label, via the app
-              // hook (was showing the raw `treepnet:share:...` text).
-              _ChatRuntime.instance.sharedReplyPreview?.call(reply.content) ??
-                  reply.content,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: base.copyWith(
-                fontSize: 12,
-                color: (base.color ?? Colors.white).withValues(alpha: 0.85),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

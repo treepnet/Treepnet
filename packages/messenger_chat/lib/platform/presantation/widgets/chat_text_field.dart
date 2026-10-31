@@ -89,7 +89,7 @@ class _ChatTextFieldState extends State<_ChatTextField> {
                       minLines: 1,
                       maxLines: 6,
                       onFieldSubmitted: (value) {
-                        widget.onSendMessage?.call();
+                        _send();
                         widget.focusNode.requestFocus();
                       },
                       onChanged: (value) => typing(),
@@ -144,7 +144,7 @@ class _ChatTextFieldState extends State<_ChatTextField> {
 
   Widget _sendButton(BuildContext context) => _GeneralEffectsButton(
     key: const ValueKey('send'),
-    onTap: () => widget.onSendMessage?.call(),
+    onTap: _send,
     constraints: const BoxConstraints(),
     borderRadius: BorderRadius.circular(21),
     child: ClipRRect(
@@ -188,5 +188,13 @@ class _ChatTextFieldState extends State<_ChatTextField> {
     if (_typingDebounce?.isActive ?? false) return;
     unawaited(_ChatSocket.sendTyping(isTyping: true));
     _typingDebounce = Timer(const Duration(seconds: 2), () {});
+  }
+
+  /// Sends, and tells the peer the typing is over — their "typing…" used to
+  /// stay up for its whole timeout after the message had arrived.
+  void _send() {
+    _typingDebounce?.cancel();
+    unawaited(_ChatSocket.sendTyping(isTyping: false));
+    widget.onSendMessage?.call();
   }
 }

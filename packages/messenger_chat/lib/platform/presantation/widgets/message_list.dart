@@ -28,6 +28,15 @@ class _MessageList extends StatefulWidget {
 class _MessageListState extends State<_MessageList> {
   late final FocusNode focusNode;
 
+  /// Each shown message's place in the list, by id — to scroll to the one a
+  /// quote points at.
+  final _itemKeys = <String, GlobalKey>{};
+
+  /// The message a quote was tapped for, lit up for a moment.
+  String? _highlightedId;
+  Timer? _highlightTimer;
+  bool _jumping = false;
+
   @override
   void initState() {
     super.initState();
@@ -35,7 +44,74 @@ class _MessageListState extends State<_MessageList> {
   }
 
   @override
-  Widget build(BuildContext context) => BlocBuilder<ChatCubit, ChatState>(
+  void dispose() {
+    _highlightTimer?.cancel();
+    focusNode.dispose();
+    super.dispose();
+  }
+
+  GlobalKey _keyOf(String messageId) =>
+      _itemKeys.putIfAbsent(messageId, GlobalKey.new);
+
+  /// Scrolls to [messageId] and lights it up. The list only builds what is
+  /// near the screen, so until the message is built this moves towards where
+  /// it should be; a message older than those loaded loads the pages before
+  /// (a few at most).
+  Future<void> _jumpTo(String messageId) async {
+    if (_jumping) return;
+    _jumping = true;
+    try {
+      final cubit = context.read<ChatCubit>();
+      var olderPagesLoaded = 0;
+      for (var attempt = 0; attempt < 12 && mounted; attempt++) {
+        final target = _itemKeys[messageId]?.currentContext;
+        if (target != null) {
+          await Scrollable.ensureVisible(
+            target,
+            alignment: 0.5,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+          if (!mounted) return;
+          _highlightTimer?.cancel();
+          setState(() => _highlightedId = messageId);
+          _highlightTimer = Timer(const Duration(milliseconds: 1500), () {
+            if (mounted) setState(() => _highlightedId = null);
+          });
+          return;
+        }
+        final messages = cubit.state.messages;
+        final index = messages.messages.indexWhere((m) => m.id == messageId);
+        if (index < 0) {
+          if (!messages.hasNextPage || olderPagesLoaded >= 5) return;
+          olderPagesLoaded++;
+          await cubit.getMessages(page: messages.currentPage + 1);
+          continue;
+        }
+        // Not built yet: where it should be, from the average message height
+        // (the list is reversed, so older is further).
+        final position = widget.listScrollController.position;
+        final total = position.maxScrollExtent + position.viewportDimension;
+        final estimate =
+            total / messages.messages.length * index -
+            position.viewportDimension / 2;
+        widget.listScrollController.jumpTo(
+          estimate.clamp(0.0, position.maxScrollExtent),
+        );
+        await WidgetsBinding.instance.endOfFrame;
+      }
+    } finally {
+      _jumping = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => _ReplyJumpScope(
+    onJump: _jumpTo,
+    child: _buildList(context),
+  );
+
+  Widget _buildList(BuildContext context) => BlocBuilder<ChatCubit, ChatState>(
     // Not on "typing…" and other state the list doesn't show: it used to
     // rebuild every message each time the peer started or stopped typing.
     buildWhen: (previous, current) =>
@@ -205,8 +281,14 @@ class _MessageListState extends State<_MessageList> {
                             ),
                           ),
                         ),
-                        Container(
+                        AnimatedContainer(
+                          key: message.isLocal ? null : _keyOf(message.id),
+                          duration: const Duration(milliseconds: 250),
                           padding: EdgeInsets.zero,
+                          // Where a tapped quote led: lit up for a moment.
+                          color: _highlightedId == message.id
+                              ? Colors.white.withValues(alpha: 0.12)
+                              : Colors.transparent,
                           child: VisibilityDetector(
                             key: Key('${message.id}'),
                             onVisibilityChanged: (info) {
@@ -371,4 +453,18 @@ Future<void> _showFailedMessageActions(
   }
   // Only text is ever sent, so only text can be waiting for a retry.
   await cubit.retryTextMessage(message);
+}
+
+/// Gives a quote inside a message ([_QuotedReply]) the way to bring its
+/// original into view.
+class _ReplyJumpScope extends InheritedWidget {
+  const _ReplyJumpScope({required this.onJump, required super.child});
+
+  final Future<void> Function(String messageId) onJump;
+
+  static Future<void> Function(String messageId)? of(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_ReplyJumpScope>()?.onJump;
+
+  @override
+  bool updateShouldNotify(_ReplyJumpScope oldWidget) => false;
 }
