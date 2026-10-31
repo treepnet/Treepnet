@@ -1,23 +1,12 @@
 class AppFonts {
+  /// Every one covers Latin, Russian and Uzbek Cyrillic, so picking a font
+  /// works whatever the user types. The first is the default.
   static const fontFamilyList = [
     'Alegreya',
-    'B612',
-    'TitilliumWeb',
-    'Varela',
-    'Vollkorn',
-    'Rakkas',
-    'ConcertOne',
-    'YatraOne',
-    'OldStandardTT',
-    'Neonderthaw',
-    'DancingScript',
-    'SedgwickAve',
-    'IndieFlower',
-    'Sacramento',
-    'PressStart2P',
-    'FrederickatheGreat',
-    'ReenieBeanie',
-    'BungeeShade',
-    'UnifrakturMaguntia'
+    'PTSans',
+    'Oswald',
+    'Caveat',
+    'Pacifico',
+    'BadScript',
   ];
 }

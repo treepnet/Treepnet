@@ -79,78 +79,28 @@ flutter:
     - packages/stories_editor/assets/images/instagram_logo.png
 
   fonts:
+    # Each covers Latin, Russian and Uzbek Cyrillic (Ўў Ққ Ғғ Ҳҳ) — a font
+    # without them showed Cyrillic text in the system font instead.
     - family: Alegreya
       fonts:
         - asset: packages/stories_editor/assets/fonts/Alegreya-VariableFont_wght.ttf
 
-    - family: B612
+    - family: PTSans
       fonts:
-        - asset: packages/stories_editor/assets/fonts/B612-Regular.ttf
+        - asset: packages/stories_editor/assets/fonts/PTSans-Regular.ttf
 
-    - family: TitilliumWeb
+    - family: Oswald
       fonts:
-        - asset: packages/stories_editor/assets/fonts/TitilliumWeb-Regular.ttf
+        - asset: packages/stories_editor/assets/fonts/Oswald-VariableFont_wght.ttf
 
-    - family: Varela
+    - family: Caveat
       fonts:
-        - asset: packages/stories_editor/assets/fonts/Varela-Regular.ttf
+        - asset: packages/stories_editor/assets/fonts/Caveat-VariableFont_wght.ttf
 
-    - family: Vollkorn
+    - family: Pacifico
       fonts:
-        - asset: packages/stories_editor/assets/fonts/Vollkorn-Regular.ttf
+        - asset: packages/stories_editor/assets/fonts/Pacifico-Regular.ttf
 
-    - family: Rakkas
+    - family: BadScript
       fonts:
-        - asset: packages/stories_editor/assets/fonts/Rakkas-Regular.ttf
-
-    - family: ConcertOne
-      fonts:
-        - asset: packages/stories_editor/assets/fonts/ConcertOne-Regular.ttf
-
-    - family: YatraOne
-      fonts:
-        - asset: packages/stories_editor/assets/fonts/YatraOne-Regular.ttf
-
-    - family: OldStandardTT
-      fonts:
-        - asset: packages/stories_editor/assets/fonts/OldStandardTT-Italic.ttf
-
-    - family: Neonderthaw
-      fonts:
-        - asset: packages/stories_editor/assets/fonts/Neonderthaw-Regular.ttf
-
-    - family: DancingScript
-      fonts:
-        - asset: packages/stories_editor/assets/fonts/DancingScript-VariableFont_wght.ttf
-
-    - family: SedgwickAve
-      fonts:
-        - asset: packages/stories_editor/assets/fonts/SedgwickAve-Regular.ttf
-
-    - family: IndieFlower
-      fonts:
-        - asset: packages/stories_editor/assets/fonts/IndieFlower-Regular.ttf
-
-    - family: Sacramento
-      fonts:
-        - asset: packages/stories_editor/assets/fonts/Sacramento-Regular.ttf
-
-    - family: PressStart2P
-      fonts:
-        - asset: packages/stories_editor/assets/fonts/PressStart2P-Regular.ttf
-
-    - family: FrederickatheGreat
-      fonts:
-        - asset: packages/stories_editor/assets/fonts/FrederickatheGreat-Regular.ttf
-
-    - family: ReenieBeanie
-      fonts:
-        - asset: packages/stories_editor/assets/fonts/ReenieBeanie-Regular.ttf
-
-    - family: BungeeShade
-      fonts:
-        - asset: packages/stories_editor/assets/fonts/BungeeShade-Regular.ttf
-
-    - family: UnifrakturMaguntia
-      fonts:
-        - asset: packages/stories_editor/assets/fonts/UnifrakturMaguntia-Regular.ttf
+        - asset: packages/stories_editor/assets/fonts/BadScript-Regular.ttf
