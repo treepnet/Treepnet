@@ -997,16 +997,7 @@ SELECT * FROM profiles WHERE id = ?
     final author = authorRow != null
         ? User.fromJson(authorRow)
         : User.anonymous;
-    final jsonMedia = json['media'] as String;
-
-    final rootToken = RootIsolateToken.instance!;
-    final mediaResult = await compute(_computeJsonMedia, [
-      rootToken,
-      jsonMedia,
-    ]);
-    final postMedia = List<Media>.from(
-      mediaResult.map(Media.fromJson).toList(),
-    );
+    final postMedia = _decodeMedia(json['media'] as String);
     return Post.fromJson(json, media: postMedia).copyWith(author: author);
   }
 
@@ -1755,17 +1746,13 @@ ${limit != null ? 'LIMIT ?' : ''}
     return listMedia;
   }
 
-  static List<Map<String, dynamic>> _computeJsonMedia(
-    List<dynamic> args,
-  ) {
-    final rootToken = args[0] as RootIsolateToken;
-    BackgroundIsolateBinaryMessenger.ensureInitialized(rootToken);
-    final jsonMedia = args[1] as String;
-    final listMedia = (jsonDecode(jsonMedia) as List<dynamic>)
-        .cast<Map<String, dynamic>>();
-
-    return listMedia;
-  }
+  /// One post's media JSON (a few hundred bytes), decoded in place. It used
+  /// to start a background isolate per post — far more work than the decoding
+  /// — e.g. for every post shared into a chat.
+  static List<Media> _decodeMedia(String jsonMedia) => [
+    for (final item in jsonDecode(jsonMedia) as List<dynamic>)
+      Media.fromJson(item as Map<String, dynamic>),
+  ];
 
   @override
   Future<List<Post>> getPage({
@@ -1884,11 +1871,7 @@ RETURNING *
     );
     if (row.isEmpty) return null;
     final json = Map<String, dynamic>.from(row.first);
-    final jsonMedia = json['media'] as String;
-
-    final rootToken = RootIsolateToken.instance!;
-    final result = await compute(_computeJsonMedia, [rootToken, jsonMedia]);
-    final media = List<Media>.from(result.map(Media.fromJson).toList());
+    final media = _decodeMedia(json['media'] as String);
     return Post.fromJson(json, media: media);
   }
 
@@ -2021,16 +2004,7 @@ WHERE posts.id = ? AND ${_visibleAuthorSql('posts.user_id')}
     );
     if (row == null) return null;
     final json = Map<String, dynamic>.from(row);
-    final jsonMedia = json['media'] as String;
-
-    final rootToken = RootIsolateToken.instance!;
-    final mediaResult = await compute(_computeJsonMedia, [
-      rootToken,
-      jsonMedia,
-    ]);
-    final postMedia = List<Media>.from(
-      mediaResult.map(Media.fromJson).toList(),
-    );
+    final postMedia = _decodeMedia(json['media'] as String);
     return Post.fromJson(json, media: postMedia);
   }
 

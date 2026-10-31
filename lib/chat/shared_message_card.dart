@@ -60,7 +60,11 @@ class _SharedPostCardState extends State<_SharedPostCard> {
       final post = snapshot.data;
       final loading = snapshot.connectionState == ConnectionState.waiting;
       final media = post?.media ?? const <Media>[];
-      final thumbUrl = media.isNotEmpty ? media.first.url : null;
+      // The small copy grids use (P1 #34), not the full photo.
+      final first = media.isEmpty ? null : media.first;
+      final thumbUrl = first is ImageMedia
+          ? (first.thumbUrl ?? first.url)
+          : first?.url;
 
       return _CardShell(
         onTap: post == null ? null : _open,
@@ -301,11 +305,21 @@ class _Media extends StatelessWidget {
 
     if (loading) return const ColoredBox(color: Color(0xff2A2A2A));
     if (url == null || url!.isEmpty) return fallback();
-    return CachedNetworkImage(
-      imageUrl: url!,
-      fit: BoxFit.cover,
-      errorWidget: (_, __, ___) => fallback(),
-      placeholder: (_, __) => const ColoredBox(color: Color(0xff2A2A2A)),
+    // Decoded at the card's size: a full story image decoded at full size
+    // took several MB of memory for a small card.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        return CachedNetworkImage(
+          imageUrl: url!,
+          fit: BoxFit.cover,
+          memCacheWidth: width.isFinite
+              ? (width * MediaQuery.devicePixelRatioOf(context)).round()
+              : null,
+          errorWidget: (_, __, ___) => fallback(),
+          placeholder: (_, __) => const ColoredBox(color: Color(0xff2A2A2A)),
+        );
+      },
     );
   }
 }
