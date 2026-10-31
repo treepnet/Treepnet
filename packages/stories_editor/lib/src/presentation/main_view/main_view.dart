@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui' show decodeImageFromList;
+import 'dart:ui' as ui show instantiateImageCodec;
 // ignore_for_file: deprecated_member_use
 
 import 'package:flutter/foundation.dart';
@@ -173,12 +173,21 @@ class _MainViewState extends State<MainView> with SafeSetStateMixin {
   /// which is the point: a crop would have thrown those pixels away.
   Future<double> _coverScale(String path) async {
     try {
-      final decoded = await decodeImageFromList(
+      // Only the shape matters, so decode a small copy (decoding applies the
+      // photo's orientation, so it is the shape shown) — not the whole 12-50
+      // MP picture, on the main thread, just to read its size.
+      final codec = await ui.instantiateImageCodec(
         await File(path).readAsBytes(),
+        targetWidth: 512,
       );
+      final frame = await codec.getNextFrame();
+      final width = frame.image.width;
+      final height = frame.image.height;
+      frame.image.dispose();
+      codec.dispose();
       final screen = ScreenUtil();
-      final byWidth = screen.screenWidth / decoded.width;
-      final byHeight = screen.screenHeight / decoded.height;
+      final byWidth = screen.screenWidth / width;
+      final byHeight = screen.screenHeight / height;
       // The picture already fits `contain`; scaling by the ratio of the two
       // fits turns that into `cover`.
       final scale = (byWidth > byHeight ? byWidth : byHeight) /
