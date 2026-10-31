@@ -57,7 +57,18 @@ function localizedBody(row, lang) {
   return texts[type] || body;
 }
 
+// Pushes about one post share a slot on the phone: a newer like (or comment)
+// on it replaces the last instead of piling up in the notification shade.
+function groupKey(row) {
+  const d = row.data || {};
+  if (d.post_id && (d.type === 'like' || d.type === 'comment')) {
+    return `${d.type}-${d.post_id}`;
+  }
+  return null;
+}
+
 async function sendOne(accessToken, projectId, token, row) {
+  const group = groupKey(row);
   const res = await fetch(
     `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
     {
@@ -76,13 +87,17 @@ async function sendOne(accessToken, projectId, token, row) {
           data: Object.fromEntries(
             Object.entries(row.data || {}).map(([k, v]) => [k, String(v)]),
           ),
-          android: { priority: 'high', notification: { sound: 'default' } },
+          android: {
+            priority: 'high',
+            notification: { sound: 'default', ...(group && { tag: group }) },
+          },
           // iOS: force immediate delivery. Without apns-priority 10 APNs may
           // batch/throttle the push and deliver it up to ~an hour late.
           apns: {
             headers: {
               'apns-priority': '10',
               'apns-push-type': 'alert',
+              ...(group && { 'apns-collapse-id': group }),
             },
             payload: {
               aps: { sound: 'default' },
