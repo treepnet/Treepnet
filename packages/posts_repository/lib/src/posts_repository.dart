@@ -17,6 +17,11 @@ class PostsRepository implements PostsBaseRepository {
   final PostStatsHub _statsHub;
   final CommentStatsHub _commentStatsHub;
 
+  /// Keeps a post by [ownerId], its counts and its comments on the phone
+  /// while a screen shows them. Close it when the screen goes.
+  SyncScope postScope({required String postId, required String ownerId}) =>
+      _databaseClient.postScope(postId: postId, ownerId: ownerId);
+
   /// The live counts and viewer state a post card shows for [postId]. All
   /// cards share one query (see [PostStatsHub]).
   Stream<PostStats> statsOf({required String postId}) =>

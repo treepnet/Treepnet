@@ -17,6 +17,14 @@ class UserRepository implements UserBaseRepository {
   final DatabaseClient _databaseClient;
   final AuthenticationClient _authenticationClient;
 
+  /// Keeps [userId]'s profile on the phone while a screen shows it — the
+  /// phone only syncs the user's own things and those of people they follow.
+  /// Close it when the screen goes.
+  SyncScope profileScope(String userId) => _databaseClient.profileScope(userId);
+
+  /// Forgets what server lists said about posts (signing out).
+  void forgetServerSnapshots() => _databaseClient.forgetServerSnapshots();
+
   /// Stream of [User] which will emit the current user when the authentication
   /// state changes.
   ///

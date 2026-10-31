@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:database_client/src/invite_badge.dart';
 import 'package:database_client/src/comment_stats.dart';
 import 'package:database_client/src/post_stats.dart';
+import 'package:database_client/src/server_snapshots.dart';
 import 'package:powersync_repository/powersync_repository.dart';
 import 'package:shared/shared.dart';
 import 'package:user_repository/user_repository.dart';
@@ -591,15 +592,6 @@ abstract class StoriesBaseRepository {
   ///
   /// [limit] caps the reactive window for scroll pagination; null = all.
   Stream<List<User>> storyViewersOf({required String storyId, int? limit});
-
-  /// Toggles a like by [userId] on the story [storyId].
-  Future<void> likeStory({required String storyId, required String userId});
-
-  /// Whether [userId] has liked [storyId].
-  Stream<bool> isStoryLiked({required String storyId, required String userId});
-
-  /// Live like count of [storyId].
-  Stream<int> storyLikesCountOf({required String storyId});
 }
 
 /// {@template client}
@@ -636,6 +628,18 @@ abstract class DatabaseClient
 
   /// Fetches the profiles for [ids] in one query. Empty [ids] → empty list.
   Future<List<User>> profilesByIds(List<String> ids);
+
+  /// Keeps [userId]'s profile on the phone while a screen shows it (see
+  /// `SyncScope`): the phone only syncs the user's own things and those of
+  /// the people they follow.
+  SyncScope profileScope(String userId);
+
+  /// Keeps a post (by [ownerId]), its counts and comments on the phone while
+  /// a screen shows them.
+  SyncScope postScope({required String postId, required String ownerId});
+
+  /// Forgets what the server lists said (counts, likes) — signing out.
+  void forgetServerSnapshots();
 }
 
 /// {@template power_sync_database_client}
@@ -651,15 +655,38 @@ class PowerSyncDatabaseClient extends DatabaseClient {
 
   final PowerSyncRepository _powerSyncRepository;
 
+  /// Counts and likes of posts the server lists brought (see [RemotePosts]).
+  final _remotePosts = RemotePosts();
+
+  /// Likes the server's counts may not include yet (see [PendingLikes]).
+  final _pendingLikes = PendingLikes();
+
   @override
   String? get currentUserId => EntraSession.instance.current?.userId;
 
+  @override
+  SyncScope profileScope(String userId) =>
+      userId.isEmpty || userId == currentUserId
+      ? SyncScope.none()
+      : _powerSyncRepository.profileScope(userId);
+
+  @override
+  SyncScope postScope({required String postId, required String ownerId}) =>
+      _powerSyncRepository.postScope(postId: postId, ownerId: ownerId);
+
+  @override
+  void forgetServerSnapshots() {
+    _remotePosts.clear();
+    _pendingLikes.clear();
+    _cardCache.clear();
+  }
+
   // --- Privacy and blocking -------------------------------------------------
   //
-  // Every list of other people's content or people goes through one of these
-  // two rules, so a private account and a block hold everywhere, not only on
-  // the profile page. All rows still sync to the phone (the server-side rule
-  // is a separate fix); these keep them off the screen. Both directions of a
+  // The server only syncs what the user may see (sync-config.yaml) and checks
+  // its own lists (sql/sync_scoping.sql); these rules hold the same line on
+  // the phone — for rows synced before a follow ended or a block began, and
+  // because the server's sync doesn't know about blocks. Both directions of a
   // block sync (`blocked_users` rows where I'm the blocker or the blocked), so
   // "they blocked me" hides them as well. Live (`watch`) queries refresh on
   // their own when a block, follow or privacy row changes, since the rule's
@@ -948,18 +975,11 @@ SELECT * FROM profiles WHERE id = ?
       );
 
   @override
-  Stream<int> postsAmountOf({required String userId}) => _powerSyncRepository
-      .db()
-      .watch(
-        '''
-    SELECT COUNT(*) as posts_count FROM posts where user_id = ?
-    ''',
-        parameters: [userId],
-      )
-      .map(
-        (event) =>
-            event.safeMap((element) => element['posts_count']).first as int,
-      );
+  Stream<int> postsAmountOf({required String userId}) => _countOf(
+    userId: userId,
+    serverColumn: 'posts_count',
+    localSql: 'SELECT COUNT(*) FROM posts WHERE user_id = ?1',
+  );
 
   @override
   Stream<int> referralCountOf({required String userId}) => _powerSyncRepository
@@ -985,6 +1005,9 @@ SELECT * FROM profiles WHERE id = ?
   /// every other profile would come out bare. The server publishes the earned
   /// tier and its end date here; the expiry is re-checked on the device so a
   /// badge visibly lapses on time even if the server has not run since.
+  ///
+  /// Someone whose profile isn't on the phone (not followed): their card from
+  /// the server ([_cards]).
   @override
   Stream<int> travelTierOf({required String userId}) => _powerSyncRepository
       .db()
@@ -993,17 +1016,18 @@ SELECT * FROM profiles WHERE id = ?
         'WHERE id = ?',
         parameters: [userId],
       )
-      .map((event) {
+      .asyncMap((event) async {
         final rows = event.toList();
-        if (rows.isEmpty) return 0;
+        if (rows.isEmpty) {
+          final card = (await _cards([userId]))[userId];
+          return _liveTier(card?.tier, card?.tierExpiresAt, DateTime.now());
+        }
         final row = rows.first;
-        final tier = (row['referral_tier'] as int?) ?? 0;
-        if (tier <= 0) return 0;
-        final endsAt = DateTime.tryParse(
-          (row['referral_tier_expires_at'] as String?) ?? '',
+        return _liveTier(
+          row['referral_tier'] as int?,
+          row['referral_tier_expires_at'] as String?,
+          DateTime.now(),
         );
-        if (endsAt == null) return 0;
-        return DateTime.now().isBefore(endsAt) ? tier : 0;
       });
 
   @override
@@ -1102,7 +1126,7 @@ ORDER BY COALESCE(
           .db()
           .watch(
             '''
-SELECT s.*, p.id as user_id, p.username, p.full_name, p.avatar_url
+SELECT s.*, s.user_id as user_id, p.username, p.full_name, p.avatar_url
 FROM story_highlight_items i
 JOIN stories s ON s.id = i.story_id
 JOIN story_highlights h ON h.id = i.highlight_id
@@ -1237,21 +1261,41 @@ ORDER BY i.created_at ASC
       });
 
   @override
-  Stream<List<User>> savedProfilesOf({required String userId}) =>
-      _powerSyncRepository
-          .db()
-          .watch(
-            '''
-SELECT p.* FROM saved_profiles s
-JOIN profiles p ON p.id = s.profile_id
-WHERE s.saver_id = ? AND ${_notBlockedSql('p.id')}
+  Stream<List<User>> savedProfilesOf({required String userId}) => _people(
+    '''
+SELECT s.profile_id AS id FROM saved_profiles s
+WHERE s.saver_id = ? AND ${_notBlockedSql('s.profile_id')}
 ORDER BY s.created_at DESC
 ''',
-            parameters: [userId],
-          )
-          .map(
-            (event) => event.safeMap(User.fromJson).toList(growable: false),
-          );
+    [userId],
+  );
+
+  /// The people [idsSql] lists (an `id` column, in order), live: their
+  /// profiles where the phone has them, the server's card of the rest (the
+  /// phone keeps only the profiles of the people the user follows).
+  Stream<List<User>> _people(String idsSql, List<Object?> parameters) =>
+      _powerSyncRepository.db().watch(idsSql, parameters: parameters).asyncMap((
+        rows,
+      ) async {
+        final ids = [for (final row in rows) row['id'] as String];
+        if (ids.isEmpty) return const <User>[];
+        final local = await _powerSyncRepository.db().getAll(
+          'SELECT * FROM profiles '
+          'WHERE id IN (SELECT value FROM json_each(?))',
+          [jsonEncode(ids)],
+        );
+        final byId = {
+          for (final row in local) row['id'] as String: User.fromJson(row),
+        };
+        final cards = await _cards([
+          for (final id in ids)
+            if (!byId.containsKey(id)) id,
+        ]);
+        return [
+          for (final id in ids)
+            if (byId[id] ?? cards[id]?.user case final user?) user,
+        ];
+      });
 
   @override
   Stream<bool> isProfileSaved({
@@ -1334,57 +1378,48 @@ ORDER BY s.created_at DESC
     await _powerSyncRepository.postgrest().rpc<dynamic>('delete_account');
   }
 
+  /// The user's notifications as the server keeps them (sql/sync_scoping.sql:
+  /// likes and comments on their posts, follows, follow requests — the
+  /// phone no longer has everyone's likes and comments to work them out
+  /// from). A follow or request shows as its follow row on the phone has it
+  /// now, so accepting or declining one updates it at once.
+  static String _notificationsSql({required bool count}) =>
+      '''
+SELECT ${count ? 'COUNT(*) AS c' : '''
+  CASE WHEN n.type IN ('follow', 'follow_request') THEN
+    CASE WHEN s.status = 'pending' THEN 'follow_request' ELSE 'follow' END
+  ELSE n.type END AS type,
+  n.actor_id AS actor_id, n.post_id AS post_id, n.content AS content,
+  n.created_at AS created_at, n.post_thumb AS post_thumb,
+  COALESCE(pr.username, n.actor_username) AS actor_username,
+  COALESCE(pr.avatar_url, n.actor_avatar_url) AS actor_avatar,
+  COALESCE(pr.full_name, n.actor_full_name) AS actor_name'''}
+FROM notifications n
+  LEFT JOIN subscriptions s ON s.id = n.source_id
+  LEFT JOIN profiles pr ON pr.id = n.actor_id
+  -- The watermark lives on the profile, so this join puts `profiles` in the
+  -- watched set too and the badge clears itself the moment it is bumped.
+  LEFT JOIN profiles me ON me.id = ?1
+WHERE n.recipient_id = ?1
+  AND (n.type NOT IN ('follow', 'follow_request') OR s.id IS NOT NULL)
+  AND NOT EXISTS (
+    SELECT 1 FROM blocked_users vis_b
+    WHERE (vis_b.blocker_id = ?1 AND vis_b.blocked_id = n.actor_id)
+       OR (vis_b.blocker_id = n.actor_id AND vis_b.blocked_id = ?1)
+  )
+  ${count ? '''
+  AND (me.notifications_seen_at IS NULL
+       OR julianday(substr(n.created_at, 1, 19))
+          > julianday(substr(me.notifications_seen_at, 1, 19)))''' : '''
+ORDER BY n.created_at DESC
+LIMIT 80'''}
+''';
+
   @override
   Stream<List<NotificationItem>> notificationsOf({required String userId}) =>
       _powerSyncRepository
           .db()
-          .watch(
-            '''
-SELECT act.type AS type, act.actor_id AS actor_id, act.post_id AS post_id,
-       act.content AS content, act.created_at AS created_at,
-       act.post_thumb AS post_thumb,
-       pr.username AS actor_username, pr.avatar_url AS actor_avatar,
-       pr.full_name AS actor_name
-FROM (
-  SELECT 'like' AS type, l.user_id AS actor_id, l.post_id AS post_id,
-         NULL AS content, l.created_at AS created_at,
-         CASE WHEN json_valid(p.media) THEN
-           CASE json_extract(p.media, '\$[0].type')
-             WHEN '__video_media__' THEN json_extract(p.media, '\$[0].first_frame_url')
-             ELSE coalesce(json_extract(p.media, '\$[0].thumb_url'),
-                           json_extract(p.media, '\$[0].url'))
-           END
-         END AS post_thumb
-  FROM likes l
-  JOIN posts p ON p.id = l.post_id
-  WHERE p.user_id = ?1 AND l.user_id != ?1 AND l.post_id IS NOT NULL
-  UNION ALL
-  SELECT 'comment', c.user_id, c.post_id, c.content, c.created_at,
-         CASE WHEN json_valid(p.media) THEN
-           CASE json_extract(p.media, '\$[0].type')
-             WHEN '__video_media__' THEN json_extract(p.media, '\$[0].first_frame_url')
-             ELSE coalesce(json_extract(p.media, '\$[0].thumb_url'),
-                           json_extract(p.media, '\$[0].url'))
-           END
-         END
-  FROM comments c
-  JOIN posts p ON p.id = c.post_id
-  WHERE p.user_id = ?1 AND c.user_id != ?1
-  UNION ALL
-  -- A pending row is a follow REQUEST (Accept/Decline); an accepted row is a
-  -- plain "started following you" notice.
-  SELECT (CASE WHEN s.status = 'pending' THEN 'follow_request' ELSE 'follow' END),
-         s.subscriber_id, NULL, NULL, s.created_at, NULL
-  FROM subscriptions s
-  WHERE s.subscribed_to_id = ?1 AND s.subscriber_id != ?1
-) act
-LEFT JOIN profiles pr ON pr.id = act.actor_id
-WHERE ${_notBlockedSql('act.actor_id')}
-ORDER BY act.created_at DESC
-LIMIT 80
-''',
-            parameters: [userId],
-          )
+          .watch(_notificationsSql(count: false), parameters: [userId])
           .map(
             (result) => result
                 .map(
@@ -1412,33 +1447,7 @@ LIMIT 80
   Stream<int> unreadNotificationsCount({required String userId}) =>
       _powerSyncRepository
           .db()
-          .watch(
-            '''
-SELECT COUNT(*) AS c
-FROM (
-  SELECT l.user_id AS actor_id, l.created_at AS created_at
-  FROM likes l
-  JOIN posts p ON p.id = l.post_id
-  WHERE p.user_id = ?1 AND l.user_id != ?1 AND l.post_id IS NOT NULL
-  UNION ALL
-  SELECT c.user_id, c.created_at
-  FROM comments c
-  JOIN posts p ON p.id = c.post_id
-  WHERE p.user_id = ?1 AND c.user_id != ?1
-  UNION ALL
-  SELECT s.subscriber_id, s.created_at
-  FROM subscriptions s
-  WHERE s.subscribed_to_id = ?1 AND s.subscriber_id != ?1
-) act
--- The watermark lives on the profile, so this join puts `profiles` in the
--- watched set too and the badge clears itself the moment it is bumped.
-LEFT JOIN profiles me ON me.id = ?1
-WHERE (me.notifications_seen_at IS NULL
-       OR act.created_at > me.notifications_seen_at)
-  AND ${_notBlockedSql('act.actor_id')}
-''',
-            parameters: [userId],
-          )
+          .watch(_notificationsSql(count: true), parameters: [userId])
           .map((rows) => (rows.first['c'] as int?) ?? 0);
 
   @override
@@ -1457,7 +1466,7 @@ WHERE (me.notifications_seen_at IS NULL
             '''
 SELECT
   posts.*,
-  p.id as user_id,
+  posts.user_id as user_id,
   p.avatar_url as avatar_url,
   p.username as username,
   p.full_name as full_name
@@ -1533,7 +1542,7 @@ posts.user_id = ?
           '''
 SELECT
   posts.*,
-  p.id as user_id,
+  posts.user_id as user_id,
   p.avatar_url as avatar_url,
   p.username as username,
   p.full_name as full_name
@@ -1615,96 +1624,149 @@ ${limit != null ? 'LIMIT ?' : ''}
       Media.fromJson(item as Map<String, dynamic>),
   ];
 
+  /// The posts the user hid on this phone ("Don't show again"), for the
+  /// server lists to leave out.
+  Future<List<String>> _hiddenPostIds() async {
+    final me = currentUserId;
+    if (me == null) return const [];
+    final rows = await _powerSyncRepository.db().getAll(
+      'SELECT post_id FROM hidden_posts WHERE user_id = ?',
+      [me],
+    );
+    return [for (final row in rows) row['post_id'] as String];
+  }
+
+  /// The posts of a server list ([function] in sql/sync_scoping.sql, rows of
+  /// `feed_post`); their counts are kept for the cards ([_remotePosts]).
+  Future<List<Post>> _serverPosts(
+    String function,
+    Map<String, Object?> params,
+  ) async {
+    final rows = (await _powerSyncRepository.postgrest().rpc<List<dynamic>>(
+      function,
+      params: params,
+    )).cast<Map<String, dynamic>>();
+    _remotePosts.putAll(rows);
+    final media = await _decodeMediaLists([
+      for (final row in rows) row['media'] as String?,
+    ]);
+    return [
+      for (var i = 0; i < rows.length; i++)
+        Post.fromJson(
+          {...rows[i], 'caption': rows[i]['caption'] ?? ''},
+          media: List<Media>.from(media[i].map(Media.fromJson)),
+        ),
+    ];
+  }
+
+  /// The feed's first part: the user's own posts and those of the people they
+  /// follow, all of which the phone keeps, newest first.
+  static const _ownAndFollowedSql = """
+(posts.user_id = ?3 OR EXISTS (
+  SELECT 1 FROM subscriptions f
+   WHERE f.subscriber_id = ?3 AND f.subscribed_to_id = posts.user_id
+     AND COALESCE(f.status, 'accepted') = 'accepted'
+))""";
+
   @override
   Future<int?> feedPositionOf({
     required String postId,
     PostOrder order = PostOrder.newest,
   }) async {
-    // Same filters and order as getPage, so the row number is that post's
-    // offset there.
+    final hidden = await _hiddenPostIds();
+    if (order == PostOrder.feed) {
+      final local = await _localPosition(postId, order);
+      if (local != null) return local;
+      try {
+        final position = await _powerSyncRepository.postgrest().rpc<dynamic>(
+          'feed_position',
+          params: {'p_post': postId, 'p_order': 'others', 'p_exclude': hidden},
+        );
+        if (position is! num) return null;
+        return await _ownAndFollowedCount() + position.toInt();
+      } catch (_) {
+        return null;
+      }
+    }
+    try {
+      final position = await _powerSyncRepository.postgrest().rpc<dynamic>(
+        'feed_position',
+        params: {'p_post': postId, 'p_order': order.name, 'p_exclude': hidden},
+      );
+      return position is num ? position.toInt() : null;
+    } catch (_) {
+      // Offline: the posts on the phone.
+      return _localPosition(postId, order);
+    }
+  }
+
+  /// [postId]'s offset in [_localPage]'s [order], or null.
+  Future<int?> _localPosition(String postId, PostOrder order) async {
     final result = await _powerSyncRepository.db().getAll(
       '''
 SELECT position FROM (
   SELECT posts.id AS id,
          ROW_NUMBER() OVER (ORDER BY ${_postOrderSql(order)}) - 1 AS position
   FROM posts
-  WHERE ${_visibleAuthorSql('posts.user_id')}
-    AND ${_postReadySql('posts')}
-    AND posts.id NOT IN (
-      SELECT post_id FROM hidden_posts WHERE user_id = $_viewerSql
-    )
+  WHERE ${_localPageWhereSql(order)}
 )
 WHERE id = ?1
     ''',
-      [postId],
+      [postId, null, currentUserId],
     );
     if (result.isEmpty) return null;
     return result.first['position'] as int?;
   }
 
+  /// How many posts the feed's first part has (see [_ownAndFollowedSql]).
+  Future<int> _ownAndFollowedCount() async {
+    final row = await _powerSyncRepository.db().get(
+      'SELECT COUNT(*) AS c FROM posts '
+      'WHERE ${_localPageWhereSql(PostOrder.feed)}',
+      [null, null, currentUserId],
+    );
+    return (row['c'] as int?) ?? 0;
+  }
+
   /// [PostOrder] as an ORDER BY list over `posts`. The id last, so posts
   /// that tie keep the same order from page to page.
-  String _postOrderSql(PostOrder order) {
-    final me = _viewerSql;
-    return switch (order) {
-      PostOrder.newest => 'posts.created_at DESC, posts.id',
-      PostOrder.feed =>
-        '''
-CASE WHEN posts.user_id = $me OR EXISTS (
-  SELECT 1 FROM subscriptions f
-   WHERE f.subscriber_id = $me AND f.subscribed_to_id = posts.user_id
-     AND (f.status = 'accepted' OR f.status IS NULL)
-) THEN 0 ELSE 1 END,
-posts.created_at DESC, posts.id''',
-      // The first 19 characters are the UTC date and time in every format
-      // the column has held; julianday() reads them whatever follows.
-      PostOrder.trending =>
-        '''
+  String _postOrderSql(PostOrder order) => switch (order) {
+    PostOrder.newest || PostOrder.feed => 'posts.created_at DESC, posts.id',
+    // The first 19 characters are the UTC date and time in every format
+    // the column has held; julianday() reads them whatever follows. The
+    // server's count when the phone has it, else the likes and comments
+    // it has (sync_scoping.sql's feed_post_ids ranks the same way).
+    PostOrder.trending =>
+      '''
 CASE WHEN julianday(substr(posts.created_at, 1, 19)) >= julianday('now') - 14
   THEN 0 ELSE 1 END,
-((SELECT COUNT(*) FROM likes l WHERE l.post_id = posts.id)
-  + 2 * (SELECT COUNT(*) FROM comments c
-          WHERE c.post_id = posts.id AND ${_notBlockedSql('c.user_id')})
+(COALESCE(
+   (SELECT ps.likes_count + 2 * ps.comments_count FROM post_stats ps
+     WHERE ps.id = posts.id),
+   (SELECT COUNT(*) FROM likes l WHERE l.post_id = posts.id)
+     + 2 * (SELECT COUNT(*) FROM comments c WHERE c.post_id = posts.id))
   + 1) * 1.0
   / (julianday('now') - julianday(substr(posts.created_at, 1, 19)) + 2) DESC,
 posts.created_at DESC, posts.id''',
-    };
-  }
+  };
 
-  @override
-  Future<List<Post>> getPage({
+  /// Which posts on the phone [_localPage] lists: those the user may see,
+  /// uploaded, not hidden — and for the feed, only theirs and the people
+  /// they follow. Binds `?3` to the user's id.
+  String _localPageWhereSql(PostOrder order) =>
+      '''
+${_visibleAuthorSql('posts.user_id')}
+  AND ${_postReadySql('posts')}
+  -- "Don't show again" (device-only, see the hidden_posts table).
+  AND posts.id NOT IN (SELECT post_id FROM hidden_posts WHERE user_id = ?3)
+  ${order == PostOrder.feed ? 'AND $_ownAndFollowedSql' : ''}''';
+
+  /// A page of the posts on the phone, in [order].
+  Future<List<Post>> _localPage({
     required int offset,
     required int limit,
-    bool onlyReels = false,
-    PostOrder order = PostOrder.newest,
+    required PostOrder order,
   }) async {
-    //     if (onlyReels) {
-    //       final result = await _powerSyncRepository.db().execute(
-    //         '''
-    // SELECT
-    //   posts.*,
-    //   p.id as user_id,
-    //   p.avatar_url as avatar_url,
-    //   p.username as username
-    // FROM
-    //   posts
-    //   inner join profiles p on posts.user_id = p.id
-    // WHERE array_length(array(posts.media), 1) = 1
-    //   AND posts.media.type = '__video_media__'
-    // LIMIT ?1 OFFSET ?2
-    //     ''',
-    //         [limit, offset],
-    //       );
-
-    //       final posts = <Post>[];
-
-    //       for (final row in result) {
-    //         final json = Map<String, dynamic>.from(row);
-    //         final post = Post.fromJson(json);
-    //         posts.add(post);
-    //       }
-    //       return posts;
-    //     }
     final result = await _powerSyncRepository.db().getAll(
       '''
 SELECT
@@ -1713,61 +1775,61 @@ SELECT
   posts.caption,
   posts.media,
   posts.updated_at,
-  p.id as user_id,
+  posts.user_id as user_id,
   p.avatar_url as avatar_url,
   p.username as username,
   p.full_name as full_name
 FROM
   posts
   left join profiles p on posts.user_id = p.id
-WHERE ${_visibleAuthorSql('posts.user_id')}
-  AND ${_postReadySql('posts')}
-  -- "Don't show again" (device-only, see the hidden_posts table).
-  AND posts.id NOT IN (
-    SELECT post_id FROM hidden_posts WHERE user_id = $_viewerSql
-  )
+WHERE ${_localPageWhereSql(order)}
 ORDER BY ${_postOrderSql(order)} LIMIT ?1 OFFSET ?2
     ''',
-      [limit, offset],
+      [limit, offset, currentUserId],
     );
-    final jsonListMedia = result.map((row) {
-      final json = Map<String, dynamic>.from(row);
-      return json['media'] as String;
-    }).toList();
+    return _hydratePosts(result);
+  }
 
-    final media = await _decodeMediaLists(jsonListMedia);
-
-    final posts = <Post>[];
-    for (var i = 0; i < result.length; i++) {
-      final json = Map<String, dynamic>.from(result[i]);
-      final post = Post.fromJson(
-        json,
-        media: List<Media>.from(media[i].map(Media.fromJson).toList()),
-      );
-      posts.add(post);
+  /// Newest and Trends come from the server — every post the user may see,
+  /// not just the ones on the phone. The feed is the user's own posts and
+  /// those of the people they follow (on the phone), then everyone else's
+  /// (from the server). Offline, the posts on the phone.
+  @override
+  Future<List<Post>> getPage({
+    required int offset,
+    required int limit,
+    bool onlyReels = false,
+    PostOrder order = PostOrder.newest,
+  }) async {
+    final hidden = await _hiddenPostIds();
+    if (order != PostOrder.feed) {
+      try {
+        return await _serverPosts('feed_posts', {
+          'p_order': order.name,
+          'p_limit': limit,
+          'p_offset': offset,
+          'p_exclude': hidden,
+        });
+      } catch (_) {
+        return _localPage(offset: offset, limit: limit, order: order);
+      }
     }
-    return posts;
-    // final result = await _powerSyncRepository.db().execute(
-    //           '''
-    // SELECT
-    //   posts.*,
-    //   p.id as user_id,
-    //   p.avatar_url as avatar_url,
-    //   p.username as username,
-    //   p.full_name as full_name
-    // FROM
-    //   posts
-    //   inner join profiles p on posts.user_id = p.id
-    // ORDER BY created_at DESC LIMIT ?1 OFFSET ?2
-    //     ''',
-    //           [limit, offset],
-    //         );
-
-    //     final instaBlocks = result.map((row) {
-    //       final json = Map<String, dynamic>.from(row);
-    //       return Post.fromJson(json);
-    //     }).toList();
-    // return result;
+    final ownAndFollowed = await _ownAndFollowedCount();
+    final local = offset < ownAndFollowed
+        ? await _localPage(offset: offset, limit: limit, order: order)
+        : const <Post>[];
+    if (local.length >= limit) return local;
+    try {
+      final others = await _serverPosts('feed_posts', {
+        'p_order': 'others',
+        'p_limit': limit - local.length,
+        'p_offset': offset + local.length - ownAndFollowed,
+        'p_exclude': hidden,
+      });
+      return [...local, ...others];
+    } catch (_) {
+      return local;
+    }
   }
 
   @override
@@ -1790,124 +1852,173 @@ RETURNING *
   }
 
   @override
-  Stream<int> likesOf({required String id, bool post = true}) {
-    final statement = post ? 'post_id' : 'comment_id';
-    return _powerSyncRepository
-        .db()
-        .watch(
-          '''
-SELECT COUNT(*) AS total_likes
-FROM likes
-WHERE $statement = ? AND $statement IS NOT NULL
-''',
-          parameters: [id],
-        )
-        .map(
-          (result) => result.safeMap((row) => row['total_likes']).first as int,
-        );
-  }
+  Stream<int> likesOf({required String id, bool post = true}) =>
+      _powerSyncRepository
+          .db()
+          .watch(
+            post
+                ? 'SELECT likes_count AS c FROM post_stats WHERE id = ?'
+                : 'SELECT likes_count AS c FROM comments WHERE id = ?',
+            parameters: [id],
+          )
+          .map(
+            (rows) => rows.isEmpty ? 0 : (rows.first['c'] as int?) ?? 0,
+          );
 
-  /// One row per comment: what its own three queries used to read
-  /// ([likesOf] and [isLiked] for the viewer and for the post's author).
+  /// One row per comment: its likes as the server counts them (the phone has
+  /// only the user's own likes), whether the user liked it, and whether the
+  /// post's author did.
   @override
   Stream<Map<String, CommentStats>> commentStatsOf({
     required List<String> commentIds,
   }) {
     if (commentIds.isEmpty) return Stream.value(const {});
+    final me = currentUserId;
     return _powerSyncRepository
         .db()
         .watch(
           '''
 SELECT
   c.id AS comment_id,
-  (SELECT COUNT(*) FROM likes l WHERE l.comment_id = c.id) AS likes,
+  c.likes_count AS likes,
+  c.liked_by_author AS liked_by_author,
+  c.post_owner_id AS post_owner_id,
   EXISTS (SELECT 1 FROM likes l
-     WHERE l.user_id = ?2 AND l.comment_id = c.id) AS is_liked,
-  EXISTS (SELECT 1 FROM likes l
-     JOIN posts p ON p.id = c.post_id
-     WHERE l.user_id = p.user_id AND l.comment_id = c.id) AS is_liked_by_author
+     WHERE l.user_id = ?2 AND l.comment_id = c.id) AS is_liked
 FROM comments c
 WHERE c.id IN (SELECT value FROM json_each(?1))
 ''',
-          parameters: [jsonEncode(commentIds), currentUserId],
+          parameters: [jsonEncode(commentIds), me],
         )
         .map(
           (rows) => {
             for (final row in rows)
-              row['comment_id'] as String: CommentStats(
-                likes: (row['likes'] as int?) ?? 0,
-                isLiked: ((row['is_liked'] as int?) ?? 0) == 1,
-                isLikedByPostAuthor:
-                    ((row['is_liked_by_author'] as int?) ?? 0) == 1,
-              ),
+              row['comment_id'] as String: () {
+                final id = row['comment_id'] as String;
+                final isLiked = ((row['is_liked'] as int?) ?? 0) == 1;
+                return CommentStats(
+                  likes: _pendingLikes.apply(
+                    id,
+                    count: (row['likes'] as int?) ?? 0,
+                    liked: isLiked,
+                  ),
+                  isLiked: isLiked,
+                  // The user's own heart shows at once on their own post.
+                  isLikedByPostAuthor: row['post_owner_id'] == me
+                      ? isLiked
+                      : ((row['liked_by_author'] as int?) ?? 0) == 1,
+                );
+              }(),
           },
         );
   }
 
-  /// One row per post, each column what a card's own query used to read:
-  /// [likesOf], [commentsAmountOf], [isLiked], [isBookmarked],
-  /// `followingStatus`, [travelTierOf] and the length of [visitedPointsOf].
+  /// One row per post: its counts as the server keeps them (`post_stats`,
+  /// or — for a post only a server list brought — what that list said), the
+  /// user's like, save and follow, and the author's badge and places.
   /// PowerSync re-runs it when any of those tables changes — once for the
-  /// whole screen instead of once per card and column.
+  /// whole screen instead of once per card and column — and it re-runs when
+  /// a server list brings new numbers.
   @override
   Stream<Map<String, PostStats>> postStatsOf({
     required List<String> postIds,
   }) {
     if (postIds.isEmpty) return Stream.value(const {});
-    return _powerSyncRepository
-        .db()
-        .watch(
-          '''
+    final me = currentUserId;
+    return restartOn(
+      _remotePosts.changes,
+      () => _powerSyncRepository
+          .db()
+          .watch(
+            '''
 SELECT
-  p.id AS post_id,
-  (SELECT COUNT(*) FROM likes l
-     WHERE l.post_id = p.id) AS likes,
-  (SELECT COUNT(*) FROM comments c
-     WHERE c.post_id = p.id AND ${_notBlockedSql('c.user_id')}) AS comments,
+  ids.value AS post_id,
+  p.id IS NOT NULL AS has_post,
+  ps.id IS NOT NULL AS has_stats,
+  ps.likes_count AS likes,
+  ps.comments_count AS comments,
   EXISTS (SELECT 1 FROM likes l
-     WHERE l.user_id = ?2 AND l.post_id = p.id) AS is_liked,
+     WHERE l.user_id = ?2 AND l.post_id = ids.value) AS is_liked,
   EXISTS (SELECT 1 FROM saved_posts s
-     WHERE s.user_id = ?2 AND s.post_id = p.id) AS is_bookmarked,
-  EXISTS (SELECT 1 FROM subscriptions f
-     WHERE f.subscriber_id = ?2 AND f.subscribed_to_id = p.user_id
-       AND (f.status = 'accepted' OR f.status IS NULL)) AS is_followed,
-  EXISTS (SELECT 1 FROM subscriptions f
-     WHERE f.subscriber_id = ?2 AND f.subscribed_to_id = p.user_id
-       AND f.status = 'pending') AS is_follow_requested,
+     WHERE s.user_id = ?2 AND s.post_id = ids.value) AS is_bookmarked,
+  f.status AS follow_status,
+  f.id IS NOT NULL AS has_follow,
+  a.id IS NOT NULL AS has_author,
   a.referral_tier AS author_tier,
   a.referral_tier_expires_at AS author_tier_expires_at,
-  CASE WHEN ${_visibleAuthorSql('p.user_id')} THEN
-    (SELECT COUNT(*) FROM posts v
-       WHERE v.user_id = p.user_id
-         AND v.location_lat IS NOT NULL AND v.location_lng IS NOT NULL)
-  ELSE 0 END AS author_places
-FROM posts p
-LEFT JOIN profiles a ON a.id = p.user_id
-WHERE p.id IN (SELECT value FROM json_each(?1))
+  st.places_count AS author_places
+FROM json_each(?1) ids
+  LEFT JOIN posts p ON p.id = ids.value
+  LEFT JOIN post_stats ps ON ps.id = ids.value
+  LEFT JOIN profiles a ON a.id = COALESCE(p.user_id, json_extract(?3, '\$."' || ids.value || '"'))
+  LEFT JOIN profile_stats st ON st.id = COALESCE(p.user_id, json_extract(?3, '\$."' || ids.value || '"'))
+  LEFT JOIN subscriptions f ON f.subscriber_id = ?2
+    AND f.subscribed_to_id = COALESCE(p.user_id, json_extract(?3, '\$."' || ids.value || '"'))
 ''',
-          parameters: [jsonEncode(postIds), currentUserId],
-        )
-        .map((rows) {
-          final now = DateTime.now();
-          return {
-            for (final row in rows)
-              row['post_id'] as String: PostStats(
-                likes: (row['likes'] as int?) ?? 0,
-                comments: (row['comments'] as int?) ?? 0,
-                isLiked: (row['is_liked'] as int?) == 1,
-                isBookmarked: (row['is_bookmarked'] as int?) == 1,
-                isAuthorFollowed: (row['is_followed'] as int?) == 1,
-                isAuthorFollowRequested:
-                    (row['is_follow_requested'] as int?) == 1,
-                authorTier: _liveTier(
-                  row['author_tier'] as int?,
-                  row['author_tier_expires_at'] as String?,
-                  now,
-                ),
-                authorPlaces: (row['author_places'] as int?) ?? 0,
-              ),
-          };
-        });
+            parameters: [
+              jsonEncode(postIds),
+              me,
+              // Authors of the posts only a server list brought.
+              jsonEncode({
+                for (final id in postIds)
+                  if (_remotePosts[id] case final remote?) id: remote.authorId,
+              }),
+            ],
+          )
+          .map((rows) {
+            final now = DateTime.now();
+            final stats = <String, PostStats>{};
+            for (final row in rows) {
+              final id = row['post_id'] as String;
+              final remote = _remotePosts[id];
+              // The server's counts arrive a moment after a new post; until
+              // then it reads as none.
+              final hasStats =
+                  row['has_stats'] == 1 ||
+                  (remote == null && row['has_post'] == 1);
+              // Neither on the phone nor from a list: nothing to tell yet.
+              if (!hasStats && remote == null) continue;
+              final isLiked = row['is_liked'] == 1;
+              final likes = hasStats
+                  ? _pendingLikes.apply(
+                      id,
+                      count: (row['likes'] as int?) ?? 0,
+                      liked: isLiked,
+                    )
+                  : remote!.likes +
+                        (isLiked ? 1 : 0) -
+                        (remote.likedByMe ? 1 : 0);
+              final status = row['follow_status'] as String?;
+              final hasFollow = row['has_follow'] == 1;
+              final hasAuthor = row['has_author'] == 1;
+              stats[id] = PostStats(
+                likes: likes < 0 ? 0 : likes,
+                comments: hasStats
+                    ? (row['comments'] as int?) ?? 0
+                    : remote!.comments,
+                isLiked: isLiked,
+                isBookmarked: row['is_bookmarked'] == 1,
+                isAuthorFollowed:
+                    hasFollow && (status == null || status == 'accepted'),
+                isAuthorFollowRequested: hasFollow && status == 'pending',
+                authorTier: hasAuthor
+                    ? _liveTier(
+                        row['author_tier'] as int?,
+                        row['author_tier_expires_at'] as String?,
+                        now,
+                      )
+                    : _liveTier(
+                        remote?.authorTier,
+                        remote?.authorTierExpiresAt,
+                        now,
+                      ),
+                authorPlaces:
+                    (row['author_places'] as int?) ?? remote?.authorPlaces ?? 0,
+              );
+            }
+            return stats;
+          }),
+    );
   }
 
   /// [travelTierOf]'s rule: a tier counts only until it runs out.
@@ -1946,7 +2057,7 @@ WHERE p.id IN (SELECT value FROM json_each(?1))
       '''
 SELECT
   posts.*,
-  p.id as user_id,
+  posts.user_id as user_id,
   p.avatar_url as avatar_url,
   p.username as username,
   p.full_name as full_name
@@ -1958,7 +2069,16 @@ WHERE posts.id = ? AND ${_visibleAuthorSql('posts.user_id')}
   ''',
       [id],
     );
-    if (row == null) return null;
+    if (row == null) {
+      // Not on the phone (someone the user doesn't follow): the server's,
+      // if they may see it.
+      try {
+        final posts = await _serverPosts('post_by_id', {'p_id': id});
+        return posts.isEmpty ? null : posts.first;
+      } catch (_) {
+        return null;
+      }
+    }
     final json = Map<String, dynamic>.from(row);
     final postMedia = _decodeMedia(json['media'] as String);
     return Post.fromJson(json, media: postMedia);
@@ -1983,6 +2103,23 @@ WHERE posts.id = ? AND ${_visibleAuthorSql('posts.user_id')}
         [me, id],
       );
       final want = liked ?? exists == null;
+      if (want != (exists != null)) {
+        // The server's count moves only once the like syncs; show the change
+        // now (see [PendingLikes]).
+        final counted = await tx.getOptional(
+          post
+              ? 'SELECT likes_count FROM post_stats WHERE id = ?'
+              : 'SELECT likes_count FROM comments WHERE id = ?',
+          [id],
+        );
+        if (counted != null) {
+          _pendingLikes.record(
+            id,
+            base: (counted['likes_count'] as int?) ?? 0,
+            likedBefore: exists != null,
+          );
+        }
+      }
       if (want && exists == null) {
         await tx.execute(
           'INSERT INTO likes(user_id, $statement, id) VALUES(?, ?, uuid())',
@@ -2057,12 +2194,20 @@ WHERE NOT EXISTS (
         .map((event) => (event.first.values.first! as int).isTrue);
   }
 
+  /// From the server: a saved post's author is often someone the phone
+  /// doesn't keep. Offline, the saved posts on the phone.
   @override
   Future<List<Post>> getSavedPosts({
     required int offset,
     required int limit,
   }) async {
     if (currentUserId == null) return [];
+    try {
+      return await _serverPosts('saved_posts_page', {
+        'p_limit': limit,
+        'p_offset': offset,
+      });
+    } catch (_) {}
     final result = await _powerSyncRepository.db().getAll(
       '''
 SELECT
@@ -2071,7 +2216,7 @@ SELECT
   posts.caption,
   posts.media,
   posts.updated_at,
-  p.id as user_id,
+  posts.user_id as user_id,
   p.avatar_url as avatar_url,
   p.username as username,
   p.full_name as full_name
@@ -2158,7 +2303,7 @@ SELECT
   posts.caption,
   posts.media,
   posts.updated_at,
-  p.id as user_id,
+  posts.user_id as user_id,
   p.avatar_url as avatar_url,
   p.username as username,
   p.full_name as full_name
@@ -2190,22 +2335,36 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
     return posts;
   }
 
-  @override
-  Stream<int> followersCountOf({required String userId}) => _powerSyncRepository
+  /// The user's own: counted from their follows on the phone, so it moves
+  /// the moment they change. Anyone else's: the server's count (the phone
+  /// doesn't have their follows), or a count of what it has.
+  Stream<int> _countOf({
+    required String userId,
+    required String serverColumn,
+    required String localSql,
+  }) => _powerSyncRepository
       .db()
       .watch(
-        'SELECT COUNT(*) AS subscription_count FROM subscriptions '
-        // Only accepted follows count — a 'pending' request to a private
-        // account must NOT bump the follower count until it's approved.
-        // Legacy rows have NULL status and count as accepted.
-        "WHERE subscribed_to_id = ? AND COALESCE(status, 'accepted') = 'accepted'",
+        userId == currentUserId
+            ? 'SELECT ($localSql) AS c'
+            : 'SELECT COALESCE('
+                  '(SELECT $serverColumn FROM profile_stats WHERE id = ?1), '
+                  '($localSql)) AS c',
         parameters: [userId],
       )
-      .map(
-        (event) =>
-            event.safeMap((element) => element['subscription_count']).first
-                as int,
-      );
+      .map((rows) => (rows.first['c'] as int?) ?? 0);
+
+  // Only accepted follows count — a 'pending' request to a private account
+  // must NOT bump the follower count until it's approved. Legacy rows have
+  // NULL status and count as accepted.
+  @override
+  Stream<int> followersCountOf({required String userId}) => _countOf(
+    userId: userId,
+    serverColumn: 'followers_count',
+    localSql:
+        'SELECT COUNT(*) FROM subscriptions WHERE subscribed_to_id = ?1 '
+        "AND COALESCE(status, 'accepted') = 'accepted'",
+  );
 
   @override
   Future<void> follow({
@@ -2329,28 +2488,61 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
   @override
   Stream<int> followingsCountOf({
     required String userId,
-  }) => _powerSyncRepository
-      .db()
-      .watch(
-        'SELECT COUNT(*) AS subscription_count FROM subscriptions '
-        // Only accepted follows count toward "following" — a pending request
-        // to a private account doesn't yet. NULL status = legacy = accepted.
-        "WHERE subscriber_id = ? AND COALESCE(status, 'accepted') = 'accepted'",
-        parameters: [userId],
-      )
-      .map(
-        (event) =>
-            event.safeMap((element) => element['subscription_count']).first
-                as int,
-      );
+  }) => _countOf(
+    userId: userId,
+    serverColumn: 'following_count',
+    localSql:
+        'SELECT COUNT(*) FROM subscriptions WHERE subscriber_id = ?1 '
+        "AND COALESCE(status, 'accepted') = 'accepted'",
+  );
 
   @override
-  Future<List<User>> getFollowers({String? userId}) async {
-    final rows = await _powerSyncRepository.db().getAll(
-      _followListSql(followers: true, limited: false),
-      [userId ?? currentUserId],
-    );
-    return rows.safeMap(User.fromJson).toList(growable: false);
+  Future<List<User>> getFollowers({String? userId}) =>
+      _followList(userId: userId ?? currentUserId, followers: true);
+
+  /// [userId]'s followers ([followers]) or followings, from the server: the
+  /// phone keeps the user's own follows but not the people behind them, nor
+  /// anyone else's. A private account's lists only show to its followers.
+  /// The user's own list leaves out anyone they unfollowed or removed on the
+  /// phone that the server doesn't know about yet. Offline, the people on
+  /// the phone ([_followListSql]).
+  Future<List<User>> _followList({
+    required String? userId,
+    required bool followers,
+    int? limit,
+  }) async {
+    if (userId == null) return const [];
+    try {
+      final rows = await _powerSyncRepository.postgrest().rpc<List<dynamic>>(
+        'follow_list',
+        params: {
+          'p_user': userId,
+          'p_followers': followers,
+          'p_limit': limit ?? 200,
+          'p_offset': 0,
+        },
+      );
+      final users = rows.cast<Map<String, dynamic>>().map(User.fromJson);
+      if (userId != currentUserId) return users.toList(growable: false);
+      final current = await _powerSyncRepository.db().getAll(
+        followers
+            ? 'SELECT subscriber_id AS id FROM subscriptions '
+                  'WHERE subscribed_to_id = ?'
+            : 'SELECT subscribed_to_id AS id FROM subscriptions '
+                  'WHERE subscriber_id = ?',
+        [userId],
+      );
+      final ids = {for (final row in current) row['id'] as String};
+      return users
+          .where((user) => ids.contains(user.id))
+          .toList(growable: false);
+    } catch (_) {
+      final rows = await _powerSyncRepository.db().getAll(
+        _followListSql(followers: followers, limited: limit != null),
+        [userId, if (limit != null) limit],
+      );
+      return rows.safeMap(User.fromJson).toList(growable: false);
+    }
   }
 
   /// The people following [?1] ([followers]) or followed by them, with their
@@ -2384,6 +2576,9 @@ ${limited ? 'LIMIT ?2' : ''}''';
         .eq('id', id);
   }
 
+  /// The profiles on the phone, live, and — once — the server's card of
+  /// anyone it doesn't have (the phone keeps only the people the user
+  /// follows).
   @override
   Stream<Map<String, User>> profilesOf({required List<String> ids}) {
     if (ids.isEmpty) return Stream.value(const {});
@@ -2394,11 +2589,68 @@ ${limited ? 'LIMIT ?2' : ''}''';
           'WHERE id IN (SELECT value FROM json_each(?1))',
           parameters: [jsonEncode(ids)],
         )
-        .map(
-          (rows) => {
+        .asyncMap((rows) async {
+          final profiles = {
             for (final row in rows) row['id'] as String: User.fromJson(row),
-          },
-        );
+          };
+          final cards = await _cards([
+            for (final id in ids)
+              if (!profiles.containsKey(id)) id,
+          ]);
+          return {
+            for (final MapEntry(:key, :value) in cards.entries) key: value.user,
+            ...profiles,
+          };
+        });
+  }
+
+  /// The server's cards of people whose profiles aren't on the phone,
+  /// fetched a few at a time and kept [_cardLife].
+  final _cardCache = <String, ({_Card card, DateTime at})>{};
+  final _cardRequests = _Batcher<_Card?>(const Duration(milliseconds: 50));
+  static const _cardLife = Duration(minutes: 10);
+
+  /// The server's card (name, username, avatar, badge) of each of [ids] it
+  /// knows; none offline.
+  Future<Map<String, _Card>> _cards(List<String> ids) async {
+    if (ids.isEmpty) return const {};
+    final now = DateTime.now();
+    final cards = <String, _Card>{};
+    final wanted = <String>[];
+    for (final id in ids) {
+      final cached = _cardCache[id];
+      if (cached != null && now.difference(cached.at) < _cardLife) {
+        cards[id] = cached.card;
+      } else {
+        wanted.add(id);
+      }
+    }
+    final fetched = await Future.wait([
+      for (final id in wanted)
+        _cardRequests
+            .get(id, (ids) async {
+              final rows = await _powerSyncRepository
+                  .postgrest()
+                  .rpc<List<dynamic>>('profile_cards', params: {'p_ids': ids});
+              final found = <String, _Card?>{for (final id in ids) id: null};
+              for (final row in rows.cast<Map<String, dynamic>>()) {
+                found[row['id'] as String] = (
+                  user: User.fromJson(row),
+                  tier: (row['referral_tier'] as num?)?.toInt(),
+                  tierExpiresAt: row['referral_tier_expires_at'] as String?,
+                );
+              }
+              return found;
+            })
+            .then<_Card?>((card) => card, onError: (Object _) => null),
+    ]);
+    for (var i = 0; i < wanted.length; i++) {
+      final card = fetched[i];
+      if (card == null) continue;
+      cards[wanted[i]] = card;
+      _cardCache[wanted[i]] = (card: card, at: now);
+    }
+    return cards;
   }
 
   @override
@@ -2410,30 +2662,45 @@ ${limited ? 'LIMIT ?2' : ''}''';
       'FROM profiles WHERE id IN ($placeholders)',
       ids,
     );
-    return result.safeMap(User.fromJson).toList(growable: false);
+    final local = result.safeMap(User.fromJson).toList();
+    final found = {for (final user in local) user.id};
+    final cards = await _cards([
+      for (final id in ids)
+        if (!found.contains(id)) id,
+    ]);
+    return [...local, for (final card in cards.values) card.user];
   }
 
+  /// The list from the server, fetched again whenever the follower count
+  /// (or, for the user's own list, their follows on the phone) changes.
   @override
   Stream<List<User>> followers({required String userId, int? limit}) =>
-      // `limit` caps the live window; growing it re-subscribes wider.
+      // `limit` caps the window; growing it re-subscribes wider.
       _powerSyncRepository
           .db()
           .watch(
-            _followListSql(followers: true, limited: limit != null),
-            parameters: [userId, if (limit != null) limit],
+            'SELECT '
+            '(SELECT followers_count FROM profile_stats WHERE id = ?1) AS n, '
+            '(SELECT COUNT(*) FROM subscriptions '
+            'WHERE subscribed_to_id = ?1) AS mine',
+            parameters: [userId],
           )
-          .map((rows) => rows.safeMap(User.fromJson).toList(growable: false));
+          // Other profiles' counts change the table too; only these count.
+          .map((rows) => '${rows.first['n']}/${rows.first['mine']}')
+          .distinct()
+          .asyncMap(
+            (_) => _followList(userId: userId, followers: true, limit: limit),
+          );
 
   @override
-  Future<List<User>> getFollowings({String? userId, int? limit}) async {
-    // `limit` caps how many are fetched; callers grow it for scroll
-    // pagination. Null = all.
-    final rows = await _powerSyncRepository.db().getAll(
-      _followListSql(followers: false, limited: limit != null),
-      [userId ?? currentUserId, if (limit != null) limit],
-    );
-    return rows.safeMap(User.fromJson).toList(growable: false);
-  }
+  Future<List<User>> getFollowings({String? userId, int? limit}) =>
+      // `limit` caps how many are fetched; callers grow it for scroll
+      // pagination. Null = all.
+      _followList(
+        userId: userId ?? currentUserId,
+        followers: false,
+        limit: limit,
+      );
 
   @override
   Future<bool> isFollowed({
@@ -2475,8 +2742,11 @@ ${limited ? 'LIMIT ?2' : ''}''';
       .db()
       .watch(
         '''
-SELECT COUNT(*) AS comments_count FROM comments
-WHERE post_id = ? AND ${_notBlockedSql('comments.user_id')}
+SELECT COALESCE(
+  (SELECT comments_count FROM post_stats WHERE id = ?1),
+  (SELECT COUNT(*) FROM comments
+    WHERE post_id = ?1 AND ${_notBlockedSql('comments.user_id')})
+) AS comments_count
 ''',
         parameters: [postId],
       )
@@ -2484,21 +2754,28 @@ WHERE post_id = ? AND ${_notBlockedSql('comments.user_id')}
         (result) => result.map((row) => row['comments_count']).first as int,
       );
 
+  /// A comment's author's card: the one the server keeps on the comment
+  /// (their profile may not be on the phone), else their profile — the
+  /// user's own comment before the server has filled it in.
+
+  static const _commentAuthorSql = '''
+  COALESCE(c1.author_avatar_url, p.avatar_url) as avatar_url,
+  COALESCE(c1.author_username, p.username) as username,
+  COALESCE(c1.author_full_name, p.full_name) as full_name''';
+
   @override
   Stream<List<Comment>> commentsOf({required String postId}) =>
       _powerSyncRepository
           .db()
           .watch(
             '''
-SELECT 
+SELECT
   c1.*,
-  p.avatar_url as avatar_url,
-  p.username as username,
-  p.full_name as full_name,
+$_commentAuthorSql,
   COUNT(c2.id) AS replies
-FROM 
+FROM
   comments c1
-  INNER JOIN
+  LEFT JOIN
     profiles p ON p.id = c1.user_id
   LEFT JOIN
     comments c2 ON c1.id = c2.replied_to_comment_id
@@ -2507,8 +2784,8 @@ WHERE
   c1.post_id = ? AND c1.replied_to_comment_id IS NULL
   AND ${_notBlockedSql('c1.user_id')}
 GROUP BY
-    c1.id, p.avatar_url, p.username, p.full_name
-ORDER BY created_at ASC
+    c1.id
+ORDER BY c1.created_at ASC
 ''',
             parameters: [postId],
           )
@@ -2553,20 +2830,16 @@ WHERE id = ?
           .db()
           .watch(
             '''
-SELECT 
+SELECT
   c1.*,
-  p.avatar_url as avatar_url,
-  p.username as username,
-  p.full_name as full_name
-FROM 
+$_commentAuthorSql
+FROM
   comments c1
-  INNER JOIN
+  LEFT JOIN
     profiles p ON p.id = c1.user_id
 WHERE
   c1.replied_to_comment_id = ? AND ${_notBlockedSql('c1.user_id')}
-GROUP BY
-    c1.id, p.avatar_url, p.username, p.full_name
-ORDER BY created_at ASC
+ORDER BY c1.created_at ASC
 ''',
             parameters: [commentId],
           )
@@ -2706,18 +2979,11 @@ SELECT blocker_id FROM blocked_users WHERE blocked_id = ?1''',
           .map((rows) => {for (final row in rows) row['peer'] as String});
 
   @override
-  Stream<List<User>> blockedUsers({required String userId}) =>
-      _powerSyncRepository
-          .db()
-          .watch(
-            '''
-SELECT p.* FROM blocked_users b
-INNER JOIN profiles p ON p.id = b.blocked_id
-WHERE b.blocker_id = ?
-ORDER BY b.created_at DESC''',
-            parameters: [userId],
-          )
-          .map((rows) => rows.map(User.fromJson).toList());
+  Stream<List<User>> blockedUsers({required String userId}) => _people(
+    'SELECT blocked_id AS id FROM blocked_users '
+    'WHERE blocker_id = ? ORDER BY created_at DESC',
+    [userId],
+  );
 
   @override
   Future<void> changePassword({required String newPassword}) async {
@@ -2856,10 +3122,22 @@ WHERE id <> ?1 $excludeUserIdsStatement
 
   static const _droppedInSearch = {'ъ', 'ь', "'", '’', 'ʻ', 'ʼ', '`'};
 
+  /// From the server, which knows everyone; offline, the profiles on the
+  /// phone.
   @override
   Future<List<User>> suggestedUsers({int limit = 50}) async {
     final me = currentUserId;
     if (me == null) return <User>[];
+    try {
+      final rows = await _powerSyncRepository.postgrest().rpc<List<dynamic>>(
+        'suggested_profiles',
+        params: {'p_limit': limit},
+      );
+      return rows
+          .cast<Map<String, dynamic>>()
+          .map(User.fromJson)
+          .toList(growable: false);
+    } catch (_) {}
     final result = await _powerSyncRepository.db().getAll(
       '''
 SELECT id, avatar_url, full_name, username, bio, is_private
@@ -2943,65 +3221,15 @@ DELETE FROM stories WHERE id = ?
 
   @override
   Stream<List<User>> storyViewersOf({required String storyId, int? limit}) =>
-      _powerSyncRepository
-          .db()
-          .watch(
-            '''
-SELECT p.* FROM story_views sv
-  JOIN profiles p ON p.id = sv.user_id
+      _people(
+        '''
+SELECT sv.user_id AS id FROM story_views sv
 WHERE sv.story_id = ? AND ${_notBlockedSql('sv.user_id')}
 ORDER BY sv.created_at DESC
 ${limit != null ? 'LIMIT ?' : ''}
 ''',
-            parameters: [storyId, if (limit != null) limit],
-          )
-          .map((rows) => rows.map(User.fromJson).toList(growable: false));
-
-  @override
-  Future<void> likeStory({
-    required String storyId,
-    required String userId,
-  }) async {
-    final already = await _powerSyncRepository.db().getOptional(
-      'SELECT id FROM story_likes WHERE story_id = ? AND user_id = ?',
-      [storyId, userId],
-    );
-    if (already != null) {
-      await _powerSyncRepository.db().execute(
-        'DELETE FROM story_likes WHERE id = ?',
-        [already['id']],
+        [storyId, if (limit != null) limit],
       );
-      return;
-    }
-    await _powerSyncRepository.db().execute(
-      'INSERT INTO story_likes (id, story_id, user_id, created_at) '
-      'VALUES (?, ?, ?, ?)',
-      [uuid.v4(), storyId, userId, DateTime.timestamp().toIso8601String()],
-    );
-  }
-
-  @override
-  Stream<bool> isStoryLiked({
-    required String storyId,
-    required String userId,
-  }) => _powerSyncRepository
-      .db()
-      .watch(
-        'SELECT EXISTS(SELECT 1 FROM story_likes '
-        'WHERE story_id = ? AND user_id = ?) AS liked',
-        parameters: [storyId, userId],
-      )
-      .map((rows) => (rows.first['liked'] as int? ?? 0) == 1);
-
-  @override
-  Stream<int> storyLikesCountOf({required String storyId}) =>
-      _powerSyncRepository
-          .db()
-          .watch(
-            'SELECT COUNT(*) AS c FROM story_likes WHERE story_id = ?',
-            parameters: [storyId],
-          )
-          .map((rows) => (rows.first['c'] as int?) ?? 0);
 
   @override
   Stream<List<Story>> activeStories() => _powerSyncRepository
@@ -3026,7 +3254,7 @@ ORDER BY s.created_at ASC
       .watch(
         '''
 SELECT
-  s.*${includeAuthor ? ', p.id as user_id, p.username, p.full_name, p.avatar_url' : ''}
+  s.*${includeAuthor ? ', s.user_id as user_id, p.username, p.full_name, p.avatar_url' : ''}
 FROM stories s
   ${includeAuthor ? 'LEFT JOIN profiles p ON s.user_id = p.id' : ''}
 WHERE s.user_id = ? AND s.expires_at > current_timestamp
@@ -3062,15 +3290,26 @@ WHERE f.subscriber_id = ? AND s.expires_at > current_timestamp
   Future<Story?> getStoryBy({required String id}) async {
     final row = await _powerSyncRepository.db().getOptional(
       '''
-SELECT s.*, p.id as user_id, p.username, p.full_name, p.avatar_url
+SELECT s.*, s.user_id as user_id, p.username, p.full_name, p.avatar_url
 FROM stories s
   LEFT JOIN profiles p ON s.user_id = p.id
 WHERE s.id = ? AND ${_visibleAuthorSql('s.user_id')}
 ''',
       [id],
     );
-    if (row == null) return null;
-    return Story.fromJson(row);
+    if (row != null) return Story.fromJson(row);
+    // Not on the phone (someone the user doesn't follow): the server's, if
+    // they may see it.
+    try {
+      final rows = await _powerSyncRepository.postgrest().rpc<List<dynamic>>(
+        'story_by_id',
+        params: {'p_id': id},
+      );
+      if (rows.isEmpty) return null;
+      return Story.fromJson(rows.first as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
   }
 
   @override
@@ -3079,7 +3318,7 @@ WHERE s.id = ? AND ${_visibleAuthorSql('s.user_id')}
           .db()
           .watch(
             '''
-SELECT s.*, p.id as user_id, p.username, p.full_name, p.avatar_url
+SELECT s.*, s.user_id as user_id, p.username, p.full_name, p.avatar_url
 FROM stories s
   LEFT JOIN profiles p ON s.user_id = p.id
 WHERE s.user_id = ?
@@ -3108,7 +3347,7 @@ ORDER BY s.created_at DESC
         .db()
         .watch(
           '''
-SELECT s.*, p.id as user_id, p.username, p.full_name, p.avatar_url
+SELECT s.*, s.user_id as user_id, p.username, p.full_name, p.avatar_url
 FROM location_stories ls
   INNER JOIN stories s ON s.id = ls.story_id
   LEFT JOIN profiles p ON s.user_id = p.id
@@ -3307,54 +3546,94 @@ WHERE user_id = ?1 AND story_id = ?2 AND region_iso = ?3
     return stories.getPublicUrl(storedPath);
   }
 
+  /// From the server: the phone keeps only the user's own likes.
   @override
   Future<List<User>> getPostLikers({
     required String postId,
     int limit = 30,
     int offset = 0,
   }) async {
-    final result = await _powerSyncRepository.db().getAll(
-      '''
-SELECT up.id, up.username, up.full_name, up.avatar_url
-FROM profiles up
-INNER JOIN likes l ON up.id = l.user_id
-WHERE l.post_id = ? AND ${_notBlockedSql('up.id')}
-LIMIT ? OFFSET ?
-''',
-      [postId, limit, offset],
+    final rows = await _powerSyncRepository.postgrest().rpc<List<dynamic>>(
+      'post_likers',
+      params: {'p_post': postId, 'p_limit': limit, 'p_offset': offset},
     );
-    if (result.isEmpty) return [];
-    return result.safeMap(User.fromJson).toList(growable: false);
+    return rows
+        .cast<Map<String, dynamic>>()
+        .map(User.fromJson)
+        .toList(growable: false);
   }
+
+  /// "Liked by …" asked for by each card on screen, sent as one request.
+  final _likersInFollowings = _Batcher<List<User>>(
+    const Duration(milliseconds: 80),
+  );
 
   @override
   Future<List<User>> getPostLikersInFollowings({
     required String postId,
     int limit = 3,
     int offset = 0,
-  }) async {
-    final result = await _powerSyncRepository.db().getAll(
-      '''
-SELECT id, avatar_url, username, full_name
-FROM profiles
-WHERE id IN (
-    SELECT l.user_id
-    FROM likes l
-    WHERE l.post_id = ?1
-    AND EXISTS (
-        SELECT *
-        FROM subscriptions f
-        WHERE f.subscribed_to_id = l.user_Id
-        AND f.subscriber_id = ?2
-        AND COALESCE(f.status, 'accepted') = 'accepted'
-    ) AND id <> ?2
-)
-  AND ${_notBlockedSql('profiles.id')}
-LIMIT ?3 OFFSET ?4
-''',
-      [postId, currentUserId, limit, offset],
+  }) => _likersInFollowings.get(postId, (postIds) async {
+    final rows = await _powerSyncRepository.postgrest().rpc<List<dynamic>>(
+      'post_likers_in_followings',
+      params: {'p_posts': postIds, 'p_per_post': limit},
     );
-    if (result.isEmpty) return [];
-    return result.safeMap(User.fromJson).toList(growable: false);
+    final byPost = <String, List<User>>{for (final id in postIds) id: []};
+    for (final row in rows.cast<Map<String, dynamic>>()) {
+      byPost[row['post_id'] as String]?.add(User.fromJson(row));
+    }
+    return byPost;
+  });
+}
+
+/// A person's card from the server ([PowerSyncDatabaseClient._cards]).
+typedef _Card = ({User user, int? tier, String? tierExpiresAt});
+
+/// Gathers the keys asked for within [_window] into one call of the loader
+/// passed with them (e.g. the "liked by" line of every card a feed page
+/// builds), and hands each caller its own answer.
+class _Batcher<T> {
+  _Batcher(this._window);
+
+  final Duration _window;
+  final _waiting = <String, List<Completer<T>>>{};
+  Future<Map<String, T>> Function(List<String> keys)? _load;
+  Timer? _timer;
+
+  Future<T> get(
+    String key,
+    Future<Map<String, T>> Function(List<String> keys) load,
+  ) {
+    final completer = Completer<T>();
+    (_waiting[key] ??= []).add(completer);
+    _load = load;
+    _timer ??= Timer(_window, _flush);
+    return completer.future;
+  }
+
+  Future<void> _flush() async {
+    _timer = null;
+    final waiting = Map.of(_waiting);
+    _waiting.clear();
+    final load = _load;
+    if (load == null || waiting.isEmpty) return;
+    try {
+      final answers = await load(waiting.keys.toList());
+      waiting.forEach((key, completers) {
+        for (final completer in completers) {
+          if (answers.containsKey(key)) {
+            completer.complete(answers[key] as T);
+          } else {
+            completer.completeError(StateError('No answer for $key'));
+          }
+        }
+      });
+    } catch (error, stackTrace) {
+      for (final completers in waiting.values) {
+        for (final completer in completers) {
+          completer.completeError(error, stackTrace);
+        }
+      }
+    }
   }
 }

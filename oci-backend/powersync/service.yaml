@@ -36,3 +36,11 @@ client_auth:
 api:
   tokens:
     - !env PS_ADMIN_TOKEN
+  # Past either limit PowerSync stops syncing EVERYTHING for that connection.
+  # A phone has one `authors` bucket per person it follows plus a few per
+  # profile or post open on screen (sync-config.yaml), and each follow is one
+  # parameter result per stream that uses it — the defaults (1,000 each)
+  # would cut off someone following a few hundred people.
+  parameters:
+    max_buckets_per_connection: 3000
+    max_parameter_query_results: 10000

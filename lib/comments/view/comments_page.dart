@@ -75,6 +75,7 @@ class _CommentsPageState extends State<CommentsPage> {
     return BlocProvider(
       create: (context) => CommentsBloc(
         postId: widget.post.id,
+        postOwnerId: widget.post.author.id,
         postsRepository: context.read<PostsRepository>(),
       )..add(const CommentsSubscriptionRequested()),
       child: CommentInheritedWidget(

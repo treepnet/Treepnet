@@ -18,6 +18,8 @@ Future<void> tearDownUserSession(UserRepository userRepository) async {
   // can't cross into the next user's threads.
   await ChatSession.instance.stop();
   await MessengerChat.wipeSession();
-  // The chat saved on the phone for offline use goes too.
+  // The chat saved on the phone for offline use goes too, and what the
+  // server's lists said about posts (counts, the user's likes).
   await ChatCache.instance.clear();
+  userRepository.forgetServerSnapshots();
 }

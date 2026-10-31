@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:postgrest/postgrest.dart';
 import 'package:powersync/powersync.dart';
 import 'package:powersync_repository/src/fresh_token_client.dart';
+import 'package:powersync_repository/src/sync_scope.dart';
 import 'package:shared/shared.dart' as shared;
 import 'package:token_storage/token_storage.dart';
 
@@ -246,6 +247,30 @@ class PowerSyncRepository {
   /// event per dropped transaction. See [RejectedUpload].
   Stream<RejectedUpload> get rejectedUploads => _rejectedUploads.stream;
 
+  /// Keeps [userId]'s profile on the phone while it is open: their card and
+  /// counts, and — if the account is public — their posts, stories,
+  /// highlights and map. Someone the user follows already syncs.
+  SyncScope profileScope(String userId) => SyncScope.open(
+    db(),
+    [
+      ('profile', {'user_id': userId}),
+      ('profile_card', {'user_id': userId}),
+    ],
+    ttl: const Duration(hours: 1),
+  );
+
+  /// Keeps a post, its counts and its comments on the phone while they are
+  /// open. [ownerId] is the post's author; the server only matches it if it
+  /// really is, and only for a post the user may see.
+  SyncScope postScope({required String postId, required String ownerId}) =>
+      SyncScope.open(
+        db(),
+        [
+          ('post', {'post_id': postId, 'owner_id': ownerId}),
+        ],
+        ttl: const Duration(minutes: 30),
+      );
+
   /// How many local changes haven't been uploaded to the server yet. Signing
   /// out wipes them along with the local database.
   Future<int> pendingUploads() async =>
@@ -272,6 +297,15 @@ class PowerSyncRepository {
   /// One shared client for every [postgrest] call.
   final _restHttpClient = FreshTokenClient();
 
+  /// The sync client written in Rust: the only one that speaks sync streams
+  /// (sync-config.yaml), which is what keeps the phone to its own data and
+  /// the people it follows. Default from powersync 1.17, which needs a newer
+  /// Dart than this app builds with.
+  // ignore: experimental_member_use
+  static const _syncOptions = SyncOptions(
+    syncImplementation: SyncClientImplementation.rust,
+  );
+
   /// Opens the local database and connects to PowerSync if the user is
   /// logged in (via the Entra session).
   Future<void> _openDatabase() async {
@@ -285,9 +319,11 @@ class PowerSyncRepository {
       connectedUserId = EntraSession.instance.current?.userId;
       currentConnector = SupabaseConnector(_db, env: env);
       unawaited(
-        _db.connect(connector: currentConnector).catchError((Object e) {
-          shared.logE('PowerSync startup connection failed', error: e);
-        }),
+        _db
+            .connect(connector: currentConnector, options: _syncOptions)
+            .catchError((Object e) {
+              shared.logE('PowerSync startup connection failed', error: e);
+            }),
       );
     }
 
@@ -302,7 +338,10 @@ class PowerSyncRepository {
         connectedUserId = tokens.userId;
         try {
           currentConnector = SupabaseConnector(_db, env: env);
-          await _db.connect(connector: currentConnector!);
+          await _db.connect(
+            connector: currentConnector!,
+            options: _syncOptions,
+          );
         } catch (e, stack) {
           shared.logE(
             'PowerSyncRepository connection failed',

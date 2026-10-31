@@ -11,9 +11,12 @@ part 'comments_state.dart';
 class CommentsBloc extends Bloc<CommentsEvent, CommentsState> {
   CommentsBloc({
     required String postId,
+    required String postOwnerId,
     required PostsRepository postsRepository,
   }) : _postId = postId,
        _postsRepository = postsRepository,
+       // The phone keeps no one's comments until they are open.
+       _scope = postsRepository.postScope(postId: postId, ownerId: postOwnerId),
        super(const CommentsState.initial()) {
     on<CommentsSubscriptionRequested>(
       _onCommentsSubscriptionRequested,
@@ -28,6 +31,13 @@ class CommentsBloc extends Bloc<CommentsEvent, CommentsState> {
   String get id => _postId;
 
   final PostsRepository _postsRepository;
+  final SyncScope _scope;
+
+  @override
+  Future<void> close() {
+    _scope.close();
+    return super.close();
+  }
 
   Future<void> _onCommentsSubscriptionRequested(
     CommentsSubscriptionRequested event,

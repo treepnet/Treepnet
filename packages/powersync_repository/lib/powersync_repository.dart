@@ -8,3 +8,4 @@ export 'package:token_storage/token_storage.dart' show EntraSession, EntraTokens
 
 export 'src/fresh_token_client.dart';
 export 'src/powersync_repository.dart';
+export 'src/sync_scope.dart';

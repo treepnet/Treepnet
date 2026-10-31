@@ -2,7 +2,11 @@
 library;
 
 export 'package:database_client/database_client.dart'
-    show InviteBadgeStatus, inviteBadgeColorTier, kInvitesPerPremiumMonth;
+    show
+        InviteBadgeStatus,
+        SyncScope,
+        inviteBadgeColorTier,
+        kInvitesPerPremiumMonth;
 
 export 'src/models/models.dart';
 export 'src/user_repository.dart';

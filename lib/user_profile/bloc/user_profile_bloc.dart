@@ -18,6 +18,9 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
        _postsRepository = postsRepository,
        _userId = userId ?? userRepository.currentUserId ?? '',
        super(const UserProfileState.initial()) {
+    // Someone else's profile syncs only while it is open (the user's own and
+    // those of the people they follow always do).
+    _scope = _userRepository.profileScope(_userId);
     on<UserProfileSubscriptionRequested>(
       _onUserProfileSubscriptionRequested,
       transformer: throttleDroppable(),
@@ -56,6 +59,13 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
   final String _userId;
   final UserRepository _userRepository;
   final PostsRepository _postsRepository;
+  late final SyncScope _scope;
+
+  @override
+  Future<void> close() {
+    _scope.close();
+    return super.close();
+  }
 
   /// Whose profile this is — widgets below need it to load per-user data.
   String get userId => _userId;

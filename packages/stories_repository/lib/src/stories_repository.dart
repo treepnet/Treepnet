@@ -81,20 +81,6 @@ class StoriesRepository extends StoriesBaseRepository {
   Stream<List<User>> storyViewersOf({required String storyId, int? limit}) =>
       _databaseClient.storyViewersOf(storyId: storyId, limit: limit);
 
-  /// Toggles a like by [userId] on [storyId].
-  Future<void> likeStory({required String storyId, required String userId}) =>
-      _databaseClient.likeStory(storyId: storyId, userId: userId);
-
-  /// Whether [userId] has liked [storyId].
-  Stream<bool> isStoryLiked({
-    required String storyId,
-    required String userId,
-  }) => _databaseClient.isStoryLiked(storyId: storyId, userId: userId);
-
-  /// Live like count of [storyId].
-  Stream<int> storyLikesCountOf({required String storyId}) =>
-      _databaseClient.storyLikesCountOf(storyId: storyId);
-
   @override
   Stream<List<Story>> getStories({
     required String userId,

@@ -1,6 +1,8 @@
 import 'package:powersync/powersync.dart';
 
-/// Global schema in local async SQLite database.
+/// The local database. What fills it is oci-backend/powersync/sync-config.yaml:
+/// the user's own rows, everything of the people they follow, and the profile
+/// or post open on screen — not every user's, as it used to be.
 const schema = Schema([
   Table(
     'profiles',
@@ -12,7 +14,7 @@ const schema = Schema([
       Column.text('push_token'),
       // The invite badge. `referrals` only syncs to the person who owns them,
       // so a device cannot compute anyone else's tier — the server publishes it
-      // here, on the globally-synced profile, instead.
+      // here, on the profile, instead.
       Column.integer('referral_tier'),
       Column.text('referral_tier_expires_at'),
       Column.text('bio'),
@@ -95,27 +97,44 @@ const schema = Schema([
       Index('created', [IndexedColumn('created_at')]),
     ],
   ),
+  // A post's likes and comments, counted by the server: the phone no longer
+  // has everyone's likes and comments to count. `id` is the post id.
+  Table('post_stats', [
+    Column.text('user_id'),
+    Column.integer('likes_count'),
+    Column.integer('comments_count'),
+  ]),
+  // A profile's counts, kept by the server. `id` is the profile id;
+  // `places_count` is how many of their posts have a location.
+  Table('profile_stats', [
+    Column.integer('posts_count'),
+    Column.integer('places_count'),
+    Column.integer('followers_count'),
+    Column.integer('following_count'),
+  ]),
+  // Likes and comments on the user's posts, follows and follow requests, with
+  // who did it and the post's picture — kept by the server (the newest 300).
+  // `source_id` is the like, comment or follow it is about.
   Table(
-    'videos',
+    'notifications',
     [
-      Column.text('owner_id'),
-      Column.text('url'),
-      Column.text('blur_hash'),
-      Column.text('first_frame_url'),
+      Column.text('recipient_id'),
+      Column.text('actor_id'),
+      Column.text('type'),
+      Column.text('source_id'),
+      Column.text('post_id'),
+      Column.text('content'),
+      Column.text('post_thumb'),
+      Column.text('actor_username'),
+      Column.text('actor_full_name'),
+      Column.text('actor_avatar_url'),
+      Column.text('created_at'),
     ],
     indexes: [
-      Index('user', [IndexedColumn('owner_id')]),
-    ],
-  ),
-  Table(
-    'images',
-    [
-      Column.text('owner_id'),
-      Column.text('url'),
-      Column.text('blur_hash'),
-    ],
-    indexes: [
-      Index('user', [IndexedColumn('owner_id')]),
+      Index('recipient', [
+        IndexedColumn('recipient_id'),
+        IndexedColumn('created_at'),
+      ]),
     ],
   ),
   Table(
@@ -164,6 +183,15 @@ const schema = Schema([
       Column.text('content'),
       Column.text('created_at'),
       Column.text('replied_to_comment_id'),
+      // Kept by the server: the post's author, the commenter's card (their
+      // profile may not be on this phone), the likes and whether the post's
+      // author liked it.
+      Column.text('post_owner_id'),
+      Column.text('author_username'),
+      Column.text('author_full_name'),
+      Column.text('author_avatar_url'),
+      Column.integer('likes_count'),
+      Column.integer('liked_by_author'),
     ],
     indexes: [
       Index('user', [IndexedColumn('user_id')]),
@@ -209,7 +237,7 @@ const schema = Schema([
     ],
   ),
   // Who has viewed each story. One row per (story, viewer). Only the story's
-  // author syncs these (see the `user_story_views` sync-rule bucket).
+  // author syncs these (the `me` sync stream).
   Table(
     'story_views',
     [
@@ -221,21 +249,6 @@ const schema = Schema([
       Index('story', [IndexedColumn('story_id')]),
     ],
   ),
-  // Likes on a story. One row per (story, liker); toggled on/off.
-  Table(
-    'story_likes',
-    [
-      Column.text('story_id'),
-      Column.text('user_id'),
-      Column.text('created_at'),
-    ],
-    indexes: [
-      Index('story', [IndexedColumn('story_id')]),
-      Index('user', [IndexedColumn('user_id')]),
-    ],
-  ),
-  // Regions a user marked as visited (onboarding + profile), independent of
-  // whether they ever posted from there.
   // Named collections of a user's stories, shown as circles on the profile.
   Table(
     'story_highlights',
@@ -255,6 +268,9 @@ const schema = Schema([
       Column.text('highlight_id'),
       Column.text('story_id'),
       Column.text('created_at'),
+      // The highlight's owner, set by the server (it syncs with the rest of
+      // their things).
+      Column.text('user_id'),
     ],
     indexes: [
       Index('highlight', [IndexedColumn('highlight_id')]),
@@ -276,6 +292,8 @@ const schema = Schema([
       Index('place', [IndexedColumn('user_id'), IndexedColumn('region_iso')]),
     ],
   ),
+  // Regions a user marked as visited (onboarding + profile), independent of
+  // whether they ever posted from there.
   Table(
     'visited_regions',
     [

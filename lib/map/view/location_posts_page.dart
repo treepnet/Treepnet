@@ -142,107 +142,110 @@ class LocationPostsPage extends StatelessWidget {
     final isOwner =
         context.select((AppBloc bloc) => bloc.state.user.id) == userId;
 
-    return DefaultTabController(
-      length: 2,
-      child: Builder(
-        builder: (context) => TreepNetAmbientBackground(
-          child: AppScaffold(
-            backgroundColor: AppColors.transparent,
-            appBar: AppBar(
+    return ProfileSyncScope(
+      userId: userId,
+      child: DefaultTabController(
+        length: 2,
+        child: Builder(
+          builder: (context) => TreepNetAmbientBackground(
+            child: AppScaffold(
               backgroundColor: AppColors.transparent,
-              surfaceTintColor: AppColors.transparent,
-              elevation: 0,
-              leading: IconButton(
-                icon: Icon(
-                  Icons.arrow_back,
-                  color: context.colorScheme.onSurface,
+              appBar: AppBar(
+                backgroundColor: AppColors.transparent,
+                surfaceTintColor: AppColors.transparent,
+                elevation: 0,
+                leading: IconButton(
+                  icon: Icon(
+                    Icons.arrow_back,
+                    color: context.colorScheme.onSurface,
+                  ),
+                  onPressed: () => Navigator.of(context).maybePop(),
                 ),
-                onPressed: () => Navigator.of(context).maybePop(),
-              ),
-              centerTitle: true,
-              // Just the name the author gave the place. The region used to sit
-              // under it, but it repeats what the map already showed and pushed
-              // the name off-centre.
-              title: Text(
-                _title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: context.titleMedium?.copyWith(
-                  // Exactly the feed's Posts/Stories tabs — 24px semiBold — so
-                  // headings across the app are one size, not merely one
-                  // weight. See _FeedTab in feed_top_bar.dart.
-                  fontSize: 24,
-                  fontWeight: AppFontWeight.semiBold,
-                  color: context.colorScheme.onSurface,
+                centerTitle: true,
+                // Just the name the author gave the place. The region used to sit
+                // under it, but it repeats what the map already showed and pushed
+                // the name off-centre.
+                title: Text(
+                  _title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.titleMedium?.copyWith(
+                    // Exactly the feed's Posts/Stories tabs — 24px semiBold — so
+                    // headings across the app are one size, not merely one
+                    // weight. See _FeedTab in feed_top_bar.dart.
+                    fontSize: 24,
+                    fontWeight: AppFontWeight.semiBold,
+                    color: context.colorScheme.onSurface,
+                  ),
                 ),
-              ),
-              actions: [
-                if (isOwner)
-                  // Add + only on the Posts tab; it disappears on Stories.
-                  AnimatedBuilder(
-                    animation: DefaultTabController.of(context),
-                    builder: (context, _) {
-                      if (DefaultTabController.of(context).index != 0) {
-                        return const SizedBox.shrink();
-                      }
-                      return Padding(
-                        padding: const EdgeInsets.only(right: AppSpacing.md),
-                        child: Tappable.faded(
-                          onTap: () => _add(context),
-                          child: Text(
-                            context.l10n.locationAddText,
-                            style: const TextStyle(
-                              color: AppColors.white,
-                              fontSize: 16,
-                              fontWeight: AppFontWeight.semiBold,
+                actions: [
+                  if (isOwner)
+                    // Add + only on the Posts tab; it disappears on Stories.
+                    AnimatedBuilder(
+                      animation: DefaultTabController.of(context),
+                      builder: (context, _) {
+                        if (DefaultTabController.of(context).index != 0) {
+                          return const SizedBox.shrink();
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.only(right: AppSpacing.md),
+                          child: Tappable.faded(
+                            onTap: () => _add(context),
+                            child: Text(
+                              context.l10n.locationAddText,
+                              style: const TextStyle(
+                                color: AppColors.white,
+                                fontSize: 16,
+                                fontWeight: AppFontWeight.semiBold,
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-              ],
-              bottom: TabBar(
-                indicatorSize: TabBarIndicatorSize.tab,
-                indicatorWeight: 1,
-                labelColor: AppColors.white,
-                unselectedLabelColor: AppColors.textSecondary,
-                tabs: [
-                  Tab(text: context.l10n.locationTabPosts),
-                  Tab(text: context.l10n.locationTabStories),
+                        );
+                      },
+                    ),
                 ],
+                bottom: TabBar(
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  indicatorWeight: 1,
+                  labelColor: AppColors.white,
+                  unselectedLabelColor: AppColors.textSecondary,
+                  tabs: [
+                    Tab(text: context.l10n.locationTabPosts),
+                    Tab(text: context.l10n.locationTabStories),
+                  ],
+                ),
               ),
-            ),
-            body: SafeArea(
-              top: false,
-              child: TabBarView(
-                children: [
-                  _PostsTab(
-                    // Built once, inside the tab's State — see _PostsTabState.
-                    openStream: () => _posts(context.read<PostsRepository>()),
-                    userId: userId,
-                    regionIso: regionIso,
-                    lat: lat,
-                    lng: lng,
-                    onSeeWholeRegion: scope == LocationPostsScope.point
-                        ? () => LocationPostsPage.push(
-                            context,
-                            userId: userId,
-                            regionIso: regionIso,
-                            regionName: regionName,
-                            countryName: countryName,
-                            scope: LocationPostsScope.region,
-                          )
-                        : null,
-                  ),
-                  _StoriesTab(
-                    userId: userId,
-                    regionIso: regionIso,
-                    lat: lat,
-                    lng: lng,
-                    canEdit: isOwner,
-                  ),
-                ],
+              body: SafeArea(
+                top: false,
+                child: TabBarView(
+                  children: [
+                    _PostsTab(
+                      // Built once, inside the tab's State — see _PostsTabState.
+                      openStream: () => _posts(context.read<PostsRepository>()),
+                      userId: userId,
+                      regionIso: regionIso,
+                      lat: lat,
+                      lng: lng,
+                      onSeeWholeRegion: scope == LocationPostsScope.point
+                          ? () => LocationPostsPage.push(
+                              context,
+                              userId: userId,
+                              regionIso: regionIso,
+                              regionName: regionName,
+                              countryName: countryName,
+                              scope: LocationPostsScope.region,
+                            )
+                          : null,
+                    ),
+                    _StoriesTab(
+                      userId: userId,
+                      regionIso: regionIso,
+                      lat: lat,
+                      lng: lng,
+                      canEdit: isOwner,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

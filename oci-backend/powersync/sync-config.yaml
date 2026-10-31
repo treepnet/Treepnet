@@ -1,117 +1,116 @@
-# Sync-rule docs: https://docs.powersync.com/usage/sync-rules
+# Sync Streams: https://docs.powersync.com/sync/streams/overview
 #
-# Privacy model:
-#   * Public social data (profiles, posts, likes, comments, stories, media,
-#     subscriptions) syncs to everyone — this is what powers search, the feed
-#     and discovery, like a public Instagram. Archived stories are the
-#     exception: only their author gets them (see global_stories).
-#   * The signed-in user's id lives in the Entra id token's `oid` claim (its
-#     `sub` is not a plain UUID), so parameter queries read it with
-#     `request.user_id()`.
-#   * Direct messages are NOT synced by PowerSync: chat runs on the self-hosted
-#     Socket.IO backend (lib/chat). The legacy `user_conversations` and
-#     `global_attachments` buckets were removed on 2026-10-10 — nothing in the
-#     app read them any more.
+# What a phone keeps:
+#   * `me`        its own private rows: likes, saves, archive, follows both
+#                 ways, blocks both ways, invites, who viewed its stories, its
+#                 whole story archive, its notifications, its private profile
+#                 fields (as the `my_profile` table);
+#   * `authors`   the profile, counts, posts, stories, highlights, story pins
+#                 and visited regions of the user and of everyone they follow
+#                 (an accepted follow);
+# and, while a screen asks for it (the app subscribes, see SyncScopes):
+#   * `profile`       the same for a public profile open on screen;
+#   * `profile_card`  any profile's card and counts (a private one too);
+#   * `post`          a post, its counts and its comments, when the viewer may
+#                     see it: their own, a followed author's, or a public one.
+# Everything else — the feed past the people you follow, Trends, likers,
+# followers lists, suggestions, saved posts — comes from the server
+# (sql/sync_scoping.sql), which checks privacy and blocks itself.
 #
-# DEPLOY WARNING: any change to this file makes PowerSync create a new sync-
-# rules version and re-snapshot every table with a plain SELECT, which is
-# subject to RLS. The `powersync` DB role MUST have BYPASSRLS
-# (sql/powersync-bypassrls.sql), otherwise owner-only tables (referrals,
-# saved_posts, saved_profiles, blocked_users, archived_posts) snapshot empty
-# and those rows vanish from every device.
+# Until 2026-11 every phone synced every user's posts, likes, comments,
+# stories, profiles and follows (global buckets), private accounts included.
 #
-# Notes on PowerSync limits (learned from validation):
-#   * A parameter query may SELECT from only ONE table — no JOINs. When a row
-#     needs scoping by something on another table, denormalise it onto the row
-#     server-side (e.g. story_views.story_owner_id, set by a trigger —
-#     sql/story_views_owner.sql).
-#   * PowerSync caps one connection at 1,000 buckets and stops syncing
-#     EVERYTHING for that user past it. Never parameterise a bucket per item a
-#     user owns (per story, per conversation); use one bucket per user.
-#   * `blocked_users` is private to the blocker.
-bucket_definitions:
-  global_media:
-    data:
-        - select * from images
-        - select * from videos
-  global_posts:
-    data:
-        - select * from posts
-        - select * from likes
-        - select * from comments
-  # Stories everyone may see: live ones, and older ones their author keeps in
-  # a highlight or pinned to a place. stories.visibility is kept by the server
-  # (sql/stories_private_archive.sql); the rest of the archive goes to its
-  # author alone (user_own_stories).
-  global_stories:
-    data:
-        - select * from stories where visibility = 'public'
-  user_own_stories:
-    parameters: select request.user_id() as user_id
-    data:
-        - select * from stories where user_id = bucket.user_id
-  # Which archived stories a traveller pinned to a place — public, like posts.
-  global_location_stories:
-    data:
-        - select * from location_stories
-  # Public profile fields only. Email, birthday, gender, push token and
-  # last-seen used to sync to every phone with `select *`; they now go to
-  # their owner alone (user_own_profile, below). Keep this list in step with
-  # the `profiles` columns the app shows (packages/shared .../schema.dart).
-  global_profiles:
-    data:
-        - select id, full_name, username, avatar_url, referral_tier, referral_tier_expires_at, bio, is_private, telegram, website, instagram, onboarded_at, notifications_seen_at from profiles
-  global_subscriptions:
-    data:
-        - select * from subscriptions
-  # Story likes are public (a story shows its like count to everyone).
-  global_story_likes:
-    data:
-        - select * from story_likes
-  # Visited regions colour a profile's travel map, so they are public like
-  # posts — every device needs them to render someone else's map.
-  global_visited_regions:
-    data:
-        - select * from visited_regions
-  # Highlights are part of a public profile, like posts.
-  global_story_highlights:
-    data:
-        - select * from story_highlights
-        - select * from story_highlight_items
-  # Who viewed the signed-in user's own stories — the "seen by" list. Only the
-  # author receives these rows, in ONE bucket per user (story_owner_id is set
-  # server-side), so the bucket count no longer grows with every story posted.
-  user_story_views:
-    parameters: select request.user_id() as user_id
-    data:
-        - select * from story_views where story_owner_id = bucket.user_id
-  user_saved_posts:
-    parameters: select request.user_id() as user_id
-    data:
-        - select * from saved_posts where user_id = bucket.user_id
-        - select * from saved_profiles where saver_id = bucket.user_id
-  user_archived_posts:
-    parameters: select request.user_id() as user_id
-    data:
-        - select * from archived_posts where user_id = bucket.user_id
-  # The signed-in user's own private profile fields, as a separate client
-  # table: a row synced in two buckets must carry the same columns in both,
-  # so they can't ride on `profiles`.
-  user_own_profile:
-    parameters: select request.user_id() as user_id
-    data:
-        - select id, email, birthday, gender, push_token, last_seen_at from profiles as my_profile where id = bucket.user_id
-  user_blocked_users:
-    parameters: select request.user_id() as user_id
-    data:
-        - select * from blocked_users where blocker_id = bucket.user_id
-  # The blocked party also needs their block rows, so the app can present the
-  # blocker as private and block messaging for them.
-  user_blocked_by:
-    parameters: select request.user_id() as user_id
-    data:
-        - select * from blocked_users where blocked_id = bucket.user_id
-  user_referrals:
-    parameters: select request.user_id() as user_id
-    data:
-        - select * from referrals where referrer_id = bucket.user_id
+# Buckets: `me` is one per user; `authors` one per author, shared by everyone
+# who follows or opens that author (the `profile` stream lands in the same
+# bucket); `post` two per post. PowerSync stops syncing EVERYTHING for a
+# connection past api.parameters.max_buckets_per_connection (service.yaml) —
+# never key a bucket on something a user can have unboundedly many of.
+#
+# Writing a query: a subquery must narrow by an equality on the parameter
+# (e.g. `id = subscription.parameter('user_id')`), or the server looks up
+# every row it matches for every subscriber — the `public_profile` and
+# `*_owner` lookups below are one row each.
+#
+# Timestamps stay in the pre-streams format ('2026-10-31 12:00:00.123Z'):
+# the app compares them as text against SQLite's current_timestamp.
+#
+# DEPLOY WARNING: any change to this file makes PowerSync re-snapshot every
+# table with a plain SELECT, which is subject to RLS. The `powersync` role
+# MUST have BYPASSRLS (sql/powersync-bypassrls.sql), or owner-only tables
+# snapshot empty and vanish from every device. Check bucket counts after.
+config:
+  edition: 3
+  timestamps_iso8601: false
+  custom_postgres_types: false
+
+with:
+  followings: SELECT subscribed_to_id FROM subscriptions WHERE subscriber_id = auth.user_id() AND status = 'accepted'
+  public_profile: SELECT id FROM profiles WHERE id = subscription.parameter('user_id') AND is_private = false
+
+streams:
+  me:
+    auto_subscribe: true
+    queries:
+      - SELECT id, email, birthday, gender, push_token, last_seen_at FROM profiles AS my_profile WHERE id = auth.user_id()
+      - SELECT * FROM likes WHERE user_id = auth.user_id()
+      - SELECT * FROM saved_posts WHERE user_id = auth.user_id()
+      - SELECT * FROM saved_profiles WHERE saver_id = auth.user_id()
+      - SELECT * FROM archived_posts WHERE user_id = auth.user_id()
+      - SELECT * FROM subscriptions WHERE subscriber_id = auth.user_id()
+      - SELECT * FROM subscriptions WHERE subscribed_to_id = auth.user_id()
+      - SELECT * FROM blocked_users WHERE blocker_id = auth.user_id()
+      - SELECT * FROM blocked_users WHERE blocked_id = auth.user_id()
+      - SELECT * FROM referrals WHERE referrer_id = auth.user_id()
+      - SELECT * FROM story_views WHERE story_owner_id = auth.user_id()
+      - SELECT * FROM stories WHERE user_id = auth.user_id()
+      - SELECT * FROM notifications WHERE recipient_id = auth.user_id()
+
+  # Keep `authors` and `profile` the same list of queries: that is what makes
+  # them share one bucket per author. The profile columns are the public ones
+  # (packages/shared .../schema.dart); private ones are `my_profile` above.
+  authors:
+    auto_subscribe: true
+    queries:
+      - SELECT id, full_name, username, avatar_url, referral_tier, referral_tier_expires_at, bio, is_private, telegram, website, instagram, onboarded_at, notifications_seen_at FROM profiles WHERE id = auth.user_id() OR id IN followings
+      - SELECT * FROM profile_stats WHERE id = auth.user_id() OR id IN followings
+      - SELECT * FROM posts WHERE user_id = auth.user_id() OR user_id IN followings
+      - SELECT * FROM post_stats WHERE user_id = auth.user_id() OR user_id IN followings
+      - SELECT * FROM stories WHERE visibility = 'public' AND (user_id = auth.user_id() OR user_id IN followings)
+      - SELECT * FROM story_highlights WHERE user_id = auth.user_id() OR user_id IN followings
+      - SELECT * FROM story_highlight_items WHERE user_id = auth.user_id() OR user_id IN followings
+      - SELECT * FROM location_stories WHERE user_id = auth.user_id() OR user_id IN followings
+      - SELECT * FROM visited_regions WHERE user_id = auth.user_id() OR user_id IN followings
+
+  # Subscription parameters are the app's to choose; what keeps these safe is
+  # the check inside each query (a public account, or a follow the server
+  # holds), not the parameter.
+  profile:
+    accept_potentially_dangerous_queries: true
+    queries:
+      - SELECT id, full_name, username, avatar_url, referral_tier, referral_tier_expires_at, bio, is_private, telegram, website, instagram, onboarded_at, notifications_seen_at FROM profiles WHERE id IN public_profile
+      - SELECT * FROM profile_stats WHERE id IN public_profile
+      - SELECT * FROM posts WHERE user_id IN public_profile
+      - SELECT * FROM post_stats WHERE user_id IN public_profile
+      - SELECT * FROM stories WHERE visibility = 'public' AND user_id IN public_profile
+      - SELECT * FROM story_highlights WHERE user_id IN public_profile
+      - SELECT * FROM story_highlight_items WHERE user_id IN public_profile
+      - SELECT * FROM location_stories WHERE user_id IN public_profile
+      - SELECT * FROM visited_regions WHERE user_id IN public_profile
+
+  profile_card:
+    accept_potentially_dangerous_queries: true
+    queries:
+      - SELECT id, full_name, username, avatar_url, referral_tier, referral_tier_expires_at, bio, is_private, telegram, website, instagram, onboarded_at, notifications_seen_at FROM profiles WHERE id = subscription.parameter('user_id')
+      - SELECT * FROM profile_stats WHERE id = subscription.parameter('user_id')
+
+  # The app passes the post's author as `owner_id`; the queries only match
+  # rows whose author it really is.
+  post:
+    accept_potentially_dangerous_queries: true
+    with:
+      followed_owner: SELECT subscribed_to_id FROM subscriptions WHERE subscriber_id = auth.user_id() AND subscribed_to_id = subscription.parameter('owner_id') AND status = 'accepted'
+      public_owner: SELECT id FROM profiles WHERE id = subscription.parameter('owner_id') AND is_private = false
+    queries:
+      - SELECT * FROM comments WHERE post_id = subscription.parameter('post_id') AND (post_owner_id = auth.user_id() OR post_owner_id IN followed_owner OR post_owner_id IN public_owner)
+      - SELECT * FROM posts WHERE id = subscription.parameter('post_id') AND (user_id = auth.user_id() OR user_id IN followed_owner OR user_id IN public_owner)
+      - SELECT * FROM post_stats WHERE id = subscription.parameter('post_id') AND (user_id = auth.user_id() OR user_id IN followed_owner OR user_id IN public_owner)

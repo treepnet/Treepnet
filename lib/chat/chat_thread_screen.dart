@@ -9,6 +9,7 @@ import 'package:treepnet/chat/chat_session.dart';
 import 'package:treepnet/chat/chat_theme.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/stories/widgets/user_stories_avatar.dart';
+import 'package:treepnet/user_profile/widgets/profile_sync_scope.dart';
 import 'package:user_repository/user_repository.dart';
 
 /// A single 1:1 conversation, styled with the app's chat design tokens
@@ -44,22 +45,27 @@ class ChatThreadScreen extends StatelessWidget {
     // backend-supplied values until (or unless) the profile is available.
     if (peerUuid.isEmpty) return _buildForPeer(context, peer);
     final repo = context.read<UserRepository>();
-    return StreamBuilder<User>(
-      stream: repo.profile(id: peerUuid),
-      builder: (context, snap) {
-        final profile = snap.data;
-        final effectivePeer = profile == null
-            ? peer
-            : peer.copyWith(
-                name: profile.displayUsername != 'Unknown'
-                    ? profile.displayUsername
-                    : peer.name,
-                avatarUrl: profile.hasAvatar
-                    ? profile.avatarUrl
-                    : peer.avatarUrl,
-              );
-        return _buildForPeer(context, effectivePeer);
-      },
+    // The peer's profile and stories sync while the thread is open, if the
+    // user doesn't follow them already.
+    return ProfileSyncScope(
+      userId: peerUuid,
+      child: StreamBuilder<User>(
+        stream: repo.profile(id: peerUuid),
+        builder: (context, snap) {
+          final profile = snap.data;
+          final effectivePeer = profile == null
+              ? peer
+              : peer.copyWith(
+                  name: profile.displayUsername != 'Unknown'
+                      ? profile.displayUsername
+                      : peer.name,
+                  avatarUrl: profile.hasAvatar
+                      ? profile.avatarUrl
+                      : peer.avatarUrl,
+                );
+          return _buildForPeer(context, effectivePeer);
+        },
+      ),
     );
   }
 
