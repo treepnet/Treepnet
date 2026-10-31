@@ -67,8 +67,11 @@ class DmChatTransport implements ChatTransport {
             ),
           );
 
-        case DmReadEvent(:final messageId, :final all)
-            when event.conversationId == conversationId:
+        // The peer read our messages: ✓✓. Our own read comes back too (the
+        // backend tells both sides) and used to tick every message we'd sent.
+        case DmReadEvent(:final messageId, :final all, :final readerId)
+            when event.conversationId == conversationId &&
+                readerId != myUserId:
           _events.add(ChatMessagesRead(messageId: messageId, all: all));
 
         // In a 1:1 conversation, anyone who isn't us is the peer.
@@ -363,12 +366,17 @@ class DmListTransport implements ChatListTransport {
           _recomputeUnread();
           _events.add(ChatConversationUpserted(updated));
 
-        case DmReadEvent(:final conversationId):
+        case DmReadEvent(:final conversationId, :final readerId):
           final current = _conversations[conversationId];
           if (current == null) return;
+          // We read it: nothing unread left. The peer read it: only our last
+          // message gets its ✓✓ — what we haven't read stays unread.
+          final weRead = readerId == myUserId;
           final updated = current.copyWith(
-            unreadCount: 0,
-            lastMessageIsRead: true,
+            unreadCount: weRead ? 0 : current.unreadCount,
+            lastMessageIsRead: weRead
+                ? !current.lastMessageIsMine || current.lastMessageIsRead
+                : current.lastMessageIsMine || current.lastMessageIsRead,
           );
           _conversations[conversationId] = updated;
           _recomputeUnread();

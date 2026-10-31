@@ -301,6 +301,7 @@ class DmApi {
       );
     });
 
+    // Sent to both sides of the conversation, the reader included.
     socket.on('dm.read', (data) {
       if (data is! Map) return;
       _events.add(
@@ -308,6 +309,7 @@ class DmApi {
           conversationId: data['conversationId']?.toString() ?? '',
           messageId: data['messageId']?.toString(),
           all: data['all'] == true,
+          readerId: data['byUserId']?.toString(),
         ),
       );
     });
@@ -554,10 +556,14 @@ class DmReadEvent extends DmEvent {
     required this.conversationId,
     this.messageId,
     this.all = false,
+    this.readerId,
   });
   final String conversationId;
   final String? messageId;
   final bool all;
+
+  /// The backend id of whoever read — us or the peer.
+  final String? readerId;
 }
 
 /// The peer went online / offline.
