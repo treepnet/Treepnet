@@ -1,5 +1,9 @@
 // media.treepnet.com — the app's photos through Cloudflare's cache.
 //
+// NOT IN USE (2026-10-31): stored URLs point at the bucket again
+// (sql/media_cdn_urls_rollback.sql). Russian ISPs throttle Cloudflare to the
+// first ~16 KB of each file, so photos would never finish loading there.
+//
 // Every photo used to come straight from the OCI bucket in Frankfurt. This
 // Worker serves https://media.treepnet.com/<object> from the nearest Cloudflare
 // edge, fetching it from the bucket only on a miss. Only the app's own media

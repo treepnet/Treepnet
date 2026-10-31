@@ -1,5 +1,9 @@
 -- Point every stored photo URL at the media.treepnet.com CDN.
 --
+-- ROLLED BACK 2026-10-31 (media_cdn_urls_rollback.sql): Russian ISPs throttle
+-- Cloudflare to the first ~16 KB of each file. Don't re-apply without a CDN
+-- that is reachable from Russia.
+--
 -- Before: posts, stories, highlight covers and avatars stored the bucket's own
 -- URL, so every phone downloaded every photo from Frankfurt, each time it
 -- wasn't in the phone's cache.

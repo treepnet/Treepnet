@@ -14,11 +14,9 @@ import 'package:dio/dio.dart';
 /// inside that single bucket.
 ///
 /// Reads are anonymous: objects are publicly readable by URL (the bucket's
-/// object list is not). The stored link is
-/// `https://media.treepnet.com/<object>`: a Cloudflare cache in front of the
-/// bucket (oci-backend/media-cdn), so a photo comes from a server near the
-/// viewer instead of from Frankfurt each time. The bucket's own URL for the
-/// same object keeps working.
+/// object list is not), so the native object URL is a stable public link.
+/// (Not through the media.treepnet.com Cloudflare CDN: Russian ISPs throttle
+/// Cloudflare to the first ~16 KB of each file.)
 /// Writes need a link from the backend for each file: it checks the signed-in
 /// user ([idToken]) and that the object is theirs to write, and the link it
 /// returns writes only that object, for a few minutes. (The app used to carry
@@ -30,8 +28,10 @@ class MediaStorage {
   /// Shared instance — mirrors `Supabase.instance.client.storage`.
   static final MediaStorage instance = MediaStorage._();
 
-  /// Public-read base of the media bucket, through the CDN.
-  static const _readBase = 'https://media.treepnet.com';
+  /// Public-read base of the media bucket.
+  static const _readBase =
+      'https://objectstorage.eu-frankfurt-1.oraclecloud.com'
+      '/n/fryarohmp0gm/b/treepnet-media';
 
   /// Hands out a write link for one object (auth-service).
   static const _uploadLinkUrl =
@@ -181,7 +181,7 @@ class MediaBucket {
   ///
   /// Mirrors `StorageFileApi.getPublicUrl`.
   String getPublicUrl(String path) =>
-      '${MediaStorage._readBase}/${_encodedObject(path)}';
+      '${MediaStorage._readBase}/o/${_encodedObject(path)}';
 }
 
 /// {@template media_file_options}
