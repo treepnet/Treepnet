@@ -134,13 +134,16 @@ class _ChatTabIconState extends State<_ChatTabIcon> {
     if (!me.isAnonymous) {
       final repo = context.read<UserRepository>();
       unawaited(
-        currentChatName(repo, me).then(
-          (name) => ChatSession.instance.ensureStarted(
-            myUuid: me.id,
-            myName: name,
-            myAvatarUrl: me.hasAvatar ? me.avatarUrl : null,
-          ),
-        ),
+        currentChatName(repo, me)
+            .then(
+              (name) => ChatSession.instance.ensureStarted(
+                myUuid: me.id,
+                myName: name,
+                myAvatarUrl: me.hasAvatar ? me.avatarUrl : null,
+              ),
+            )
+            // Offline at launch: the session retries on its own.
+            .catchError((Object _) {}),
       );
     }
   }

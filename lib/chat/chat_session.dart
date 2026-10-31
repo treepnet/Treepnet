@@ -55,13 +55,46 @@ class ChatSession {
   /// Whether the session is already connected for [myUuid].
   bool startedFor(String myUuid) => _api != null && _myUuid == myUuid;
 
+  /// The user [ensureStarted] was last asked for, so a failed start can be
+  /// retried. Cleared by [stop].
+  ({String uuid, String name, String? avatar})? _wanted;
+
+  /// The start in flight, if any.
+  Future<void>? _starting;
+
+  /// Bumped by [stop], so a start still in flight from before a logout closes
+  /// its connection instead of bringing the session back.
+  int _generation = 0;
+
+  Timer? _retryTimer;
+  int _retryAttempt = 0;
+
   /// Ensures the backend connection is up for the given user. Idempotent for
   /// the same user; switches connection if the user changed.
+  ///
+  /// One start at a time: the nav bar and the inbox both start the session as
+  /// the app opens, and on a slow connection both used to get past the
+  /// started-check and open a connection each — the first was overwritten,
+  /// never closed, and kept the account online after logout. A second caller
+  /// now waits for the first. A start that fails (no connection) is retried by
+  /// the session itself, and at once when the app comes back to the front.
   Future<void> ensureStarted({
     required String myUuid,
     required String myName,
     String? myAvatarUrl,
   }) async {
+    _wanted = (uuid: myUuid, name: myName, avatar: myAvatarUrl);
+    _lifecycle ??= AppLifecycleListener(
+      onHide: () => _backgroundedAt = DateTime.now(),
+      onPause: _onPause,
+      onShow: _onResume,
+    );
+    while (_starting != null) {
+      await _starting!.catchError((Object _) {});
+    }
+    // Logged out, or someone else signed in, while this call waited: it must
+    // not bring the old account's connection back.
+    if (_wanted?.uuid != myUuid) return;
     if (startedFor(myUuid)) {
       // Already connected for this user. The first call often comes from the
       // nav bar at startup, before the profile username has synced — so a later
@@ -73,7 +106,58 @@ class ChatSession {
       _api?.refreshIdentity(name: myName, avatar: myAvatarUrl);
       return;
     }
-    await stop();
+    final start = _start(
+      myUuid: myUuid,
+      myName: myName,
+      myAvatarUrl: myAvatarUrl,
+    ).whenComplete(() => _starting = null);
+    _starting = start;
+    try {
+      await start;
+      _retryTimer?.cancel();
+      _retryTimer = null;
+      _retryAttempt = 0;
+    } catch (_) {
+      _scheduleRetry();
+      rethrow;
+    }
+  }
+
+  /// Tries a failed start again after 5, 10, 20, 30, then every 60 seconds.
+  void _scheduleRetry() {
+    if (_wanted == null) return;
+    const delays = [5, 10, 20, 30, 60];
+    final seconds = delays[_retryAttempt.clamp(0, delays.length - 1)];
+    _retryAttempt++;
+    _retryTimer?.cancel();
+    _retryTimer = Timer(Duration(seconds: seconds), _retryNow);
+  }
+
+  void _retryNow() {
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    final wanted = _wanted;
+    if (wanted == null || startedFor(wanted.uuid) || _starting != null) return;
+    // In the background it waits: coming back to the front retries (see
+    // [_onResume]).
+    final state = WidgetsBinding.instance.lifecycleState;
+    if (state != null && state != AppLifecycleState.resumed) return;
+    unawaited(
+      ensureStarted(
+        myUuid: wanted.uuid,
+        myName: wanted.name,
+        myAvatarUrl: wanted.avatar,
+      ).catchError((Object _) {}),
+    );
+  }
+
+  Future<void> _start({
+    required String myUuid,
+    required String myName,
+    String? myAvatarUrl,
+  }) async {
+    final generation = _generation;
+    await _teardown();
 
     final deviceId = await MessengerChat.getDeviceId();
     final api = DmApi(
@@ -92,8 +176,19 @@ class ChatSession {
     );
 
     // Our backend numeric id — the middleware auto-creates/updates our row.
-    final me = await api.dio.get<Map<String, dynamic>>('/chat/dm/me');
-    _myUserId = me.data?['id']?.toString() ?? '';
+    final Map<String, dynamic>? me;
+    try {
+      me = (await api.dio.get<Map<String, dynamic>>('/chat/dm/me')).data;
+    } catch (_) {
+      await api.dispose();
+      rethrow;
+    }
+    if (generation != _generation) {
+      // Logged out meanwhile.
+      await api.dispose();
+      return;
+    }
+    _myUserId = me?['id']?.toString() ?? '';
     _myUuid = myUuid;
     _myName = myName;
     _api = api;
@@ -107,11 +202,6 @@ class ChatSession {
     // Warm up in the background so the badge is populated and real-time
     // updates arrive app-wide, even before the inbox is opened. Best-effort.
     unawaited(_warmUp(list));
-    _lifecycle ??= AppLifecycleListener(
-      onHide: () => _backgroundedAt = DateTime.now(),
-      onPause: _onPause,
-      onShow: _onResume,
-    );
     unawaited(_registerPushToken());
   }
 
@@ -154,6 +244,11 @@ class ChatSession {
   void _onResume() {
     _pauseTimer?.cancel();
     _pauseTimer = null;
+    if (_api == null) {
+      // Not started (no connection earlier): try now.
+      _retryNow();
+      return;
+    }
     _api?.resume();
     final since = _backgroundedAt;
     _backgroundedAt = null;
@@ -289,12 +384,23 @@ class ChatSession {
     if (!result.ok) throw StateError('Message not sent: ${result.error}');
   }
 
-  /// Tears down the connection (logout / user switch).
+  /// Tears down the connection on logout; a start still in flight closes its
+  /// own when it finishes, and failed starts are no longer retried.
   Future<void> stop() async {
-    await _tokenRefreshSub?.cancel();
-    _tokenRefreshSub = null;
+    _generation++;
+    _wanted = null;
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    _retryAttempt = 0;
     _lifecycle?.dispose();
     _lifecycle = null;
+    await _teardown();
+  }
+
+  /// Closes the current connection (also before switching user).
+  Future<void> _teardown() async {
+    await _tokenRefreshSub?.cancel();
+    _tokenRefreshSub = null;
     _backgroundedAt = null;
     _pauseTimer?.cancel();
     _pauseTimer = null;
@@ -305,10 +411,10 @@ class ChatSession {
     }
     await _listTransport?.dispose();
     _listTransport = null;
-    // Actually close the socket. DmListTransport.dispose() leaves `api` alone,
-    // so without this the previous user's websocket stayed connected
-    // (authenticated as them) after logout / account switch and crossed wires
-    // with the next user's session.
+    // Actually close the socket — only here: the session owns `api`
+    // (DmListTransport.dispose() leaves it alone). Without this the previous
+    // user's websocket stayed connected (authenticated as them) after logout /
+    // account switch and crossed wires with the next user's session.
     await _api?.dispose();
     _api = null;
     _myUuid = '';

@@ -482,6 +482,6 @@ class DmListTransport implements ChatListTransport {
     _subscription = null;
     unreadTotal.dispose();
     await _events.close();
-    await api.dispose();
+    // `api` belongs to ChatSession, which closes it.
   }
 }
