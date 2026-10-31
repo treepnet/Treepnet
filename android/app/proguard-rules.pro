@@ -34,3 +34,10 @@
 # namespace (never shipped/executed here) so a future posthog_flutter bump that
 # references more Compose classes can't break the release build again.
 -dontwarn androidx.compose.**
+
+# Glide (photo_manager's thumbnails) uses AppCompat for resource drawables only
+# when it's there, and falls back to the platform API otherwise. AppCompat came
+# in with the chat plugin's media libraries (file picker, video player); with
+# those gone it isn't on the classpath, so R8 must not fail on the reference.
+-dontwarn androidx.appcompat.content.res.AppCompatResources
+-dontwarn androidx.appcompat.view.ContextThemeWrapper

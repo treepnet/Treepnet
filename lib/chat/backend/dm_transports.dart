@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:messenger_chat/messenger_chat.dart';
 
@@ -142,59 +141,6 @@ class DmChatTransport implements ChatTransport {
     if (result.ok) return;
     if (result.isRejected) throw ChatSendRejected(result.code ?? result.error!);
     throw StateError('Message not confirmed: ${result.error}');
-  }
-
-  @override
-  Future<ChatUploadResult> uploadAttachment({
-    required String filePath,
-    required String clientKey,
-    required ChatMessageKind kind,
-    void Function(int sent, int total)? onProgress,
-  }) async {
-    final formData = FormData.fromMap({
-      'file': await MultipartFile.fromFile(filePath),
-      'contentType': dmContentTypeOf(kind),
-    });
-
-    // Dedicated endpoint: stores the file and returns its URL, without
-    // creating a message.
-    final response = await api.dio.post<Map<String, dynamic>>(
-      '/chat/dm/upload',
-      data: formData,
-      onSendProgress: onProgress,
-      // A video takes a while to send and store; on some adapters this limit
-      // also covers sending.
-      options: Options(receiveTimeout: const Duration(minutes: 5)),
-    );
-
-    final body = response.data ?? const {};
-    final url = api.absolute(body['url']?.toString() ?? '');
-    final waveform = api.absolute(body['svg']?.toString() ?? '');
-    // The server generates a thumbnail (`png`) for video.
-    final thumbnail = api.absolute(body['png']?.toString() ?? '');
-
-    // Send the message ourselves once the upload finishes; a failure shows
-    // on the message (with Retry) like a failed upload.
-    _confirm(
-      await api.send(
-        conversationId: conversationId,
-        content: url,
-        contentType: dmContentTypeOf(kind),
-        key: clientKey,
-        svg: body['svg']?.toString(),
-        png: body['png']?.toString(),
-        duration: body['duration']?.toString(),
-        size: body['size']?.toString(),
-      ),
-    );
-
-    return ChatUploadResult(
-      url: url,
-      waveformUrl: waveform,
-      thumbnailUrl: thumbnail,
-      duration: body['duration']?.toString(),
-      size: body['size']?.toString(),
-    );
   }
 
   @override

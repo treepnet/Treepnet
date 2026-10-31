@@ -64,38 +64,8 @@ class _ChatBubbleState extends State<_ChatBubble> {
               message: widget.message,
               messageStyle: widget.messageStyle,
             ),
-    (_ContentType.voice) =>
-      widget.config.voiceIsBlock
-          ? const SizedBox.shrink()
-          : _AudioMessage(
-              showSenderName: widget.showSenderName,
-              message: widget.message,
-              messageStyle: widget.messageStyle,
-            ),
-    (_ContentType.video) =>
-      widget.config.videoIsBlock
-          ? const SizedBox.shrink()
-          : _VideoMessage(
-              showSenderName: widget.showSenderName,
-              message: widget.message,
-              messageStyle: widget.messageStyle,
-            ),
-    (_ContentType.document) =>
-      widget.config.documentIsBlock
-          ? const SizedBox.shrink()
-          : _FileMessage(
-              message: widget.message,
-              messageStyle: widget.messageStyle,
-              showSenderName: widget.showSenderName,
-            ),
-    (_ContentType.photo) =>
-      widget.config.photoIsBlock
-          ? const SizedBox.shrink()
-          : _ImageMessage(
-              message: widget.message,
-              messageStyle: widget.messageStyle,
-              showSenderName: widget.showSenderName,
-            ),
+    // Text-only chat: media messages aren't shown (none are sent).
+    _ => const SizedBox.shrink(),
   };
 
   Widget peerMessage() => _PeerContent(

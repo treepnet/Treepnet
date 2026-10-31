@@ -71,23 +71,6 @@ enum _ContentType {
     }
   }
 
-  static _ContentType fromPath(String path) {
-    final ext = _MimetypeDetector.getMimeType(path);
-    final parts = ext.split('/');
-    switch (parts[0]) {
-      case 'image':
-        return _ContentType.photo;
-      case 'audio':
-        return _ContentType.voice;
-      case 'video':
-        return _ContentType.video;
-      case 'application':
-        return _ContentType.document;
-      default:
-        return _ContentType.text;
-    }
-  }
-
   bool get isText => this == _ContentType.text;
 
   bool get isVoice => this == _ContentType.voice;

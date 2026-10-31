@@ -54,8 +54,7 @@ class DmApi {
   String? userAvatar;
 
   /// Bounded, so a bad connection fails in seconds (and the screen can say
-  /// so) instead of loading for minutes. Uploads get a longer wait for the
-  /// answer (see DmChatTransport.uploadAttachment).
+  /// so) instead of loading for minutes.
   late final Dio dio = Dio(
     BaseOptions(
       baseUrl: baseUrl,

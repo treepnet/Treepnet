@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:dio/dio.dart';
 import 'package:messenger_chat/messenger_chat.dart';
 
 import 'dm_api.dart';
@@ -107,53 +106,6 @@ class DmChatTransport implements ChatTransport {
     duration: message.duration,
     size: message.size,
   );
-
-  @override
-  Future<ChatUploadResult> uploadAttachment({
-    required String filePath,
-    required String clientKey,
-    required ChatMessageKind kind,
-    void Function(int sent, int total)? onProgress,
-  }) async {
-    final formData = FormData.fromMap({
-      'file': await MultipartFile.fromFile(filePath),
-      'contentType': dmContentTypeOf(kind),
-    });
-
-    // Messenger uchun alohida endpoint: faqat faylni saqlaydi va manzilini
-    // qaytaradi, hech qanday xabar yaratmaydi.
-    final response = await api.dio.post<Map<String, dynamic>>(
-      '/chat/dm/upload',
-      data: formData,
-      onSendProgress: onProgress,
-    );
-
-    final body = response.data ?? const {};
-    final url = api.absolute(body['url']?.toString() ?? '');
-    final waveform = api.absolute(body['svg']?.toString() ?? '');
-    // Video uchun server thumbnail hosil qiladi (`png`).
-    final thumbnail = api.absolute(body['png']?.toString() ?? '');
-
-    // Yuklangandan keyin xabarni o'zimiz yuboramiz.
-    api.send(
-      conversationId: conversationId,
-      content: url,
-      contentType: dmContentTypeOf(kind),
-      key: clientKey,
-      svg: body['svg']?.toString(),
-      png: body['png']?.toString(),
-      duration: body['duration']?.toString(),
-      size: body['size']?.toString(),
-    );
-
-    return ChatUploadResult(
-      url: url,
-      waveformUrl: waveform,
-      thumbnailUrl: thumbnail,
-      duration: body['duration']?.toString(),
-      size: body['size']?.toString(),
-    );
-  }
 
   @override
   Future<void> sendTyping({

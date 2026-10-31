@@ -196,21 +196,6 @@ class ChatCubit extends Cubit<ChatState> {
     );
   }
 
-  void updateProgress(_MessageModel message) async {
-    final updatedMessages = state.messages.messages.map((e) {
-      if (e.key == message.key) {
-        return message.copyWith(uploadProgress: message.uploadProgress);
-      }
-      return e;
-    }).toList();
-
-    emit(
-      state.copyWith(
-        messages: state.messages.copyWith(messages: updatedMessages),
-      ),
-    );
-  }
-
   Future<void> addMessage(_MessageModel message) async {
     // Lokal (hali serverga yetmagan) xabarlarning id si bo'sh bo'ladi, ya'ni
     // ular bir-biridan id bilan farq qilmaydi - faqat key bo'yicha
@@ -448,86 +433,6 @@ class ChatCubit extends Cubit<ChatState> {
       state.copyWith(
         messages: state.messages.copyWith(messages: updatedMessages),
       ),
-    );
-  }
-
-  Future<void> sendFileMessage(
-    String path,
-    String fileSize, {
-    required Function() downScrollCallback,
-    required BuildContext context,
-    Function()? success,
-  }) async {
-    final uploadMessageUseCase = _UploadMessageUseCase(
-      repository: chatRepository,
-    );
-
-    final messageKey = DateTime.now().millisecondsSinceEpoch.toString();
-
-    final contentType = _ContentType.fromPath(path);
-
-    final Size size = switch (contentType) {
-      (_ContentType.text) => const Size(0, 0),
-      (_ContentType.voice) => const Size(0, 0),
-      (_ContentType.video) => await _VideoSizeDetector.getFileVideoSize(
-        context,
-        path: path,
-      ),
-      (_ContentType.photo) => await _ImageSizeDetector.getFileImageSize(
-        context,
-        path: path,
-      ),
-      (_ContentType.document) => const Size(0, 0),
-    };
-
-    final messageData = _MessageModel.initial.copyWith(
-      date: DateTime.now().toIso8601String(),
-      uploadProgress: 0,
-      status: MessageStatus.sending,
-      key: messageKey,
-      filePath: path,
-      width: size.width,
-      height: size.height,
-      content: contentType.isDocument
-          ? Message(content: path.split('/').last, size: fileSize)
-          : null,
-      contentType: contentType,
-    );
-
-    addMessage(messageData);
-    downScrollCallback.call();
-
-    final response = await uploadMessageUseCase.call(
-      _UploadParams(
-        path,
-        messageKey,
-        onSendProgress: (sent, total) {
-          final progress = sent / total;
-          final step = (progress * 10).floor() / 10;
-
-          if (step > 0.0) {
-            updateProgress(messageData.copyWith(uploadProgress: step));
-          }
-        },
-      ),
-    );
-
-    response.either(
-      (failure) {
-        emit(state.copyWith(failure: failure.message.toString()));
-        updateProgress(
-          messageData.copyWith(uploadProgress: 0, status: MessageStatus.error),
-        );
-
-        if (failure.message == 'timeout') {
-          _ChatLogger.warning('File upload timed out');
-        } else {
-          _ChatLogger.failure(failure.message.toString());
-        }
-      },
-      (message) async {
-        success?.call();
-      },
     );
   }
 

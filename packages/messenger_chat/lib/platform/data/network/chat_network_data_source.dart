@@ -6,8 +6,6 @@ abstract class _ChatNetworkDataSource {
   factory _ChatNetworkDataSource() => _$ChatNetworkDataSource();
 
   Future<_MessageResponse> getMessages(_ParamsGetMessage params);
-
-  Future<_UploadResponse> uploadMessage(_UploadParams params);
 }
 
 final class _$ChatNetworkDataSource implements _ChatNetworkDataSource {
@@ -30,27 +28,6 @@ final class _$ChatNetworkDataSource implements _ChatNetworkDataSource {
           totalItems: result.messages.length,
           hasNextPage: result.hasMore,
           hasPreviousPage: page > 1,
-        );
-      });
-
-  @override
-  Future<_UploadResponse> uploadMessage(_UploadParams file) =>
-      _handleRequest(() async {
-        final kind = _ContentType.fromPath(file.file).kind;
-
-        final result = await _transport.uploadAttachment(
-          filePath: file.file,
-          clientKey: file.key,
-          kind: kind,
-          onProgress: file.onSendProgress,
-        );
-
-        return _UploadResponse(
-          url: result.url,
-          waveformUrl: result.waveformUrl ?? '',
-          thumbnailUrl: result.thumbnailUrl ?? '',
-          duration: result.duration ?? '',
-          size: result.size ?? '',
         );
       });
 }

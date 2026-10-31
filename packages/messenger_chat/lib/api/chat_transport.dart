@@ -140,25 +140,6 @@ class ChatOutgoingMessage {
   final ChatReplyInfo? replyTo;
 }
 
-/// Fayl yuklash natijasi.
-class ChatUploadResult {
-  const ChatUploadResult({
-    required this.url,
-    this.waveformUrl,
-    this.thumbnailUrl,
-    this.duration,
-    this.size,
-  });
-
-  final String url;
-  final String? waveformUrl;
-
-  /// Video uchun thumbnail manzili.
-  final String? thumbnailUrl;
-  final String? duration;
-  final String? size;
-}
-
 /// Transport hodisalari.
 sealed class ChatTransportEvent {
   const ChatTransportEvent();
@@ -254,14 +235,6 @@ abstract class ChatTransport {
   /// Xabarni yuboradi. Xato bo'lsa istisno tashlash kerak - plagin xabarni
   /// chatda "xato" deb belgilaydi ("Qayta yuborish / O'chirish").
   Future<void> send(ChatOutgoingMessage message);
-
-  /// Media faylni yuklaydi va uning manzilini qaytaradi.
-  Future<ChatUploadResult> uploadAttachment({
-    required String filePath,
-    required String clientKey,
-    required ChatMessageKind kind,
-    void Function(int sent, int total)? onProgress,
-  });
 
   /// "Yozmoqda" holatini bildiradi.
   Future<void> sendTyping({required bool isTyping, ChatMessageKind? kind});

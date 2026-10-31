@@ -26,15 +26,9 @@ abstract final class ChatTheme {
     fontWeight: FontWeight.w500,
   );
 
-  /// Message types are disabled (text only) and blur is off for the app's flat
-  /// look + perf.
-  static const features = ChatFeatures(
-    photo: false,
-    video: false,
-    voice: false,
-    file: false,
-    blurEffects: false,
-  );
+  /// Text only (the plugin has no media messages any more); blur is off for
+  /// the app's flat look + perf.
+  static const features = ChatFeatures(blurEffects: false);
 
   static const messageStyle = ChatMessageStyle(
     clientMessageTextStyle: _text,

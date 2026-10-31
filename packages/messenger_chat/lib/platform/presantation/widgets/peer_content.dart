@@ -53,34 +53,8 @@ class _PeerContent extends StatelessWidget {
                   ),
                 ),
               ),
-            (_ContentType.voice) => config.voiceIsBlock
-                ? const SizedBox.shrink()
-                : _AudioMessage(
-                    showSenderName: showSenderName,
-                    message: message,
-                    messageStyle: messageStyle,
-                  ),
-            (_ContentType.video) => config.videoIsBlock
-                ? const SizedBox.shrink()
-                : _VideoMessage(
-                    showSenderName: showSenderName,
-                    message: message,
-                    messageStyle: messageStyle,
-                  ),
-            (_ContentType.document) => config.documentIsBlock
-                ? const SizedBox.shrink()
-                : _FileMessage(
-                    message: message,
-                    messageStyle: messageStyle,
-                    showSenderName: showSenderName,
-                  ),
-            (_ContentType.photo) => config.photoIsBlock
-                ? const SizedBox.shrink()
-                : _ImageMessage(
-                    message: message,
-                    messageStyle: messageStyle,
-                    showSenderName: showSenderName,
-                  ),
+            // Text-only chat: media messages aren't shown (none are sent).
+            _ => const SizedBox.shrink(),
           },
         ],
       );

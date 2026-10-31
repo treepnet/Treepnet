@@ -106,8 +106,6 @@ class MessengerChat extends StatefulWidget {
     required ChatUser peer,
   }) => _ChatAppBar(style: chatAppBarStyle, peer: peer);
 
-  static MessengerChatController get configController => MessengerChatController();
-
   static ChatController<ChatModel> get controller => _chatController;
 
   static MessengerChat light({
@@ -295,14 +293,11 @@ class MessengerChat extends StatefulWidget {
 
 class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserver {
   final TextEditingController _controller = TextEditingController();
-  final _VoiceRecorder _voiceController = _VoiceRecorder();
   final ScrollController _listScrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
   StreamSubscription<ChatConnectionStatus>? _connectionSteam;
   ChatCubit? _cubit;
   bool _isInternalCubit = false;
-  final ValueNotifier<bool> _showEmojiNotifier = ValueNotifier<bool>(false);
-  late ValueNotifier<bool> _isEmojiModeNotifier;
   late ValueNotifier<double> _bottomPaddingNotifier;
   final GlobalKey _bottomAreaKey = GlobalKey();
   final ValueNotifier<bool> _showScrollDownNotifier = ValueNotifier<bool>(
@@ -347,7 +342,6 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
       _cubit = ChatCubit(ChatRepositoryImpl());
       _isInternalCubit = true;
     }
-    _isEmojiModeNotifier = ValueNotifier<bool>(false);
     _bottomPaddingNotifier = ValueNotifier<double>(0.0);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -408,17 +402,6 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
       _cubit?.getMessages(isRefresh: true);
       _cubit?.markAsRead();
     }());
-  }
-
-  @override
-  void didChangeMetrics() {
-    super.didChangeMetrics();
-    final bottomInset = View.of(context).viewInsets.bottom;
-    if (bottomInset == 0) {
-      if (!_isEmojiModeNotifier.value && _showEmojiNotifier.value) {
-        _showEmojiNotifier.value = false;
-      }
-    }
   }
 
   Future<void> setInitialTexts() async {
@@ -530,7 +513,6 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
     // Faqat socket hali shu ekranga ulangan bo'lsa (qarang disposeFor).
     _ChatSocket.disposeFor(_cubit);
     _controller.dispose();
-    _voiceController.dispose();
     _connectionSteam?.cancel();
     if (_isInternalCubit) {
       _cubit?.close();
@@ -538,8 +520,6 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
     WidgetsBinding.instance.removeObserver(this);
     _listScrollController.dispose();
     _focusNode.dispose();
-    _showEmojiNotifier.dispose();
-    _isEmojiModeNotifier.dispose();
     _bottomPaddingNotifier.dispose();
     _showScrollDownNotifier.dispose();
     _replyingTo.dispose();
@@ -919,70 +899,20 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
                       // comment box) — replaces the in-input emoji toggle.
                       _QuickEmojiBar(onTap: _insertEmoji),
                       // Input field
-                      ValueListenableBuilder<bool>(
-                        valueListenable: _showEmojiNotifier,
-                        builder: (context, showEmoji, _) {
-                          return ValueListenableBuilder<bool>(
-                            valueListenable: _isEmojiModeNotifier,
-                            builder: (context, isMode, _) {
-                              return _ChatTextField(
-                                style: widget.chatTextFieldStyle,
-                                listScrollController: _listScrollController,
-                                voiceController: _voiceController,
-                                focusNode: _focusNode,
-                                controller: _controller,
-                                config: _cubit!.state.config,
-                                isEmojiMode: isMode,
-                                onSendMessage: _sendMessage,
-                                onEmojiToggled: (isMode, show) {
-                                  _isEmojiModeNotifier.value = isMode;
-                                  _showEmojiNotifier.value = show;
-                                },
-                              );
-                            },
-                          );
-                        },
+                      _ChatTextField(
+                        style: widget.chatTextFieldStyle,
+                        focusNode: _focusNode,
+                        controller: _controller,
+                        config: _cubit!.state.config,
+                        onSendMessage: _sendMessage,
                       ),
-                      // Emoji Picker / Keyboard Spacer
-                      ValueListenableBuilder<bool>(
-                        valueListenable: _showEmojiNotifier,
-                        builder: (context, showEmoji, _) {
-                          final bottomInset = MediaQuery.viewInsetsOf(
-                            context,
-                          ).bottom;
-                          return AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            height: showEmoji
-                                ? math.max(300.0, bottomInset)
-                                : bottomInset,
-                            child: showEmoji
-                                ? epf.EmojiPicker(
-                                    textEditingController: _controller,
-                                    config: epf.Config(
-                                      height: 256,
-                                      checkPlatformCompatibility: false,
-                                      skinToneConfig:
-                                          const epf.SkinToneConfig(),
-                                      categoryViewConfig:
-                                          const epf.CategoryViewConfig(),
-                                      bottomActionBarConfig:
-                                          const epf.BottomActionBarConfig(
-                                        enabled: false,
-                                      ),
-                                      searchViewConfig:
-                                          const epf.SearchViewConfig(),
-                                      emojiViewConfig: epf.EmojiViewConfig(
-                                        backgroundColor: widget
-                                            .chatDecoration.backgroundColor,
-                                        columns: 7,
-                                        emojiSizeMax:
-                                            28 * (Platform.isIOS ? 1.20 : 1.0),
-                                      ),
-                                    ),
-                                  )
-                                : const SizedBox.shrink(),
-                          );
-                        },
+                      // Keyboard spacer. It also held the emoji panel, which
+                      // was built under the keyboard every time it opened.
+                      Builder(
+                        builder: (context) => AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          height: MediaQuery.viewInsetsOf(context).bottom,
+                        ),
                       ),
                     ],
                   ),

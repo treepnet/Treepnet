@@ -27,12 +27,6 @@ class _MessageList extends StatefulWidget {
 
 class _MessageListState extends State<_MessageList> {
   late final FocusNode focusNode;
-  List<double> waveformData = [];
-  bool isWaveformReady = false;
-  late String audioFilePath;
-  List<PlatformFile>? paths;
-  Float32List? data;
-  bool average = false;
 
   @override
   void initState() {
@@ -375,17 +369,6 @@ Future<void> _showFailedMessageActions(
     cubit.removeLocalMessage(message.key);
     return;
   }
-  if (message.contentType.isText) {
-    await cubit.retryTextMessage(message);
-    return;
-  }
-  final path = message.filePath;
-  cubit.removeLocalMessage(message.key);
-  if (path == null || path.isEmpty) return;
-  await cubit.sendFileMessage(
-    path,
-    message.content.size,
-    context: context,
-    downScrollCallback: () {},
-  );
+  // Only text is ever sent, so only text can be waiting for a retry.
+  await cubit.retryTextMessage(message);
 }

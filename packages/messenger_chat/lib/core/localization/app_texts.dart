@@ -12,34 +12,14 @@ mixin _AppTexts {
 
   static String get yesterday => _translate('yesterday');
 
-
-
-  static String get recordCancel => _translate('recordCancel');
-
-  static String get swipToLeft => _translate('swipToLeft');
-
-  static String get toSendAudio => _translate('toSendAudio');
-
   static String get cantDownloadImage => _translate('cantDownloadImage');
 
   static String get cancel => _translate('cancel');
 
-  static String get takePhoto => _translate('takePhoto');
-
-  static String get uploadFile => _translate('uploadFile');
-
-  static String get uploadWitGallery => _translate('uploadWitGallery');
-
   static String get socketConnectionNot => _translate('socketConnectionNot');
-
 
   static String get writeHere => _translate('writeHere');
 
-  static String get cancelRecording => _translate('cancelRecording');
-
-  static String get noAppFound => _translate('noAppFound');
-
-  static String get fileOpenError => _translate('fileOpenError');
   static String get noMessages => _translate('noMessages');
   static String get somethingWentWrong => _translate('somethingWentWrong');
   static String get retry => _translate('retry');
@@ -67,5 +47,4 @@ mixin _AppTexts {
       _translate('deleteMessageConfirm');
   static String get editFailed => _translate('editFailed');
   static String get deleteFailed => _translate('deleteFailed');
-  static String get sending => _translate('sending');
 }
