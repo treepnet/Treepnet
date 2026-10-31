@@ -22,7 +22,11 @@ dependencies:
   insta_blocks:
     path: ../insta_blocks
   inview_notifier_list:
-    git: https://github.com/Gambley1/inview_notifier_list
+    git:
+      url: https://github.com/Gambley1/inview_notifier_list
+      # The commit in use: a git dependency without a ref takes whatever
+      # the branch holds at the next install.
+      ref: 8b27aa2dcfda32af8b0da76f8230c3ca1af3cb6c
   marquee: ^2.2.3
   octo_image: ^2.1.0
   path_provider: ^2.1.5

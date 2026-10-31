@@ -1,5 +1,7 @@
 gradle-wrapper.jar
 /.gradle
+# The NDK build cache (rewritten on every build).
+/app/.cxx/
 /captures/
 /local.properties
 GeneratedPluginRegistrant.java

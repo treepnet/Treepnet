@@ -17,18 +17,15 @@ dependencies:
   android_play_install_referrer: ^0.4.0
   app_ui:
     path: packages/app_ui
-  async: ^2.11.0
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
   bloc: ^9.1.0
-  cached_memory_image: ^1.5.0
   cached_network_image: ^3.4.1
   # Story camera. Deliberately its own dependency: the story viewfinder is a
   # separate screen from the New post one, so neither can break the other.
   # Vendored from pub camera 0.11.0+2 so the plugin can't shift under us.
   camera:
     path: packages/camera
-  carousel_slider: ^5.1.1
   collection: ^1.18.0
   database_client:
     path: packages/database_client
@@ -40,24 +37,17 @@ dependencies:
   # service through these). Versions match what the plugin already resolves.
   dio: ^5.8.0+1
   socket_io_client: ^3.1.2
-  env:
-    path: packages/env
   equatable: ^2.0.7
-  fast_immutable_collections: ^10.2.4
   # Push notifications (FCM transport only — see PUSH_NOTIFICATIONS_PLAN.md).
   firebase_core: ^3.8.1
   firebase_messaging: ^15.1.6
   flutter_local_notifications: ^18.0.1
-  flex_color_scheme: ^8.3.1
   flutter:
     sdk: flutter
   flutter_animate: ^4.5.2
   flutter_bloc: ^9.1.1
   flutter_localizations:
     sdk: flutter
-  flutter_markdown_plus: ^1.0.5
-  flutter_portal: ^1.1.4
-  flutter_staggered_grid_view: ^0.7.0
   form_fields:
     path: packages/form_fields
   go_router: ^14.2.7
@@ -68,11 +58,13 @@ dependencies:
     path: packages/instagram_blocks_ui
   intl: ^0.20.2
   inview_notifier_list:
-    git: https://github.com/Gambley1/inview_notifier_list
+    git:
+      url: https://github.com/Gambley1/inview_notifier_list
+      # The commit in use: a git dependency without a ref takes whatever
+      # the branch holds at the next install.
+      ref: 8b27aa2dcfda32af8b0da76f8230c3ca1af3cb6c
   json_annotation: ^4.9.0
   lottie: ^3.1.2
-  ogp_data_extract: ^0.2.2
-  palette_generator: ^0.3.3+3
   path_provider: ^2.1.5
   persistent_storage:
     path: packages/storage/persistent_storage
@@ -82,7 +74,6 @@ dependencies:
   powersync_repository:
     path: packages/powersync_repository
   qr_flutter: ^4.1.0
-  scroll_to_index: ^3.0.1
   scrollable_positioned_list: ^0.3.8
   search_repository:
     path: packages/search_repository
@@ -107,14 +98,11 @@ dependencies:
     path: packages/authentication_client/firebase_authentication_client
   messenger_chat:
     path: packages/messenger_chat
-  timeago: ^3.7.1
   token_storage:
     path: packages/authentication_client/token_storage
   url_launcher: ^6.3.2
   user_repository:
     path: packages/user_repository
-  vector_math: ^2.1.4
-  visibility_detector: ^0.4.0+2
 
 dependency_overrides:
   fading_edge_scrollview: ^4.1.1
