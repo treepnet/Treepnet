@@ -163,41 +163,9 @@ CREATE TRIGGER push_on_subscription
   AFTER INSERT ON public.subscriptions
   FOR EACH ROW EXECUTE FUNCTION public.trg_push_on_subscription();
 
--- ---------------------------------------------------------------------------
--- messages → notify the other participant(s) of the conversation
--- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.trg_push_on_message()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-DECLARE
-  v_actor text;
-  r RECORD;
-BEGIN
-  -- is_deleted is an integer (0/1) in this schema, not boolean.
-  IF COALESCE(NEW.is_deleted, 0) <> 0 THEN RETURN NEW; END IF;
-  v_actor := public.push_actor_name(NEW.from_id);
-  FOR r IN
-    SELECT user_id
-    FROM public.participants
-    WHERE conversation_id = NEW.conversation_id
-      AND user_id <> NEW.from_id
-  LOOP
-    PERFORM public.enqueue_push(
-      r.user_id, NEW.from_id, 'message',
-      v_actor, left(COALESCE(NEW.message, ''), 140),
-      jsonb_build_object('type','message','actor_id',NEW.from_id,
-                         'conversation_id',NEW.conversation_id)
-    );
-  END LOOP;
-  RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS push_on_message ON public.messages;
-CREATE TRIGGER push_on_message
-  AFTER INSERT ON public.messages
-  FOR EACH ROW EXECUTE FUNCTION public.trg_push_on_message();
+-- (The old PowerSync chat's `messages` push trigger was removed on 2026-11-01,
+-- with that chat — see oci-backend/sql/lock_legacy_chat.sql. Direct-message
+-- pushes come from the chat server.)
 
 -- ---------------------------------------------------------------------------
 -- Access: the Azure Function connects as an admin/owner role (same as the

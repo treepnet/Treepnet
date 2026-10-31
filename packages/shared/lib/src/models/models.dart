@@ -1,6 +1,5 @@
 export 'attachment.dart';
 export 'attachment_file.dart';
-export 'chat.dart';
 export 'comment.dart';
 export 'image.dart';
 export 'media.dart';

@@ -172,72 +172,6 @@ const schema = Schema([
     ],
   ),
   Table(
-    'conversations',
-    [
-      Column.text('type'),
-      Column.text('name'),
-      Column.text('created_at'),
-      Column.text('updated_at'),
-    ],
-  ),
-  Table(
-    'participants',
-    [
-      Column.text('user_id'),
-      Column.text('conversation_id'),
-    ],
-    indexes: [
-      Index('conversation', [IndexedColumn('conversation_id')]),
-      Index('user', [IndexedColumn('user_id')]),
-    ],
-  ),
-  Table(
-    'messages',
-    [
-      Column.text('conversation_id'),
-      Column.text('from_id'),
-      Column.text('type'),
-      Column.text('message'),
-      Column.text('reply_message_id'),
-      Column.text('created_at'),
-      Column.text('updated_at'),
-      Column.integer('is_read'),
-      Column.integer('is_deleted'),
-      Column.integer('is_edited'),
-      Column.text('reply_message_username'),
-      Column.text('reply_message_attachment_url'),
-      Column.text('shared_post_id'),
-      Column.text('shared_story_id'),
-      Column.text('reply_message_message'),
-      Column.text('from_username'),
-    ],
-    indexes: [
-      Index('conversation', [IndexedColumn('conversation_id')]),
-      Index('user', [IndexedColumn('from_id')]),
-      Index('message', [IndexedColumn('reply_message_id')]),
-      Index('post', [IndexedColumn('shared_post_id')]),
-    ],
-  ),
-  Table(
-    'attachments',
-    [
-      Column.text('message_id'),
-      Column.text('title'),
-      Column.text('text'),
-      Column.text('title_link'),
-      Column.text('image_url'),
-      Column.text('thumb_url'),
-      Column.text('author_name'),
-      Column.text('author_link'),
-      Column.text('asset_url'),
-      Column.text('og_scrape_url'),
-      Column.text('type'),
-    ],
-    indexes: [
-      Index('message', [IndexedColumn('message_id')]),
-    ],
-  ),
-  Table(
     'subscriptions',
     [
       Column.text('subscriber_id'),
@@ -376,30 +310,4 @@ const schema = Schema([
     Column.text('post_id'),
     Column.text('created_at'),
   ]),
-  // Typing indicator: one row per (conversation, user), upserted while typing.
-  // A fresh updated_at means the user is currently typing.
-  Table(
-    'typing_status',
-    [
-      Column.text('conversation_id'),
-      Column.text('user_id'),
-      Column.text('updated_at'),
-    ],
-    indexes: [
-      Index('conversation', [IndexedColumn('conversation_id')]),
-    ],
-  ),
-  // Read receipts: synced per-(conversation, user) "last read" watermark, so
-  // the sender can show ✓✓ once the recipient has read up to a message.
-  Table(
-    'conversation_reads',
-    [
-      Column.text('conversation_id'),
-      Column.text('user_id'),
-      Column.text('last_read_at'),
-    ],
-    indexes: [
-      Index('conversation', [IndexedColumn('conversation_id')]),
-    ],
-  ),
 ]);

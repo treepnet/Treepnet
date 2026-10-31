@@ -29,7 +29,6 @@ class PostBloc extends Bloc<PostEvent, PostState> {
     on<PostLikeRequested>(_onPostLikeRequested);
     on<PostAuthorFollowRequested>(_onPostAuthorFollowRequested);
     on<PostDeleteRequested>(_onPostDeleteRequested);
-    on<PostShareRequested>(_onPostShareRequested);
     on<PostLikersInFollowingsFetchRequested>(
       _onPostLikersInFollowingsFetchRequested,
     );
@@ -169,26 +168,6 @@ class PostBloc extends Bloc<PostEvent, PostState> {
   ) async {
     try {
       await _postsRepository.deletePost(id: id);
-      emit(state.copyWith(status: PostStatus.success));
-    } catch (error, stackTrace) {
-      addError(error, stackTrace);
-      emit(state.copyWith(status: PostStatus.failure));
-    }
-  }
-
-  Future<void> _onPostShareRequested(
-    PostShareRequested event,
-    Emitter<PostState> emit,
-  ) async {
-    try {
-      await _postsRepository.sharePost(
-        id: id,
-        sender: event.sender,
-        receiver: event.receiver,
-        sharedPostMessage: event.sharedPostMessage.copyWith(sharedPostId: id),
-        message: event.message,
-        postAuthor: event.postAuthor,
-      );
       emit(state.copyWith(status: PostStatus.success));
     } catch (error, stackTrace) {
       addError(error, stackTrace);

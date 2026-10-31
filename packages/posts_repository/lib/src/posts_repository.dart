@@ -213,23 +213,6 @@ class PostsRepository implements PostsBaseRepository {
       _databaseClient.repliedCommentsOf(commentId: commentId);
 
   @override
-  Future<void> sharePost({
-    required String id,
-    required User sender,
-    required User receiver,
-    required Message sharedPostMessage,
-    Message? message,
-    PostAuthor? postAuthor,
-  }) => _databaseClient.sharePost(
-    id: id,
-    sender: sender,
-    sharedPostMessage: sharedPostMessage,
-    message: message,
-    receiver: receiver,
-    postAuthor: postAuthor,
-  );
-
-  @override
   Future<Post?> getPostBy({required String id}) =>
       _databaseClient.getPostBy(id: id);
 
