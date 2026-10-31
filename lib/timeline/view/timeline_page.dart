@@ -1,3 +1,4 @@
+import 'dart:async';
 
 import 'package:app_ui/app_ui.dart';
 import 'package:collection/collection.dart';
@@ -11,6 +12,8 @@ import 'package:treepnet/timeline/timeline.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart' hide VideoPlayer;
 import 'package:inview_notifier_list/inview_notifier_list.dart';
 import 'package:posts_repository/posts_repository.dart';
+import 'package:powersync_repository/powersync_repository.dart'
+    show PowerSyncRepository;
 import 'package:shared/shared.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:sliver_tools/sliver_tools.dart';
@@ -44,11 +47,48 @@ class _TimelineViewState extends State<TimelineView>
   );
   late final AnimationController _controller = AnimationController(vsync: this);
   final _isNextPageLoading = ValueNotifier(false);
+  StreamSubscription<void>? _syncSub;
+  DateTime? _lastSyncedAt;
+
+  /// Whether this device has synced at all: an empty grid before that is
+  /// still loading, after it there are really no posts to show.
+  bool _hasSynced = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final db = context.read<PowerSyncRepository>().db();
+    _hasSynced = db.currentStatus.hasSynced ?? false;
+    _lastSyncedAt = db.currentStatus.lastSyncedAt;
+    // A first page read before this account's rows arrived came back empty
+    // (or failed) and was never asked again: the grid loaded forever, and
+    // its "no more pages" stopped paging too. Once a sync lands, try again.
+    _syncSub = db.statusStream.listen((status) {
+      final syncedAt = status.lastSyncedAt;
+      if (syncedAt == null || syncedAt == _lastSyncedAt || !mounted) return;
+      _lastSyncedAt = syncedAt;
+      if (!_hasSynced) setState(() => _hasSynced = true);
+      final bloc = context.read<TimelineBloc>();
+      if (bloc.state.timeline.blocks.isEmpty || bloc.state.status.isFailure) {
+        bloc.add(const TimelineRefreshRequested());
+      }
+    });
+  }
 
   @override
   void dispose() {
+    _syncSub?.cancel();
     _isNextPageLoading.dispose();
     super.dispose();
+  }
+
+  /// Waits (at most 15s) for the bloc to settle, so a spinner stays up until
+  /// the answer is in rather than closing right away.
+  Future<void> _settled(bool Function(TimelineState state) done) async {
+    final bloc = context.read<TimelineBloc>();
+    await bloc.stream
+        .firstWhere(done)
+        .timeout(const Duration(seconds: 15), onTimeout: () => bloc.state);
   }
 
   @override
@@ -60,13 +100,22 @@ class _TimelineViewState extends State<TimelineView>
     return AppScaffold(
       releaseFocus: true,
       body: RefreshIndicator.adaptive(
-        onRefresh: () async =>
-            context.read<TimelineBloc>().add(const TimelineRefreshRequested()),
+        onRefresh: () async {
+          context.read<TimelineBloc>().add(const TimelineRefreshRequested());
+          await _settled((state) => !state.status.isLoading);
+        },
         child: InViewNotifierCustomScrollView(
           onListEndReached: () async {
             if (!hasMore) return;
-            Future<void> onEndReached() async =>
-                context.read<TimelineBloc>().add(const TimelinePageRequested());
+            Future<void> onEndReached() async {
+              final bloc = context.read<TimelineBloc>();
+              final page = bloc.state.timeline.page;
+              bloc.add(const TimelinePageRequested());
+              await _settled(
+                (state) =>
+                    state.timeline.page != page || state.status.isFailure,
+              );
+            }
 
             if (_isNextPageLoading.value) return;
 
@@ -98,21 +147,27 @@ class _TimelineViewState extends State<TimelineView>
               toolbarHeight: 64,
             ),
             BlocBuilder<TimelineBloc, TimelineState>(
+              // A change of status rebuilds too: a failure (or an empty first
+              // page) used to leave the loading shimmer up for good.
               buildWhen: (previous, current) {
-                return current.status.isPopulated &&
+                return previous.status != current.status ||
                     !const ListEquality<InstaBlock>().equals(
                       previous.timeline.blocks,
                       current.timeline.blocks,
                     );
               },
               builder: (context, state) {
-                if (state.status.isFailure) return const TimelineError();
+                final blocks = state.timeline.blocks;
+                // Posts on screen stay on screen, whatever the status.
+                if (blocks.isEmpty && state.status.isFailure) {
+                  return const TimelineError();
+                }
                 return SliverAnimatedSwitcher(
                   duration: 150.ms,
-                  child: state.status.isPopulated
-                      ? TimelineGridView(
-                          blocks: state.timeline.blocks.cast<PostBlock>(),
-                        )
+                  child: blocks.isNotEmpty
+                      ? TimelineGridView(blocks: blocks.cast<PostBlock>())
+                      : _hasSynced && state.status.isPopulated
+                      ? const TimelineEmpty()
                       : const TimelineLoading(),
                 );
               },
@@ -252,6 +307,24 @@ class TimelineLoading extends StatelessWidget {
           itemCount: 20,
           itemBuilder: (context, index) =>
               const ColoredBox(color: AppColors.dark),
+        ),
+      ),
+    );
+  }
+}
+
+/// No posts to show, after a sync (before one the grid is still loading).
+class TimelineEmpty extends StatelessWidget {
+  const TimelineEmpty({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverFillRemaining(
+      hasScrollBody: false,
+      child: Center(
+        child: Text(
+          context.l10n.noPostsHereText,
+          style: context.titleMedium,
         ),
       ),
     );

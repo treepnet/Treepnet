@@ -28,7 +28,12 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
     TimelinePageRequested event,
     Emitter<TimelineState> emit,
   ) async {
-    emit(state.copyWith(status: TimelineStatus.populated));
+    // Loading only while there is nothing on screen yet (the first page or a
+    // retry); a later page keeps the grid as it is. This used to say
+    // "populated" here, so an empty first page looked finished at once.
+    if (state.timeline.blocks.isEmpty) {
+      emit(state.copyWith(status: TimelineStatus.loading));
+    }
     try {
       final currentPage = event.page ?? state.timeline.page;
 
