@@ -91,6 +91,23 @@ class ImageCompress {
     );
   }
 
+  /// Re-encodes a picked avatar as a JPEG of at most 512px on its shorter
+  /// side, whatever it came as. The old path kept PNGs as PNG and passed HEIC
+  /// (iPhone photos) through untouched — which Android may not display — at
+  /// up to 1000px, for a picture shown at 40–80px in lists.
+  static Future<XFile?> compressAvatar(File file) {
+    final filePath = file.absolute.path;
+    final dot = filePath.lastIndexOf('.');
+    final base = dot == -1 ? filePath : filePath.substring(0, dot);
+    return FlutterImageCompress.compressAndGetFile(
+      filePath,
+      '${base}_avatar.jpg',
+      minWidth: 512,
+      minHeight: 512,
+      quality: 80,
+    );
+  }
+
   /// Compress image file.
   static Future<XFile?> compressFile(File file) async {
     final filePath = file.absolute.path;

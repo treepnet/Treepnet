@@ -3171,6 +3171,12 @@ abstract class AppLocalizations {
   /// **'Log out anyway'**
   String get logOutAnywayText;
 
+  /// No description provided for @avatarUpdateFailedText.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t update the photo. Try again.'**
+  String get avatarUpdateFailedText;
+
   /// No description provided for @searchNothingFoundText.
   ///
   /// In en, this message translates to:

@@ -979,5 +979,6 @@
     }
   },
   "logOutAnywayText": "Log out anyway",
+  "avatarUpdateFailedText": "Couldn't update the photo. Try again.",
   "searchNothingFoundText": "Nothing found"
 }

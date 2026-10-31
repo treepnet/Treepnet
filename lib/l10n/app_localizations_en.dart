@@ -1863,5 +1863,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get logOutAnywayText => 'Log out anyway';
 
   @override
+  String get avatarUpdateFailedText => 'Couldn\'t update the photo. Try again.';
+
+  @override
   String get searchNothingFoundText => 'Nothing found';
 }

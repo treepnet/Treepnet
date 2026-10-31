@@ -96,10 +96,15 @@ class UserProfileAvatar extends StatelessWidget {
 
   /// Picks an image, compresses it and uploads it to the `avatars` container,
   /// returning its public URL — or null if the picker was dismissed.
+  /// [onPicked] runs once a photo is chosen, before the work starts (to show
+  /// progress). Throws when the photo can't be converted or the upload fails.
   ///
   /// Static so that callers with their own affordance (a menu, a button) can
   /// reuse the whole pick→compress→upload path instead of tapping the avatar.
-  static Future<String?> pickAndUpload(BuildContext context) async {
+  static Future<String?> pickAndUpload(
+    BuildContext context, {
+    VoidCallback? onPicked,
+  }) async {
     Future<void> precacheAvatarUrl(String url) =>
         precacheImage(CachedNetworkImageProvider(url), context);
 
@@ -112,25 +117,24 @@ class UserProfileAvatar extends StatelessWidget {
 
     final selectedFile = imageFile.selectedFiles.firstOrNull;
     if (selectedFile == null) return null;
-    final compressed = await ImageCompress.compressFile(
+    onPicked?.call();
+    // Always a small JPEG (see ImageCompress.compressAvatar).
+    final compressed = await ImageCompress.compressAvatar(
       selectedFile.selectedFile,
     );
-    final compressedFile = compressed == null ? null : File(compressed.path);
-    final file = compressedFile ?? selectedFile.selectedFile;
-    final compressedBytes = compressedFile == null
-        ? null
-        : await PickImage().imageBytes(file: compressedFile);
-    final bytes = compressedBytes ?? selectedFile.selectedByte;
+    if (compressed == null) {
+      throw StateError('Could not convert the picked photo');
+    }
+    final bytes = await PickImage().imageBytes(file: File(compressed.path));
     final avatarsStorage = MediaStorage.instance.from('avatars');
 
-    final fileExt = file.path.split('.').last.toLowerCase();
-    final fileName = '${DateTime.now().toIso8601String()}.$fileExt';
+    final fileName = '${DateTime.now().toIso8601String()}.jpg';
     // The backend stores it under the user's own avatar folder and says where.
     final storedPath = await avatarsStorage.uploadBinary(
       fileName,
       bytes,
-      fileOptions: MediaFileOptions(
-        contentType: 'image/$fileExt',
+      fileOptions: const MediaFileOptions(
+        contentType: 'image/jpeg',
         cacheControl: '360000',
       ),
     );

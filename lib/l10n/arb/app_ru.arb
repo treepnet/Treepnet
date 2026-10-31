@@ -904,5 +904,6 @@
   "deleteAccountFailedText": "Не удалось удалить аккаунт. Попробуйте ещё раз.",
   "logOutUnsavedChangesText": "Несохранённых изменений: {count}. Они ещё не дошли до сервера и пропадут, если выйти сейчас.",
   "logOutAnywayText": "Всё равно выйти",
+  "avatarUpdateFailedText": "Не удалось обновить фото. Попробуйте ещё раз.",
   "searchNothingFoundText": "Ничего не найдено"
 }

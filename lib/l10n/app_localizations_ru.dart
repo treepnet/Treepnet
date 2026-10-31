@@ -1890,5 +1890,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get logOutAnywayText => 'Всё равно выйти';
 
   @override
+  String get avatarUpdateFailedText =>
+      'Не удалось обновить фото. Попробуйте ещё раз.';
+
+  @override
   String get searchNothingFoundText => 'Ничего не найдено';
 }

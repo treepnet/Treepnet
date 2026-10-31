@@ -1,4 +1,5 @@
 import 'package:app_ui/app_ui.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -87,7 +88,31 @@ class _UserProfileEditViewState extends State<UserProfileEditView> {
 
     switch (action) {
       case _AvatarAction.change:
-        final url = await UserProfileAvatar.pickAndUpload(context);
+        // The loading bar while it uploads (once a photo is chosen); a
+        // failure (no connection, the photo couldn't be converted) is said
+        // instead of passing silently.
+        String? url;
+        try {
+          url = await UserProfileAvatar.pickAndUpload(
+            context,
+            onPicked: toggleLoadingIndeterminate,
+          );
+        } catch (error) {
+          // A refused upload (the server answered) isn't a connection issue.
+          final offline =
+              error is DioException &&
+              error.type != DioExceptionType.badResponse;
+          openSnackbar(
+            SnackbarMessage.error(
+              title: offline
+                  ? l10n.networkProblemText
+                  : l10n.avatarUpdateFailedText,
+            ),
+          );
+          return;
+        } finally {
+          toggleLoadingIndeterminate(enable: false);
+        }
         // The pick+upload is async; by the time it returns the profile page
         // (and its bloc) may be gone — adding then throws "Cannot add new
         // events after calling close".
