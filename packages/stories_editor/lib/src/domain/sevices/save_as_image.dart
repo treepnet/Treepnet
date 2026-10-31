@@ -70,12 +70,24 @@ Future<dynamic> takePicture({
   try {
     final boundary =
         contentKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+    if (boundary == null) return false;
 
-    final image = await boundary?.toImage(pixelRatio: 3.0);
-
-    final byteData = await image?.toByteData(format: ui.ImageByteFormat.png);
+    // 1080px wide, the size a story is uploaded at, rather than 3x the screen
+    // (1320x2868 on a large iPhone): that was slow to encode as PNG and got
+    // shrunk again anyway. Never more than the old 3x.
+    final width = boundary.size.width;
+    final pixelRatio = width > 0 ? min(3.0, 1080 / width) : 3.0;
+    final image = await boundary.toImage(pixelRatio: pixelRatio);
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
     final pngBytes = byteData?.buffer.asUint8List();
-    final compressedBytes = await ImageCompress.compressByte(pngBytes);
+    if (pngBytes == null) return false;
+    // A story stays lossless here: the upload queue makes its one JPEG
+    // (1080px, quality 82). It used to be re-encoded here first as well, so
+    // it lost quality twice. A copy for the gallery is still a JPEG.
+    final compressedBytes = saveToGallery
+        ? await ImageCompress.compressByte(pngBytes)
+        : pngBytes;
 
     /// create file
     // In the temp folder: the upload queue copies it straight away (and then
