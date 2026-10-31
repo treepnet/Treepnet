@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:database_client/src/invite_badge.dart';
+import 'package:database_client/src/post_stats.dart';
 import 'package:powersync_repository/powersync_repository.dart';
 import 'package:shared/shared.dart';
 import 'package:user_repository/user_repository.dart';
@@ -286,6 +287,11 @@ abstract class PostsBaseRepository {
     required String id,
     bool post = true,
   });
+
+  /// The counts and the viewer's state for every post in [postIds], in one
+  /// live query, keyed by post id. A post that isn't on this device is left
+  /// out.
+  Stream<Map<String, PostStats>> postStatsOf({required List<String> postIds});
 
   /// Returns a real-time stream of whether the post by [id] is liked by user
   /// identified by [userId].
@@ -1897,6 +1903,75 @@ WHERE $statement = ? AND $statement IS NOT NULL
         .map(
           (result) => result.safeMap((row) => row['total_likes']).first as int,
         );
+  }
+
+  /// One row per post, each column what a card's own query used to read:
+  /// [likesOf], [commentsAmountOf], [isLiked], [isBookmarked],
+  /// `followingStatus`, [travelTierOf] and the length of [visitedPointsOf].
+  /// PowerSync re-runs it when any of those tables changes — once for the
+  /// whole screen instead of once per card and column.
+  @override
+  Stream<Map<String, PostStats>> postStatsOf({
+    required List<String> postIds,
+  }) {
+    if (postIds.isEmpty) return Stream.value(const {});
+    return _powerSyncRepository
+        .db()
+        .watch(
+          '''
+SELECT
+  p.id AS post_id,
+  (SELECT COUNT(*) FROM likes l
+     WHERE l.post_id = p.id) AS likes,
+  (SELECT COUNT(*) FROM comments c
+     WHERE c.post_id = p.id AND ${_notBlockedSql('c.user_id')}) AS comments,
+  EXISTS (SELECT 1 FROM likes l
+     WHERE l.user_id = ?2 AND l.post_id = p.id) AS is_liked,
+  EXISTS (SELECT 1 FROM saved_posts s
+     WHERE s.user_id = ?2 AND s.post_id = p.id) AS is_bookmarked,
+  EXISTS (SELECT 1 FROM subscriptions f
+     WHERE f.subscriber_id = ?2 AND f.subscribed_to_id = p.user_id
+       AND (f.status = 'accepted' OR f.status IS NULL)) AS is_followed,
+  a.referral_tier AS author_tier,
+  a.referral_tier_expires_at AS author_tier_expires_at,
+  CASE WHEN ${_visibleAuthorSql('p.user_id')} THEN
+    (SELECT COUNT(*) FROM posts v
+       WHERE v.user_id = p.user_id
+         AND v.location_lat IS NOT NULL AND v.location_lng IS NOT NULL)
+  ELSE 0 END AS author_places
+FROM posts p
+LEFT JOIN profiles a ON a.id = p.user_id
+WHERE p.id IN (SELECT value FROM json_each(?1))
+''',
+          parameters: [jsonEncode(postIds), currentUserId],
+        )
+        .map((rows) {
+          final now = DateTime.now();
+          return {
+            for (final row in rows)
+              row['post_id'] as String: PostStats(
+                likes: (row['likes'] as int?) ?? 0,
+                comments: (row['comments'] as int?) ?? 0,
+                isLiked: (row['is_liked'] as int?) == 1,
+                isBookmarked: (row['is_bookmarked'] as int?) == 1,
+                isAuthorFollowed: (row['is_followed'] as int?) == 1,
+                authorTier: _liveTier(
+                  row['author_tier'] as int?,
+                  row['author_tier_expires_at'] as String?,
+                  now,
+                ),
+                authorPlaces: (row['author_places'] as int?) ?? 0,
+              ),
+          };
+        });
+  }
+
+  /// [travelTierOf]'s rule: a tier counts only until it runs out.
+  static int _liveTier(int? tier, String? expiresAt, DateTime now) {
+    if (tier == null || tier <= 0) return 0;
+    final endsAt = DateTime.tryParse(expiresAt ?? '');
+    if (endsAt == null) return 0;
+    return now.isBefore(endsAt) ? tier : 0;
   }
 
   @override

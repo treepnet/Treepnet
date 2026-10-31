@@ -14,6 +14,8 @@ class PostState extends Equatable {
     this.isBookmarked = false,
     this.likersInFollowings,
     this.isFollowed,
+    this.authorTier = 0,
+    this.authorPlaces = 0,
   });
 
   factory PostState.fromJson(Map<String, dynamic> json) =>
@@ -39,6 +41,12 @@ class PostState extends Equatable {
   final bool isBookmarked;
   final bool? isFollowed;
 
+  /// The author's travel tier badge (0: none).
+  final int authorTier;
+
+  /// How many of the author's posts have a location.
+  final int authorPlaces;
+
   Map<String, dynamic> toJson() => _$PostStateToJson(this);
 
   @override
@@ -52,6 +60,8 @@ class PostState extends Equatable {
     isOwner,
     isBookmarked,
     isFollowed,
+    authorTier,
+    authorPlaces,
   ];
 
   PostState copyWith({
@@ -64,6 +74,8 @@ class PostState extends Equatable {
     bool? isOwner,
     bool? isBookmarked,
     bool? isFollowed,
+    int? authorTier,
+    int? authorPlaces,
   }) {
     return PostState(
       status: status ?? this.status,
@@ -75,6 +87,8 @@ class PostState extends Equatable {
       isOwner: isOwner ?? this.isOwner,
       isBookmarked: isBookmarked ?? this.isBookmarked,
       isFollowed: isFollowed ?? this.isFollowed,
+      authorTier: authorTier ?? this.authorTier,
+      authorPlaces: authorPlaces ?? this.authorPlaces,
     );
   }
 }

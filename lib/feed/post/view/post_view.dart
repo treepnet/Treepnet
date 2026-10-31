@@ -106,12 +106,8 @@ class _PostLargeViewState extends State<PostLargeView> {
   void initState() {
     super.initState();
     context.read<PostBloc>()
-      ..add(const PostLikesCountSubscriptionRequested())
-      ..add(const PostCommentsCountSubscriptionRequested())
-      ..add(const PostIsLikedSubscriptionRequested())
-      ..add(const PostIsBookmarkedSubscriptionRequested())
       ..add(
-        PostAuthorFollowingStatusSubscriptionRequested(
+        PostStatsSubscriptionRequested(
           ownerId: widget.block.author.id,
           currentUserId: context.read<AppBloc>().state.user.id,
         ),
@@ -132,6 +128,12 @@ class _PostLargeViewState extends State<PostLargeView> {
     final commentsCount = context.select(
       (PostBloc bloc) => bloc.state.commentsCount,
     );
+    final authorTier = context.select(
+      (PostBloc bloc) => bloc.state.authorTier,
+    );
+    final authorPlaces = context.select(
+      (PostBloc bloc) => bloc.state.authorPlaces,
+    );
 
     return PostLarge(
       block: widget.block,
@@ -150,8 +152,8 @@ class _PostLargeViewState extends State<PostLargeView> {
       likesCountBuilder: (onUserTap) =>
           PostLikesCount(block: widget.block, onUserTap: onUserTap),
       likersInFollowingsBuilder: PostLikersInFollowings.new,
-      authorBadge: TravelTierBadge(userId: widget.block.author.id),
-      authorSubtitle: _AuthorLocationCount(userId: widget.block.author.id),
+      authorBadge: TravelTierBadge.tier(authorTier),
+      authorSubtitle: _AuthorLocationCount(count: authorPlaces),
       postAuthorAvatarBuilder: (context, author, onAvatarTap) {
         return UserStoriesAvatar(
           resizeHeight: 108,
@@ -264,24 +266,19 @@ class _PostLargeViewState extends State<PostLargeView> {
 /// under their name in the post header (a travel-app twist on the usual
 /// location subtitle).
 class _AuthorLocationCount extends StatelessWidget {
-  const _AuthorLocationCount({required this.userId});
+  const _AuthorLocationCount({required this.count});
 
-  final String userId;
+  /// Every pinned post counts, not the distinct regions they fall in —
+  /// 28 posts across 9 provinces reads as "28 locations", not "9". Comes
+  /// with the post's stats (PostStats.authorPlaces).
+  final int count;
 
   @override
   Widget build(BuildContext context) {
-    // Every pinned post counts, not the distinct regions they fall in —
-    // 28 posts across 9 provinces reads as "28 locations", not "9".
-    return StreamBuilder<List<({double lat, double lng, String? name})>>(
-      stream: context.read<PostsRepository>().visitedPointsOf(userId: userId),
-      builder: (context, snapshot) {
-        final count = snapshot.data?.length ?? 0;
-        if (count == 0) return const SizedBox.shrink();
-        return Text(
-          context.l10n.locationsCountText(count),
-          style: context.bodySmall?.copyWith(color: AppColors.textSecondary),
-        );
-      },
+    if (count == 0) return const SizedBox.shrink();
+    return Text(
+      context.l10n.locationsCountText(count),
+      style: context.bodySmall?.copyWith(color: AppColors.textSecondary),
     );
   }
 }

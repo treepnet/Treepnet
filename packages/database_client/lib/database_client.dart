@@ -3,3 +3,4 @@ library;
 
 export 'src/database_client.dart';
 export 'src/invite_badge.dart';
+export 'src/post_stats.dart';

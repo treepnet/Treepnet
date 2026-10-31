@@ -103,22 +103,63 @@ class _BurstPainter extends CustomPainter {
 /// Tier comes from `travelTierOf`: invites buy the months it stays visible for,
 /// and the colour reflects how densely the person explores. It disappears once
 /// the bought time runs out.
-class TravelTierBadge extends StatelessWidget {
-  const TravelTierBadge({required this.userId, this.size = 14, super.key});
+class TravelTierBadge extends StatefulWidget {
+  const TravelTierBadge({
+    required String this.userId,
+    this.size = 14,
+    super.key,
+  }) : tier = null;
 
-  final String userId;
+  /// For a [tier] already at hand — a post card has it from its stats, so it
+  /// doesn't open a query of its own.
+  const TravelTierBadge.tier(int this.tier, {this.size = 14, super.key})
+    : userId = null;
+
+  final String? userId;
+  final int? tier;
   final double size;
 
   @override
+  State<TravelTierBadge> createState() => _TravelTierBadgeState();
+}
+
+class _TravelTierBadgeState extends State<TravelTierBadge> {
+  /// Made once per user, not on every build: a new stream each build closed
+  /// and reopened the live query whenever the row around it rebuilt.
+  Stream<int>? _tier;
+
+  @override
+  void initState() {
+    super.initState();
+    _watch();
+  }
+
+  @override
+  void didUpdateWidget(covariant TravelTierBadge oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.userId != widget.userId) _watch();
+  }
+
+  void _watch() {
+    final userId = widget.userId;
+    _tier = userId == null
+        ? null
+        : context.read<UserRepository>().travelTierOf(userId: userId);
+  }
+
+  Widget _badge(int tier) {
+    if (tier <= 0) return const SizedBox.shrink();
+    final t = kReferralTiers[(tier - 1).clamp(0, kReferralTiers.length - 1)];
+    return VerificationBadge(color: t.color, size: widget.size);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final tier = widget.tier;
+    if (tier != null) return _badge(tier);
     return StreamBuilder<int>(
-      stream: context.read<UserRepository>().travelTierOf(userId: userId),
-      builder: (context, snapshot) {
-        final tier = snapshot.data ?? 0;
-        if (tier <= 0) return const SizedBox.shrink();
-        final t = kReferralTiers[(tier - 1).clamp(0, kReferralTiers.length - 1)];
-        return VerificationBadge(color: t.color, size: size);
-      },
+      stream: _tier,
+      builder: (context, snapshot) => _badge(snapshot.data ?? 0),
     );
   }
 }

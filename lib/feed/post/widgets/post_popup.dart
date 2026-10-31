@@ -79,11 +79,13 @@ class PostPopup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
+      // No live query per grid tile: the popup asks for the liked state when
+      // it opens (see PopupModal.onLongPress).
       create: (context) => PostBloc(
         postId: block.id,
         postsRepository: context.read<PostsRepository>(),
         userRepository: context.read<UserRepository>(),
-      )..add(const PostIsLikedSubscriptionRequested()),
+      ),
       child: PopupModal(
         block: block,
         index: index,
@@ -139,6 +141,10 @@ class _PostPopupState extends State<PopupModal>
 
   final _isLiked = ValueNotifier(false);
   StreamSubscription<PostState>? _isLikedSubscription;
+
+  /// Whether the post's stats (the liked state) have been asked for — on the
+  /// first long press, so a grid of tiles keeps no live queries.
+  bool _statsRequested = false;
 
   @override
   void initState() {
@@ -281,6 +287,15 @@ class _PostPopupState extends State<PopupModal>
   }
 
   void onLongPress(PostBloc bloc) {
+    if (!_statsRequested) {
+      _statsRequested = true;
+      bloc.add(
+        PostStatsSubscriptionRequested(
+          ownerId: widget.block.author.id,
+          currentUserId: context.read<AppBloc>().state.user.id,
+        ),
+      );
+    }
     _popupDialog = _createPopupDialog(bloc);
     Overlay.of(context).insert(_popupDialog!);
     _popupEmptyDialog = _createPopupEmptyDialog();

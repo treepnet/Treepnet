@@ -22,20 +22,8 @@ class PostBloc extends Bloc<PostEvent, PostState> {
        _postsRepository = postsRepository,
        _userRepository = userRepository,
        super(const PostState.initial()) {
-    on<PostLikesCountSubscriptionRequested>(
-      _onPostLikesCountSubscriptionRequested,
-    );
-    on<PostCommentsCountSubscriptionRequested>(
-      _onPostCommentsCountSubscriptionRequested,
-    );
-    on<PostIsLikedSubscriptionRequested>(_onPostIsLikedSubscriptionRequested);
-    on<PostIsBookmarkedSubscriptionRequested>(
-      _onPostIsBookmarkedSubscriptionRequested,
-    );
+    on<PostStatsSubscriptionRequested>(_onPostStatsSubscriptionRequested);
     on<PostBookmarkRequested>(_onPostBookmarkRequested);
-    on<PostAuthorFollowingStatusSubscriptionRequested>(
-      _onPostAuthorFollowingStatusSubscriptionRequested,
-    );
     on<PostLikersPageRequested>(_onPostLikersPageRequested);
     on<PostUpdateRequested>(_onPostUpdateRequested);
     on<PostLikeRequested>(_onPostLikeRequested);
@@ -57,55 +45,25 @@ class PostBloc extends Bloc<PostEvent, PostState> {
   /// The post this bloc is for.
   String get id => _postId;
 
-  Future<void> _onPostLikesCountSubscriptionRequested(
-    PostLikesCountSubscriptionRequested event,
+  Future<void> _onPostStatsSubscriptionRequested(
+    PostStatsSubscriptionRequested event,
     Emitter<PostState> emit,
   ) async {
+    // No follow state on your own post (no Follow button either).
+    final isOwner = event.currentUserId == event.ownerId;
+    if (isOwner) emit(state.copyWith(isOwner: true));
     await emit.forEach(
-      _postsRepository.likesOf(id: id),
-      onData: (likesCount) => state.copyWith(likes: likesCount),
-      onError: (error, stackTrace) {
-        addError(error, stackTrace);
-        return state.copyWith(status: PostStatus.failure);
-      },
-    );
-  }
-
-  Future<void> _onPostCommentsCountSubscriptionRequested(
-    PostCommentsCountSubscriptionRequested event,
-    Emitter<PostState> emit,
-  ) async {
-    await emit.forEach(
-      _postsRepository.commentsAmountOf(postId: id),
-      onData: (commentsCount) => state.copyWith(commentsCount: commentsCount),
-      onError: (error, stackTrace) {
-        addError(error, stackTrace);
-        return state.copyWith(status: PostStatus.failure);
-      },
-    );
-  }
-
-  Future<void> _onPostIsLikedSubscriptionRequested(
-    PostIsLikedSubscriptionRequested event,
-    Emitter<PostState> emit,
-  ) async {
-    await emit.forEach(
-      _postsRepository.isLiked(id: id),
-      onData: (isLiked) => state.copyWith(isLiked: isLiked),
-      onError: (error, stackTrace) {
-        addError(error, stackTrace);
-        return state.copyWith(status: PostStatus.failure);
-      },
-    );
-  }
-
-  Future<void> _onPostIsBookmarkedSubscriptionRequested(
-    PostIsBookmarkedSubscriptionRequested event,
-    Emitter<PostState> emit,
-  ) async {
-    await emit.forEach(
-      _postsRepository.isBookmarked(postId: id),
-      onData: (isBookmarked) => state.copyWith(isBookmarked: isBookmarked),
+      _postsRepository.statsOf(postId: id),
+      onData: (stats) => state.copyWith(
+        likes: stats.likes,
+        commentsCount: stats.comments,
+        isLiked: stats.isLiked,
+        isBookmarked: stats.isBookmarked,
+        isOwner: isOwner,
+        isFollowed: isOwner ? null : stats.isAuthorFollowed,
+        authorTier: stats.authorTier,
+        authorPlaces: stats.authorPlaces,
+      ),
       onError: (error, stackTrace) {
         addError(error, stackTrace);
         return state.copyWith(status: PostStatus.failure);
@@ -124,25 +82,6 @@ class PostBloc extends Bloc<PostEvent, PostState> {
       addError(error, stackTrace);
       emit(state.copyWith(status: PostStatus.failure));
     }
-  }
-
-  Future<void> _onPostAuthorFollowingStatusSubscriptionRequested(
-    PostAuthorFollowingStatusSubscriptionRequested event,
-    Emitter<PostState> emit,
-  ) async {
-    if (event.currentUserId == event.ownerId) {
-      emit(state.copyWith(isOwner: true));
-      return;
-    }
-    await emit.forEach(
-      _userRepository.followingStatus(userId: event.ownerId),
-      onData: (isFollowed) =>
-          state.copyWith(isFollowed: isFollowed, isOwner: false),
-      onError: (error, stackTrace) {
-        addError(error, stackTrace);
-        return state.copyWith(status: PostStatus.failure);
-      },
-    );
   }
 
   Future<void> _onPostLikersPageRequested(

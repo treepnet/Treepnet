@@ -7,16 +7,17 @@ sealed class PostEvent extends Equatable {
   List<Object> get props => [];
 }
 
-final class PostLikesCountSubscriptionRequested extends PostEvent {
-  const PostLikesCountSubscriptionRequested();
-}
+/// Keeps the post's counts, the viewer's liked / saved / following state and
+/// the author's badge and places count up to date — from the one query all
+/// cards share (PostsRepository.statsOf).
+final class PostStatsSubscriptionRequested extends PostEvent {
+  const PostStatsSubscriptionRequested({
+    required this.ownerId,
+    required this.currentUserId,
+  });
 
-final class PostCommentsCountSubscriptionRequested extends PostEvent {
-  const PostCommentsCountSubscriptionRequested();
-}
-
-final class PostIsLikedSubscriptionRequested extends PostEvent {
-  const PostIsLikedSubscriptionRequested();
+  final String ownerId;
+  final String currentUserId;
 }
 
 final class PostUpdateRequested extends PostEvent {
@@ -24,16 +25,6 @@ final class PostUpdateRequested extends PostEvent {
 
   final String? caption;
   final ValueSetter<PostBlock>? onPostUpdated;
-}
-
-final class PostAuthorFollowingStatusSubscriptionRequested extends PostEvent {
-  const PostAuthorFollowingStatusSubscriptionRequested({
-    required this.ownerId,
-    required this.currentUserId,
-  });
-
-  final String ownerId;
-  final String currentUserId;
 }
 
 final class PostLikersInFollowingsFetchRequested extends PostEvent {
@@ -48,10 +39,6 @@ final class PostLikersPageRequested extends PostEvent {
 
 final class PostLikeRequested extends PostEvent {
   const PostLikeRequested();
-}
-
-final class PostIsBookmarkedSubscriptionRequested extends PostEvent {
-  const PostIsBookmarkedSubscriptionRequested();
 }
 
 final class PostBookmarkRequested extends PostEvent {

@@ -1,4 +1,5 @@
 import 'package:database_client/database_client.dart';
+import 'package:posts_repository/src/post_stats_hub.dart';
 import 'package:shared/shared.dart';
 import 'package:user_repository/user_repository.dart';
 
@@ -7,10 +8,22 @@ import 'package:user_repository/user_repository.dart';
 /// {@endtemplate}
 class PostsRepository implements PostsBaseRepository {
   /// {@macro posts_repository}
-  const PostsRepository({required DatabaseClient databaseClient})
-    : _databaseClient = databaseClient;
+  PostsRepository({required DatabaseClient databaseClient})
+    : _databaseClient = databaseClient,
+      _statsHub = PostStatsHub(databaseClient);
 
   final DatabaseClient _databaseClient;
+  final PostStatsHub _statsHub;
+
+  /// The live counts and viewer state a post card shows for [postId]. All
+  /// cards share one query (see [PostStatsHub]).
+  Stream<PostStats> statsOf({required String postId}) =>
+      _statsHub.statsOf(postId);
+
+  @override
+  Stream<Map<String, PostStats>> postStatsOf({
+    required List<String> postIds,
+  }) => _databaseClient.postStatsOf(postIds: postIds);
 
   @override
   Future<List<Post>> getPage({

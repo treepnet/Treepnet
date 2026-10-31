@@ -41,6 +41,14 @@ PostState _$PostStateFromJson(Map<String, dynamic> json) => $checkedCreate(
             .toList(),
       ),
       isFollowed: $checkedConvert('is_followed', (v) => v as bool?),
+      authorTier: $checkedConvert(
+        'author_tier',
+        (v) => (v as num?)?.toInt() ?? 0,
+      ),
+      authorPlaces: $checkedConvert(
+        'author_places',
+        (v) => (v as num?)?.toInt() ?? 0,
+      ),
     );
     return val;
   },
@@ -51,6 +59,8 @@ PostState _$PostStateFromJson(Map<String, dynamic> json) => $checkedCreate(
     'isBookmarked': 'is_bookmarked',
     'likersInFollowings': 'likers_in_followings',
     'isFollowed': 'is_followed',
+    'authorTier': 'author_tier',
+    'authorPlaces': 'author_places',
   },
 );
 
@@ -66,6 +76,8 @@ Map<String, dynamic> _$PostStateToJson(PostState instance) => <String, dynamic>{
   'is_owner': instance.isOwner,
   'is_bookmarked': instance.isBookmarked,
   'is_followed': ?instance.isFollowed,
+  'author_tier': instance.authorTier,
+  'author_places': instance.authorPlaces,
 };
 
 const _$PostStatusEnumMap = {
