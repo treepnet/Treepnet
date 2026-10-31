@@ -20,6 +20,14 @@ class _TextMessageState extends State<_TextMessage> {
   bool _isFetching = false;
   String? _detectedUrl;
 
+  /// Only explicit http(s) links. The old pattern took any word with a dot —
+  /// "file.txt", "3.14" — and fetched https://file.txt.
+  static final _urlPattern = RegExp(r'https?://[^\s<>"]+', caseSensitive: false);
+
+  /// Links whose preview couldn't be fetched this session, so they aren't
+  /// asked for again each time the bubble scrolls back into view.
+  static final _failedPreviews = <String>{};
+
   @override
   void initState() {
     super.initState();
@@ -36,48 +44,53 @@ class _TextMessageState extends State<_TextMessage> {
 
   void _checkAndFetch() {
     final content = widget.message.content.content;
-    final urlRegex = RegExp(
-      r'(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-?=%.]+',
-    );
-    final match = urlRegex.firstMatch(content);
-    final url = match?.group(0);
-
-    if (url != null && url != _detectedUrl) {
-      _detectedUrl = url;
-      _fetchMetadata(url.startsWith('http') ? url : 'https://$url');
-    } else if (url == null) {
+    final found = _urlPattern.firstMatch(content)?.group(0);
+    // A sentence's closing punctuation isn't part of the link.
+    final url = found?.replaceFirst(RegExp(r'[.,!?;:)\]]+$'), '');
+    final uri = url == null ? null : Uri.tryParse(url);
+    if (uri == null || !uri.host.contains('.')) {
       _detectedUrl = null;
       _metadata = null;
+      return;
     }
+    if (url == _detectedUrl) return;
+    _detectedUrl = url;
+    _metadata = null;
+    // Only our own messages get a preview fetched. Fetching a link someone
+    // else sent would show their chosen site this phone's IP address (and
+    // when the chat was opened) without a tap; theirs show the site's name,
+    // to tap, instead.
+    if (widget.message.isFromPeer || _failedPreviews.contains(url)) return;
+    _fetchMetadata(url!);
   }
 
   Future<void> _fetchMetadata(String url) async {
     if (_isFetching) return;
     setState(() => _isFetching = true);
 
+    Metadata? metadata;
     try {
-      final metadata = await AnyLinkPreview.getMetadata(
+      metadata = await AnyLinkPreview.getMetadata(
         link: url,
         cache: const Duration(days: 7),
       );
-      if (mounted) {
-        setState(() {
-          _metadata = metadata;
-          _isFetching = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isFetching = false);
-      }
+    } catch (_) {
+      metadata = null;
+    }
+    if (metadata == null || (metadata.title == null && metadata.desc == null)) {
+      _failedPreviews.add(url);
+    }
+    if (mounted) {
+      setState(() {
+        _metadata = metadata;
+        _isFetching = false;
+      });
     }
   }
 
   Future<void> _launchUrl() async {
-    if (_detectedUrl == null) return;
-    final url = _detectedUrl!.startsWith('http')
-        ? _detectedUrl!
-        : 'https://$_detectedUrl';
+    final url = _detectedUrl;
+    if (url == null) return;
     final uri = Uri.parse(url);
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -139,6 +152,11 @@ class _TextMessageState extends State<_TextMessage> {
         ? style.adminMessageTimeTextStyle
         : style.clientMessageTimeTextStyle;
     final content = widget.message.content.content;
+    // Link previews take the bubble's own text colour, so they read on it.
+    final linkColor =
+        (isAdmin ? style.adminMessageTextStyle : style.clientMessageTextStyle)
+            .color ??
+        Colors.white;
 
     // Meta line (time · "tahrirlangan" · sent/read tick) placed on its OWN row
     // BELOW the text, right-aligned. It used to overlap the last text line
@@ -221,6 +239,43 @@ class _TextMessageState extends State<_TextMessage> {
                     ? style.adminMessageTextStyle
                     : style.clientMessageTextStyle,
               ),
+              if (_detectedUrl != null &&
+                  isAdmin &&
+                  Uri.tryParse(_detectedUrl!)?.host != null) ...[
+                const SizedBox(height: 6),
+                GestureDetector(
+                  onTap: _launchUrl,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: linkColor.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.link, size: 14, color: linkColor),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            Uri.parse(_detectedUrl!).host,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: linkColor,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               if (_metadata != null &&
                   (_metadata!.title != null || _metadata!.desc != null)) ...[
                 const SizedBox(height: 8),
@@ -229,8 +284,7 @@ class _TextMessageState extends State<_TextMessage> {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: (isAdmin ? Colors.white : Colors.blueAccent)
-                          .withOpacity(0.08),
+                      color: linkColor.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -240,9 +294,7 @@ class _TextMessageState extends State<_TextMessage> {
                           width: 3,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: isAdmin
-                                ? Colors.white.withOpacity(0.7)
-                                : Colors.blueAccent,
+                            color: linkColor.withValues(alpha: 0.7),
                             borderRadius: BorderRadius.circular(2),
                           ),
                         ),
@@ -257,9 +309,7 @@ class _TextMessageState extends State<_TextMessage> {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    color: isAdmin
-                                        ? Colors.white
-                                        : Colors.blueAccent,
+                                    color: linkColor,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 13,
                                   ),
@@ -269,10 +319,9 @@ class _TextMessageState extends State<_TextMessage> {
                                   _metadata!.desc!,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
+                                  // Was black87: unreadable on a dark bubble.
                                   style: TextStyle(
-                                    color: isAdmin
-                                        ? Colors.white70
-                                        : Colors.black87,
+                                    color: linkColor.withValues(alpha: 0.75),
                                     fontSize: 11,
                                   ),
                                 ),
