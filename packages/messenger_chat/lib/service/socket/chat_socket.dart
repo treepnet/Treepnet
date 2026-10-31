@@ -101,6 +101,15 @@ class _ChatSocket {
     }
   }
 
+  /// [dispose], lekin faqat socket hali [cubit] ga ulangan bo'lsa. Ichma-ich
+  /// suhbat yopilganda uning ekrani kech (animatsiyadan keyin) yo'q qilinadi -
+  /// u paytda socket allaqachon ostidagi suhbatga qayta ulangan bo'ladi va
+  /// uni uzib qo'ymaslik kerak.
+  static Future<void> disposeFor(ChatCubit? cubit) async {
+    if (!identical(_cubit, cubit)) return;
+    await dispose();
+  }
+
   static Future<void> dispose() async {
     await _subscription?.cancel();
     _subscription = null;

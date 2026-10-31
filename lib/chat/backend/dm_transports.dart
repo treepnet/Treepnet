@@ -283,6 +283,16 @@ class DmListTransport implements ChatListTransport {
   /// The app-side profile uuid of the conversation's peer, if known.
   String? peerUuidOf(String conversationId) => _peerUuidById[conversationId];
 
+  /// The loaded conversation with the person whose app-side uuid is
+  /// [peerUuid], if the list has it — opening their chat from a profile then
+  /// skips the find-or-create round trip.
+  ChatConversation? conversationWithPeer(String peerUuid) {
+    for (final entry in _peerUuidById.entries) {
+      if (entry.value == peerUuid) return _conversations[entry.key];
+    }
+    return null;
+  }
+
   /// App-side uuids of peers we've actually EXCHANGED A MESSAGE with (the
   /// conversation has a last message). Used to hide them from the "new chat"
   /// (Type) recommendations — an empty, just-opened conversation keeps the

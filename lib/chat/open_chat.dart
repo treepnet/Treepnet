@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:messenger_chat/messenger_chat.dart';
@@ -55,6 +57,10 @@ ChatLanguage chatLanguageFor(BuildContext context) {
   return code == 'ru' ? ChatLanguage.russian : ChatLanguage.english;
 }
 
+/// Set while a chat is being opened, so a second tap (on a slow network the
+/// first seemed to do nothing) doesn't open another one on top.
+bool _openingChat = false;
+
 /// Opens (or creates) the 1:1 conversation with the given peer and pushes the
 /// chat thread full-screen. The single entry point every "message this user"
 /// call site funnels through.
@@ -69,6 +75,7 @@ Future<void> openChat(
 }) async {
   final me = context.read<AppBloc>().state.user;
   if (peerUuid.isEmpty || me.isAnonymous || peerUuid == me.id) return;
+  if (_openingChat) return;
 
   final session = ChatSession.instance;
   final lang = chatLanguageFor(context);
@@ -80,22 +87,43 @@ Future<void> openChat(
   // Blocking no longer prevents OPENING the thread — you can read the history
   // and the composer is replaced by a "blocked" notice inside (see
   // ChatThreadScreen). Only actual sending is gated, app-side.
-  final myName = await currentChatName(repo, me);
-  ({String conversationId, ChatUser peer}) opened;
+  _openingChat = true;
+  Route<void>? loading;
+  ({String conversationId, ChatUser peer})? opened;
   try {
-    await session.ensureStarted(
-      myUuid: me.id,
-      myName: myName,
-      myAvatarUrl: me.hasAvatar ? me.avatarUrl : null,
-    );
-    opened = await session.openConversation(
-      peerUuid: peerUuid,
-      peerName: peerName,
-      peerAvatarUrl: peerAvatarUrl,
-    );
-  } catch (_) {
-    messenger.showSnackBar(SnackBar(content: Text(couldNotOpen)));
-    return;
+    // Already in the chat list: no round trip, nothing to wait for.
+    final known = session.startedFor(me.id)
+        ? session.listTransport.conversationWithPeer(peerUuid)
+        : null;
+    if (known != null) {
+      opened = (conversationId: known.id, peer: known.peer);
+    } else {
+      // The server has to find or create it: show that something is
+      // happening, or the button looks dead on a slow network.
+      loading = _showOpening(navigator);
+      try {
+        await session.ensureStarted(
+          myUuid: me.id,
+          myName: await currentChatName(repo, me),
+          myAvatarUrl: me.hasAvatar ? me.avatarUrl : null,
+        );
+        opened = await session.openConversation(
+          peerUuid: peerUuid,
+          peerName: peerName,
+          peerAvatarUrl: peerAvatarUrl,
+        );
+      } catch (_) {
+        if (loading.isActive) {
+          messenger.showSnackBar(SnackBar(content: Text(couldNotOpen)));
+        }
+        return;
+      }
+      // Backed out of the loading screen: they no longer want it.
+      if (!loading.isActive) return;
+    }
+  } finally {
+    if (loading != null && loading.isActive) navigator.removeRoute(loading);
+    _openingChat = false;
   }
 
   await _pushThread(
@@ -105,6 +133,17 @@ Future<void> openChat(
     peerUuid: peerUuid,
     lang: lang,
   );
+}
+
+/// A spinner over everything while a chat is being opened. Back cancels it.
+Route<void> _showOpening(NavigatorState navigator) {
+  final route = DialogRoute<void>(
+    context: navigator.context,
+    barrierDismissible: false,
+    builder: (_) => const Center(child: CircularProgressIndicator()),
+  );
+  unawaited(navigator.push(route));
+  return route;
 }
 
 /// Sends a one-off text message to a user (share post/story, story reply)
@@ -245,22 +284,31 @@ Future<void> openConversationScreen(
   );
 }
 
-/// Configures the plugin for [conversationId], pushes the thread, and releases
-/// the plugin's per-conversation resources when the thread is popped.
-Future<void> _pushThread(
-  NavigatorState navigator, {
-  required String conversationId,
-  required ChatUser peer,
-  required String peerUuid,
-  required ChatLanguage lang,
-}) async {
+/// A chat thread on screen. The chat plugin has a single shared runtime
+/// (transport, socket, peer): opening a thread inside another one (chat →
+/// profile → message someone) takes it over, so the one underneath has to be
+/// handed back when the inner one closes.
+class _OpenThread {
+  _OpenThread({
+    required this.conversationId,
+    required this.transport,
+    required this.lang,
+    required this.route,
+  });
+
+  final String conversationId;
+  final DmChatTransport transport;
+  final ChatLanguage lang;
+  final Route<void> route;
+}
+
+/// The threads on screen, innermost last.
+final _openThreads = <_OpenThread>[];
+
+Future<void> _configureChat(DmChatTransport transport, ChatLanguage lang) {
   final session = ChatSession.instance;
-  await MessengerChat.init(
-    transport: DmChatTransport(
-      api: session.api,
-      conversationId: conversationId,
-      myUserId: session.myUserId,
-    ),
+  return MessengerChat.init(
+    transport: transport,
     me: ChatUser(id: session.myUserId, name: session.myName),
     features: ChatTheme.features,
     lang: lang,
@@ -269,19 +317,64 @@ Future<void> _pushThread(
     // Reply quotes / previews show "📷 Post" instead of the raw sentinel.
     sharedReplyPreview: sharedContentPreview,
   );
+}
 
+/// Configures the plugin for [conversationId], pushes the thread, and when it
+/// is popped hands the plugin back to the thread underneath, or releases it.
+///
+/// A thread that is already open is returned to instead of being opened a
+/// second time on top (chat → their profile → Message).
+Future<void> _pushThread(
+  NavigatorState navigator, {
+  required String conversationId,
+  required ChatUser peer,
+  required String peerUuid,
+  required ChatLanguage lang,
+}) async {
+  for (final open in _openThreads) {
+    if (open.conversationId != conversationId) continue;
+    if (open.route.isActive) {
+      navigator.popUntil((route) => identical(route, open.route));
+    }
+    return;
+  }
+
+  final session = ChatSession.instance;
+  final transport = DmChatTransport(
+    api: session.api,
+    conversationId: conversationId,
+    myUserId: session.myUserId,
+  );
+  await _configureChat(transport, lang);
+
+  final route = MaterialPageRoute<void>(
+    builder: (_) => ChatThreadScreen(
+      peer: peer,
+      peerUuid: peerUuid,
+      conversationId: conversationId,
+      lang: lang,
+    ),
+  );
+  final open = _OpenThread(
+    conversationId: conversationId,
+    transport: transport,
+    lang: lang,
+    route: route,
+  );
+  _openThreads.add(open);
   try {
-    await navigator.push(
-      MaterialPageRoute<void>(
-        builder: (_) => ChatThreadScreen(
-          peer: peer,
-          peerUuid: peerUuid,
-          conversationId: conversationId,
-          lang: lang,
-        ),
-      ),
-    );
+    await navigator.push(route);
   } finally {
-    await MessengerChat.release();
+    _openThreads.remove(open);
+    if (_openThreads.isEmpty) {
+      await MessengerChat.release();
+    } else {
+      // An inner thread closed: the one now on top takes the plugin back,
+      // reconnects and reloads what arrived while it was covered.
+      final outer = _openThreads.last;
+      await _configureChat(outer.transport, outer.lang);
+      MessengerChat.resume();
+      await transport.dispose();
+    }
   }
 }

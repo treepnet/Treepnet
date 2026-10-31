@@ -84,6 +84,16 @@ class MessengerChat extends StatefulWidget {
     await _ChatRuntime.instance.reset();
   }
 
+  /// Ichma-ich ochilgan suhbat yopilgach, ostidagi suhbatni qayta ishga
+  /// tushiradi.
+  ///
+  /// Plaginda bitta umumiy holat bor (transport, socket, suhbatdosh), shuning
+  /// uchun ichki suhbat ochilganda tashqisi undan ajraladi. Ichkisi yopilgach,
+  /// avval [init] tashqi suhbat transporti bilan qayta chaqiriladi, keyin shu:
+  /// o'sha ekran socketga qayta ulanadi va yopiq turgan paytda kelgan
+  /// xabarlarni qaytadan yuklaydi.
+  static void resume() => _ChatRuntime.instance.resumeSignal.value++;
+
   /// Transportga ulanadi. Odatda ekranning o'zi chaqiradi.
   static Future<void> connectTransport({required ChatCubit cubit}) =>
       _ChatSocket.connect(cubit: cubit);
@@ -310,10 +320,22 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
 
   String _baseUrl = '';
 
+  /// Bu ekran ochilgandagi transport. Ichma-ich suhbat ochilsa, umumiy
+  /// transport boshqasiga almashadi: shu orada bu ekran ulanish, "o'qildi"
+  /// va [MessengerChat.resume] hodisalariga javob bermaydi - aks holda
+  /// boshqa suhbatning xabarlarini yuklab olardi.
+  ChatTransport? _ownTransport;
+
+  bool get _isActive =>
+      _ownTransport != null &&
+      identical(_ChatRuntime.instance._transport, _ownTransport);
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _ownTransport = _ChatRuntime.instance._transport;
+    _ChatRuntime.instance.resumeSignal.addListener(_onResume);
 
     // Suhbatdoshni birinchi chizishdan oldin o'rnatamiz - xabar yonidagi
     // avatar shu ma'lumotni o'qiydi.
@@ -349,7 +371,7 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
       _connectionSteam = MessengerChat.controller.connectionStream.listen((
         connection,
       ) {
-        if (!mounted) return;
+        if (!mounted || !_isActive) return;
 
         if (connection == ChatConnectionStatus.connected)
           _cubit?.getMessagesWhenOnline();
@@ -373,7 +395,19 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
     final background = state != AppLifecycleState.resumed;
     _cubit?.setIsBackgroundApp(background);
     // Back in front of the thread: what arrived meanwhile is seen now.
-    if (!background) _cubit?.markAsRead();
+    if (!background && _isActive) _cubit?.markAsRead();
+  }
+
+  /// Ichki suhbat yopilib, bu ekran yana ko'rindi (qarang
+  /// [MessengerChat.resume]).
+  void _onResume() {
+    if (!mounted || !_isActive) return;
+    unawaited(() async {
+      await initStorage();
+      if (!mounted) return;
+      _cubit?.getMessages(isRefresh: true);
+      _cubit?.markAsRead();
+    }());
   }
 
   @override
@@ -492,7 +526,9 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
 
   @override
   void dispose() {
-    _ChatSocket.dispose();
+    _ChatRuntime.instance.resumeSignal.removeListener(_onResume);
+    // Faqat socket hali shu ekranga ulangan bo'lsa (qarang disposeFor).
+    _ChatSocket.disposeFor(_cubit);
     _controller.dispose();
     _voiceController.dispose();
     _connectionSteam?.cancel();

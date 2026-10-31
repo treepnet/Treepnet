@@ -16,6 +16,10 @@ class _ChatRuntime {
 
   /// Suhbatdoshning joriy holati - app bar shunga obuna bo'ladi.
   final ValueNotifier<ChatUser?> peerNotifier = ValueNotifier<ChatUser?>(null);
+
+  /// [MessengerChat.resume] har chaqirilganda oshadi: transporti hozir
+  /// sozlangan suhbat ekrani socketga qayta ulanadi.
+  final ValueNotifier<int> resumeSignal = ValueNotifier<int>(0);
   ChatFeatures _features = const ChatFeatures();
 
   /// Ilova bergan maxsus xabar (masalan, ulashilgan post/story) chizuvchisi.
