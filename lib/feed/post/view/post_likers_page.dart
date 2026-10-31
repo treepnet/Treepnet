@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:posts_repository/posts_repository.dart';
 import 'package:treepnet/app/app.dart';
+import 'package:treepnet/app/services/pager.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:user_repository/user_repository.dart';
 
@@ -25,16 +26,26 @@ class PostLikersPage extends StatefulWidget {
 }
 
 class _PostLikersPageState extends State<PostLikersPage> {
-  late Future<List<User>> _future;
+  /// 30 at a time as the list is scrolled (it used to stop at 100).
+  late final _likers = Pager<User>(
+    fetch: (offset, limit) => context.read<PostsRepository>().getPostLikers(
+      postId: widget.postId,
+      offset: offset,
+      limit: limit,
+    ),
+    idOf: (user) => user.id,
+  );
 
   @override
   void initState() {
     super.initState();
-    _future = context.read<PostsRepository>().getPostLikers(
-      postId: widget.postId,
-      offset: 0,
-      limit: 100,
-    );
+    _likers.refresh();
+  }
+
+  @override
+  void dispose() {
+    _likers.dispose();
+    super.dispose();
   }
 
   @override
@@ -59,13 +70,13 @@ class _PostLikersPageState extends State<PostLikersPage> {
             ),
           ),
         ),
-        body: FutureBuilder<List<User>>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
+        body: ListenableBuilder(
+          listenable: _likers,
+          builder: (context, _) {
+            if (_likers.loading) {
               return const Center(child: AppCircularProgress(AppColors.blue));
             }
-            final users = snapshot.data ?? const <User>[];
+            final users = _likers.items;
             if (users.isEmpty) {
               return Center(
                 child: Text(
@@ -74,15 +85,30 @@ class _PostLikersPageState extends State<PostLikersPage> {
                 ),
               );
             }
-            return ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-              itemCount: users.length,
-              separatorBuilder: (_, __) => Divider(
-                height: 1,
-                indent: 76,
-                color: AppColors.divider,
+            return NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification.metrics.extentAfter < 600) {
+                  _likers.loadMore();
+                }
+                return false;
+              },
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                itemCount: users.length + (_likers.loadingMore ? 1 : 0),
+                separatorBuilder: (_, __) => Divider(
+                  height: 1,
+                  indent: 76,
+                  color: AppColors.divider,
+                ),
+                itemBuilder: (context, i) => i == users.length
+                    ? const Padding(
+                        padding: EdgeInsets.all(AppSpacing.md),
+                        child: Center(
+                          child: AppCircularProgress(AppColors.blue),
+                        ),
+                      )
+                    : _LikerTile(user: users[i]),
               ),
-              itemBuilder: (context, i) => _LikerTile(user: users[i]),
             );
           },
         ),

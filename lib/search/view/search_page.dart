@@ -20,14 +20,66 @@ class SearchPage extends StatelessWidget {
   }
 }
 
-class SearchView extends StatelessWidget {
+/// How many results a search shows at first, and adds each time the list is
+/// scrolled to its end (it used to stop at 8).
+const _searchPageSize = 20;
+
+class SearchView extends StatefulWidget {
   const SearchView({required this.withResult, super.key});
 
   final bool withResult;
 
   @override
+  State<SearchView> createState() => _SearchViewState();
+}
+
+class _SearchViewState extends State<SearchView> {
+  /// Held here: made in `build`, a rebuild would have dropped the results.
+  final _search = ValueNotifier(const _SearchResults());
+  bool _loadingMore = false;
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  /// The next results of the same search, unless they are all shown.
+  Future<void> _loadMore() async {
+    final current = _search.value;
+    if (_loadingMore ||
+        !current.hasMore ||
+        current.loading ||
+        current.query.trim().isEmpty) {
+      return;
+    }
+    _loadingMore = true;
+    try {
+      final page = await context.read<SearchRepository>().searchUsers(
+        query: current.query,
+        limit: _searchPageSize,
+        offset: current.users.length,
+      );
+      // Typed on meanwhile: these are for the old search.
+      if (!mounted || _search.value.query != current.query) return;
+      final shown = {for (final user in current.users) user.id};
+      _search.value = _SearchResults(
+        query: current.query,
+        users: [
+          ...current.users,
+          ...page.where((user) => shown.add(user.id)),
+        ],
+        hasMore: page.length >= _searchPageSize,
+      );
+    } finally {
+      _loadingMore = false;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final search = ValueNotifier(const _SearchResults());
+    final withResult = widget.withResult;
+    final search = _search;
 
     return AppScaffold(
       appBar: SearcAppBar(
@@ -36,8 +88,11 @@ class SearchView extends StatelessWidget {
           users: query.trim().isEmpty ? const [] : search.value.users,
           loading: query.trim().isNotEmpty,
         ),
-        onUsersSearch: (query, foundUsers) =>
-            search.value = _SearchResults(query: query, users: foundUsers),
+        onUsersSearch: (query, foundUsers) => search.value = _SearchResults(
+          query: query,
+          users: foundUsers,
+          hasMore: foundUsers.length >= _searchPageSize,
+        ),
       ),
       body: ValueListenableBuilder(
         valueListenable: search,
@@ -55,21 +110,28 @@ class SearchView extends StatelessWidget {
                     ),
             );
           }
-          return CustomScrollView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            slivers: [
-              SliverList.builder(
-                itemCount: users.length,
-                itemBuilder: (context, index) {
-                  final user = users[index];
-                  return UserListTile(
-                    key: ValueKey(user.id),
-                    user: user,
-                    withResult: withResult,
-                  );
-                },
-              ),
-            ],
+          return NotificationListener<ScrollNotification>(
+            onNotification: (notification) {
+              if (notification.metrics.extentAfter < 400) _loadMore();
+              return false;
+            },
+            child: CustomScrollView(
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
+              slivers: [
+                SliverList.builder(
+                  itemCount: users.length,
+                  itemBuilder: (context, index) {
+                    final user = users[index];
+                    return UserListTile(
+                      key: ValueKey(user.id),
+                      user: user,
+                      withResult: withResult,
+                    );
+                  },
+                ),
+              ],
+            ),
           );
         },
       ),
@@ -84,11 +146,15 @@ class _SearchResults {
     this.query = '',
     this.users = const [],
     this.loading = false,
+    this.hasMore = false,
   });
 
   final String query;
   final List<User> users;
   final bool loading;
+
+  /// The last page was full: scrolling to the end asks for more.
+  final bool hasMore;
 }
 
 class UserListTile extends StatelessWidget {
@@ -189,7 +255,10 @@ class _SearcAppBarState extends State<SearcAppBar> {
           final request = ++_request;
           widget.onQueryChanged(query);
           _debouncer.run(() async {
-            final users = await searchRepository.searchUsers(query: query);
+            final users = await searchRepository.searchUsers(
+              query: query,
+              limit: _searchPageSize,
+            );
             if (!mounted || request != _request) return;
             widget.onUsersSearch.call(query, users);
           });

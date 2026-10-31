@@ -340,6 +340,10 @@ abstract class PostsBaseRepository {
   /// saved (bookmarked) by the user identified by [userId].
   Stream<bool> isBookmarked({required String postId, String? userId});
 
+  /// The ids of the posts the current user has saved, live — so a list of
+  /// them can drop one the moment it is unsaved.
+  Stream<Set<String>> savedPostIds();
+
   /// Returns the page of posts saved (bookmarked) by the currently
   /// authenticated user with provided [offset] and [limit].
   Future<List<Post>> getSavedPosts({
@@ -2193,6 +2197,15 @@ WHERE NOT EXISTS (
         )
         .map((event) => (event.first.values.first! as int).isTrue);
   }
+
+  @override
+  Stream<Set<String>> savedPostIds() => _powerSyncRepository
+      .db()
+      .watch(
+        'SELECT post_id FROM saved_posts WHERE user_id = ?',
+        parameters: [currentUserId],
+      )
+      .map((rows) => {for (final row in rows) row['post_id'] as String});
 
   /// From the server: a saved post's author is often someone the phone
   /// doesn't keep. Offline, the saved posts on the phone.

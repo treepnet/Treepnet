@@ -1387,12 +1387,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get sayHiText => 'Поздоровайтесь 👋';
 
   @override
-  String get discoverPeopleText => 'Найти людей';
-
-  @override
-  String get noSuggestionsText => 'Пока нет рекомендаций';
-
-  @override
   String get notificationsText => 'Уведомления';
 
   @override
@@ -1766,10 +1760,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get noNotificationsHintText =>
       'Здесь появятся лайки, комментарии и новые подписчики.';
-
-  @override
-  String get noSuggestionsHintText =>
-      'Вы уже подписаны на всех, кого мы нашли. Загляните позже.';
 
   @override
   String get notificationChannelDescriptionText =>

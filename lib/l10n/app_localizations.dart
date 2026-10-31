@@ -2349,18 +2349,6 @@ abstract class AppLocalizations {
   /// **'Say hi 👋'**
   String get sayHiText;
 
-  /// No description provided for @discoverPeopleText.
-  ///
-  /// In en, this message translates to:
-  /// **'Discover people'**
-  String get discoverPeopleText;
-
-  /// No description provided for @noSuggestionsText.
-  ///
-  /// In en, this message translates to:
-  /// **'No suggestions right now'**
-  String get noSuggestionsText;
-
   /// No description provided for @notificationsText.
   ///
   /// In en, this message translates to:
@@ -2990,12 +2978,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Likes, comments and new followers will show up here.'**
   String get noNotificationsHintText;
-
-  /// No description provided for @noSuggestionsHintText.
-  ///
-  /// In en, this message translates to:
-  /// **'You\'re following everyone we could find. Check back later.'**
-  String get noSuggestionsHintText;
 
   /// No description provided for @notificationChannelDescriptionText.
   ///

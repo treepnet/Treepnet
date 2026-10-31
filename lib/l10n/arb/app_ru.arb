@@ -709,8 +709,6 @@
   "noOneToMessageText": "Некому написать",
   "noMessagesYetText": "Сообщений пока нет",
   "sayHiText": "Поздоровайтесь 👋",
-  "discoverPeopleText": "Найти людей",
-  "noSuggestionsText": "Пока нет рекомендаций",
   "notificationsText": "Уведомления",
   "noNotificationsText": "Уведомлений пока нет",
   "noSavedProfilesText": "Нет сохранённых профилей",
@@ -832,7 +830,6 @@
   "cameraAccessDeniedText": "Чтобы снять историю, разрешите доступ к камере в настройках.",
   "openSettingsText": "Открыть настройки",
   "noNotificationsHintText": "Здесь появятся лайки, комментарии и новые подписчики.",
-  "noSuggestionsHintText": "Вы уже подписаны на всех, кого мы нашли. Загляните позже.",
   "notificationChannelDescriptionText": "Лайки, комментарии, подписки и сообщения",
   "regionsCountText": "{count, plural, one{{count} регион} few{{count} региона} many{{count} регионов} other{{count} региона}}"
 }

@@ -9,6 +9,7 @@ import 'package:instagram_blocks_ui/instagram_blocks_ui.dart';
 import 'package:posts_repository/posts_repository.dart';
 import 'package:shared/shared.dart';
 import 'package:treepnet/app/app.dart';
+import 'package:treepnet/app/services/pager.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:user_repository/user_repository.dart';
 
@@ -25,7 +26,20 @@ class SavedPostsPage extends StatefulWidget {
 }
 
 class _SavedPostsPageState extends State<SavedPostsPage> {
-  late Future<List<Post>> _future;
+  /// The saved posts, 30 at a time as the grid is scrolled (it used to stop
+  /// at 80).
+  late final _posts = Pager<Post>(
+    fetch: (offset, limit) => context.read<PostsRepository>().getSavedPosts(
+      offset: offset,
+      limit: limit,
+    ),
+    idOf: (post) => post.id,
+  );
+
+  /// What is saved right now, on the phone: a post unsaved from inside it
+  /// leaves the grid at once (it stayed until a pull to refresh), and one
+  /// saved elsewhere brings the list up to date.
+  StreamSubscription<Set<String>>? _savedSub;
 
   /// Subscribed to by hand rather than through a `StreamBuilder`. PowerSync's
   /// `watch` is single-subscription, so a rebuilt tab re-listened to it and
@@ -38,7 +52,19 @@ class _SavedPostsPageState extends State<SavedPostsPage> {
   @override
   void initState() {
     super.initState();
-    _future = _load();
+    unawaited(_posts.refresh());
+    _savedSub = context.read<PostsRepository>().savedPostIds().listen((ids) {
+      if (_posts.loading) return;
+      final gone = [
+        for (final post in _posts.items)
+          if (!ids.contains(post.id)) post.id,
+      ];
+      gone.forEach(_posts.remove);
+      // Saved since the list loaded: start again, so it is in its place.
+      if (ids.any((id) => !_posts.contains(id)) && !_posts.hasMore) {
+        unawaited(_posts.refresh());
+      }
+    });
   }
 
   @override
@@ -55,16 +81,9 @@ class _SavedPostsPageState extends State<SavedPostsPage> {
   @override
   void dispose() {
     _profilesSub?.cancel();
+    _savedSub?.cancel();
+    _posts.dispose();
     super.dispose();
-  }
-
-  Future<List<Post>> _load() =>
-      context.read<PostsRepository>().getSavedPosts(offset: 0, limit: 80);
-
-  Future<void> _refresh() async {
-    final reloaded = _load();
-    setState(() => _future = reloaded);
-    await reloaded;
   }
 
   @override
@@ -112,18 +131,25 @@ class _SavedPostsPageState extends State<SavedPostsPage> {
   }
 
   Widget _postsTab(BuildContext context) {
-    return FutureBuilder<List<Post>>(
-      future: _future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+    return ListenableBuilder(
+      listenable: _posts,
+      builder: (context, _) {
+        if (_posts.loading) {
           return Center(child: AppCircularProgress(context.colorScheme.primary));
         }
-        final posts = snapshot.data ?? const <Post>[];
+        final posts = _posts.items;
         if (posts.isEmpty) return const _EmptySaved();
 
         final blocks = posts.map((p) => p.toPostSmallBlock).toList();
         return RefreshIndicator(
-          onRefresh: _refresh,
+          onRefresh: _posts.refresh,
+          child: NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification.metrics.extentAfter < 600) {
+              unawaited(_posts.loadMore());
+            }
+            return false;
+          },
           child: GridView.builder(
             padding: EdgeInsets.zero,
             // Same tiles as the Trends grid.
@@ -147,6 +173,7 @@ class _SavedPostsPageState extends State<SavedPostsPage> {
                 child: _SavedThumbnail(block: block),
               );
             },
+          ),
           ),
         );
       },

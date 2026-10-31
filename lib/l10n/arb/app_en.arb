@@ -763,8 +763,6 @@
   "noOneToMessageText": "No one new to message",
   "noMessagesYetText": "No messages yet",
   "sayHiText": "Say hi 👋",
-  "discoverPeopleText": "Discover people",
-  "noSuggestionsText": "No suggestions right now",
   "notificationsText": "Notifications",
   "noNotificationsText": "No notifications yet",
   "noSavedProfilesText": "No saved profiles yet",
@@ -917,7 +915,6 @@
   "cameraAccessDeniedText": "Allow camera access in Settings to take a story.",
   "openSettingsText": "Open Settings",
   "noNotificationsHintText": "Likes, comments and new followers will show up here.",
-  "noSuggestionsHintText": "You're following everyone we could find. Check back later.",
   "notificationChannelDescriptionText": "Likes, comments, follows and messages",
   "regionsCountText": "{count, plural, =1{1 region} other{{count} regions}}",
   "@regionsCountText": {

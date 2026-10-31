@@ -1367,12 +1367,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sayHiText => 'Say hi 👋';
 
   @override
-  String get discoverPeopleText => 'Discover people';
-
-  @override
-  String get noSuggestionsText => 'No suggestions right now';
-
-  @override
   String get notificationsText => 'Notifications';
 
   @override
@@ -1740,10 +1734,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get noNotificationsHintText =>
       'Likes, comments and new followers will show up here.';
-
-  @override
-  String get noSuggestionsHintText =>
-      'You\'re following everyone we could find. Check back later.';
 
   @override
   String get notificationChannelDescriptionText =>

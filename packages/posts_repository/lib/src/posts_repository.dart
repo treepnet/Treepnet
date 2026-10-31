@@ -152,6 +152,9 @@ class PostsRepository implements PostsBaseRepository {
       _databaseClient.isBookmarked(postId: postId, userId: userId);
 
   @override
+  Stream<Set<String>> savedPostIds() => _databaseClient.savedPostIds();
+
+  @override
   Future<List<Post>> getSavedPosts({required int offset, required int limit}) =>
       _databaseClient.getSavedPosts(offset: offset, limit: limit);
 

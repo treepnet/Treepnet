@@ -229,21 +229,6 @@ class ShareProfileButton extends StatelessWidget {
   }
 }
 
-/// Opens the "Discover people" list (accounts you don't follow yet).
-class ShowSuggestedPeopleButton extends StatelessWidget {
-  const ShowSuggestedPeopleButton({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return UserProfileButton(
-      onTap: () => Navigator.of(context).push<void>(
-        MaterialPageRoute(builder: (_) => const DiscoverPeoplePage()),
-      ),
-      child: const Icon(Icons.person_add_outlined, size: 20),
-    );
-  }
-}
-
 class UserProfileFollowUserButton extends StatelessWidget {
   const UserProfileFollowUserButton({super.key});
 
