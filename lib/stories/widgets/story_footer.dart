@@ -74,6 +74,23 @@ class _StoryFooterState extends State<StoryFooter> with WidgetsBindingObserver {
 
   bool get _isMine => widget.author.id == widget.viewer.id;
 
+  /// Your story's view count, opened once per story. It was created in
+  /// build, so every rebuild of the footer — the story changing, the overlay
+  /// showing or hiding — closed the live query and opened it again.
+  Stream<int>? _viewsCount;
+  String? _viewsCountStoryId;
+
+  Stream<int> _viewsCountStream() {
+    final storyId = widget.story.id;
+    if (_viewsCount == null || _viewsCountStoryId != storyId) {
+      _viewsCountStoryId = storyId;
+      _viewsCount = context.read<StoriesRepository>().storyViewsCountOf(
+        storyId: storyId,
+      );
+    }
+    return _viewsCount!;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -234,7 +251,6 @@ class _StoryFooterState extends State<StoryFooter> with WidgetsBindingObserver {
   /// menu (white ⋮) — no like button. This layout is the owner's alone and
   /// does not touch how you see other people's stories.
   Widget _ownerBar(BuildContext context) {
-    final stories = context.read<StoriesRepository>();
     return Row(
       children: [
         // Same author block as the viewer footer (avatar, name, time ago).
@@ -253,7 +269,7 @@ class _StoryFooterState extends State<StoryFooter> with WidgetsBindingObserver {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
             child: StreamBuilder<int>(
-              stream: stories.storyViewsCountOf(storyId: widget.story.id),
+              stream: _viewsCountStream(),
               builder: (context, snap) {
                 final n = snap.data ?? 0;
                 return Row(
