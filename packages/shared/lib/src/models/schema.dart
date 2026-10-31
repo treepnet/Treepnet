@@ -88,7 +88,9 @@ const schema = Schema([
       Column.real('location_lng'),
     ],
     indexes: [
-      Index('user', [IndexedColumn('user_id')]),
+      // A profile's grid, newest first, read straight off the index (no
+      // sort); also serves every other lookup by author.
+      Index('user', [IndexedColumn('user_id'), IndexedColumn('created_at')]),
       // The feed pages newest first.
       Index('created', [IndexedColumn('created_at')]),
     ],
