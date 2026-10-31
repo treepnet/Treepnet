@@ -908,6 +908,7 @@
   "signInIdInvalidText": "Введите имя пользователя или email.",
   "newPostsText": "Новые посты",
   "storyNotReadyText": "Не удалось подготовить историю. Попробуйте ещё раз.",
+  "placeRegionUnknownText": "Не удалось определить регион этого места.",
   "sharedToSomeText": "Отправлено {sent} из {total}",
   "searchNothingFoundText": "Ничего не найдено",
   "cameraAccessDeniedText": "Чтобы снять историю, разрешите доступ к камере в настройках.",

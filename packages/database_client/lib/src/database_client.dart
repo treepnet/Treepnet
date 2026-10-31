@@ -590,6 +590,30 @@ abstract class StoriesBaseRepository {
     double? lng,
   });
 
+  /// Pins [storyId] to a place (and marks it there on the map) and adds it to
+  /// a highlight — the existing [highlightId] or a new one named
+  /// [newHighlightName] — in one transaction: either all of it is saved or
+  /// none. The pin sheet used to save step by step and could stop half-way.
+  Future<void> pinStory({
+    required String userId,
+    required String storyId,
+    required String regionIso,
+    required double lat,
+    required double lng,
+    String? placeName,
+    String? highlightId,
+    String? newHighlightName,
+    String? coverUrl,
+  });
+
+  /// The region saved with [userId]'s pin or post near ([lat], [lng]), or
+  /// null when they have none there.
+  Future<String?> savedRegionNear({
+    required String userId,
+    required double lat,
+    required double lng,
+  });
+
   /// Removes a pin made by [pinStoryToLocation].
   Future<void> unpinStoryFromLocation({
     required String userId,
@@ -3924,6 +3948,99 @@ VALUES (uuid(), ?1, ?2, ?3, ?4, ?5, ?6)
         DateTime.timestamp().toIso8601String(),
       ],
     );
+  }
+
+  @override
+  Future<void> pinStory({
+    required String userId,
+    required String storyId,
+    required String regionIso,
+    required double lat,
+    required double lng,
+    String? placeName,
+    String? highlightId,
+    String? newHighlightName,
+    String? coverUrl,
+  }) => _powerSyncRepository.db().writeTransaction((tx) async {
+    final now = DateTime.timestamp().toIso8601String();
+    final pinned = await tx.getOptional(
+      'SELECT id FROM location_stories WHERE user_id = ?1 AND story_id = ?2 '
+      'AND region_iso = ?3 AND lat = ?4 AND lng = ?5',
+      [userId, storyId, regionIso, lat, lng],
+    );
+    if (pinned == null) {
+      await tx.execute(
+        'INSERT INTO location_stories '
+        '(id, user_id, story_id, region_iso, lat, lng, created_at) '
+        'VALUES (uuid(), ?1, ?2, ?3, ?4, ?5, ?6)',
+        [userId, storyId, regionIso, lat, lng, now],
+      );
+    }
+    // The name labels the pin on the map; a blank one keeps the old label.
+    final name = placeName?.trim();
+    if (name != null && name.isNotEmpty) {
+      await tx.execute(
+        'UPDATE stories SET location_lat = ?, location_lng = ?, '
+        'location_name = ? WHERE id = ?',
+        [lat, lng, name, storyId],
+      );
+    } else {
+      await tx.execute(
+        'UPDATE stories SET location_lat = ?, location_lng = ? WHERE id = ?',
+        [lat, lng, storyId],
+      );
+    }
+    if (highlightId != null) {
+      final item = await tx.getOptional(
+        'SELECT id FROM story_highlight_items '
+        'WHERE highlight_id = ? AND story_id = ?',
+        [highlightId, storyId],
+      );
+      if (item == null) {
+        await tx.execute(
+          'INSERT INTO story_highlight_items '
+          '(id, highlight_id, story_id, created_at) VALUES (?, ?, ?, ?)',
+          [uuid.v4(), highlightId, storyId, now],
+        );
+      }
+    }
+    if (newHighlightName != null) {
+      final newId = uuid.v4();
+      await tx.execute(
+        'INSERT INTO story_highlights '
+        '(id, user_id, name, cover_url, created_at) VALUES (?, ?, ?, ?, ?)',
+        [newId, userId, newHighlightName, coverUrl, now],
+      );
+      await tx.execute(
+        'INSERT INTO story_highlight_items '
+        '(id, highlight_id, story_id, created_at) VALUES (?, ?, ?, ?)',
+        [uuid.v4(), newId, storyId, now],
+      );
+    }
+  });
+
+  @override
+  Future<String?> savedRegionNear({
+    required String userId,
+    required double lat,
+    required double lng,
+  }) async {
+    final row = await _powerSyncRepository.db().getOptional(
+      '''
+SELECT region_iso AS iso FROM location_stories
+WHERE user_id = ?1 AND region_iso IS NOT NULL AND lat IS NOT NULL
+  AND ABS(lat - ?2) <= ?4 AND ABS(lng - ?3) <= ?4
+UNION ALL
+SELECT location_region FROM posts
+WHERE user_id = ?1 AND location_region IS NOT NULL
+  AND location_lat IS NOT NULL
+  AND ABS(location_lat - ?2) <= ?4 AND ABS(location_lng - ?3) <= ?4
+LIMIT 1
+''',
+      [userId, lat, lng, _pinRadiusDegrees],
+    );
+    final iso = row?['iso'] as String?;
+    return iso == null || iso.isEmpty ? null : iso;
   }
 
   @override

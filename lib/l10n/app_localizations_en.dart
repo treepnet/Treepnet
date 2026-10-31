@@ -1875,6 +1875,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get storyNotReadyText => 'Couldn\'t prepare the story. Try again.';
 
   @override
+  String get placeRegionUnknownText =>
+      'Couldn\'t tell which region this place is in.';
+
+  @override
   String sharedToSomeText(int sent, int total) {
     return 'Sent to $sent of $total';
   }

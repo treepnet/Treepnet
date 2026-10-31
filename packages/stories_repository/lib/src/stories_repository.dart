@@ -166,6 +166,39 @@ class StoriesRepository extends StoriesBaseRepository {
     lng: lng,
   );
 
+  /// Pins a story to a place and a highlight, all or nothing; see
+  /// `DatabaseClient.pinStory`.
+  @override
+  Future<void> pinStory({
+    required String userId,
+    required String storyId,
+    required String regionIso,
+    required double lat,
+    required double lng,
+    String? placeName,
+    String? highlightId,
+    String? newHighlightName,
+    String? coverUrl,
+  }) => _databaseClient.pinStory(
+    userId: userId,
+    storyId: storyId,
+    regionIso: regionIso,
+    lat: lat,
+    lng: lng,
+    placeName: placeName,
+    highlightId: highlightId,
+    newHighlightName: newHighlightName,
+    coverUrl: coverUrl,
+  );
+
+  /// The region saved with [userId]'s pin or post near a point.
+  @override
+  Future<String?> savedRegionNear({
+    required String userId,
+    required double lat,
+    required double lng,
+  }) => _databaseClient.savedRegionNear(userId: userId, lat: lat, lng: lng);
+
   /// Takes a pinned story back off a place.
   Future<void> unpinStoryFromLocation({
     required String userId,

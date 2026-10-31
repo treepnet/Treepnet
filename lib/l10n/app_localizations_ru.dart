@@ -1905,6 +1905,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'Не удалось подготовить историю. Попробуйте ещё раз.';
 
   @override
+  String get placeRegionUnknownText =>
+      'Не удалось определить регион этого места.';
+
+  @override
   String sharedToSomeText(int sent, int total) {
     return 'Отправлено $sent из $total';
   }

@@ -124,75 +124,65 @@ class _PinStorySheetState extends State<PinStorySheet> {
   }
 
   Future<void> _confirm() async {
-    if (_saving) return;
+    if (_saving || !_hasSelection) return;
     setState(() => _saving = true);
+    final l10n = context.l10n;
     try {
-      final storyId = widget.story.id;
-
-      // New place created via the map.
+      // The place: a new one picked on the map, or one already pinned to.
+      final String regionIso;
+      final _Point place;
       final nl = _newLocation;
-      if (nl != null) {
-        await _stories.pinStoryToLocation(
-          userId: widget.userId,
-          storyId: storyId,
-          regionIso: nl.region.iso,
-          lat: nl.lat,
-          lng: nl.lng,
-        );
-        await _stories.setStoryLocation(
-          storyId: storyId,
-          lat: nl.lat,
-          lng: nl.lng,
-          name: _nameOf(nl),
-        );
-      }
-
-      // Selected existing place.
       final sel = _selectedLocation;
-      if (sel != null) {
-        await GeoRegions.instance.load();
-        final iso = GeoRegions.instance.regionAt(sel.lng, sel.lat)?.iso;
-        if (iso != null) {
-          await _stories.pinStoryToLocation(
-            userId: widget.userId,
-            storyId: storyId,
-            regionIso: iso,
-            lat: sel.lat,
-            lng: sel.lng,
-          );
-          await _stories.setStoryLocation(
-            storyId: storyId,
-            lat: sel.lat,
-            lng: sel.lng,
-            name: sel.name,
-          );
+      if (nl != null) {
+        regionIso = nl.region.iso;
+        place = (lat: nl.lat, lng: nl.lng, name: _nameOf(nl));
+      } else {
+        // Its region as saved with the pin or post already there. Working it
+        // out from the map again could miss (a point on a border or the
+        // coast) — and that skipped the place silently, then said "pinned".
+        final at = sel!;
+        var iso = await _stories.savedRegionNear(
+          userId: widget.userId,
+          lat: at.lat,
+          lng: at.lng,
+        );
+        if (iso == null) {
+          await GeoRegions.instance.load();
+          iso = GeoRegions.instance.regionAt(at.lng, at.lat)?.iso;
         }
+        if (iso == null) {
+          openSnackbar(
+            SnackbarMessage.error(title: l10n.placeRegionUnknownText),
+          );
+          return;
+        }
+        regionIso = iso;
+        place = at;
       }
 
-      // Highlights.
-      final selHl = _selectedHighlightId;
-      if (selHl != null) {
-        await _stories.addStoryToHighlight(
-          highlightId: selHl,
-          storyId: storyId,
-        );
-      }
-      final newName = _newHighlightName;
-      if (newName != null) {
-        await _stories.createStoryHighlight(
-          userId: widget.userId,
-          name: newName,
-          storyIds: [storyId],
-          coverUrl: widget.story.contentUrl,
-        );
-      }
+      // The place and the highlight in one go: all of it or nothing.
+      await _stories.pinStory(
+        userId: widget.userId,
+        storyId: widget.story.id,
+        regionIso: regionIso,
+        lat: place.lat,
+        lng: place.lng,
+        placeName: place.name,
+        highlightId: _selectedHighlightId,
+        newHighlightName: _newHighlightName,
+        coverUrl: widget.story.contentUrl,
+      );
 
       if (mounted) {
         Navigator.of(context).maybePop();
         openSnackbar(
-          SnackbarMessage.success(title: context.l10n.successfullyPinnedText),
+          SnackbarMessage.success(title: l10n.successfullyPinnedText),
         );
       }
+    } catch (error, stackTrace) {
+      logE('Pinning a story failed', error: error, stackTrace: stackTrace);
+      // Nothing was saved; the sheet stays open to try again.
+      openSnackbar(SnackbarMessage.error(title: l10n.changeNotSavedText));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

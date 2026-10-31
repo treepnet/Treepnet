@@ -3195,6 +3195,12 @@ abstract class AppLocalizations {
   /// **'Couldn\'t prepare the story. Try again.'**
   String get storyNotReadyText;
 
+  /// No description provided for @placeRegionUnknownText.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t tell which region this place is in.'**
+  String get placeRegionUnknownText;
+
   /// No description provided for @sharedToSomeText.
   ///
   /// In en, this message translates to:
