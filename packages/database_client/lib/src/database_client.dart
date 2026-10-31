@@ -19,6 +19,10 @@ abstract class UserBaseRepository {
   /// Broadcasts the user profile identified by [id].
   Stream<User> profile({required String id});
 
+  /// The public profile (name, username, avatar) of each of [ids], live, from
+  /// one query — keyed by id; ids not on this device are left out.
+  Stream<Map<String, User>> profilesOf({required List<String> ids});
+
   /// Updates currently authenticated database user's metadata.
   Future<void> updateUser({
     String? fullName,
@@ -2412,6 +2416,23 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
       followers.add(follower);
     }
     return followers;
+  }
+
+  @override
+  Stream<Map<String, User>> profilesOf({required List<String> ids}) {
+    if (ids.isEmpty) return Stream.value(const {});
+    return _powerSyncRepository
+        .db()
+        .watch(
+          'SELECT id, avatar_url, username, full_name FROM profiles '
+          'WHERE id IN (SELECT value FROM json_each(?1))',
+          parameters: [jsonEncode(ids)],
+        )
+        .map(
+          (rows) => {
+            for (final row in rows) row['id'] as String: User.fromJson(row),
+          },
+        );
   }
 
   @override

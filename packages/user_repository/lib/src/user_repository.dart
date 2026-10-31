@@ -270,6 +270,11 @@ class UserRepository implements UserBaseRepository {
   @override
   Stream<User> profile({required String id}) => _databaseClient.profile(id: id);
 
+  /// Live public profiles of [ids] from one query, keyed by id.
+  @override
+  Stream<Map<String, User>> profilesOf({required List<String> ids}) =>
+      _databaseClient.profilesOf(ids: ids);
+
   /// Presence heartbeat for [userId] (stamps `last_seen_at` = now).
   Future<void> updatePresence({required String userId}) =>
       _databaseClient.updatePresence(userId: userId);

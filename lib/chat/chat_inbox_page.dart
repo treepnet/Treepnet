@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app_ui/app_ui.dart';
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart';
@@ -443,6 +444,34 @@ class _ChatsListState extends State<_ChatsList> {
   Set<String> _blocked = const {};
   StreamSubscription<Set<String>>? _blockedSub;
 
+  /// Every listed peer's live app profile (username, avatar), from ONE query.
+  /// Each row used to open its own, created in build, so any message, read
+  /// or presence event re-created the queries of the whole list.
+  Map<String, User> _profiles = const {};
+  Set<String> _profileIds = const {};
+  StreamSubscription<Map<String, User>>? _profilesSub;
+
+  /// Re-subscribes only when the set of peers changes.
+  void _watchProfiles() {
+    if (!ChatSession.instance.isStarted) return;
+    final transport = ChatSession.instance.listTransport;
+    final ids = <String>{};
+    for (final c in _map.values) {
+      final uuid = transport.peerUuidOf(c.id);
+      if (uuid != null && uuid.isNotEmpty) ids.add(uuid);
+    }
+    if (setEquals(ids, _profileIds)) return;
+    _profileIds = ids;
+    unawaited(_profilesSub?.cancel());
+    _profilesSub = ids.isEmpty
+        ? null
+        : context.read<UserRepository>().profilesOf(ids: ids.toList()).listen((
+            profiles,
+          ) {
+            if (mounted) setState(() => _profiles = profiles);
+          });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -485,6 +514,7 @@ class _ChatsListState extends State<_ChatsList> {
         _map[c.id] = c;
       }
       _retries = 0;
+      if (mounted) _watchProfiles();
     } catch (e) {
       _error = e;
       _retryLater();
@@ -507,24 +537,23 @@ class _ChatsListState extends State<_ChatsList> {
     switch (event) {
       case ChatConversationUpserted(:final conversation):
         setState(() => _map[conversation.id] = conversation);
+        _watchProfiles();
       case ChatConversationRemoved(:final conversationId):
         setState(() => _map.remove(conversationId));
+        _watchProfiles();
+      // The list doesn't show presence: keep it for the chat header when a
+      // conversation is opened, without rebuilding the list.
       case ChatPeerPresenceChanged(
         :final peerId,
         :final isOnline,
         :final lastSeen,
       ):
-        final match = _map.values
-            .where((c) => c.peer.id == peerId)
-            .toList(growable: false);
-        if (match.isEmpty) return;
-        setState(() {
-          for (final c in match) {
-            _map[c.id] = c.copyWith(
-              peer: c.peer.copyWith(isOnline: isOnline, lastSeen: lastSeen),
-            );
-          }
-        });
+        for (final c in _map.values.toList(growable: false)) {
+          if (c.peer.id != peerId) continue;
+          _map[c.id] = c.copyWith(
+            peer: c.peer.copyWith(isOnline: isOnline, lastSeen: lastSeen),
+          );
+        }
       case ChatListConnectionChanged():
         break;
     }
@@ -535,6 +564,7 @@ class _ChatsListState extends State<_ChatsList> {
     _retryTimer?.cancel();
     unawaited(_sub?.cancel());
     unawaited(_blockedSub?.cancel());
+    unawaited(_profilesSub?.cancel());
     super.dispose();
   }
 
@@ -614,16 +644,35 @@ class _ChatsListState extends State<_ChatsList> {
         height: 1,
         color: AppColors.borderOutline.withValues(alpha: 0.4),
       ),
-      itemBuilder: (context, index) =>
-          _ConversationTile(conversation: conversations[index]),
+      itemBuilder: (context, index) {
+        final conversation = conversations[index];
+        final peerUuid = ChatSession.instance.isStarted
+            ? ChatSession.instance.listTransport.peerUuidOf(conversation.id)
+            : null;
+        return _ConversationTile(
+          conversation: conversation,
+          peerUuid: peerUuid,
+          profile: peerUuid == null ? null : _profiles[peerUuid],
+        );
+      },
     );
   }
 }
 
 class _ConversationTile extends StatelessWidget {
-  const _ConversationTile({required this.conversation});
+  const _ConversationTile({
+    required this.conversation,
+    this.peerUuid,
+    this.profile,
+  });
 
   final ChatConversation conversation;
+
+  /// The peer's app-side id, when known.
+  final String? peerUuid;
+
+  /// The peer's live app profile, from the list's shared query.
+  final User? profile;
 
   String _preview(BuildContext context) {
     final l10n = context.l10n;
@@ -699,10 +748,8 @@ class _ConversationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final peerUuid = ChatSession.instance.isStarted
-        ? ChatSession.instance.listTransport.peerUuidOf(conversation.id)
-        : null;
-    if (peerUuid == null || peerUuid.isEmpty) {
+    final uuid = peerUuid;
+    if (uuid == null || uuid.isEmpty) {
       return _row(
         context,
         peerUuid: null,
@@ -713,25 +760,14 @@ class _ConversationTile extends StatelessWidget {
     // Prefer the peer's LIVE app profile (username/avatar) over the name the
     // chat backend cached on the conversation row — that copy goes stale after
     // the peer changes their username or avatar.
-    final repo = context.read<UserRepository>();
-    return StreamBuilder<User>(
-      stream: repo.profile(id: peerUuid),
-      builder: (context, snap) {
-        final profile = snap.data;
-        final name = (profile != null && profile.displayUsername != 'Unknown')
-            ? profile.displayUsername
-            : conversation.peer.name;
-        final avatarUrl = (profile != null && profile.hasAvatar)
-            ? profile.avatarUrl
-            : conversation.peer.avatarUrl;
-        return _row(
-          context,
-          peerUuid: peerUuid,
-          name: name,
-          avatarUrl: avatarUrl,
-        );
-      },
-    );
+    final profile = this.profile;
+    final name = (profile != null && profile.displayUsername != 'Unknown')
+        ? profile.displayUsername
+        : conversation.peer.name;
+    final avatarUrl = (profile != null && profile.hasAvatar)
+        ? profile.avatarUrl
+        : conversation.peer.avatarUrl;
+    return _row(context, peerUuid: uuid, name: name, avatarUrl: avatarUrl);
   }
 
   Widget _row(
