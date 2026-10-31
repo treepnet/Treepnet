@@ -231,6 +231,8 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
         'email': email.trim(),
         'password': password,
         'fullName': fullName,
+        // The code email is written in it.
+        'lang': AuthServiceApi.language,
       });
       return (
         continuationToken:
@@ -303,16 +305,18 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
     try {
       final res = await _api.post('/reset/send-code', <String, dynamic>{
         'usernameOrEmail': identifier,
+        // The code email's language when the account has none on file.
+        'lang': AuthServiceApi.language,
       });
       return (
         continuationToken: (res['continuationToken'] as String?) ?? '',
         codeLength: (res['codeLength'] as num?)?.toInt() ?? 6,
       );
     } on AuthServiceError catch (error, stackTrace) {
-      Error.throwWithStackTrace(
-        ResetPasswordFailure(error.message),
-        stackTrace,
-      );
+      // The error itself, not its English message: the app reads its code
+      // (invalid_code, code_expired, email_failed, ...) to say what happened
+      // in its own language.
+      Error.throwWithStackTrace(ResetPasswordFailure(error), stackTrace);
     }
   }
 
@@ -329,10 +333,10 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
         'newPassword': newPassword,
       });
     } on AuthServiceError catch (error, stackTrace) {
-      Error.throwWithStackTrace(
-        ResetPasswordFailure(error.message),
-        stackTrace,
-      );
+      // The error itself, not its English message: the app reads its code
+      // (invalid_code, code_expired, email_failed, ...) to say what happened
+      // in its own language.
+      Error.throwWithStackTrace(ResetPasswordFailure(error), stackTrace);
     }
   }
 

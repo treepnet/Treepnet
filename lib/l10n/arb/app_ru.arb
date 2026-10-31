@@ -814,6 +814,7 @@
   "chatMessageDeletedPreviewText": "Сообщение удалено",
   "authCodeExpiredText": "Срок действия кода истёк. Отправьте новый.",
   "authCodeAttemptsText": "Слишком много попыток. Отправьте новый код.",
+  "emailSendFailedText": "Не удалось отправить письмо. Попробуйте ещё раз через несколько минут.",
   "enterUsernameOrEmailText": "Введите имя пользователя или почту.",
   "enterCodeText": "Введите {length}-значный код.",
   "resendCodeInText": "Отправить снова через {time}",

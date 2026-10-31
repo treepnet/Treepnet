@@ -2883,6 +2883,12 @@ abstract class AppLocalizations {
   /// **'Too many attempts. Send a new code.'**
   String get authCodeAttemptsText;
 
+  /// No description provided for @emailSendFailedText.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t send the email. Please try again in a few minutes.'**
+  String get emailSendFailedText;
+
   /// No description provided for @enterUsernameOrEmailText.
   ///
   /// In en, this message translates to:

@@ -38,6 +38,10 @@ class AuthServiceApi {
   /// Base URL, e.g. `https://api.treepnet.com/auth` (no trailing slash).
   final String baseUrl;
 
+  /// The app's language, `ru` or `en` — the code emails are written in it.
+  /// Kept up to date by the app as its language resolves or changes.
+  static String language = 'en';
+
   final Dio _dio;
 
   /// At most ~15 s per try (sending the code email is the slowest step);

@@ -1675,6 +1675,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authCodeAttemptsText => 'Too many attempts. Send a new code.';
 
   @override
+  String get emailSendFailedText =>
+      'Couldn\'t send the email. Please try again in a few minutes.';
+
+  @override
   String get enterUsernameOrEmailText => 'Enter your username or email.';
 
   @override

@@ -31,6 +31,21 @@ void main() {
     );
   });
 
+  test('a reset failure keeps its code, and a mail that failed says so', () {
+    const error = AuthServiceError(message: 'English', code: 'email_failed');
+    expect(
+      authErrorText(ru, const ResetPasswordFailure(error)),
+      ru.emailSendFailedText,
+    );
+    expect(authErrorText(en, failure('email_failed')), en.emailSendFailedText);
+    expect(
+      authErrorText(ru, const ResetPasswordFailure(
+        AuthServiceError(message: 'English', code: 'code_expired'),
+      )),
+      ru.authCodeExpiredText,
+    );
+  });
+
   test('the service English message is never shown', () {
     expect(authErrorText(ru, failure('something_new')), ru.signUpGenericError);
   });

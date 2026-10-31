@@ -178,6 +178,8 @@ services:
       # Called by the mobile app (no browser), so CORS is not a concern here.
       ALLOWED_ORIGIN: "*"
       PORT: "4100"
+      # Code emails that fail to send are reported to the error bot.
+      LOG_APP_KEY: ${LOG_APP_KEY}
     volumes:
       - ./functions/fcm-service-account.json:/secrets/fcm-service-account.json:ro
     networks:

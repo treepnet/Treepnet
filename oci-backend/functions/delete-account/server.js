@@ -78,9 +78,65 @@ function send(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
+// The deletion code email, in the account's language (Russian or English, as
+// the app), as HTML with a plain-text twin. Inline styles and tables only:
+// mail apps drop <style>. Our own text and the code's digits only — nothing
+// to escape.
+const DELETION_EMAIL = {
+  en: {
+    subject: 'Your Treepnet account deletion code',
+    lead: 'Enter this code on the delete page to permanently delete your Treepnet account.',
+    expires: (min) => `The code expires in ${min} minutes.`,
+    ignore: "If you didn't ask for it, ignore this email — nothing will happen.",
+  },
+  ru: {
+    subject: 'Код удаления аккаунта Treepnet',
+    lead: 'Введите этот код на странице удаления, чтобы навсегда удалить аккаунт Treepnet.',
+    expires: (min) => `Код действует ${min} мин.`,
+    ignore: 'Если вы его не запрашивали, проигнорируйте это письмо — ничего не произойдёт.',
+  },
+};
+
+async function sendDeletionCodeEmail(email, code, lang) {
+  const l = lang === 'ru' ? 'ru' : 'en';
+  const t = DELETION_EMAIL[l];
+  const expires = t.expires(CODE_TTL_MIN);
+  await transporter.sendMail({
+    from: `Treepnet <${process.env.SMTP_USER}>`,
+    to: email,
+    subject: t.subject,
+    text: `${t.lead}\n\n${code}\n\n${expires}\n${t.ignore}`,
+    html: `<!doctype html>
+<html lang="${l}"><body style="margin:0;padding:0;background:#f2f3f5">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f3f5;padding:32px 16px">
+<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:440px;background:#ffffff;border-radius:16px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#17191c">
+<tr><td style="padding:28px 28px 0;font-size:20px;font-weight:700">Treepnet</td></tr>
+<tr><td style="padding:16px 28px 0;font-size:15px;line-height:1.5">${t.lead}</td></tr>
+<tr><td style="padding:24px 28px">
+<div style="background:#f2f3f5;border-radius:12px;padding:16px 0;text-align:center;font-family:Menlo,Consolas,'Courier New',monospace;font-size:32px;font-weight:700;letter-spacing:8px">${code}</div>
+</td></tr>
+<tr><td style="padding:0 28px 28px;font-size:13px;line-height:1.5;color:#5f6570">${expires}<br>${t.ignore}</td></tr>
+</table>
+</td></tr>
+</table>
+</body></html>`,
+  });
+}
+
+// Best-effort note to the private Telegram error bot (error-logger service).
+function alertErrorBot(message) {
+  if (!process.env.LOG_APP_KEY) return;
+  fetch('http://errorlogger:4200/error', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-app-key': process.env.LOG_APP_KEY },
+    body: JSON.stringify({ env: 'server', kind: 'deletion-email', message }),
+  }).catch(() => {});
+}
+
 async function findUser(username) {
   const r = await pool.query(
-    'select id, email from profiles where lower(username) = lower($1) limit 1',
+    'select id, email, lang from profiles where lower(username) = lower($1) limit 1',
     [username],
   );
   return r.rows[0] || null;
@@ -102,16 +158,21 @@ async function requestCode(res, body) {
            set code = excluded.code, expires_at = excluded.expires_at, attempts = 0`,
         [user.email, hashCode(user.email, code), expires],
       );
-      await transporter.sendMail({
-        from: `Treepnet <${process.env.SMTP_USER}>`,
-        to: user.email,
-        subject: 'Your Treepnet account deletion code',
-        text:
-          `Your Treepnet account deletion code is ${code}.\n\n` +
-          `It expires in ${CODE_TTL_MIN} minutes. Enter it on the delete page ` +
-          `to permanently delete your account.\n\n` +
-          `If you did not request this, you can ignore this email — nothing will happen.`,
-      });
+      try {
+        await sendDeletionCodeEmail(user.email, code, user.lang);
+      } catch (e) {
+        // Dropped, so a code that never arrived can't be used either; the
+        // error bot hears about it (no address, no code).
+        console.error('delete-account code email failed:', e.message);
+        await pool
+          .query('delete from account_deletion_codes where email = $1', [user.email])
+          .catch(() => {});
+        alertErrorBot(`deletion code email failed: ${e.message}`);
+        return send(res, 424, {
+          error: "Couldn't send the email. Please try again in a few minutes.",
+          code: 'email_failed',
+        });
+      }
     }
     return send(res, 200, { ok: true });
   } catch (e) {

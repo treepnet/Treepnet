@@ -868,6 +868,7 @@
   "chatMessageDeletedPreviewText": "Message deleted",
   "authCodeExpiredText": "This code has expired. Send a new one.",
   "authCodeAttemptsText": "Too many attempts. Send a new code.",
+  "emailSendFailedText": "Couldn't send the email. Please try again in a few minutes.",
   "enterUsernameOrEmailText": "Enter your username or email.",
   "enterCodeText": "Enter the {length}-digit code.",
   "@enterCodeText": {

@@ -40,6 +40,7 @@ String authErrorTextFor(AppLocalizations l10n, String? code) => switch (code) {
   'invalid_email' => l10n.signUpInvalidEmailError,
   'password_too_short' => l10n.passwordLengthErrorText(8),
   'invalid_credentials' => l10n.incorrectCredentialsText,
+  'email_failed' => l10n.emailSendFailedText,
   AuthServiceError.networkCode => l10n.networkProblemText,
   _ => l10n.signUpGenericError,
 };

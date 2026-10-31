@@ -120,20 +120,90 @@ async function emailForUsernameOrEmail(identifier) {
   return r.rows[0]?.email ? r.rows[0].email.toLowerCase() : null;
 }
 
-async function sendCodeEmail(email, code, purpose) {
-  const what =
-    purpose === 'signup'
-      ? 'to finish creating your Treepnet account'
-      : 'to reset your Treepnet password';
+// --- Code emails ----------------------------------------------------------
+// In the reader's language — Russian or English, as the app — and as HTML with
+// a plain-text twin. Sign-up takes the language the app sends (`lang`); a reset
+// takes the account's own (profiles.lang), else the app's.
+const CODE_EMAIL = {
+  en: {
+    subject: (code) => `Your Treepnet code: ${code}`,
+    signup: 'Enter this code in the app to finish creating your Treepnet account.',
+    reset: 'Enter this code in the app to reset your Treepnet password.',
+    expires: (min) => `The code expires in ${min} minutes.`,
+    ignore: "If you didn't ask for it, just ignore this email.",
+  },
+  ru: {
+    subject: (code) => `Ваш код Treepnet: ${code}`,
+    signup: 'Введите этот код в приложении, чтобы завершить регистрацию в Treepnet.',
+    reset: 'Введите этот код в приложении, чтобы сбросить пароль Treepnet.',
+    expires: (min) => `Код действует ${min} мин.`,
+    ignore: 'Если вы его не запрашивали, просто проигнорируйте это письмо.',
+  },
+};
+
+const emailLang = (lang) => (lang === 'ru' ? 'ru' : 'en');
+
+// Inline styles and tables only: mail apps drop <style> and most layout CSS.
+// Every piece is our own text or the digits of the code, so nothing needs
+// escaping.
+function codeEmailHtml(lang, lead, code, expires, ignore) {
+  return `<!doctype html>
+<html lang="${lang}"><body style="margin:0;padding:0;background:#f2f3f5">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f3f5;padding:32px 16px">
+<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:440px;background:#ffffff;border-radius:16px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#17191c">
+<tr><td style="padding:28px 28px 0;font-size:20px;font-weight:700">Treepnet</td></tr>
+<tr><td style="padding:16px 28px 0;font-size:15px;line-height:1.5">${lead}</td></tr>
+<tr><td style="padding:24px 28px">
+<div style="background:#f2f3f5;border-radius:12px;padding:16px 0;text-align:center;font-family:Menlo,Consolas,'Courier New',monospace;font-size:32px;font-weight:700;letter-spacing:8px">${code}</div>
+</td></tr>
+<tr><td style="padding:0 28px 28px;font-size:13px;line-height:1.5;color:#5f6570">${expires}<br>${ignore}</td></tr>
+</table>
+</td></tr>
+</table>
+</body></html>`;
+}
+
+async function sendCodeEmail(email, code, purpose, lang) {
+  const l = emailLang(lang);
+  const t = CODE_EMAIL[l];
+  const lead = purpose === 'signup' ? t.signup : t.reset;
+  const expires = t.expires(CODE_TTL_MIN);
   await transporter.sendMail({
     from: `Treepnet <${process.env.SMTP_USER}>`,
     to: email,
-    subject: `Your Treepnet code: ${code}`,
-    text:
-      `Your Treepnet verification code is ${code}.\n\n` +
-      `Enter it ${what}. It expires in ${CODE_TTL_MIN} minutes.\n\n` +
-      `If you did not request this, you can ignore this email.`,
+    subject: t.subject(code),
+    text: `${lead}\n\n${code}\n\n${expires}\n${t.ignore}`,
+    html: codeEmailHtml(l, lead, code, expires, t.ignore),
   });
+}
+
+// A code email that couldn't go out: the stored code is dropped — otherwise a
+// retry within RESEND_GAP_SEC is taken for a repeat and nothing is sent — the
+// error bot hears about it (no address, no code), and the app is told plainly.
+// A 4xx, so even an app that only reads {error} from 4xx shows the reason.
+async function emailFailed(res, email, purpose, error) {
+  console.error(`auth-service ${purpose} code email failed:`, error.message);
+  await pool
+    .query('delete from auth_codes where email = $1 and purpose = $2', [email, purpose])
+    .catch(() => {});
+  alertErrorBot(`${purpose} code email failed: ${error.message}`);
+  return fail(
+    res,
+    424,
+    "Couldn't send the email. Please try again in a few minutes.",
+    'email_failed',
+  );
+}
+
+// Best-effort note to the private Telegram error bot (error-logger service).
+function alertErrorBot(message) {
+  if (!process.env.LOG_APP_KEY) return;
+  fetch('http://errorlogger:4200/error', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-app-key': process.env.LOG_APP_KEY },
+    body: JSON.stringify({ env: 'server', kind: 'auth-email', message }),
+  }).catch(() => {});
 }
 
 async function upsertCode(email, code, purpose, payload = null) {
@@ -398,7 +468,11 @@ async function signupSendCode(res, b) {
   if (!(await codeJustSent(email, 'signup'))) {
     const code = genCode();
     await upsertCode(email, code, 'signup');
-    await sendCodeEmail(email, code, 'signup');
+    try {
+      await sendCodeEmail(email, code, 'signup', b.lang);
+    } catch (e) {
+      return emailFailed(res, email, 'signup', e);
+    }
   }
   return send(res, 200, { ok: true, continuationToken: email, codeLength: CODE_LENGTH });
 }
@@ -531,7 +605,17 @@ async function resetSendCode(res, b) {
       } else {
         const code = genCode();
         await upsertCode(email, code, 'reset', { token });
-        await sendCodeEmail(email, code, 'reset');
+        const r = await pool.query(
+          'select lang from profiles where lower(email) = $1 limit 1',
+          [email],
+        );
+        try {
+          await sendCodeEmail(email, code, 'reset', r.rows[0]?.lang || b.lang);
+        } catch (e) {
+          // Says the account exists, but only while mail is failing for
+          // everyone — and the person can't otherwise tell why no code came.
+          return emailFailed(res, email, 'reset', e);
+        }
       }
     }
   }

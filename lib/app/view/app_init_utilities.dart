@@ -1,4 +1,5 @@
 import 'package:app_ui/app_ui.dart';
+import 'package:firebase_authentication_client/firebase_authentication_client.dart';
 import 'package:flutter/widgets.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart';
@@ -14,6 +15,9 @@ Locale? _lastInitLocale;
 void initUtilities(BuildContext context, Locale locale) {
   if (_lastInitLocale == locale) return;
   _lastInitLocale = locale;
+
+  // Sign-up and password-reset code emails come in the app's language.
+  AuthServiceApi.language = locale.languageCode == 'ru' ? 'ru' : 'en';
 
   final l10n = context.l10n;
   final theme = context.theme;

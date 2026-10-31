@@ -1699,6 +1699,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'Слишком много попыток. Отправьте новый код.';
 
   @override
+  String get emailSendFailedText =>
+      'Не удалось отправить письмо. Попробуйте ещё раз через несколько минут.';
+
+  @override
   String get enterUsernameOrEmailText => 'Введите имя пользователя или почту.';
 
   @override
