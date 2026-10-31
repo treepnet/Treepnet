@@ -11,6 +11,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:treepnet/map/geo_regions.dart';
 import 'package:treepnet/map/globe_view.dart';
 import 'package:treepnet/map/map_base_layers.dart';
+import 'package:treepnet/map/region_search.dart';
 
 /// The outcome of the map location picker: the resolved [region] plus the exact
 /// [lat]/[lng] the pin was dropped on (so each post keeps its precise spot).
@@ -68,11 +69,15 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   /// The existing pin whose name was copied into the field, if any.
   ({double lat, double lng})? _autoFilledAt;
 
+  // What typing changes lives in notifiers, read by only the widgets that
+  // show it: a setState per keystroke used to rebuild the whole page, globe
+  // included.
+
   /// Set when confirming with an empty name, to show the warning.
-  bool _nameMissing = false;
+  final _nameMissing = ValueNotifier<bool>(false);
 
   /// Places matching what's typed in the search box (max [_maxSuggestions]).
-  List<GeoRegion> _suggestions = const [];
+  final _suggestions = ValueNotifier<List<GeoRegion>>(const []);
   static const _maxSuggestions = 6;
 
   /// The signed-in user's own travel map, drawn underneath the picker so you
@@ -130,6 +135,8 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
 
   @override
   void dispose() {
+    _nameMissing.dispose();
+    _suggestions.dispose();
     _placeController
       ..removeListener(_onPlaceNameChanged)
       ..dispose();
@@ -140,30 +147,26 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     super.dispose();
   }
 
-  void _onPlaceNameChanged() => _safeSetState(() {
-    if (_placeController.text.trim().isNotEmpty) _nameMissing = false;
-  });
+  void _onPlaceNameChanged() {
+    if (_placeController.text.trim().isNotEmpty) _nameMissing.value = false;
+  }
 
   void _onSearchChanged(String raw) {
-    final query = raw.trim().toLowerCase();
+    final query = normalizeSearch(raw);
     if (query.isEmpty) {
-      _safeSetState(() => _suggestions = const []);
+      _suggestions.value = const [];
       return;
     }
+    // Any word of the region's or its country's name, in English, Russian or
+    // Uzbek, whatever the app language (see region_search.dart).
     final matches = <GeoRegion>[];
     for (final region in GeoRegions.instance.allRegions) {
-      // Match source + English + Russian names (region and country) so search
-      // works in either script regardless of the app language.
-      if (region.name.toLowerCase().startsWith(query) ||
-          region.nameEn.toLowerCase().startsWith(query) ||
-          region.nameRu.toLowerCase().startsWith(query) ||
-          region.countryName.toLowerCase().startsWith(query) ||
-          region.countryNameRu.toLowerCase().startsWith(query)) {
+      if (regionMatchesSearch(region, query)) {
         matches.add(region);
         if (matches.length >= _maxSuggestions) break;
       }
     }
-    _safeSetState(() => _suggestions = matches);
+    _suggestions.value = matches;
   }
 
   /// Flies to a searched place. The camera lands *inside* the region but off
@@ -180,7 +183,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     _searchController.text = region.localizedDisplayName(
       Localizations.localeOf(context).languageCode,
     );
-    _safeSetState(() => _suggestions = const []);
+    _suggestions.value = const [];
     final spot = _spotInside(region);
     _globeController.moveTo(
       spot.latitude,
@@ -313,7 +316,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
         (from.lng - _center.longitude).abs() > tolerance;
     if (!moved) return;
     _autoFilledAt = null;
-    _safeSetState(() => _placeController.clear());
+    _placeController.clear();
   }
 
   void _confirm() {
@@ -327,7 +330,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     final name = _placeController.text.trim();
     // A place without a name is not a place anyone can read on the map.
     if (name.isEmpty) {
-      _safeSetState(() => _nameMissing = true);
+      _nameMissing.value = true;
       return;
     }
     Navigator.of(context).pop(
@@ -383,12 +386,16 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
           ),
         ),
         actions: [
-          IconButton(
-            icon: Icon(
-              Icons.check,
-              color: _isComplete ? AppColors.white : AppColors.grey,
+          // Lights up as the name is typed, without rebuilding the page.
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _placeController,
+            builder: (context, _, _) => IconButton(
+              icon: Icon(
+                Icons.check,
+                color: _isComplete ? AppColors.white : AppColors.grey,
+              ),
+              onPressed: _canConfirm ? _confirm : null,
             ),
-            onPressed: _canConfirm ? _confirm : null,
           ),
         ],
       ),
@@ -456,23 +463,30 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                 left: 16,
                 right: 16,
                 bottom: 45,
-                child: _PlaceNameField(
-                  region: _detected,
-                  controller: _placeController,
-                  showError: _nameMissing,
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: _nameMissing,
+                  builder: (context, nameMissing, _) => _PlaceNameField(
+                    region: _detected,
+                    controller: _placeController,
+                    showError: nameMissing,
+                  ),
                 ),
               ),
               // Search results drop under the search box.
-              if (_suggestions.isNotEmpty)
-                Positioned(
-                  left: 12,
-                  right: 12,
-                  top: 8,
-                  child: _SearchResults(
-                    regions: _suggestions,
-                    onSelected: _goTo,
-                  ),
-                ),
+              ValueListenableBuilder<List<GeoRegion>>(
+                valueListenable: _suggestions,
+                builder: (context, suggestions, _) => suggestions.isEmpty
+                    ? const SizedBox.shrink()
+                    : Positioned(
+                        left: 12,
+                        right: 12,
+                        top: 8,
+                        child: _SearchResults(
+                          regions: suggestions,
+                          onSelected: _goTo,
+                        ),
+                      ),
+              ),
             ],
           );
         },
