@@ -125,8 +125,9 @@ class ChatThreadScreen extends StatelessWidget {
               trailing: menu,
               avatar: headerAvatar,
               onTitleTap: onTitleTap,
-              composerOverride:
-                  blocked ? _BlockedComposerBar(iBlocked: iBlocked) : null,
+              composerOverride: blocked
+                  ? _BlockedComposerBar(iBlocked: iBlocked)
+                  : null,
             );
           },
         );

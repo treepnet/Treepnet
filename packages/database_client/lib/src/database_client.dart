@@ -619,10 +619,7 @@ abstract class StoriesBaseRepository {
 /// ```
 /// {@endtemplate}
 abstract class DatabaseClient
-    implements
-        UserBaseRepository,
-        PostsBaseRepository,
-        StoriesBaseRepository {
+    implements UserBaseRepository, PostsBaseRepository, StoriesBaseRepository {
   /// {@macro database_client}
   const DatabaseClient();
 
@@ -1651,7 +1648,8 @@ WHERE id = ?1
     final me = _viewerSql;
     return switch (order) {
       PostOrder.newest => 'posts.created_at DESC, posts.id',
-      PostOrder.feed => '''
+      PostOrder.feed =>
+        '''
 CASE WHEN posts.user_id = $me OR EXISTS (
   SELECT 1 FROM subscriptions f
    WHERE f.subscriber_id = $me AND f.subscribed_to_id = posts.user_id
@@ -1660,7 +1658,8 @@ CASE WHEN posts.user_id = $me OR EXISTS (
 posts.created_at DESC, posts.id''',
       // The first 19 characters are the UTC date and time in every format
       // the column has held; julianday() reads them whatever follows.
-      PostOrder.trending => '''
+      PostOrder.trending =>
+        '''
 CASE WHEN julianday(substr(posts.created_at, 1, 19)) >= julianday('now') - 14
   THEN 0 ELSE 1 END,
 ((SELECT COUNT(*) FROM likes l WHERE l.post_id = posts.id)
@@ -2254,7 +2253,6 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
       );
     });
   }
-
 
   @override
   Future<void> acceptFollowRequest({required String requesterId}) async {

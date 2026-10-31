@@ -48,5 +48,4 @@ class CommentsBloc extends Bloc<CommentsEvent, CommentsState> {
     content: event.content,
     repliedToCommentId: event.repliedToCommentId,
   );
-
 }

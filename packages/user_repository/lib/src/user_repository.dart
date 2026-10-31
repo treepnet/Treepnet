@@ -29,8 +29,8 @@ class UserRepository implements UserBaseRepository {
   /// completes, and `asyncExpand` waits for each inner stream to finish before
   /// handling the next auth event — which swallowed the sign-out and left the
   /// app stuck as the signed-in user.
-  Stream<User> get user => _authenticationClient.user
-      .switchMap<User>((AuthenticationUser authUser) {
+  Stream<User> get user =>
+      _authenticationClient.user.switchMap<User>((AuthenticationUser authUser) {
         final base = User.fromAuthenticationUser(authenticationUser: authUser);
         if (authUser.isAnonymous) return Stream.value(base);
         // Until the row syncs, keep showing the identity we already have.
@@ -38,8 +38,7 @@ class UserRepository implements UserBaseRepository {
             .profile(id: authUser.id)
             .map((profile) => profile.isAnonymous ? base : profile)
             .startWith(base);
-      })
-      .asBroadcastStream();
+      }).asBroadcastStream();
 
   /// Starts the Sign In with Google Flow.
   ///
@@ -355,12 +354,13 @@ class UserRepository implements UserBaseRepository {
     required String name,
     required List<String> storyIds,
     String? coverUrl,
-  }) => _databaseClient.createStoryHighlight(
-    userId: userId,
-    name: name,
-    storyIds: storyIds,
-    coverUrl: coverUrl,
-  );
+  }) =>
+      _databaseClient.createStoryHighlight(
+        userId: userId,
+        name: name,
+        storyIds: storyIds,
+        coverUrl: coverUrl,
+      );
 
   @override
   Future<void> deleteStoryHighlight({required String highlightId}) =>
@@ -370,10 +370,11 @@ class UserRepository implements UserBaseRepository {
   Future<void> addStoryToHighlight({
     required String highlightId,
     required String storyId,
-  }) => _databaseClient.addStoryToHighlight(
-    highlightId: highlightId,
-    storyId: storyId,
-  );
+  }) =>
+      _databaseClient.addStoryToHighlight(
+        highlightId: highlightId,
+        storyId: storyId,
+      );
 
   @override
   Future<void> setStoryLocation({
@@ -381,12 +382,13 @@ class UserRepository implements UserBaseRepository {
     required double lat,
     required double lng,
     String? name,
-  }) => _databaseClient.setStoryLocation(
-    storyId: storyId,
-    lat: lat,
-    lng: lng,
-    name: name,
-  );
+  }) =>
+      _databaseClient.setStoryLocation(
+        storyId: storyId,
+        lat: lat,
+        lng: lng,
+        name: name,
+      );
 
   @override
   Future<bool> isStoryPinned({required String storyId}) =>
@@ -400,10 +402,11 @@ class UserRepository implements UserBaseRepository {
   Future<void> setVisitedRegions({
     required String userId,
     required Set<String> regionIsos,
-  }) => _databaseClient.setVisitedRegions(
-    userId: userId,
-    regionIsos: regionIsos,
-  );
+  }) =>
+      _databaseClient.setVisitedRegions(
+        userId: userId,
+        regionIsos: regionIsos,
+      );
 
   @override
   Future<String> redeemReferral({required String handle}) =>

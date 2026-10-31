@@ -139,8 +139,8 @@ class LocationPostsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Only the owner of the map may add to it.
-    final isOwner = context.select((AppBloc bloc) => bloc.state.user.id) ==
-        userId;
+    final isOwner =
+        context.select((AppBloc bloc) => bloc.state.user.id) == userId;
 
     return DefaultTabController(
       length: 2,
