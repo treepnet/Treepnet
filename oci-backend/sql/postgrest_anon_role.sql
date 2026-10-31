@@ -8,8 +8,11 @@
 -- request can't hold the single database. PostgREST applies the impersonated
 -- role's settings per request.
 --
--- Goes with docker-compose.yml: PGRST_DB_ANON_ROLE=anon,
--- PGRST_OPENAPI_MODE=disabled, PGRST_DB_MAX_ROWS=500.
+-- Goes with docker-compose.yml: PGRST_OPENAPI_MODE=disabled,
+-- PGRST_DB_MAX_ROWS=500. PGRST_DB_ANON_ROLE=anon ONLY once every token
+-- carries a role claim: PostgREST runs a valid token WITHOUT one as the anon
+-- role, and Firebase ID tokens have none — switching early refused every
+-- signed-in write (2026-10-31, reverted within 7 minutes).
 -- Undo: postgrest_anon_role_rollback.sql (and the compose values back).
 --   docker exec -i treepnet-postgres psql -U <super> -d treepnet -v ON_ERROR_STOP=1 < postgrest_anon_role.sql
 
