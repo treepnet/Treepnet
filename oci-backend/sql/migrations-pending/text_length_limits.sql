@@ -7,7 +7,7 @@
 -- drops that post or comment from the phone's upload queue.
 --
 -- To apply: move this file to ../migrations/ as the next number
--- (e.g. 002_text_length_limits.sql) and run ./migrate.sh --dry-run, then
+-- (e.g. 003_text_length_limits.sql) and run ./migrate.sh --dry-run, then
 -- ./migrate.sh on the server.
 --
 -- The limits are twice the app's: the app counts characters as you see them,
