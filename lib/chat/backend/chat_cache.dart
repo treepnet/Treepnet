@@ -37,7 +37,9 @@ class ChatCache {
   final Map<String, Future<void>> _writes = {};
 
   /// Bumped by [clear], so a write started before a sign-out doesn't put the
-  /// signed-out account's data back.
+  /// signed-out account's data back. Each write takes it the moment it is
+  /// asked for — before finding its file, which awaits: taken later, a write
+  /// asked for just before [clear] got the new value and went ahead.
   int _generation = 0;
 
   Future<Directory> _accountDir(String uuid) async {
@@ -92,8 +94,9 @@ class ChatCache {
     required int unread,
     List<Map<dynamic, dynamic>>? conversations,
   }) async {
+    final generation = _generation;
     final file = File('${(await _accountDir(uuid)).path}/inbox');
-    await _queue(file.path, () async {
+    await _queue(file.path, generation, () async {
       final saved = conversations == null ? await _read(file) : null;
       await _write(file, {
         'myUserId': myUserId,
@@ -122,8 +125,9 @@ class ChatCache {
     String conversationId,
     List<Map<dynamic, dynamic>> messages,
   ) async {
+    final generation = _generation;
     final file = await _messagesFile(uuid, conversationId);
-    await _queue(file.path, () async {
+    await _queue(file.path, generation, () async {
       await _write(file, messages.take(messagesPerConversation).toList());
       await _pruneConversations(file.parent);
     });
@@ -137,8 +141,9 @@ class ChatCache {
     List<Map<dynamic, dynamic>> Function(List<Map<dynamic, dynamic>> saved)
     update,
   ) async {
+    final generation = _generation;
     final file = await _messagesFile(uuid, conversationId);
-    await _queue(file.path, () async {
+    await _queue(file.path, generation, () async {
       final saved = await _read(file);
       if (saved is! List) return;
       final next = update(saved.whereType<Map<dynamic, dynamic>>().toList());
@@ -167,8 +172,11 @@ class ChatCache {
     }
   }
 
-  Future<void> _queue(String path, Future<void> Function() write) {
-    final generation = _generation;
+  Future<void> _queue(
+    String path,
+    int generation,
+    Future<void> Function() write,
+  ) {
     final previous = _writes[path] ?? Future<void>.value();
     final next = previous.then((_) async {
       if (generation != _generation) return;
