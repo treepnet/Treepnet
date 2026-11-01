@@ -2049,18 +2049,6 @@ abstract class AppLocalizations {
   /// **'Write a description...'**
   String get writeDescriptionHintText;
 
-  /// No description provided for @tagPeopleText.
-  ///
-  /// In en, this message translates to:
-  /// **'Tag people'**
-  String get tagPeopleText;
-
-  /// No description provided for @tagPeopleHintText.
-  ///
-  /// In en, this message translates to:
-  /// **'@username @friend'**
-  String get tagPeopleHintText;
-
   /// No description provided for @addInformationText.
   ///
   /// In en, this message translates to:

@@ -1231,12 +1231,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get writeDescriptionHintText => 'Напишите описание...';
 
   @override
-  String get tagPeopleText => 'Отметить людей';
-
-  @override
-  String get tagPeopleHintText => '@username @friend';
-
-  @override
   String get addInformationText => 'Добавить информацию';
 
   @override

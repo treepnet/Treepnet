@@ -658,8 +658,6 @@
   "failedToCreatePostText": "Не удалось создать публикацию!",
   "descriptionText": "Описание",
   "writeDescriptionHintText": "Напишите описание...",
-  "tagPeopleText": "Отметить людей",
-  "tagPeopleHintText": "@username @friend",
   "addInformationText": "Добавить информацию",
   "acceptText": "Принять",
   "declineText": "Отклонить",

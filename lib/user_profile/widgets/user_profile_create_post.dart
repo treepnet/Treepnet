@@ -264,9 +264,6 @@ class _CreatePostPageState extends State<CreatePostPage> {
   /// The post description (caption).
   String _caption = '';
 
-  /// Tagged people (space-separated `@handles`), appended to the caption.
-  String _mentions = '';
-
   /// Structured region selected via the map picker (colors the profile map).
   GeoRegion? _region;
 
@@ -308,14 +305,8 @@ class _CreatePostPageState extends State<CreatePostPage> {
         .toList();
   }
 
-  /// The final caption stored with the post: the description with any tagged
-  /// people appended on a new line (there is no separate mentions column yet).
-  String get _fullCaption {
-    final caption = _caption.trim();
-    final mentions = _mentions.trim();
-    if (mentions.isEmpty) return caption;
-    return caption.isEmpty ? mentions : '$caption\n$mentions';
-  }
+  /// The caption stored with the post.
+  String get _fullCaption => _caption.trim();
 
   Future<void> _onShareTap() async {
     if (_sharing) return;
@@ -383,20 +374,6 @@ class _CreatePostPageState extends State<CreatePostPage> {
       ),
     );
     if (result != null) setState(() => _caption = result);
-  }
-
-  Future<void> _editMentions() async {
-    final result = await Navigator.of(context).push<String>(
-      MaterialPageRoute(
-        builder: (_) => _TextEntryPage(
-          title: context.l10n.tagPeopleText,
-          initial: _mentions,
-          hint: context.l10n.tagPeopleHintText,
-          singleLine: true,
-        ),
-      ),
-    );
-    if (result != null) setState(() => _mentions = result);
   }
 
   Future<void> _editLocation() async {
@@ -605,21 +582,19 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-/// A full-screen text-entry page (Figma "Description" / "Tag people"):
+/// A full-screen text-entry page (Figma "Description"):
 /// back / title / ✓, with an autofocused field. Confirming pops the text.
 class _TextEntryPage extends StatefulWidget {
   const _TextEntryPage({
     required this.title,
     required this.initial,
     required this.hint,
-    this.singleLine = false,
     this.maxLength,
   });
 
   final String title;
   final String initial;
   final String hint;
-  final bool singleLine;
 
   /// The most the text may hold (the post caption has one).
   final int? maxLength;
@@ -662,20 +637,15 @@ class _TextEntryPageState extends State<_TextEntryPage> {
             contentPadding: EdgeInsets.zero,
             filled: false,
             fillColor: Colors.transparent,
-            maxLines: widget.singleLine ? 1 : 12,
+            maxLines: 12,
             maxLength: widget.maxLength,
             buildCounter: nearLimitCounter,
             textInputType: TextInputType.multiline,
-            textInputAction: widget.singleLine
-                ? TextInputAction.done
-                : TextInputAction.newline,
+            textInputAction: TextInputAction.newline,
             textCapitalization: TextCapitalization.sentences,
             hintText: widget.hint,
             hintStyle: const TextStyle(color: Colors.white38, fontSize: 18),
             style: const TextStyle(color: Colors.white, fontSize: 18),
-            onFieldSubmitted: widget.singleLine
-                ? (v) => Navigator.of(context).pop(_controller.text.trim())
-                : null,
           ),
         ),
       ),

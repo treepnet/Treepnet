@@ -22,10 +22,6 @@ updates:
     schedule:
       interval: "daily"
   - package-ecosystem: "pub"
-    directory: "/packages/chats_repository"
-    schedule:
-      interval: "daily"
-  - package-ecosystem: "pub"
     directory: "/packages/database_client"
     schedule:
       interval: "daily"
@@ -71,18 +67,6 @@ updates:
       interval: "daily"
   - package-ecosystem: "pub"
     directory: "/packages/stories_repository"
-    schedule:
-      interval: "daily"
-  - package-ecosystem: "pub"
-    directory: "/packages/notifications_client/notifications_client"
-    schedule:
-      interval: "daily"
-  - package-ecosystem: "pub"
-    directory: "/packages/notifications_client/firebase_notifications_client"
-    schedule:
-      interval: "daily"
-  - package-ecosystem: "pub"
-    directory: "/packages/notifications_repository"
     schedule:
       interval: "daily"
   - package-ecosystem: "pub"

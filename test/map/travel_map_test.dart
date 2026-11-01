@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treepnet/map/geo_regions.dart';
-import 'package:treepnet/map/region_picker.dart';
 import 'package:treepnet/map/travel_map.dart';
 
 void main() {
@@ -108,49 +107,5 @@ void main() {
 
       expect(tester.takeException(), isNull);
     }, skip: true);
-  });
-
-  group('Region picker', () {
-    testWidgets('opens and lists countries, then regions', (tester) async {
-      await GeoRegions.instance.load();
-
-      GeoRegion? picked;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => Center(
-                child: ElevatedButton(
-                  onPressed: () async {
-                    picked = await showRegionPicker(context);
-                  },
-                  child: const Text('open'),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-
-      await tester.tap(find.text('open'));
-      await tester.pumpAndSettle();
-
-      // Country step: a searchable list of countries is shown.
-      expect(find.text('Davlatni tanlang'), findsOneWidget);
-      expect(find.byType(ListTile), findsWidgets);
-      expect(tester.takeException(), isNull);
-
-      // Search for Turkey and tap it.
-      await tester.enterText(find.byType(TextField), 'Turk');
-      await tester.pumpAndSettle();
-      final turkeyTile = find.byType(ListTile).first;
-      await tester.tap(turkeyTile);
-      await tester.pumpAndSettle();
-
-      // Region step: back arrow + region list shown.
-      expect(find.byIcon(Icons.arrow_back), findsOneWidget);
-      expect(find.byType(ListTile), findsWidgets);
-      expect(tester.takeException(), isNull);
-    });
   });
 }

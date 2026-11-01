@@ -712,8 +712,6 @@
   "failedToCreatePostText": "Failed to create post!",
   "descriptionText": "Description",
   "writeDescriptionHintText": "Write a description...",
-  "tagPeopleText": "Tag people",
-  "tagPeopleHintText": "@username @friend",
   "addInformationText": "Add information",
   "acceptText": "Accept",
   "declineText": "Decline",

@@ -1213,12 +1213,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get writeDescriptionHintText => 'Write a description...';
 
   @override
-  String get tagPeopleText => 'Tag people';
-
-  @override
-  String get tagPeopleHintText => '@username @friend';
-
-  @override
   String get addInformationText => 'Add information';
 
   @override
