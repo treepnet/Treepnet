@@ -141,11 +141,6 @@ PODS:
   - photo_manager (2.0.0):
     - Flutter
     - FlutterMacOS
-  - PostHog (3.69.2)
-  - posthog_flutter (0.0.1):
-    - Flutter
-    - FlutterMacOS
-    - PostHog (~> 3.0)
   - powersync-sqlite-core (0.4.14)
   - powersync_flutter_libs (0.0.1):
     - Flutter
@@ -220,7 +215,6 @@ DEPENDENCIES:
   - package_info_plus (from `.symlinks/plugins/package_info_plus/ios`)
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
   - photo_manager (from `.symlinks/plugins/photo_manager/ios`)
-  - posthog_flutter (from `.symlinks/plugins/posthog_flutter/ios`)
   - powersync_flutter_libs (from `.symlinks/plugins/powersync_flutter_libs/darwin`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
   - sqflite (from `.symlinks/plugins/sqflite/darwin`)
@@ -246,7 +240,6 @@ SPEC REPOS:
     - libwebp
     - Mantle
     - nanopb
-    - PostHog
     - powersync-sqlite-core
     - PromisesObjC
     - RecaptchaInterop
@@ -297,8 +290,6 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/path_provider_foundation/darwin"
   photo_manager:
     :path: ".symlinks/plugins/photo_manager/ios"
-  posthog_flutter:
-    :path: ".symlinks/plugins/posthog_flutter/ios"
   powersync_flutter_libs:
     :path: ".symlinks/plugins/powersync_flutter_libs/darwin"
   shared_preferences_foundation:
@@ -351,8 +342,6 @@ SPEC CHECKSUMS:
   package_info_plus: af8e2ca6888548050f16fa2f1938db7b5a5df499
   path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564
   photo_manager: d2fbcc0f2d82458700ee6256a15018210a81d413
-  PostHog: 164b2e333cc1741dd754ca4a57112a693af81c72
-  posthog_flutter: 37053225347313fb5385539b300a8237fae24e34
   powersync-sqlite-core: 6ce0b8b254812855e4ec52899ddc3ac6a30bda12
   powersync_flutter_libs: 19fc6b96ff8155ffea72a08990f6c9f2e712b8a6
   PromisesObjC: 752c3227f599e3467650e47ea36f433eeb10c273

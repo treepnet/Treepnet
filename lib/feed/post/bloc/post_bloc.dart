@@ -4,7 +4,6 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:bloc/bloc.dart';
 import 'package:json_annotation/json_annotation.dart';
-import 'package:posthog_flutter/posthog_flutter.dart';
 import 'package:posts_repository/posts_repository.dart';
 import 'package:shared/shared.dart';
 import 'package:user_repository/user_repository.dart';
@@ -134,15 +133,6 @@ class PostBloc extends Bloc<PostEvent, PostState> {
       await _postsRepository.like(id: id, liked: event.liked);
       emit(state.copyWith(status: PostStatus.success));
     } catch (error, stackTrace) {
-      unawaited(
-        Posthog().capture(
-          eventName: 'PostLikedRequestedError',
-          properties: {
-            'error': error.toString(),
-            'stackTrace': stackTrace.toString(),
-          },
-        ),
-      );
       addError(error, stackTrace);
       emit(state.copyWith(status: PostStatus.failure));
     }

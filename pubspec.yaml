@@ -68,7 +68,6 @@ dependencies:
   path_provider: ^2.1.5
   persistent_storage:
     path: packages/storage/persistent_storage
-  posthog_flutter: ^4.5.0
   posts_repository:
     path: packages/posts_repository
   powersync_repository:

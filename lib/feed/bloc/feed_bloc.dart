@@ -7,7 +7,6 @@ import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:treepnet/app/app.dart';
-import 'package:posthog_flutter/posthog_flutter.dart';
 import 'package:posts_repository/posts_repository.dart';
 import 'package:shared/shared.dart';
 
@@ -83,15 +82,6 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> with FeedBlocMixin {
 
       emit(state.populated(feed: feed));
     } catch (error, stackTrace) {
-      unawaited(
-        Posthog().capture(
-          eventName: 'FeedPageRequestedError',
-          properties: {
-            'error': error.toString(),
-            'stackTrace': stackTrace.toString(),
-          },
-        ),
-      );
       addError(error, stackTrace);
       emit(state.failure());
     }
