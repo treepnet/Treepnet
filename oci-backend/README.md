@@ -67,6 +67,8 @@ order, each file in one transaction with its row in `schema_migrations`, and
 refuses to go on if an applied file was edited. `./migrate.sh --status` lists
 both. PostgREST reloads its schema by itself after any change
 (`001_postgrest_auto_reload.sql`); no `notify pgrst` needed.
+`sql/migrations-pending/` holds changes written but waiting on something (each
+says what); move one into `migrations/` with the next number when it is due.
 
 The other files in `sql/` are what was applied by hand before (each with its
 own notes and rollback) and diagnostic queries; they are history, already in

@@ -1,6 +1,7 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:treepnet/app/view/text_limit.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/comments/comments.dart';
 import 'package:treepnet/l10n/l10n.dart';
@@ -101,6 +102,8 @@ class _CommentTextFieldState extends State<CommentTextField> {
                               vertical: AppSpacing.md,
                             ),
                             hintText: context.l10n.addCommentText,
+                            maxLength: kCommentMaxLength,
+                            buildCounter: nearLimitCounter,
                             textInputType: TextInputType.text,
                             textInputAction: TextInputAction.newline,
                             border: outlinedBorder(borderRadius: 26),
@@ -123,10 +126,13 @@ class _CommentTextFieldState extends State<CommentTextField> {
                                       context.read<CommentsBloc>().add(
                                         CommentsCommentCreateRequested(
                                           userId: user.id,
+                                          // Without the spaces and blank
+                                          // lines around it.
                                           content: commentInputController
                                               .commentTextController
                                               .value
-                                              .text,
+                                              .text
+                                              .trim(),
                                           repliedToCommentId:
                                               commentInputController
                                                   .replyingCommentId,

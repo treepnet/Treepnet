@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart';
 import 'package:shared/shared.dart';
+import 'package:treepnet/app/view/text_limit.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/feed/feed.dart';
 import 'package:treepnet/l10n/l10n.dart';
@@ -375,6 +376,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
           title: context.l10n.descriptionText,
           initial: _caption,
           hint: context.l10n.writeDescriptionHintText,
+          maxLength: kCaptionMaxLength,
         ),
       ),
     );
@@ -609,12 +611,16 @@ class _TextEntryPage extends StatefulWidget {
     required this.initial,
     required this.hint,
     this.singleLine = false,
+    this.maxLength,
   });
 
   final String title;
   final String initial;
   final String hint;
   final bool singleLine;
+
+  /// The most the text may hold (the post caption has one).
+  final int? maxLength;
 
   @override
   State<_TextEntryPage> createState() => _TextEntryPageState();
@@ -655,6 +661,8 @@ class _TextEntryPageState extends State<_TextEntryPage> {
             filled: false,
             fillColor: Colors.transparent,
             maxLines: widget.singleLine ? 1 : 12,
+            maxLength: widget.maxLength,
+            buildCounter: nearLimitCounter,
             textInputType: TextInputType.multiline,
             textInputAction: widget.singleLine
                 ? TextInputAction.done

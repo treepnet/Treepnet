@@ -60,6 +60,7 @@ class AppTextField extends StatelessWidget {
     this.magnifierConfiguration,
     this.maxLines = 1,
     this.maxLength,
+    this.buildCounter,
     this.minLength,
     this.minLines,
     this.maxLengthEnforcement,
@@ -261,6 +262,10 @@ class AppTextField extends StatelessWidget {
   final TextMagnifierConfiguration? magnifierConfiguration;
   final int maxLines;
   final int? maxLength;
+
+  /// What shows under the field about [maxLength] (Flutter's default, "12/2200",
+  /// when null).
+  final InputCounterWidgetBuilder? buildCounter;
   final int? minLength;
   final int? minLines;
   final BoxConstraints? constraints;
@@ -317,6 +322,7 @@ class AppTextField extends StatelessWidget {
       keyboardAppearance: keyboardAppearance,
       magnifierConfiguration: magnifierConfiguration,
       maxLength: maxLength,
+      buildCounter: buildCounter,
       maxLengthEnforcement: maxLengthEnforcement,
       maxLines: maxLines,
       minLines: minLines,

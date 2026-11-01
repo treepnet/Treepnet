@@ -1,6 +1,7 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:treepnet/app/view/text_limit.dart';
 import 'package:treepnet/feed/feed.dart';
 import 'package:treepnet/feed/post/bloc/post_bloc.dart';
 import 'package:treepnet/feed/post/post.dart';
@@ -179,6 +180,8 @@ class _CaptionInputFieldState extends State<CaptionInputField> {
       textInputAction: TextInputAction.newline,
       textCapitalization: TextCapitalization.sentences,
       hintText: context.l10n.writeCaptionText,
+      maxLength: kCaptionMaxLength,
+      buildCounter: nearLimitCounter,
       onFieldSubmitted: (value) =>
           _equals(value) ? null : widget.onSubmitted(_effectiveValue(value)),
     );
