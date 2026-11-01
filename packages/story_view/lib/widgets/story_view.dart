@@ -738,13 +738,22 @@ class StoryViewState extends State<StoryView> with TickerProviderStateMixin {
                     : (details) {
                         widget.controller.play();
                         // finish up drag cycle
-                        if (!verticalDragInfo!.cancel &&
-                            widget.onVerticalSwipeComplete != null) {
-                          widget.onVerticalSwipeComplete!(
-                              verticalDragInfo!.direction);
-                        }
-
+                        final info = verticalDragInfo;
                         verticalDragInfo = null;
+                        // A quick flick can end before any update came in,
+                        // so there is no drag info: its speed tells the way.
+                        final velocity = details.primaryVelocity ?? 0;
+                        final Direction? direction = info != null
+                            ? (info.cancel ? null : info.direction)
+                            : velocity > 0
+                                ? Direction.down
+                                : velocity < 0
+                                    ? Direction.up
+                                    : null;
+                        if (direction != null &&
+                            widget.onVerticalSwipeComplete != null) {
+                          widget.onVerticalSwipeComplete!(direction);
+                        }
                       },
               )),
           Align(
