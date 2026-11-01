@@ -82,7 +82,7 @@
     </header>
 
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: August 4, 2026</p>
+    <p class="updated">Last updated: November 1, 2026</p>
 
     <p class="lead" style="margin-bottom:26px">
       This Privacy Policy explains what information the Treepnet mobile
@@ -95,14 +95,16 @@
       <h2>1. Information we collect</h2>
       <p>We collect only what the app needs to work:</p>
       <ul>
-        <li><strong>Account information</strong> — the email address, username and display name you provide when you create an account. Sign-in and account security are handled by Microsoft Entra External ID.</li>
+        <li><strong>Account information</strong> — the email address, username and display name you provide when you create an account. Your password is stored only as a secure one-way hash. Codes to confirm your email, reset your password or delete your account are sent to your email, and your signed-in session is managed with Firebase Authentication (Google).</li>
         <li><strong>Profile information</strong> — anything you add to your profile, such as an avatar photo, bio, an optional website/social link, date of birth and gender.</li>
         <li><strong>Content you create</strong> — photos you post, stories, captions, comments, likes, saved posts and the regions/places associated with your posts (used to build your travel map). This content is stored on our servers and, for public accounts, is visible to other users.</li>
         <li><strong>Location data</strong> — with your permission, we use your device’s approximate or precise location to tag a story or post with the place it was taken and to colour the regions on your travel map. We also read the GPS tag embedded in a photo you choose, when present. Location is used only while you are using the app; Treepnet does not track your location in the background.</li>
         <li><strong>Camera &amp; photos</strong> — with your permission, we access the camera to take pictures and your photo library so you can select existing images to share. Nothing is uploaded until you choose to post it.</li>
-        <li><strong>Direct messages</strong> — messages you send to other users are stored so they can be delivered and shown in your conversations.</li>
-        <li><strong>Referrals</strong> — if you invite friends with your invite link, we record how many people registered through your link so we can grant the associated rewards.</li>
-        <li><strong>Usage &amp; device analytics</strong> — we use PostHog to collect basic, aggregated analytics (for example app opens, screens viewed, app version, device model, operating system and language) to understand how the app is used and improve it.</li>
+        <li><strong>Direct messages</strong> — messages you send to other users are stored on our own chat server so they can be delivered and shown in your conversations.</li>
+        <li><strong>Referrals</strong> — if you invite friends with your invite link, we record how many people registered through your link so we can grant the associated rewards. On Android, the app reads the Google Play install referrer once, to match a new account to the invite link it came from.</li>
+        <li><strong>Activity</strong> — while the app is open it tells our server from time to time that you are active. We use this to show when you were last online and to count, in aggregate, how many people use the app. We do not use third-party analytics services.</li>
+        <li><strong>Error reports</strong> — when the app hits an error, it sends a report (the error, the screen it happened on, the app version, the operating system and device model, and your anonymous account ID — never your name, email or messages) so we can find and fix the problem.</li>
+        <li><strong>Notifications</strong> — if you allow notifications, a push token for your device, used only to send you notifications about activity on your account.</li>
       </ul>
       <p>Treepnet does <strong>not</strong> collect microphone/audio, contacts, SMS, call logs, or precise advertising identifiers, and does not require access to all files on your device.</p>
     </div>
@@ -125,6 +127,7 @@
         <li><strong>Camera</strong> — to take photos for posts and stories.</li>
         <li><strong>Photos / media images</strong> — to select existing photos to share.</li>
         <li><strong>Location</strong> — to tag content with the place it was taken (foreground only).</li>
+        <li><strong>Notifications</strong> — to tell you about likes, comments, follows and messages. You can turn them off at any time.</li>
       </ul>
     </div>
 
@@ -133,14 +136,14 @@
       <p>We do <strong>not</strong> sell your personal information. We share data only as needed to run the service:</p>
       <ul>
         <li><strong>Other users</strong> — content you post from a public account (posts, stories, profile, comments, likes) is visible to others. Direct messages are visible to the people in the conversation.</li>
-        <li><strong>Service providers</strong> — we use Microsoft Azure (hosting, database and media storage), Microsoft Entra External ID (authentication) and PostHog (analytics). These providers process data on our behalf under their own security and privacy terms.</li>
+        <li><strong>Service providers</strong> — we use Oracle Cloud Infrastructure (hosting, database, media storage and backups), Google Firebase (sign-in sessions and push notifications), Apple Push Notification service (notifications on iPhone), Google Gmail (sending those codes by email) and Telegram (delivering error reports to our team's private chat). These providers process data on our behalf under their own security and privacy terms.</li>
         <li><strong>Legal reasons</strong> — if required by law, or to protect the rights, safety and security of our users and the service.</li>
       </ul>
     </div>
 
     <div class="card">
       <h2>5. Where data is stored &amp; security</h2>
-      <p>Your data is stored on Microsoft Azure infrastructure (European region). Data is encrypted in transit using HTTPS/TLS. While no method of transmission or storage is completely secure, we take reasonable measures to protect your information.</p>
+      <p>Your data is stored on Oracle Cloud Infrastructure in Frankfurt, Germany (European Union). Data is encrypted in transit using HTTPS/TLS, and our backups are encrypted. While no method of transmission or storage is completely secure, we take reasonable measures to protect your information.</p>
     </div>
 
     <div class="card">
