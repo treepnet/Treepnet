@@ -51,44 +51,10 @@ class _Grid extends StatefulWidget {
 class _GridState extends State<_Grid> {
   final _controller = ScrollController();
 
-  /// Captured once so the scroll listener never does a `context` lookup (it can
-  /// fire while the widget is being torn down).
-  StoriesBloc? _bloc;
-  bool _growing = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller.addListener(_onScroll);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _bloc = context.read<StoriesBloc>();
-  }
-
   @override
   void dispose() {
-    _controller
-      ..removeListener(_onScroll)
-      ..dispose();
+    _controller.dispose();
     super.dispose();
-  }
-
-  /// Near the end of the grid → widen the story-haver window, but only while
-  /// it's full, so it stops once every haver is loaded.
-  void _onScroll() {
-    if (!_controller.hasClients || _growing) return;
-    final position = _controller.position;
-    if (position.pixels < position.maxScrollExtent - 300) return;
-    final bloc = _bloc;
-    if (bloc == null || bloc.state.users.length < bloc.storyLimit) return;
-    _growing = true;
-    bloc.add(const StoriesFetchUserFollowingsStories(grow: true));
-    Future<void>.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) _growing = false;
-    });
   }
 
   @override

@@ -220,11 +220,7 @@ class StoriesRepository extends StoriesBaseRepository {
   /// Stays live: posting or expiring a story re-emits the author set, which
   /// re-subscribes. Only those authors' profiles are fetched. Empty when nobody
   /// followed has an active story.
-  ///
-  /// [limit] windows the tray for scroll pagination: only the first [limit]
-  /// story-havers are subscribed to (and their profiles fetched); grow it as
-  /// the carousel scrolls. Null = all of them (they're usually few anyway).
-  Stream<List<(User, List<Story>)>> followingStoriesFeed({int? limit}) =>
+  Stream<List<(User, List<Story>)>> followingStoriesFeed() =>
       Rx.switchLatest(
         _databaseClient
             .followingsWithActiveStories()
@@ -233,10 +229,7 @@ class StoriesRepository extends StoriesBaseRepository {
             .distinct(
               (a, b) => const SetEquality<String>().equals(a.toSet(), b.toSet()),
             )
-            .map((allIds) {
-              final authorIds = (limit != null && allIds.length > limit)
-                  ? allIds.take(limit).toList(growable: false)
-                  : allIds;
+            .map((authorIds) {
               if (authorIds.isEmpty) {
                 return Stream.value(const <(User, List<Story>)>[]);
               }

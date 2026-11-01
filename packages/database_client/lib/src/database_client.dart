@@ -3259,7 +3259,9 @@ ${limit != null ? 'LIMIT ?' : ''}
         '''
 SELECT s.*
 FROM stories s
-WHERE s.expires_at > current_timestamp
+-- As dates, not text: a story made on this phone carries '2026-11-01T…Z',
+-- the server's '2026-11-01 …Z', and current_timestamp neither.
+WHERE julianday(s.expires_at) > julianday('now')
   AND ${_visibleAuthorSql('s.user_id')}
 ORDER BY s.created_at ASC
 ''',
@@ -3278,7 +3280,7 @@ SELECT
   s.*${includeAuthor ? ', s.user_id as user_id, p.username, p.full_name, p.avatar_url' : ''}
 FROM stories s
   ${includeAuthor ? 'LEFT JOIN profiles p ON s.user_id = p.id' : ''}
-WHERE s.user_id = ? AND s.expires_at > current_timestamp
+WHERE s.user_id = ? AND julianday(s.expires_at) > julianday('now')
   AND ${_visibleAuthorSql('s.user_id')}
 ORDER BY s.created_at ASC
 ''',
@@ -3295,7 +3297,7 @@ ORDER BY s.created_at ASC
 SELECT DISTINCT s.user_id AS user_id
 FROM stories s
   INNER JOIN subscriptions f ON f.subscribed_to_id = s.user_id
-WHERE f.subscriber_id = ? AND s.expires_at > current_timestamp
+WHERE f.subscriber_id = ? AND julianday(s.expires_at) > julianday('now')
   AND COALESCE(f.status, 'accepted') = 'accepted'
   AND ${_visibleAuthorSql('s.user_id')}
 ''',
