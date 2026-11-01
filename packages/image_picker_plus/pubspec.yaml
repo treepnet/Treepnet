@@ -19,7 +19,9 @@ dependencies:
   image_picker: ^1.1.2
   insta_assets_crop: ^0.1.2
   intl: ^0.20.2
-  photo_manager: ^3.5.1
+  # 3.8 fixed the iOS crash while loading thumbnails (EXC_BAD_ACCESS in
+  # fetchThumb); 3.8.3 is the last fix on that line.
+  photo_manager: ">=3.8.3 <3.9.0"
   shimmer: ^3.0.0
   video_player: ^2.9.2
   visibility_detector: ^0.4.0+2

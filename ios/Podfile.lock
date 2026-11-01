@@ -138,7 +138,7 @@ PODS:
   - path_provider_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
-  - photo_manager (2.0.0):
+  - photo_manager (3.8.3):
     - Flutter
     - FlutterMacOS
   - powersync-sqlite-core (0.4.14)
@@ -214,7 +214,7 @@ DEPENDENCIES:
   - native_exif (from `.symlinks/plugins/native_exif/ios`)
   - package_info_plus (from `.symlinks/plugins/package_info_plus/ios`)
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
-  - photo_manager (from `.symlinks/plugins/photo_manager/ios`)
+  - photo_manager (from `.symlinks/plugins/photo_manager/darwin`)
   - powersync_flutter_libs (from `.symlinks/plugins/powersync_flutter_libs/darwin`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
   - sqflite (from `.symlinks/plugins/sqflite/darwin`)
@@ -289,7 +289,7 @@ EXTERNAL SOURCES:
   path_provider_foundation:
     :path: ".symlinks/plugins/path_provider_foundation/darwin"
   photo_manager:
-    :path: ".symlinks/plugins/photo_manager/ios"
+    :path: ".symlinks/plugins/photo_manager/darwin"
   powersync_flutter_libs:
     :path: ".symlinks/plugins/powersync_flutter_libs/darwin"
   shared_preferences_foundation:
@@ -341,7 +341,7 @@ SPEC CHECKSUMS:
   native_exif: 0eb73d3d5b3ca892719228df8d2d1b13d1ae396c
   package_info_plus: af8e2ca6888548050f16fa2f1938db7b5a5df499
   path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564
-  photo_manager: d2fbcc0f2d82458700ee6256a15018210a81d413
+  photo_manager: fe4cbb0808b96f8be4af7ce6ae18dcd9c9b983c6
   powersync-sqlite-core: 6ce0b8b254812855e4ec52899ddc3ac6a30bda12
   powersync_flutter_libs: 19fc6b96ff8155ffea72a08990f6c9f2e712b8a6
   PromisesObjC: 752c3227f599e3467650e47ea36f433eeb10c273
