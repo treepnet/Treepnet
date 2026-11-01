@@ -13,12 +13,9 @@ class EditableItem {
 
   /// text
   String text = '';
-  List<String> textList = [];
   Color textColor = Colors.transparent;
   TextAlign textAlign = TextAlign.center;
   double fontSize = 20;
   int fontFamily = 0;
-  int fontAnimationIndex = 0;
   Color backGroundColor = Colors.transparent;
-  TextAnimationType animationType = TextAnimationType.none;
 }

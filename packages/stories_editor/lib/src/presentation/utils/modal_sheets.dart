@@ -5,7 +5,6 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:provider/provider.dart';
 import 'package:stories_editor/src/domain/providers/notifiers/control_provider.dart';
 import 'package:stories_editor/src/domain/providers/notifiers/draggable_widget_notifier.dart';
-import 'package:stories_editor/src/domain/providers/notifiers/painting_notifier.dart';
 import 'package:stories_editor/src/domain/providers/notifiers/text_editing_notifier.dart';
 import 'package:stories_editor/src/domain/sevices/save_as_image.dart';
 import 'package:stories_editor/src/l10n/stories_editor_localization.dart';
@@ -95,13 +94,10 @@ Future<bool?> exitDialog({
                 ),
                 AnimatedOnTapButton(
                   onTap: () async {
-                    final paintingProvider =
-                        Provider.of<PaintingNotifier>(context, listen: false);
                     final widgetProvider = Provider.of<DraggableWidgetNotifier>(
                         context,
                         listen: false);
-                    if (paintingProvider.lines.isNotEmpty ||
-                        widgetProvider.draggableWidget.isNotEmpty) {
+                    if (widgetProvider.draggableWidget.isNotEmpty) {
                       /// save image
                       var response = await takePicture(
                         contentKey: contentKey,
@@ -169,17 +165,13 @@ Future<bool?> exitDialog({
     );
 
 void _resetDefaults({required BuildContext context}) {
-  final paintingProvider =
-      Provider.of<PaintingNotifier>(context, listen: false);
   final widgetProvider =
       Provider.of<DraggableWidgetNotifier>(context, listen: false);
   final controlProvider = Provider.of<ControlNotifier>(context, listen: false);
   final editingProvider =
       Provider.of<TextEditingNotifier>(context, listen: false);
-  paintingProvider.lines.clear();
   widgetProvider.draggableWidget.clear();
   widgetProvider.setDefaults();
-  paintingProvider.resetDefaults();
   editingProvider.setDefaults();
   controlProvider.mediaPath = '';
 }

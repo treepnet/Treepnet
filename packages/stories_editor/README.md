@@ -99,7 +99,6 @@ StoriesEditor(
     onDoneButtonStyle: Container() /// (Widget) optional param, you can create your own button style
     onBackPress: /// (Future<bool>) optional param, here you can add yor own style dialog
     editorBackgroundColor: /// (Color) optional param, you can define your own background editor color
-    galleryThumbnailQuality: /// (int = 200) optional param, you can set the gallery thumbnail quality (higher is better but reduce the performance)
 );
 ```
 

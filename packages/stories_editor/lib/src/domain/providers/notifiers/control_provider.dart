@@ -27,15 +27,6 @@ class ControlNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool _isPainting = false;
-
-  /// is painter sketcher open
-  bool get isPainting => _isPainting;
-  set isPainting(bool painting) {
-    _isPainting = painting;
-    notifyListeners();
-  }
-
   List<String>? _fontList = AppFonts.fontFamilyList;
 
   /// here you can define your own font family list

@@ -14,7 +14,7 @@ import 'package:stories_editor/src/presentation/utils/image_compress.dart';
 Future<bool> saveAttachmentToGallery(
   String path, {
   int index = 1,
-  String relativePath = 'Instagram Clone',
+  String relativePath = 'TreepNet',
 }) async {
   if (kIsWeb) {
     return false;

@@ -447,7 +447,6 @@ class AppRouter {
                               ),
                           storiesEditorLocalizationDelegate:
                               storiesEditorLocalizationDelegate(context),
-                          galleryThumbnailQuality: 900,
                         ),
                         transitionsBuilder:
                             (context, animation, secondaryAnimation, child) {

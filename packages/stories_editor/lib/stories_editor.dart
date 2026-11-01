@@ -10,8 +10,6 @@ import 'package:provider/provider.dart';
 import 'package:stories_editor/src/domain/providers/notifiers/control_provider.dart';
 import 'package:stories_editor/src/domain/providers/notifiers/draggable_widget_notifier.dart';
 import 'package:stories_editor/src/domain/providers/notifiers/gradient_notifier.dart';
-import 'package:stories_editor/src/domain/providers/notifiers/painting_notifier.dart';
-import 'package:stories_editor/src/domain/providers/notifiers/scroll_notifier.dart';
 import 'package:stories_editor/src/domain/providers/notifiers/text_editing_notifier.dart';
 import 'package:stories_editor/src/l10n/stories_editor_localization.dart';
 import 'package:stories_editor/src/presentation/bar_tools/top_tools.dart';
@@ -57,9 +55,6 @@ class StoriesEditor extends StatelessWidget {
   /// editor background color
   final Color? editorBackgroundColor;
 
-  /// gallery thumbnail quality
-  final int? galleryThumbnailQuality;
-
   final StoriesEditorLocalizationDelegate? storiesEditorLocalizationDelegate;
 
   /// Image the editor opens with, already on the canvas.
@@ -82,7 +77,6 @@ class StoriesEditor extends StatelessWidget {
     this.onBackPress,
     this.onDoneButtonStyle,
     this.editorBackgroundColor,
-    this.galleryThumbnailQuality,
     this.storiesEditorLocalizationDelegate,
   });
 
@@ -98,10 +92,8 @@ class StoriesEditor extends StatelessWidget {
         builder: (_, __) => MultiProvider(
           providers: [
             ChangeNotifierProvider(create: (_) => ControlNotifier()),
-            ChangeNotifierProvider(create: (_) => ScrollNotifier()),
             ChangeNotifierProvider(create: (_) => DraggableWidgetNotifier()),
             ChangeNotifierProvider(create: (_) => GradientNotifier()),
-            ChangeNotifierProvider(create: (_) => PaintingNotifier()),
             ChangeNotifierProvider(create: (_) => TextEditingNotifier()),
           ],
           child: MainView(
@@ -116,7 +108,6 @@ class StoriesEditor extends StatelessWidget {
             onDoneButtonStyle: onDoneButtonStyle,
             onBackPress: onBackPress,
             editorBackgroundColor: editorBackgroundColor,
-            galleryThumbnailQuality: galleryThumbnailQuality,
             storiesEditorLocalizationDelegate:
                 storiesEditorLocalizationDelegate,
           ),
