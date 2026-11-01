@@ -508,9 +508,11 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
                                       _prefetchNextProfile();
                                     }
                                     // Record the view for the "seen by" list — but never your
-                                    // own story.
+                                    // own story, nor one past its 24 hours (opened from a
+                                    // highlight or a place: that isn't a view of a story).
                                     final shown = _stories[index];
-                                    if (shown.author.id != user.id) {
+                                    if (shown.author.id != user.id &&
+                                        shown.expiresAt.isAfter(DateTime.now())) {
                                       context
                                           .read<StoriesRepository>()
                                           .recordStoryView(

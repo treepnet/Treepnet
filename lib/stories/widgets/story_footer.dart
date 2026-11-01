@@ -554,6 +554,12 @@ class _ViewersSheetState extends State<_ViewersSheet> {
 
   late final StoriesRepository _stories;
 
+  /// Everyone who viewed it, for the header — the list only loads [_limit] at
+  /// a time, and the header used to show how many of them were loaded.
+  late final Stream<int> _totalViews = _stories.storyViewsCountOf(
+    storyId: widget.storyId,
+  );
+
   @override
   void initState() {
     super.initState();
@@ -611,11 +617,14 @@ class _ViewersSheetState extends State<_ViewersSheet> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          Text(
-                            '${viewers?.length ?? 0}',
-                            style: context.bodyLarge?.copyWith(
-                              color: AppColors.white,
-                              fontWeight: AppFontWeight.semiBold,
+                          StreamBuilder<int>(
+                            stream: _totalViews,
+                            builder: (context, total) => Text(
+                              '${total.data ?? viewers?.length ?? 0}',
+                              style: context.bodyLarge?.copyWith(
+                                color: AppColors.white,
+                                fontWeight: AppFontWeight.semiBold,
+                              ),
                             ),
                           ),
                           const Gap.h(AppSpacing.xs),

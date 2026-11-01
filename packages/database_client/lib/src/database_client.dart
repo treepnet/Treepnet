@@ -665,6 +665,9 @@ class PowerSyncDatabaseClient extends DatabaseClient {
   /// Likes the server's counts may not include yet (see [PendingLikes]).
   final _pendingLikes = PendingLikes();
 
+  /// The story views sent this session ([recordStoryView]).
+  final _viewsSent = <String>{};
+
   @override
   String? get currentUserId => AuthSession.instance.current?.userId;
 
@@ -683,6 +686,7 @@ class PowerSyncDatabaseClient extends DatabaseClient {
     _remotePosts.clear();
     _pendingLikes.clear();
     _cardCache.clear();
+    _viewsSent.clear();
   }
 
   // --- Privacy and blocking -------------------------------------------------
@@ -3210,6 +3214,10 @@ DELETE FROM stories WHERE id = ?
     required String storyId,
     required String viewerId,
   }) async {
+    // The viewer's own view rows don't sync back to them (only the story's
+    // owner gets them), so the table can't tell once the first has gone up;
+    // this session's set does (and the server drops a repeat anyway).
+    if (!_viewsSent.add('$storyId/$viewerId')) return;
     final already = await _powerSyncRepository.db().getOptional(
       'SELECT 1 FROM story_views WHERE story_id = ? AND user_id = ?',
       [storyId, viewerId],
