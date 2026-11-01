@@ -25,6 +25,13 @@ typedef AppBuilder =
       MediaUploadQueue,
     );
 
+/// A startup stage in the device log — debug builds only (release builds
+/// printed them for everyone). The last one seen is where a hung start
+/// stopped.
+void bootLog(String stage) {
+  if (kDebugMode) debugPrint('TREEP_BOOT: $stage');
+}
+
 class AppBlocObserver extends BlocObserver {
   const AppBlocObserver();
 
@@ -55,10 +62,10 @@ Future<void> bootstrap(
 
   await runZonedGuarded(
     () async {
-      // TEMPORARY startup diagnostics. Each stage prints before it runs; the
-      // LAST "TREEP_BOOT" line seen in the device log (Xcode / Console.app) is
-      // the stage that hung. Remove once the real-device splash hang is fixed.
-      void boot(String stage) => debugPrint('TREEP_BOOT: $stage');
+      // Startup diagnostics (debug builds): each stage prints before it runs;
+      // the LAST "TREEP_BOOT" line in the device log (Xcode / Console.app) is
+      // the stage that hung.
+      void boot(String stage) => bootLog(stage);
 
       boot('0 ensureInitialized');
       WidgetsFlutterBinding.ensureInitialized();
@@ -106,7 +113,7 @@ Future<void> bootstrap(
       boot('8 sharedPreferences (ok)');
 
       // Uploads ask the backend for a per-file link as the signed-in user.
-      MediaStorage.instance.idToken = EntraSession.instance.idToken;
+      MediaStorage.instance.idToken = AuthSession.instance.idToken;
 
       final mediaUploadQueue = MediaUploadQueue(
         db: powerSyncRepository.db(),
@@ -136,7 +143,7 @@ Future<void> bootstrap(
       });
     },
     (error, stack) {
-      debugPrint('TREEP_BOOT: ERROR $error');
+      bootLog('ERROR $error');
       logE(error.toString(), stackTrace: stack);
       CrashReporter.instance.report(error, stack, kind: 'zone');
     },

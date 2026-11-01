@@ -20,7 +20,7 @@ class FreshTokenClient extends http.BaseClient {
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     // Throws when a needed refresh fails (offline): the request couldn't
     // have succeeded with the expired token either.
-    final token = await EntraSession.instance.idToken();
+    final token = await AuthSession.instance.idToken();
     if (token != null) request.headers['Authorization'] = 'Bearer $token';
     return _inner.send(request);
   }

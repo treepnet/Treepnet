@@ -682,7 +682,6 @@
   "backToLoginText": "Назад ко входу",
   "incorrectCredentialsText": "Неверное имя пользователя, email или пароль.",
   "userNotFoundText": "Пользователь с таким email не найден!",
-  "googleLoginFailedText": "Не удалось войти через Google!",
   "postArchivedText": "Пост архивирован",
   "storiesText": "Истории",
   "successfullyCreatedPostText": "Пост создан!",

@@ -1283,9 +1283,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get userNotFoundText => 'User with this email not found!';
 
   @override
-  String get googleLoginFailedText => 'Google login failed!';
-
-  @override
   String get postArchivedText => 'Post archived';
 
   @override

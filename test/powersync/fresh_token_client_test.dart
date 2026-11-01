@@ -3,8 +3,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:powersync_repository/powersync_repository.dart';
 
-EntraTokens _tokens(String idToken, {required Duration expiresIn}) =>
-    EntraTokens(
+AuthTokens _tokens(String idToken, {required Duration expiresIn}) =>
+    AuthTokens(
       idToken: idToken,
       accessToken: '',
       refreshToken: null,
@@ -31,18 +31,18 @@ void main() {
   setUp(() {
     sent = [];
     refreshes = 0;
-    EntraSession.instance.registerRefresher(() async {
+    AuthSession.instance.registerRefresher(() async {
       refreshes++;
-      EntraSession.instance.update(
+      AuthSession.instance.update(
         _tokens('fresh', expiresIn: const Duration(hours: 1)),
       );
     });
   });
 
-  tearDown(EntraSession.instance.clear);
+  tearDown(AuthSession.instance.clear);
 
   test('a valid token is sent as it is', () async {
-    EntraSession.instance.update(
+    AuthSession.instance.update(
       _tokens('valid', expiresIn: const Duration(minutes: 30)),
     );
     await client().get(Uri.parse('https://api.example/x'));
@@ -52,7 +52,7 @@ void main() {
   });
 
   test('an expired token is refreshed before the request', () async {
-    EntraSession.instance.update(
+    AuthSession.instance.update(
       _tokens('stale', expiresIn: const Duration(minutes: -5)),
     );
     await client().get(Uri.parse('https://api.example/x'));
@@ -62,14 +62,14 @@ void main() {
   });
 
   test('signed out: the request goes without a token', () async {
-    EntraSession.instance.clear();
+    AuthSession.instance.clear();
     await client().get(Uri.parse('https://api.example/x'));
 
     expect(sent.single.headers.containsKey('Authorization'), isFalse);
   });
 
   test('a refresh that fails stops the request', () async {
-    EntraSession.instance
+    AuthSession.instance
       ..registerRefresher(() async => throw Exception('offline'))
       ..update(_tokens('stale', expiresIn: const Duration(minutes: -5)));
 
@@ -81,7 +81,7 @@ void main() {
   });
 
   test('PostgREST calls carry the fresh token', () async {
-    EntraSession.instance.update(
+    AuthSession.instance.update(
       _tokens('stale', expiresIn: const Duration(minutes: -5)),
     );
     await PostgrestClient(

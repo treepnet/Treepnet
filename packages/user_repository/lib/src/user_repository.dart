@@ -48,38 +48,6 @@ class UserRepository implements UserBaseRepository {
             .startWith(base);
       }).asBroadcastStream();
 
-  /// Starts the Sign In with Google Flow.
-  ///
-  /// Throws a [LogInWithGoogleCanceled] if the flow is canceled by the user.
-  /// Throws a [LogInWithGoogleFailure] if an exception occurs.
-  Future<void> logInWithGoogle() async {
-    try {
-      await _authenticationClient.logInWithGoogle();
-    } on LogInWithGoogleFailure {
-      rethrow;
-    } on LogInWithGoogleCanceled {
-      rethrow;
-    } catch (error, stackTrace) {
-      Error.throwWithStackTrace(LogInWithGoogleFailure(error), stackTrace);
-    }
-  }
-
-  /// Starts the Sign In with Github Flow.
-  ///
-  /// Throws a [LogInWithGithubCanceled] if the flow is canceled by the user.
-  /// Throws a [LogInWithGithubFailure] if an exception occurs.
-  Future<void> logInWithGithub() async {
-    try {
-      await _authenticationClient.logInWithGithub();
-    } on LogInWithGithubFailure {
-      rethrow;
-    } on LogInWithGithubCanceled {
-      rethrow;
-    } catch (error, stackTrace) {
-      Error.throwWithStackTrace(LogInWithGithubFailure(error), stackTrace);
-    }
-  }
-
   /// Signs out the current user which will emit
   /// [User.anonymous] from the [user] Stream.
   ///

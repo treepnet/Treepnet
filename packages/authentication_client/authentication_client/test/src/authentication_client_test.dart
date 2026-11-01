@@ -9,34 +9,6 @@ void main() {
     expect(FakeAuthenticationClient.new, returnsNormally);
   });
 
-  test('exports LogInWithGoogleFailure', () {
-    expect(
-      () => const LogInWithGoogleFailure('oops'),
-      returnsNormally,
-    );
-  });
-
-  test('exports LogInWithGoogleCanceled', () {
-    expect(
-      () => const LogInWithGoogleCanceled('oops'),
-      returnsNormally,
-    );
-  });
-
-  test('exports LogInWithGithubFailure', () {
-    expect(
-      () => const LogInWithGithubFailure('oops'),
-      returnsNormally,
-    );
-  });
-
-  test('exports LogInWithGithubCanceled', () {
-    expect(
-      () => const LogInWithGithubCanceled('oops'),
-      returnsNormally,
-    );
-  });
-
   test('exports LogOutFailure', () {
     expect(
       () => const LogOutFailure('oops'),

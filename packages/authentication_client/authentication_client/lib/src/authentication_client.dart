@@ -81,38 +81,6 @@ class LogInWithAppleFailure extends AuthenticationException {
   const LogInWithAppleFailure(super.error);
 }
 
-/// {@template log_in_with_google_failure}
-/// Thrown during the sign in with google process if a failure occurs.
-/// {@endtemplate}
-class LogInWithGoogleFailure extends AuthenticationException {
-  /// {@macro log_in_with_google_failure}
-  const LogInWithGoogleFailure(super.error);
-}
-
-/// {@template log_in_with_google_canceled}
-/// Thrown during the sign in with google process if it's canceled.
-/// {@endtemplate}
-class LogInWithGoogleCanceled extends AuthenticationException {
-  /// {@macro log_in_with_google_canceled}
-  const LogInWithGoogleCanceled(super.error);
-}
-
-/// {@template log_in_with_github_failure}
-/// Thrown during the sign in with Github process if a failure occurs.
-/// {@endtemplate}
-class LogInWithGithubFailure extends AuthenticationException {
-  /// {@macro log_in_with_github_failure}
-  const LogInWithGithubFailure(super.error);
-}
-
-/// {@template log_in_with_github_canceled}
-/// Thrown during the sign in with Github process if it's canceled.
-/// {@endtemplate}
-class LogInWithGithubCanceled extends AuthenticationException {
-  /// {@macro log_in_with_github_canceled}
-  const LogInWithGithubCanceled(super.error);
-}
-
 /// {@template log_in_with_twitter_failure}
 /// Thrown during the sign in with Twitter process if a failure occurs.
 /// {@endtemplate}
@@ -179,16 +147,6 @@ abstract class AuthenticationClient {
     String? email,
     String? phone,
   });
-
-  /// Starts the Sign In with Google Flow.
-  ///
-  /// Throws a [LogInWithGoogleFailure] if an exception occurs.
-  Future<void> logInWithGoogle();
-
-  /// Starts the Sign In with Github Flow.
-  ///
-  /// Throws a [LogInWithGithubFailure] if an exception occurs.
-  Future<void> logInWithGithub();
 
   /// Signs up with the provided [email] and [password].
   ///

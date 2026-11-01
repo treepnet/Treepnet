@@ -17,8 +17,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 /// Thin wrapper around Firebase Cloud Messaging + local notifications.
 ///
-/// Push was removed during the Supabase→Azure migration; this reintroduces it
-/// as an FCM-transport-only integration (no other Firebase service is used).
+/// FCM is only the transport here; the server decides what to send.
 /// See `PUSH_NOTIFICATIONS_PLAN.md`.
 class PushNotifications {
   PushNotifications._();

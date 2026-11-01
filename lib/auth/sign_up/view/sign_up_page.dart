@@ -25,8 +25,8 @@ class SignUpPage extends StatelessWidget {
 
 /// Sign-up in three screens: details → email → emailed code.
 ///
-/// Entra's native authentication API backs each step, so the whole flow stays
-/// inside the app — no browser hand-off.
+/// Our auth service backs each step, so the whole flow stays inside the
+/// app — no browser hand-off.
 class SignUpView extends StatelessWidget {
   const SignUpView({super.key});
 

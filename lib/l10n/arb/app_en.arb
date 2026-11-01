@@ -736,7 +736,6 @@
   "backToLoginText": "Back to login",
   "incorrectCredentialsText": "Wrong username, email or password.",
   "userNotFoundText": "User with this email not found!",
-  "googleLoginFailedText": "Google login failed!",
   "postArchivedText": "Post archived",
   "storiesText": "Stories",
   "successfullyCreatedPostText": "Successfully created post!",

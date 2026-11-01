@@ -1,16 +1,15 @@
 import 'dart:async';
 
-/// {@template entra_tokens}
-/// Immutable snapshot of the tokens obtained from a Microsoft Entra External ID
-/// OIDC exchange.
+/// {@template auth_tokens}
+/// Immutable snapshot of the signed-in user's tokens (from Firebase
+/// Authentication).
 ///
-/// The [idToken] (audience == the app's client id) is what PowerSync and the
-/// self-hosted PostgREST validate against Entra's JWKS, mirroring the role the
-/// Supabase access token used to play.
+/// The [idToken] (audience == the Firebase project) is what PowerSync and the
+/// self-hosted PostgREST validate, against Google's public keys.
 /// {@endtemplate}
-class EntraTokens {
-  /// {@macro entra_tokens}
-  const EntraTokens({
+class AuthTokens {
+  /// {@macro auth_tokens}
+  const AuthTokens({
     required this.idToken,
     required this.accessToken,
     required this.refreshToken,
@@ -18,9 +17,8 @@ class EntraTokens {
     required this.claims,
   });
 
-  /// OIDC id token — an RS256 JWT with `aud` == client id, `iss` == the Entra
-  /// tenant, `sub` == the stable user id. Used as the bearer for PowerSync and
-  /// PostgREST.
+  /// ID token — an RS256 JWT with `aud` == the Firebase project, `sub` == the
+  /// user's id. Used as the bearer for PowerSync and PostgREST.
   final String idToken;
 
   /// OAuth access token (resource-scoped). Kept for completeness; not currently
@@ -45,42 +43,40 @@ class EntraTokens {
     );
   }
 
-  /// Stable user id. Prefers the `oid` (object id) claim, which is a GUID and
-  /// therefore fits the Postgres `uuid` columns; falls back to `sub` (which in
-  /// Entra External ID is a non-UUID pairwise identifier).
+  /// Stable user id — the profile id. Firebase puts it in `sub`; an `oid`
+  /// claim (tokens of the sign-in used before Firebase) wins when present.
   String get userId =>
       (claims['oid'] as String?) ?? (claims['sub'] as String?) ?? '';
 }
 
-/// {@template entra_session}
-/// Process-wide holder of the current Entra OIDC session.
+/// {@template auth_session}
+/// Process-wide holder of the current sign-in session.
 ///
 /// Written by the authentication client (on login / refresh / logout) and read
 /// by `PowerSyncRepository` to authenticate PowerSync sync and PostgREST
-/// writes. This mirrors the global access `Supabase.instance.client.auth`
-/// previously provided, decoupling the low-level repository from the concrete
-/// auth client to avoid a dependency cycle.
+/// writes — so the low-level repository needn't depend on the concrete auth
+/// client (which would be a dependency cycle).
 /// {@endtemplate}
-class EntraSession {
-  EntraSession._();
+class AuthSession {
+  AuthSession._();
 
   /// Shared instance.
-  static final EntraSession instance = EntraSession._();
+  static final AuthSession instance = AuthSession._();
 
-  EntraTokens? _tokens;
-  final StreamController<EntraTokens?> _controller =
-      StreamController<EntraTokens?>.broadcast();
+  AuthTokens? _tokens;
+  final StreamController<AuthTokens?> _controller =
+      StreamController<AuthTokens?>.broadcast();
 
   Future<void> Function()? _refresher;
 
   /// The current tokens, or `null` when signed out.
-  EntraTokens? get current => _tokens;
+  AuthTokens? get current => _tokens;
 
   /// Whether a session is currently held.
   bool get isAuthenticated => _tokens != null;
 
   /// Emits on every session change: the new tokens, or `null` on sign-out.
-  Stream<EntraTokens?> get changes => _controller.stream;
+  Stream<AuthTokens?> get changes => _controller.stream;
 
   /// Registers the callback that performs a silent token refresh. The auth
   /// client owns the refresh implementation (it holds the AppAuth/refresh
@@ -109,7 +105,7 @@ class EntraSession {
   }
 
   /// Replaces the current session and notifies listeners.
-  void update(EntraTokens tokens) {
+  void update(AuthTokens tokens) {
     _tokens = tokens;
     _controller.add(tokens);
   }

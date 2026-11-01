@@ -2187,12 +2187,6 @@ abstract class AppLocalizations {
   /// **'User with this email not found!'**
   String get userNotFoundText;
 
-  /// No description provided for @googleLoginFailedText.
-  ///
-  /// In en, this message translates to:
-  /// **'Google login failed!'**
-  String get googleLoginFailedText;
-
   /// No description provided for @postArchivedText.
   ///
   /// In en, this message translates to:

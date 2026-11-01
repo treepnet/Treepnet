@@ -182,7 +182,7 @@ class SignUpCubit extends Cubit<SignupState> {
 
     // Password rule is length-only now (min 8, enforced by the field validator
     // and the backend). Character classes (letters + digits + symbols) are no
-    // longer required — that was an Entra-era rule that made sign-up harder.
+    // longer required — a rule of the old sign-in that made sign-up harder.
 
     emit(state.copyWith(submissionStatus: SignUpSubmissionStatus.inProgress));
     try {
@@ -218,7 +218,7 @@ class SignUpCubit extends Cubit<SignupState> {
         email: email.value,
         password: state.password.value,
         // The form no longer asks for a name, so the handle stands in as the
-        // display name rather than sending Entra an empty string.
+        // display name rather than an empty string.
         fullName: state.fullName.value.trim().isEmpty
             ? state.username.value.trim()
             : state.fullName.value.trim(),
@@ -234,9 +234,9 @@ class SignUpCubit extends Cubit<SignupState> {
         ),
       );
     } catch (e, stackTrace) {
-      // The password only reaches Entra now, so its verdict lands on this
-      // screen. Send people back to the field they must actually change —
-      // Microsoft also refuses passwords that merely look strong.
+      // The server judges the password only at this step, so its verdict
+      // lands on this screen. Send people back to the field they must
+      // actually change.
       if (FirebaseAuthenticationClient.isPasswordProblem(e)) {
         addError(e, stackTrace);
         emit(

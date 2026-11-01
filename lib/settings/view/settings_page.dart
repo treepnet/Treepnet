@@ -9,6 +9,7 @@ import 'package:treepnet/app/app.dart';
 import 'package:treepnet/app/bloc/session_teardown.dart';
 import 'package:treepnet/auth/auth_error_text.dart';
 import 'package:treepnet/l10n/l10n.dart';
+import 'package:treepnet/monitoring/crash_reporter.dart';
 import 'package:treepnet/selector/selector.dart';
 import 'package:treepnet/stories/view/story_archive_page.dart';
 import 'package:treepnet/settings/view/blocked_users_page.dart';
@@ -67,7 +68,6 @@ class SettingsPage extends StatelessWidget {
     final identifier = (user.username != null && user.username!.isNotEmpty)
         ? user.username!
         : (user.email ?? '');
-    debugPrint('DELETE_ACCT identifier=$identifier');
     if (identifier.isEmpty) {
       openSnackbar(
         SnackbarMessage.error(
@@ -121,18 +121,18 @@ class SettingsPage extends StatelessWidget {
       );
       closeProgress();
       // A successful delete signs out; AppBloc routes back to login on its own.
-    } on LogInWithPasswordFailure catch (error, stackTrace) {
+    } on LogInWithPasswordFailure catch (error) {
       // The password step failed: usually a wrong password, sometimes the
       // network — said in the app's language, not as the exception's text.
-      debugPrint('DELETE_ACCT password step failed: $error\n$stackTrace');
       closeProgress();
       if (!context.mounted) return;
       openSnackbar(
         SnackbarMessage.error(title: authErrorText(context.l10n, error)),
       );
     } catch (error, stackTrace) {
-      // Password was accepted but the delete itself failed (RPC/permission).
-      debugPrint('DELETE_ACCT delete step failed: $error\n$stackTrace');
+      // Password was accepted but the delete itself failed (RPC/permission):
+      // to the crash log, which keeps no names or emails.
+      CrashReporter.instance.report(error, stackTrace, kind: 'delete_account');
       closeProgress();
       if (!context.mounted) return;
       final l10n = context.l10n;

@@ -249,7 +249,7 @@ class ChatSession {
     String myUuid, {
     bool forceRefresh = false,
   }) async {
-    final session = EntraSession.instance;
+    final session = AuthSession.instance;
     var tokens = session.current;
     if (tokens == null) return null;
     if (forceRefresh || !tokens.isIdTokenValid) {

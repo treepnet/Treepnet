@@ -1303,9 +1303,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get userNotFoundText => 'Пользователь с таким email не найден!';
 
   @override
-  String get googleLoginFailedText => 'Не удалось войти через Google!';
-
-  @override
   String get postArchivedText => 'Пост архивирован';
 
   @override

@@ -4,10 +4,9 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 
 /// {@template media_storage}
-/// Minimal OCI Object Storage client that mirrors the tiny slice of the
-/// Supabase Storage API the app relies on (`from(bucket).uploadBinary(...)`
-/// and `getPublicUrl(...)`), so the media call sites stay unchanged after
-/// moving off Azure Blob Storage.
+/// Minimal OCI Object Storage client: `from(bucket).uploadBinary(...)` and
+/// `getPublicUrl(...)`, the slice of a storage API the app's media code
+/// uses.
 ///
 /// The app uses ONE OCI bucket. Each legacy "bucket" name the call sites pass
 /// (`avatars`, `stories`, `posts`) becomes a top-level object-name prefix
@@ -25,7 +24,7 @@ import 'package:dio/dio.dart';
 class MediaStorage {
   MediaStorage._();
 
-  /// Shared instance — mirrors `Supabase.instance.client.storage`.
+  /// Shared instance.
   static final MediaStorage instance = MediaStorage._();
 
   /// Public-read base of the media bucket.
@@ -60,8 +59,7 @@ class MediaStorage {
 
 /// {@template media_bucket}
 /// A handle to one logical media "bucket" (object-name prefix) inside the single
-/// OCI bucket, exposing the subset of the Supabase `StorageFileApi` used across
-/// the app.
+/// OCI bucket, with the uploads and URLs the app needs.
 /// {@endtemplate}
 class MediaBucket {
   /// {@macro media_bucket}
@@ -185,9 +183,8 @@ class MediaBucket {
 }
 
 /// {@template media_file_options}
-/// Upload options mirroring the fields of Supabase's `FileOptions` that the app
-/// actually sets. [cacheControl] is a string number of seconds (as Supabase
-/// expects) and is emitted as `Cache-Control: max-age=<seconds>`.
+/// Upload options the app sets. [cacheControl] is a string number of seconds,
+/// emitted as `Cache-Control: max-age=<seconds>`.
 /// {@endtemplate}
 class MediaFileOptions {
   /// {@macro media_file_options}
@@ -196,6 +193,6 @@ class MediaFileOptions {
   /// MIME type of the uploaded object, e.g. `image/jpeg`.
   final String? contentType;
 
-  /// Cache max-age in seconds, as a string (mirrors Supabase `FileOptions`).
+  /// Cache max-age in seconds, as a string.
   final String? cacheControl;
 }

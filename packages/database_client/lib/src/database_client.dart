@@ -574,7 +574,7 @@ abstract class StoriesBaseRepository {
   /// Deletes the [Story] identified by [id].
   Future<void> deleteStory({required String id});
 
-  /// Uploads the story media into the Supabase storage.
+  /// Uploads the story media to the media storage.
   Future<String> uploadStoryMedia({
     required String storyId,
     required File imageFile,
@@ -666,7 +666,7 @@ class PowerSyncDatabaseClient extends DatabaseClient {
   final _pendingLikes = PendingLikes();
 
   @override
-  String? get currentUserId => EntraSession.instance.current?.userId;
+  String? get currentUserId => AuthSession.instance.current?.userId;
 
   @override
   SyncScope profileScope(String userId) =>
@@ -2878,7 +2878,7 @@ ORDER BY c1.created_at ASC
     bool clearAvatar = false,
   }) async {
     // Writes straight to the `profiles` table (PowerSync uploads the change).
-    // The Supabase user-metadata path is gone; identity/password live in Entra.
+    // The password and sign-in live in the auth service, not here.
     final userId = currentUserId;
     if (userId == null) return;
     // `null` means "leave alone" for every field here, so removing a value
@@ -3000,10 +3000,10 @@ SELECT blocker_id FROM blocked_users WHERE blocked_id = ?1''',
 
   @override
   Future<void> changePassword({required String newPassword}) async {
-    // Password changes are handled by Microsoft Entra's hosted flow (the
-    // "Forgot password?" link on the sign-in page), not in-app.
+    // Not in the app: a password is changed with "Forgot password?" on the
+    // sign-in screen.
     throw UnsupportedError(
-      'Password changes are handled on the Entra sign-in page.',
+      'Password changes go through "Forgot password?" on the sign-in screen.',
     );
   }
 

@@ -91,34 +91,6 @@ class LoginCubit extends Cubit<LoginState> {
     emit(initialState);
   }
 
-  Future<void> loginWithGoogle() async {
-    emit(state.copyWith(status: LogInSubmissionStatus.googleAuthInProgress));
-    try {
-      await _userRepository.logInWithGoogle();
-      if (isClosed) return;
-      emit(state.copyWith(status: LogInSubmissionStatus.success));
-    } on LogInWithGoogleCanceled {
-      if (isClosed) return;
-      emit(state.copyWith(status: LogInSubmissionStatus.idle));
-    } catch (error, stackTrace) {
-      _errorFormatter(error, stackTrace);
-    }
-  }
-
-  Future<void> loginWithGithub() async {
-    emit(state.copyWith(status: LogInSubmissionStatus.githubAuthInProgress));
-    try {
-      await _userRepository.logInWithGithub();
-      if (isClosed) return;
-      emit(state.copyWith(status: LogInSubmissionStatus.success));
-    } on LogInWithGithubCanceled {
-      if (isClosed) return;
-      emit(state.copyWith(status: LogInSubmissionStatus.idle));
-    } catch (error, stackTrace) {
-      _errorFormatter(error, stackTrace);
-    }
-  }
-
   Future<void> onSubmit() async {
     final username = SignInId.dirty(state.username.value.trim());
     final password = Password.dirty(state.password.value);
@@ -136,7 +108,7 @@ class LoginCubit extends Cubit<LoginState> {
 
     try {
       // A username or an email; the auth service resolves a username.
-      // Time-boxed so an unreachable server (PostgREST/Entra) surfaces a clear
+      // Time-boxed so an unreachable server (auth service) surfaces a clear
       // error instead of spinning on "loading" forever.
       await _userRepository
           .logInWithPassword(
@@ -169,7 +141,6 @@ class LoginCubit extends Cubit<LoginState> {
         LogInSubmissionStatus.invalidCredentials,
       LogInWithPasswordNetworkFailure() => LogInSubmissionStatus.networkError,
       LogInWithPasswordFailure() => LogInSubmissionStatus.error,
-      LogInWithGoogleFailure() => LogInSubmissionStatus.googleLogInFailure,
       _ => LogInSubmissionStatus.idle,
     };
 

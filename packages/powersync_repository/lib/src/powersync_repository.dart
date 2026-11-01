@@ -70,16 +70,15 @@ String _withoutValues(String message) => message.replaceAllMapped(
   (m) => RegExp(r'^[a-z_][a-z0-9_.]*$').hasMatch(m[1]!) ? m[0]! : '"…"',
 );
 
-/// Self-hosted PostgREST, served over HTTPS by Caddy on the OCI ARM server.
-/// Replaces Supabase's auto REST API: reads come from PowerSync, writes and
-/// RPCs go here, authorised with the Entra id token. (Old app versions still
-/// point at the Azure Container Apps URL; this is the Oracle stack.)
+/// Self-hosted PostgREST, served over HTTPS by Caddy on the OCI ARM server:
+/// reads come from PowerSync, writes and RPCs go here, authorised with the
+/// user's ID token.
 // TODO(treepnet): move to env alongside the other endpoints.
 const _postgrestUrl = 'https://api.treepnet.com';
 
-class SupabaseConnector extends PowerSyncBackendConnector {
-  /// {@macro supabase_connector}
-  SupabaseConnector(this.db, {required this.env});
+class SyncConnector extends PowerSyncBackendConnector {
+  /// {@macro sync_connector}
+  SyncConnector(this.db, {required this.env});
 
   /// PowerSync main database.
   final PowerSyncDatabase db;
@@ -89,13 +88,13 @@ class SupabaseConnector extends PowerSyncBackendConnector {
 
   Future<void>? _refreshFuture;
 
-  /// Get an Entra id token to authenticate against the PowerSync instance.
+  /// The user's ID token, to authenticate against the PowerSync instance.
   @override
   Future<PowerSyncCredentials?> fetchCredentials() async {
     // Wait for a pending token refresh, if any.
     await _refreshFuture;
 
-    var tokens = EntraSession.instance.current;
+    var tokens = AuthSession.instance.current;
     if (tokens == null) {
       // Not logged in.
       return null;
@@ -103,8 +102,8 @@ class SupabaseConnector extends PowerSyncBackendConnector {
 
     // Refresh proactively if the id token is expired/near expiry.
     if (!tokens.isIdTokenValid) {
-      await EntraSession.instance.refresh();
-      tokens = EntraSession.instance.current;
+      await AuthSession.instance.refresh();
+      tokens = AuthSession.instance.current;
       if (tokens == null) return null;
     }
     // The app opened before it had a token (offline) and none came yet:
@@ -112,8 +111,8 @@ class SupabaseConnector extends PowerSyncBackendConnector {
     // back.
     if (tokens.idToken.isEmpty) throw StateError('No ID token yet');
 
-    // The id token (aud == client id) is validated by PowerSync against
-    // Entra's JWKS.
+    // The ID token (aud == the Firebase project) is validated by PowerSync
+    // against Google's public keys.
     return PowerSyncCredentials(
       endpoint: env(Env.powerSyncUrl),
       token: tokens.idToken,
@@ -127,13 +126,13 @@ class SupabaseConnector extends PowerSyncBackendConnector {
     // Trigger a silent token refresh when PowerSync reports an auth failure.
     // Timeout to avoid blocking on long retries; errors surface as expired
     // tokens on the next fetch.
-    _refreshFuture = EntraSession.instance
+    _refreshFuture = AuthSession.instance
         .refresh()
         .timeout(5.seconds)
         .then((_) => null, onError: (Object _) => null);
   }
 
-  // Upload pending changes to Supabase.
+  // Upload pending changes to PostgREST.
   @override
   Future<void> uploadData(PowerSyncDatabase database) async {
     // This function is called whenever there is data to upload, whether the
@@ -149,7 +148,7 @@ class SupabaseConnector extends PowerSyncBackendConnector {
     // before it had one. Without a token the upload is retried later: sent
     // unauthenticated, the server would refuse it as a row-level-security
     // violation and the changes would be dropped.
-    final token = await EntraSession.instance.idToken();
+    final token = await AuthSession.instance.idToken();
     if (token == null) throw StateError('No ID token yet');
     final rest = PostgrestClient(
       _postgrestUrl,
@@ -212,7 +211,7 @@ class SupabaseConnector extends PowerSyncBackendConnector {
 /// database.
 ///
 /// The [PowerSyncRepository] class is responsible for managing the local
-/// database and interacting with the Supabase client.
+/// database and the connection to PowerSync and PostgREST.
 /// {@endtemplate}
 class PowerSyncRepository {
   /// Initializes a new instance of the [PowerSyncRepository] class.
@@ -278,7 +277,7 @@ class PowerSyncRepository {
 
   /// Checks if a user is logged in.
   bool isLoggedIn() {
-    return EntraSession.instance.isAuthenticated;
+    return AuthSession.instance.isAuthenticated;
   }
 
   /// Returns the relative directory of the local database.
@@ -287,8 +286,8 @@ class PowerSyncRepository {
     return join(dir.path, 'flutter-instagram-offline-first.db');
   }
 
-  /// Returns a PostgREST client pointed at the self-hosted PostgREST (Azure),
-  /// authorised with the current Entra id token. Used for RPC calls and any
+  /// Returns a PostgREST client pointed at the self-hosted PostgREST,
+  /// authorised with the current ID token. Used for RPC calls and any
   /// direct writes outside the PowerSync upload path. The token is checked
   /// (and refreshed if needed) per request — see [FreshTokenClient].
   PostgrestClient postgrest() =>
@@ -307,17 +306,17 @@ class PowerSyncRepository {
   );
 
   /// Opens the local database and connects to PowerSync if the user is
-  /// logged in (via the Entra session).
+  /// logged in (via the [AuthSession]).
   Future<void> _openDatabase() async {
     _db = await _openResilient(await getDatabasePath());
 
-    SupabaseConnector? currentConnector;
+    SyncConnector? currentConnector;
     // Whose data the sync connection is for; null while signed out.
     String? connectedUserId;
 
     if (isLoggedIn()) {
-      connectedUserId = EntraSession.instance.current?.userId;
-      currentConnector = SupabaseConnector(_db, env: env);
+      connectedUserId = AuthSession.instance.current?.userId;
+      currentConnector = SyncConnector(_db, env: env);
       unawaited(
         _db
             .connect(connector: currentConnector, options: _syncOptions)
@@ -332,12 +331,12 @@ class PowerSyncRepository {
     // for a new one itself before the old one expires. Reconnecting on every
     // session update restarted the sync each hour, on PowerSync's own
     // refreshes, and two or three times at startup.
-    EntraSession.instance.changes.listen((tokens) async {
+    AuthSession.instance.changes.listen((tokens) async {
       if (tokens != null) {
         if (tokens.userId == connectedUserId) return;
         connectedUserId = tokens.userId;
         try {
-          currentConnector = SupabaseConnector(_db, env: env);
+          currentConnector = SyncConnector(_db, env: env);
           await _db.connect(
             connector: currentConnector!,
             options: _syncOptions,

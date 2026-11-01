@@ -45,10 +45,6 @@ class _LoginFormState extends State<LoginForm> {
               l10n.userNotFoundText,
               l10n.tryToSignUpText,
             ),
-            LogInSubmissionStatus.googleLogInFailure => (
-              l10n.googleLoginFailedText,
-              l10n.tryAgainLaterText,
-            ),
             LogInSubmissionStatus.networkError => (
               l10n.internetConnectionErrorText,
               l10n.checkInternetConnectionText,

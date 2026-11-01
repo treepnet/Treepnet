@@ -11,8 +11,8 @@ void main() {
   group('User.hasProfile', () {
     test('is false for the identity-only user emitted before the row syncs',
         () {
-      // What `User.fromAuthenticationUser` produces: no username, because
-      // Entra's `preferred_username` is an email, not a handle.
+      // What `User.fromAuthenticationUser` produces: no username — the
+      // identity carries an email, not a handle.
       const user = User(id: 'abc', email: 'a@b.c');
 
       expect(user.hasProfile, isFalse);

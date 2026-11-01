@@ -17,7 +17,7 @@ import 'package:token_storage/token_storage.dart';
 /// Firebase ID token has `sub == <UUID>` — the value PowerSync and PostgREST
 /// validate, keeping `profiles.id` a real `uuid`.
 ///
-/// Tokens are published to [EntraSession] (the backend-neutral session holder
+/// Tokens are published to [AuthSession] (the backend-neutral session holder
 /// `PowerSyncRepository` reads); its `userId` getter already prefers `oid` and
 /// falls back to `sub`, so Firebase's `sub` flows through unchanged. Firebase
 /// persists the session across restarts, so [restoreSession] just waits for the
@@ -34,13 +34,13 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
        _auth = firebaseAuth ?? FirebaseAuth.instance,
        _api = api ?? AuthServiceApi(baseUrl: authBaseUrl) {
     // Let PowerSyncRepository trigger a silent refresh without a dependency
-    // cycle, mirroring the Entra client.
-    EntraSession.instance.registerRefresher(_refresh);
+    // cycle.
+    AuthSession.instance.registerRefresher(_refresh);
     // Keep the session fresh: Firebase fires this on sign-in, sign-out and
     // every automatic token refresh.
     _sub = _auth.idTokenChanges().listen((user) async {
       if (user == null) {
-        EntraSession.instance.clear();
+        AuthSession.instance.clear();
       } else {
         try {
           await _publishOrSignOut(user);
@@ -59,8 +59,8 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
 
   @override
   Stream<AuthenticationUser> get user async* {
-    yield _toUser(EntraSession.instance.current);
-    yield* EntraSession.instance.changes.map(_toUser);
+    yield _toUser(AuthSession.instance.current);
+    yield* AuthSession.instance.changes.map(_toUser);
   }
 
   /// Cancels the Firebase token listener. The client is an app-lifetime
@@ -96,16 +96,16 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
     await _publishOrSignOut(user)
         .then((_) => true, onError: (Object _) => false)
         .timeout(const Duration(seconds: 2), onTimeout: () => false);
-    if (EntraSession.instance.current == null && _auth.currentUser != null) {
-      EntraSession.instance.update(_pendingTokens(user));
+    if (AuthSession.instance.current == null && _auth.currentUser != null) {
+      AuthSession.instance.update(_pendingTokens(user));
     }
   }
 
   /// The session of a signed-in [user] whose ID token isn't here yet. It names
   /// the user, and its token counts as expired, so whatever talks to the
-  /// server fetches a real one first (`EntraSession.idToken`, PowerSync's
+  /// server fetches a real one first (`AuthSession.idToken`, PowerSync's
   /// `fetchCredentials`, which retries until the connection is back).
-  EntraTokens _pendingTokens(User user) => EntraTokens(
+  AuthTokens _pendingTokens(User user) => AuthTokens(
     idToken: '',
     accessToken: '',
     refreshToken: user.refreshToken,
@@ -131,7 +131,7 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
       if (msg.contains('user-not-found') ||
           msg.contains('user-disabled') ||
           msg.contains('user-token-expired')) {
-        EntraSession.instance.clear();
+        AuthSession.instance.clear();
         try {
           await _auth.signOut();
         } catch (_) {}
@@ -146,8 +146,8 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
     if (idToken == null) return;
     final claims = _decodeJwt(idToken);
     final expSeconds = (claims['exp'] as num?)?.toInt();
-    EntraSession.instance.update(
-      EntraTokens(
+    AuthSession.instance.update(
+      AuthTokens(
         idToken: idToken,
         accessToken: idToken,
         refreshToken: user.refreshToken,
@@ -356,16 +356,6 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
   }) async =>
       throw const ResetPasswordFailure('Password reset is not available yet.');
 
-  // --- Unsupported providers ----------------------------------------------
-
-  @override
-  Future<void> logInWithGoogle() async =>
-      throw const LogInWithGoogleFailure('Google sign-in is not enabled.');
-
-  @override
-  Future<void> logInWithGithub() async =>
-      throw const LogInWithGithubFailure('GitHub sign-in is not enabled.');
-
   // --- Sign out -----------------------------------------------------------
 
   @override
@@ -373,7 +363,7 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
     try {
       // Clear the session first so the UI routes to the auth page (cancelling
       // its open watches) before the database is wiped.
-      EntraSession.instance.clear();
+      AuthSession.instance.clear();
       await _auth.signOut();
       await _powerSyncRepository.db().disconnectAndClear();
     } catch (error, stackTrace) {
@@ -385,7 +375,7 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
   Future<void> deleteAuthUser() async {
     try {
       // Clear the session first so the UI routes away before the DB is wiped.
-      EntraSession.instance.clear();
+      AuthSession.instance.clear();
       try {
         await _auth.currentUser?.delete();
       } on FirebaseAuthException {
@@ -411,7 +401,7 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
   }
 
   /// Whether [error] is a password complaint (belongs back on the password
-  /// screen). Mirrors the Entra client's helper the sign-up cubit calls.
+  /// screen). The sign-up cubit calls it.
   static bool isPasswordProblem(Object error) {
     final inner = error is SignUpWithPasswordFailure ? error.error : error;
     if (inner is! AuthServiceError) return false;
@@ -426,7 +416,7 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
     return 'Something went wrong. Please try again.';
   }
 
-  AuthenticationUser _toUser(EntraTokens? tokens) {
+  AuthenticationUser _toUser(AuthTokens? tokens) {
     if (tokens == null) return AuthenticationUser.anonymous;
     final claims = tokens.claims;
     return AuthenticationUser(
