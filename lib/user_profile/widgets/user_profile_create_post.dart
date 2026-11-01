@@ -241,6 +241,8 @@ Future<void> createPostAt(BuildContext context, LocationSeed seed) async {
     context,
     source: ImageSource.both,
     multiImages: true,
+    // As many as from the + button (pickImage alone allows one).
+    maxSelection: 10,
   );
   if (details == null || !context.mounted) return;
   await context.pushNamed(
