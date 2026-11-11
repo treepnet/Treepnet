@@ -133,27 +133,59 @@ class PushNotifications {
   /// the device token to `profiles.push_token`. Call once the user is signed in
   /// so the prompt appears in-context, never on app launch.
   static Future<void> registerForUser(UserRepository userRepository) async {
-    // In-context OS permission prompt. Uses the local-notifications plugin so
-    // it works even without FCM — the OS can then display notifications
-    // (incl. `simctl push` on the simulator) on any build.
-    await _requestOsPermission();
+    try {
+      // In-context OS permission prompt. Uses the local-notifications plugin
+      // so it works even without FCM — the OS can then display notifications
+      // (incl. `simctl push` on the simulator) on any build.
+      await _requestOsPermission();
 
-    // Remote-push token — only when a Firebase config exists for this flavor.
-    if (!_fcmReady) return;
-    final messaging = FirebaseMessaging.instance;
-    await messaging.requestPermission();
+      // [initialize] runs unawaited at start-up: a sign-in right after launch
+      // used to find FCM not ready yet and skip the token for the whole run.
+      await _launch.future.timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => null,
+      );
+      // Remote-push token — only when a Firebase config exists for this
+      // flavor.
+      if (!_fcmReady) return;
+      final messaging = FirebaseMessaging.instance;
+      await messaging.requestPermission();
 
-    final token = await messaging.getToken();
-    if (token != null && token.isNotEmpty) {
-      await _saveToken(userRepository, token);
+      // A token can rotate; keep the stored value fresh. One listener, for
+      // the user signed in now — every sign-in used to add another, never
+      // removed. Attached before asking: on iOS the first token may only come
+      // through it, once the APNs token is in.
+      await _tokenRefresh?.cancel();
+      _tokenRefresh = messaging.onTokenRefresh.listen(
+        (t) => unawaited(_saveToken(userRepository, t)),
+      );
+
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        // getToken() throws until Apple has handed out the APNs token.
+        for (var i = 0; i < 10; i++) {
+          if (await messaging.getAPNSToken() != null) break;
+          await Future<void>.delayed(const Duration(seconds: 1));
+        }
+      }
+      final token = await messaging.getToken();
+      if (token != null && token.isNotEmpty) {
+        await _saveToken(userRepository, token);
+      }
+    } catch (_) {
+      // No permission yet, no APNs token yet, offline: onTokenRefresh or the
+      // next [retryPending] catches up.
     }
+  }
 
-    // A token can rotate; keep the stored value fresh. One listener, for the
-    // user signed in now — every sign-in used to add another, never removed.
-    await _tokenRefresh?.cancel();
-    _tokenRefresh = messaging.onTokenRefresh.listen(
-      (t) => _saveToken(userRepository, t),
-    );
+  /// A token the server didn't get yet (offline at the time), sent again by
+  /// [retryPending].
+  static String? _pendingToken;
+
+  /// Sends a token the server hasn't got yet again, e.g. when the app comes
+  /// back to the foreground.
+  static Future<void> retryPending(UserRepository userRepository) async {
+    final token = _pendingToken;
+    if (token != null) await _saveToken(userRepository, token);
   }
 
   static StreamSubscription<String>? _tokenRefresh;
@@ -204,6 +236,7 @@ class PushNotifications {
   static Future<void> disableForUser(UserRepository userRepository) async {
     await _tokenRefresh?.cancel();
     _tokenRefresh = null;
+    _pendingToken = null;
     try {
       // Straight to the server: a local write would wait in the upload queue,
       // which signing out wipes, and the token stayed on the server.
@@ -224,9 +257,15 @@ class PushNotifications {
     UserRepository userRepository,
     String token,
   ) async {
+    _pendingToken = token;
     try {
-      await userRepository.updateUser(pushToken: token);
-    } catch (_) {}
+      // Straight to the server: the phone's profile row may not be there yet
+      // right after a sign-in, and a write to it was silently lost.
+      await userRepository.savePushSettingsOnServer(pushToken: token);
+      if (_pendingToken == token) _pendingToken = null;
+    } catch (_) {
+      // Kept in _pendingToken for retryPending.
+    }
   }
 
   // static void _showForeground(RemoteMessage message) {

@@ -38,9 +38,23 @@ class _PushNotificationListenerState extends State<PushNotificationListener> {
   /// The language last written to the profile this run.
   String? _syncedLang;
 
+  /// The language being written now, so one write is in flight at a time.
+  String? _syncingLang;
+
+  /// Back in the foreground: a token or language the server didn't get
+  /// (offline at the time) goes again.
+  late final AppLifecycleListener _lifecycle;
+
+  void _onResume() {
+    if (!mounted || !_registered) return;
+    unawaited(PushNotifications.retryPending(context.read<UserRepository>()));
+    _syncLanguage();
+  }
+
   @override
   void initState() {
     super.initState();
+    _lifecycle = AppLifecycleListener(onResume: _onResume);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (context.read<AppBloc>().state.status == AppStatus.authenticated) {
@@ -62,7 +76,9 @@ class _PushNotificationListenerState extends State<PushNotificationListener> {
     if (_registeredFor == userId) return;
     _registeredFor = userId;
     _syncedLang = null;
-    PushNotifications.registerForUser(context.read<UserRepository>());
+    unawaited(
+      PushNotifications.registerForUser(context.read<UserRepository>()),
+    );
     _syncLanguage();
     _taps ??= PushNotifications.taps.listen(_open);
     unawaited(
@@ -84,8 +100,8 @@ class _PushNotificationListenerState extends State<PushNotificationListener> {
         ? 'ru'
         : 'en';
     ChatSession.instance.setLanguage(lang);
-    if (lang == _syncedLang) return;
-    _syncedLang = lang;
+    if (lang == _syncedLang || lang == _syncingLang) return;
+    _syncingLang = lang;
     final l10n = context.l10n;
     unawaited(
       PushNotifications.localizeChannel(
@@ -93,13 +109,27 @@ class _PushNotificationListenerState extends State<PushNotificationListener> {
         description: l10n.notificationChannelDescriptionText,
       ).catchError((Object _) {}),
     );
+    // Straight to the server (the phone's profile row may not be there yet
+    // after a sign-in), and only counted as saved once it is: a failed write
+    // used to be marked done and never tried again.
+    final userId = _registeredFor;
     unawaited(
-      context.read<UserRepository>().updateUser(lang: lang).catchError((_) {}),
+      context
+          .read<UserRepository>()
+          .savePushSettingsOnServer(lang: lang)
+          .then((_) {
+            if (_registeredFor == userId) _syncedLang = lang;
+          })
+          .catchError((Object _) {})
+          .whenComplete(() {
+            if (_syncingLang == lang) _syncingLang = null;
+          }),
     );
   }
 
   @override
   void dispose() {
+    _lifecycle.dispose();
     unawaited(_taps?.cancel());
     super.dispose();
   }
@@ -118,6 +148,7 @@ class _PushNotificationListenerState extends State<PushNotificationListener> {
           // Signed out: the next sign-in registers its own token again.
           _registeredFor = null;
           _syncedLang = null;
+          _syncingLang = null;
         }
       },
       child: const SizedBox.shrink(),

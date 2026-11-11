@@ -250,6 +250,14 @@ class UserRepository implements UserBaseRepository {
   Future<void> clearPushTokenOnServer() =>
       _databaseClient.clearPushTokenOnServer();
 
+  /// Saves this user's push token and/or language on the server right away.
+  @override
+  Future<void> savePushSettingsOnServer({String? pushToken, String? lang}) =>
+      _databaseClient.savePushSettingsOnServer(
+        pushToken: pushToken,
+        lang: lang,
+      );
+
   /// Live public profiles of [ids] from one query, keyed by id.
   @override
   Stream<Map<String, User>> profilesOf({required List<String> ids}) =>

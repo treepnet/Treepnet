@@ -27,6 +27,12 @@ abstract class UserBaseRepository {
   /// through the local upload queue (which signing out wipes).
   Future<void> clearPushTokenOnServer();
 
+  /// Saves the signed-in user's push token and/or app language on the
+  /// server right away. They went through the phone's profile row, which
+  /// right after a sign-in isn't there yet (the database starts empty): the
+  /// write changed nothing, and likes, comments and follows sent no push.
+  Future<void> savePushSettingsOnServer({String? pushToken, String? lang});
+
   /// Updates currently authenticated database user's metadata.
   Future<void> updateUser({
     String? fullName,
@@ -2619,6 +2625,24 @@ ${limited ? 'LIMIT ?2' : ''}''';
         .postgrest()
         .from('profiles')
         .update({'push_token': ''})
+        .eq('id', id);
+  }
+
+  @override
+  Future<void> savePushSettingsOnServer({
+    String? pushToken,
+    String? lang,
+  }) async {
+    final id = currentUserId;
+    final values = {
+      if (pushToken != null) 'push_token': pushToken,
+      if (lang != null) 'lang': lang,
+    };
+    if (id == null || values.isEmpty) return;
+    await _powerSyncRepository
+        .postgrest()
+        .from('profiles')
+        .update(values)
         .eq('id', id);
   }
 
