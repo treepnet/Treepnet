@@ -222,14 +222,15 @@ async function upsertCode(email, code, purpose, payload = null) {
 // The app repeats a request whose answer was slow. Within this many seconds
 // a repeated send-code keeps the code already mailed instead of mailing a new
 // one that would void it (codes are stored hashed, so the same code can't be
-// sent again).
+// sent again). It holds after wrong tries too: a new code resets the five
+// tries, and an instant new one after each five let a code be guessed.
 const RESEND_GAP_SEC = 60;
 
 // The row of a code mailed less than RESEND_GAP_SEC ago, if any.
 async function codeJustSent(email, purpose) {
   const r = await pool.query(
     `select payload from auth_codes
-      where email = $1 and purpose = $2 and attempts = 0
+      where email = $1 and purpose = $2
         and expires_at - make_interval(mins => $3::int)
               > now() - make_interval(secs => $4::int)`,
     [email, purpose, CODE_TTL_MIN, RESEND_GAP_SEC],
@@ -293,27 +294,33 @@ async function credentialsIfPassword(email, password, changedColumn) {
 }
 
 // Validates a code for `email`; returns null on success or { error, code }
-// (the app shows its own text for each code, in its language). Increments
-// attempts on a wrong code. Deletes nothing (caller decides).
+// (the app shows its own text for each code, in its language). Every check
+// uses up one of the five tries. Deletes nothing (caller decides).
 async function checkCode(email, code, purpose) {
+  // The try is counted before the code is compared, in one statement. It used
+  // to read the count, compare, then add one: many requests sent at once all
+  // saw fewer than five tries, so a code could be guessed.
   const r = await pool.query(
-    'select code, purpose, expires_at, attempts from auth_codes where email = $1',
-    [email],
+    `update auth_codes set attempts = attempts + 1
+      where email = $1 and purpose = $2 and expires_at > now() and attempts < 5
+      returning code`,
+    [email, purpose],
   );
   const row = r.rows[0];
-  if (!row || row.purpose !== purpose)
-    return { error: 'Invalid or expired code.', code: 'invalid_code' };
-  if (new Date(row.expires_at) < new Date())
-    return { error: 'Code has expired. Request a new one.', code: 'code_expired' };
-  if (row.attempts >= 5)
-    return { error: 'Too many attempts. Request a new code.', code: 'code_attempts' };
-  if (!codeMatches(row.code, email, purpose, code)) {
-    await pool.query(
-      'update auth_codes set attempts = attempts + 1 where email = $1',
+  if (!row) {
+    const s = await pool.query(
+      'select purpose, expires_at from auth_codes where email = $1',
       [email],
     );
-    return { error: 'Invalid code.', code: 'invalid_code' };
+    const current = s.rows[0];
+    if (!current || current.purpose !== purpose)
+      return { error: 'Invalid or expired code.', code: 'invalid_code' };
+    if (new Date(current.expires_at) < new Date())
+      return { error: 'Code has expired. Request a new one.', code: 'code_expired' };
+    return { error: 'Too many attempts. Request a new code.', code: 'code_attempts' };
   }
+  if (!codeMatches(row.code, email, purpose, code))
+    return { error: 'Invalid code.', code: 'invalid_code' };
   return null;
 }
 

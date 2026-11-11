@@ -148,7 +148,7 @@ async function requestCode(res, body) {
   try {
     const user = await findUser(username);
     // Always return ok so the endpoint can't probe which usernames exist.
-    if (user && user.email) {
+    if (user && user.email && !(await codeJustSent(user.email))) {
       const code = String(crypto.randomInt(100000, 1000000));
       const expires = new Date(Date.now() + CODE_TTL_MIN * 60000).toISOString();
       await pool.query(
@@ -180,6 +180,22 @@ async function requestCode(res, body) {
   }
 }
 
+// A new code resets the five tries, and one could be asked for at once after
+// every five: within this many seconds of the last one, the code already
+// mailed stays (a repeated request still answers ok).
+const RESEND_GAP_SEC = 60;
+
+async function codeJustSent(email) {
+  const r = await pool.query(
+    `select 1 from account_deletion_codes
+      where email = $1
+        and expires_at - make_interval(mins => $2::int)
+              > now() - make_interval(secs => $3::int)`,
+    [email, CODE_TTL_MIN, RESEND_GAP_SEC],
+  );
+  return r.rowCount > 0;
+}
+
 async function confirm(res, body) {
   const username = (body.username || '').trim();
   const code = (body.code || '').trim();
@@ -189,24 +205,29 @@ async function confirm(res, body) {
     const user = await findUser(username);
     if (!user) return send(res, 400, { error: 'Invalid or expired code.' });
 
+    // The try is counted before the code is compared, in one statement: when
+    // it read the count, compared and then added one, many requests at once
+    // all saw fewer than five tries and a code could be guessed.
     const r = await pool.query(
-      'select code, expires_at, attempts from account_deletion_codes where email = $1',
+      `update account_deletion_codes set attempts = attempts + 1
+        where email = $1 and expires_at > now() and attempts < 5
+        returning code`,
       [user.email],
     );
     const row = r.rows[0];
-    if (!row)
-      return send(res, 400, { error: 'Invalid or expired code. Request a new one.' });
-    if (new Date(row.expires_at) < new Date())
-      return send(res, 400, { error: 'Code has expired. Request a new one.' });
-    if (row.attempts >= 5)
-      return send(res, 400, { error: 'Too many attempts. Request a new code.' });
-    if (!codeMatches(row.code, user.email, code)) {
-      await pool.query(
-        'update account_deletion_codes set attempts = attempts + 1 where email = $1',
+    if (!row) {
+      const s = await pool.query(
+        'select expires_at from account_deletion_codes where email = $1',
         [user.email],
       );
-      return send(res, 400, { error: 'Invalid code.' });
+      if (!s.rows[0])
+        return send(res, 400, { error: 'Invalid or expired code. Request a new one.' });
+      if (new Date(s.rows[0].expires_at) < new Date())
+        return send(res, 400, { error: 'Code has expired. Request a new one.' });
+      return send(res, 400, { error: 'Too many attempts. Request a new code.' });
     }
+    if (!codeMatches(row.code, user.email, code))
+      return send(res, 400, { error: 'Invalid code.' });
     // Deletes the rows and the code, and queues the rest (Firebase user, chats,
     // media files) for the cleanup worker — the same path the app's own
     // delete_account() takes.
