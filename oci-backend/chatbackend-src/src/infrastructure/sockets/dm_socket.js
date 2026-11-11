@@ -216,26 +216,34 @@ function register(io, socket) {
     // `authReady` hali tugamagan bo'lishi mumkin - shuning uchun kutamiz.
     const ready = socket.authReady || Promise.resolve(true);
 
+    // Uzilish darhol kuzatiladi: kirish tekshiruvi davomida uzilgan socket
+    // uchun keyin qo'shilgan tinglovchi hech qachon ishlamasdi, foydalanuvchi
+    // esa abadiy "onlayn" qolib, unga push ketmasdi. Sanoq faqat oshirilgan
+    // bo'lsa kamayadi.
+    let counted = false;
+    socket.on('disconnect', () => {
+        if (!counted) return;
+        counted = false;
+        const left = (onlineCounts.get(socket.userId) || 1) - 1;
+        if (left <= 0) {
+            onlineCounts.delete(socket.userId);
+            broadcastPresence(io, socket.userId, false);
+        } else {
+            onlineCounts.set(socket.userId, left);
+        }
+    });
+
     ready.then((ok) => {
-        if (ok === false || !socket.userId) return;
+        if (ok === false || !socket.userId || socket.disconnected) return;
 
         socket.join(userRoom(socket.userId));
 
         const wasOnline = isOnline(socket.userId);
         onlineCounts.set(socket.userId, (onlineCounts.get(socket.userId) || 0) + 1);
+        counted = true;
         if (!wasOnline) {
             broadcastPresence(io, socket.userId, true);
         }
-
-        socket.on('disconnect', () => {
-            const left = (onlineCounts.get(socket.userId) || 1) - 1;
-            if (left <= 0) {
-                onlineCounts.delete(socket.userId);
-                broadcastPresence(io, socket.userId, false);
-            } else {
-                onlineCounts.set(socket.userId, left);
-            }
-        });
     });
 
     // Mijoz `ack` o'rniga istalgan qiymat yubora oladi: faqat haqiqiy funksiya
