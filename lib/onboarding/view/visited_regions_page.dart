@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -207,6 +209,12 @@ class _RegionSearchState extends State<_RegionSearch> {
   List<GeoRegion> _results = const [];
 
   static const _maxResults = 8;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(prepareRegionSearch());
+  }
 
   void _onChanged(String raw) {
     final query = normalizeSearch(raw);

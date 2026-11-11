@@ -59,4 +59,35 @@ void main() {
   test('nothing typed finds nothing', () {
     expect(_finds(bukhara, '  '), isFalse);
   });
+
+  test('a query never runs from one name into the next', () {
+    final region = _region('US-NY', 'Big New', country: 'York');
+    expect(_finds(region, 'new'), isTrue);
+    expect(_finds(region, 'york'), isTrue);
+    expect(_finds(region, 'new york'), isFalse);
+  });
+
+  group('over the real index', () {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    setUpAll(prepareRegionSearch);
+
+    List<String> search(String typed) => [
+      for (final region in GeoRegions.instance.allRegions)
+        if (regionMatchesSearch(region, normalizeSearch(typed))) region.iso,
+    ];
+
+    test('finds places by any of their names', () {
+      expect(search('samarq'), contains('UZ-SA'));
+      expect(search('Buxoro'), contains('UZ-BU'));
+      expect(search('москва'), contains('RU-MOS'));
+    });
+
+    test('a search over every region takes well under a frame', () {
+      final watch = Stopwatch()..start();
+      search('zzqx');
+      watch.stop();
+      // It was 126–192 ms when every name was normalized per keystroke.
+      expect(watch.elapsedMilliseconds, lessThan(40));
+    });
+  });
 }

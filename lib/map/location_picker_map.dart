@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:app_ui/app_ui.dart';
@@ -239,6 +240,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
 
   Future<void> _init() async {
     await GeoRegions.instance.load();
+    unawaited(prepareRegionSearch());
     _detect();
     await _loadMyMap();
   }

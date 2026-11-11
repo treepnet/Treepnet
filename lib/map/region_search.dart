@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:treepnet/map/geo_regions.dart';
 
 /// Matching a typed query against regions in the place search.
@@ -64,16 +65,55 @@ String normalizeSearch(String text) => text
     .replaceAll(RegExp(r'[^\p{L}\p{N}]+', unicode: true), ' ')
     .trim();
 
+/// Every name a region answers to: its own and its country's, in English,
+/// Russian and Uzbek.
+List<String> _namesOf(GeoRegion region) => [
+  region.name,
+  region.nameEn,
+  region.nameRu,
+  region.countryName,
+  region.countryNameRu,
+  ...?_uzRegionNames[region.iso],
+  ...?_uzCountryNames[region.countryCode],
+];
+
+/// [names] normalized, one per line, each line starting with a space: `' q'`
+/// then finds the start of any word, and a query (it never has a line break)
+/// can't run from one name into the next.
+String _searchTextOf(List<String> names) =>
+    names.map((name) => ' ${normalizeSearch(name)}').join('\n');
+
+List<String> _searchTextsOf(List<List<String>> names) => [
+  for (final regionNames in names) _searchTextOf(regionNames),
+];
+
+/// Each region's [_searchTextOf], made once. Normalizing 5–7 names of all
+/// 4,499 regions again on every keystroke took 0.1–0.2 s on a Mac and froze
+/// typing on mid-range phones; over the prepared text a search is ~1 ms.
+final _searchText = Expando<String>('regionSearchText');
+
+/// Prepares the search text of every region on a background isolate, so the
+/// first letter typed doesn't pay for it either. Call when a screen with a
+/// region search opens; searching before it's done still works.
+Future<void> prepareRegionSearch() async {
+  await GeoRegions.instance.load();
+  final regions = [
+    for (final region in GeoRegions.instance.allRegions)
+      if (_searchText[region] == null) region,
+  ];
+  if (regions.isEmpty) return;
+  final texts = await compute(_searchTextsOf, [
+    for (final region in regions) _namesOf(region),
+  ]);
+  for (var i = 0; i < regions.length; i++) {
+    _searchText[regions[i]] ??= texts[i];
+  }
+}
+
 /// Whether [region] matches [query] (already [normalizeSearch]ed): the start
 /// of any word of its name or its country's, in English, Russian or Uzbek.
 bool regionMatchesSearch(GeoRegion region, String query) {
   if (query.isEmpty) return false;
-  bool hit(String name) => ' ${normalizeSearch(name)}'.contains(' $query');
-  return hit(region.name) ||
-      hit(region.nameEn) ||
-      hit(region.nameRu) ||
-      hit(region.countryName) ||
-      hit(region.countryNameRu) ||
-      (_uzRegionNames[region.iso]?.any(hit) ?? false) ||
-      (_uzCountryNames[region.countryCode]?.any(hit) ?? false);
+  final text = _searchText[region] ??= _searchTextOf(_namesOf(region));
+  return text.contains(' $query');
 }
