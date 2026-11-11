@@ -364,6 +364,11 @@ function register(io, socket) {
                 const offline = participants.filter(
                     (id) => id !== socket.userId && !isOnline(id),
                 );
+                for (const id of participants) {
+                    if (id !== socket.userId && isOnline(id)) {
+                        console.log(`[DM] user ${id} onlayn - push yuborilmadi`);
+                    }
+                }
                 if (offline.length > 0) {
                     const sender = await prisma.user.findUnique({
                         where: { id: socket.userId },

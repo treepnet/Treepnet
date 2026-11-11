@@ -27,22 +27,32 @@ async function sendToUser(userId, { title, body, data }) {
 
     const rows = await prisma.deviceToken.findMany({ where: { userId } });
     const tokens = rows.map((t) => t.token);
-    if (tokens.length === 0) return;
+    if (tokens.length === 0) {
+        console.log(`[FCM] user ${userId}: qurilma tokeni yo'q, push yuborilmadi`);
+        return;
+    }
 
     const message = {
         tokens,
         notification: { title, body },
         data: data || {},
-        android: { priority: 'high' },
-        apns: { payload: { aps: { sound: 'default' } } },
+        android: { priority: 'high', notification: { sound: 'default' } },
+        // iOS: darhol yetkazish. apns-priority 10 bo'lmasa APNs pushni
+        // to'plab, bir soatgacha kechiktirishi mumkin (push-worker bilan bir xil).
+        apns: {
+            headers: { 'apns-priority': '10', 'apns-push-type': 'alert' },
+            payload: { aps: { sound: 'default' } },
+        },
     };
 
     try {
         const res = await admin.messaging().sendEachForMulticast(message);
         const stale = [];
+        const failures = [];
         res.responses.forEach((r, i) => {
             if (!r.success) {
                 const code = r.error?.code || '';
+                failures.push(code || 'unknown');
                 if (
                     code.includes('registration-token-not-registered') ||
                     code.includes('invalid-argument')
@@ -51,6 +61,12 @@ async function sendToUser(userId, { title, body, data }) {
                 }
             }
         });
+        // Push nima uchun kelmaganini taxmin qilmaslik uchun (token va matn
+        // yozilmaydi).
+        console.log(
+            `[FCM] user ${userId}: ${res.successCount}/${tokens.length} yuborildi` +
+            (failures.length ? ` (xatolar: ${failures.join(', ')})` : ''),
+        );
         if (stale.length) {
             await prisma.deviceToken.deleteMany({ where: { token: { in: stale } } });
         }
