@@ -49,9 +49,11 @@ reload Caddy for the new `/log/*` route
    ```
    On first run, `postgres/initdb/01-powersync.sh` creates the PowerSync
    replication role + `powersync` publication. Then the schema: create the
-   roles (`sql/setup-roles.sql`), run `sql/migrate.sh` (it builds everything
-   from `sql/migrations/000_baseline.sql` on), and restore the app data into
-   the `treepnet` database (the data dump is not kept in git).
+   roles (`sql/setup-roles.sql`: roles only, no privileges, then set the
+   analytics_ro / chat_blocks_ro passwords from `.env`), run `sql/migrate.sh`
+   (it builds everything, privileges included, from
+   `sql/migrations/000_baseline.sql` on), and restore the app data into the
+   `treepnet` database (the data dump is not kept in git).
 3. **Verify:** the `sql/` helpers (`check-auth.sql`, `check-push.sql`,
    `verify.sql`, …) are diagnostic queries; `sql/setup-roles.sql` documents the
    `authenticator`/`authenticated` role setup PostgREST relies on.
