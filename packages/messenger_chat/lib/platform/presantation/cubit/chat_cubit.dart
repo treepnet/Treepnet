@@ -29,6 +29,10 @@ class ChatCubit extends Cubit<ChatState> {
     );
   }
 
+  /// The thread shows what was saved on the phone, whose paging says there
+  /// is nothing older: the server's paging replaces it once a page arrives.
+  bool _showingCache = false;
+
   Future<void> getMessages({bool isRefresh = false, int page = 1}) async {
     if (!state.messages.hasNextPage || state.isLoading || state.isLoadMore)
       return;
@@ -38,6 +42,7 @@ class ChatCubit extends Cubit<ChatState> {
       final cached = await chatRepository.cachedMessages();
       if (isClosed) return;
       if (cached != null && state.messages.messages.isEmpty) {
+        _showingCache = true;
         emit(
           state.copyWith(messages: cached, isLoading: false, failure: ''),
         );
@@ -131,6 +136,7 @@ class ChatCubit extends Cubit<ChatState> {
             '➕ Adding ${shouldAddList.length} new unique messages to state',
           );
 
+          if (isRefresh) _showingCache = false;
           final List<_MessageModel> combinedMessages;
           if (overCache) {
             final fromServer = {
@@ -200,49 +206,26 @@ class ChatCubit extends Cubit<ChatState> {
         );
       },
       (response) async {
-        final current = [...state.messages.messages];
-        final existingIds = current.map((m) => m.id).toSet();
-        // A message we already have is replaced by the server's copy: it may
-        // have been edited or deleted while we were offline (the thread can
-        // be showing what was saved on the phone).
-        final indexById = <String, int>{
-          for (final (index, message) in current.indexed)
-            if (message.id.isNotEmpty) message.id: index,
-        };
-        // Hali "yuborilmoqda" turgan nusxalar - kalit bo'yicha. Server o'sha
-        // xabarni qaytarsa, nusxa almashtiriladi (aks holda ikki marta
-        // chizilardi).
-        final localByKey = <String, int>{
-          for (final (index, message) in current.indexed)
-            if (message.isLocal && message.key.isNotEmpty) message.key: index,
-        };
-        final shouldAddList = List<_MessageModel>.empty(growable: true);
-
-        for (final message in response.messages) {
-          final localIndex = message.key.isEmpty
-              ? null
-              : localByKey[message.key];
-          if (localIndex != null) {
-            current[localIndex] = message;
-            existingIds.add(message.id);
-            continue;
-          }
-          final knownIndex = indexById[message.id];
-          if (knownIndex != null) {
-            current[knownIndex] = message;
-            continue;
-          }
-          if (!existingIds.contains(message.id)) {
-            existingIds.add(message.id);
-            shouldAddList.add(message);
-          }
-        }
-
-        final combinedMessages = [...shouldAddList, ...current];
+        // Edited or deleted messages are replaced by the server's copy, ones
+        // still being sent by theirs, and a page that doesn't meet what is
+        // shown replaces it instead of leaving a hole (see mergeOnlinePage).
+        final merged = mergeOnlinePage<_MessageModel>(
+          current: state.messages.messages,
+          page: response.messages,
+          idOf: (m) => m.id,
+          keyOf: (m) => m.key,
+        );
+        // After a gap, or over what was saved on the phone (which says there
+        // is nothing older), the server's paging is the one to follow: it
+        // used to stay as it was, so scrolling up loaded nothing.
+        final takePaging = merged.gap || _showingCache;
+        _showingCache = false;
 
         emit(
           state.copyWith(
-            messages: state.messages.copyWith(messages: combinedMessages),
+            messages: takePaging
+                ? response.copyWith(messages: merged.messages)
+                : state.messages.copyWith(messages: merged.messages),
             isLoadMore: false,
             isLoading: false,
           ),

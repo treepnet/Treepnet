@@ -7,6 +7,7 @@ import 'package:messenger_chat/data/model/chat_model.dart';
 import 'package:messenger_chat/data/model/unread_message_data.dart';
 import 'package:messenger_chat/service/chat_controller/chat_controller.dart';
 import 'package:messenger_chat/data/model/toast_data.dart';
+import 'package:messenger_chat/platform/presantation/cubit/online_page_merge.dart';
 
 import 'package:dio/dio.dart';
 
