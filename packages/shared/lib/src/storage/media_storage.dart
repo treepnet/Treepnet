@@ -109,6 +109,11 @@ class MediaBucket {
           headers: <String, dynamic>{'Authorization': 'Bearer $token'},
           // A 401 is retried once with a fresh token.
           validateStatus: (status) => status != null,
+          // A small JSON round trip: a half-open connection (e.g. Wi-Fi to
+          // mobile) would otherwise wait forever and hold up the whole upload
+          // queue, since the size-based deadline only starts after the link.
+          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
         ),
       );
       final status = response.statusCode ?? 0;
