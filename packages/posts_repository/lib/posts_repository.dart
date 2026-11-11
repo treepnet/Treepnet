@@ -2,6 +2,6 @@
 library;
 
 export 'package:database_client/database_client.dart'
-    show CommentStats, PostOrder, PostStats, SyncScope;
+    show CommentStats, PostOrder, PostStats, PostsPageIncomplete, SyncScope;
 
 export 'src/posts_repository.dart';

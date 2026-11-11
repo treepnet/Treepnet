@@ -5,6 +5,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/feed/post/post.dart';
+import 'package:treepnet/feed/widgets/widgets.dart';
 import 'package:treepnet/feed/post/video/video.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/search/view/search_page.dart';
@@ -170,6 +171,30 @@ class _TimelineViewState extends State<TimelineView>
                       ? const TimelineEmpty()
                       : const TimelineLoading(),
                 );
+              },
+            ),
+            // A failed page under posts already on screen: Retry, then a
+            // spinner while it runs (only a Retry loads with posts shown).
+            BlocBuilder<TimelineBloc, TimelineState>(
+              buildWhen: (previous, current) =>
+                  previous.status != current.status,
+              builder: (context, state) {
+                if (state.timeline.blocks.isEmpty) {
+                  return const SliverToBoxAdapter(child: SizedBox.shrink());
+                }
+                if (state.status.isFailure) {
+                  return SliverToBoxAdapter(
+                    child: PageLoadRetry(
+                      onRetry: () => context.read<TimelineBloc>().add(
+                        const TimelinePageRequested(),
+                      ),
+                    ),
+                  );
+                }
+                if (state.status.isLoading) {
+                  return const SliverToBoxAdapter(child: FeedLoaderItem());
+                }
+                return const SliverToBoxAdapter(child: SizedBox.shrink());
               },
             ),
             SliverPadding(

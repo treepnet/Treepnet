@@ -28,10 +28,11 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
     TimelinePageRequested event,
     Emitter<TimelineState> emit,
   ) async {
-    // Loading only while there is nothing on screen yet (the first page or a
-    // retry); a later page keeps the grid as it is. This used to say
-    // "populated" here, so an empty first page looked finished at once.
-    if (state.timeline.blocks.isEmpty) {
+    // Loading only while there is nothing on screen yet (the first page) or
+    // on a Retry after a failed page; a later page keeps the grid as it is.
+    // This used to say "populated" here, so an empty first page looked
+    // finished at once.
+    if (state.timeline.blocks.isEmpty || state.status.isFailure) {
       emit(state.copyWith(status: TimelineStatus.loading));
     }
     try {
@@ -66,6 +67,22 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
       emit(
         state.copyWith(status: TimelineStatus.populated, timeline: timeline),
       );
+    } on PostsPageIncomplete catch (incomplete, stackTrace) {
+      // Not the end of Trends: what the phone had goes on screen and the grid
+      // ends in a Retry for the same page.
+      final updatedBlocks = state.timeline.blocks.appendNew([
+        for (final post in incomplete.posts) post.toPostSmallBlock,
+      ]);
+      emit(
+        state.copyWith(
+          status: TimelineStatus.failure,
+          timeline: state.timeline.copyWith(
+            blocks: updatedBlocks,
+            totalBlocks: updatedBlocks.length,
+          ),
+        ),
+      );
+      addError(incomplete.cause, stackTrace);
     } catch (error, stackTrace) {
       emit(state.copyWith(status: TimelineStatus.failure));
       addError(error, stackTrace);
@@ -106,6 +123,26 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
       emit(
         state.copyWith(status: TimelineStatus.populated, timeline: timeline),
       );
+    } on PostsPageIncomplete catch (incomplete, stackTrace) {
+      // Posts already on screen stay; an empty grid shows what the phone had,
+      // from page 0, so Retry asks for the first page again.
+      final blocks = [
+        for (final post in incomplete.posts) post.toPostSmallBlock,
+      ];
+      emit(
+        state.timeline.blocks.isNotEmpty || blocks.isEmpty
+            ? state.copyWith(status: TimelineStatus.failure)
+            : state.copyWith(
+                status: TimelineStatus.failure,
+                timeline: FeedPage(
+                  page: 0,
+                  hasMore: true,
+                  blocks: blocks,
+                  totalBlocks: blocks.length,
+                ),
+              ),
+      );
+      addError(incomplete.cause, stackTrace);
     } catch (error, stackTrace) {
       emit(state.copyWith(status: TimelineStatus.failure));
       addError(error, stackTrace);

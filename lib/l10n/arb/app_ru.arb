@@ -649,6 +649,7 @@
     "placeholders": { "error": { "type": "String" } }
   },
   "retryText": "Повторить",
+  "couldNotLoadMorePostsText": "Не удалось загрузить посты",
   "messageNotSentText": "Сообщение не отправлено",
   "typingText": "печатает…",
   "failedToOpenUrlText": "Не удалось открыть ссылку.",

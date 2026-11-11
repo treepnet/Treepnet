@@ -1995,6 +1995,12 @@ abstract class AppLocalizations {
   /// **'Retry'**
   String get retryText;
 
+  /// Shown at the end of a list of posts when the next page could not be loaded (offline, timeout). A Retry button follows.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load more posts'**
+  String get couldNotLoadMorePostsText;
+
   /// No description provided for @messageNotSentText.
   ///
   /// In en, this message translates to:

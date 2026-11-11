@@ -7,6 +7,20 @@ typedef PaginatedFeedResult =
 /// Represents an update to a page.
 typedef ListPostMapper = List<InstaBlock> Function(List<Post> post);
 
+/// A feed page the server couldn't send ([PostsPageIncomplete]), as blocks:
+/// [blocks] are the posts the phone had for it. The same page is asked for
+/// again on Retry, so the page number doesn't move on.
+class FeedPageIncomplete implements Exception {
+  /// A page whose server part failed with [cause].
+  const FeedPageIncomplete(this.blocks, this.cause);
+
+  /// The page's posts that came from the phone.
+  final List<InstaBlock> blocks;
+
+  /// Why the server part failed.
+  final Object cause;
+}
+
 /// Represents the different types of page updates.
 ///
 /// This enum defines three types of page updates: create, delete, and update.
@@ -193,17 +207,22 @@ mixin FeedBlocMixin on Bloc<FeedEvent, FeedState> {
     ListPostMapper? mapper,
   }) async {
     final currentPage = page;
+    final toBlocks = mapper ?? postsToLargeBlocksMapper;
     // People you follow and your own posts first, then everyone else's.
-    final posts = await postsRepository.getPage(
-      offset: currentPage * feedPageLimit,
-      limit: feedPageLimit,
-      order: PostOrder.feed,
-    );
+    final List<Post> posts;
+    try {
+      posts = await postsRepository.getPage(
+        offset: currentPage * feedPageLimit,
+        limit: feedPageLimit,
+        order: PostOrder.feed,
+      );
+    } on PostsPageIncomplete catch (incomplete) {
+      throw FeedPageIncomplete(toBlocks(incomplete.posts), incomplete.cause);
+    }
     final newPage = currentPage + 1;
     final hasMore = posts.length >= feedPageLimit;
 
-    final instaBlocks = mapper?.call(posts) ?? postsToLargeBlocksMapper(posts);
-    return (newPage: newPage, hasMore: hasMore, blocks: instaBlocks);
+    return (newPage: newPage, hasMore: hasMore, blocks: toBlocks(posts));
   }
 
   /// Converts a list of [Post] objects to a list of [InstaBlock] objects

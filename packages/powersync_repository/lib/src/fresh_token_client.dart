@@ -16,13 +16,18 @@ class FreshTokenClient extends http.BaseClient {
 
   final http.Client _inner;
 
+  /// How long a call may take to answer. There was no limit: one stalled
+  /// connection (Wi-Fi handing over to mobile) left the feed's next page
+  /// loading for good, and the feed ignores page requests while one runs.
+  static const timeout = Duration(seconds: 15);
+
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     // Throws when a needed refresh fails (offline): the request couldn't
     // have succeeded with the expired token either.
     final token = await AuthSession.instance.idToken();
     if (token != null) request.headers['Authorization'] = 'Bearer $token';
-    return _inner.send(request);
+    return _inner.send(request).timeout(timeout);
   }
 
   @override

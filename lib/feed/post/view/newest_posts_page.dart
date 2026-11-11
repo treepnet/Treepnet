@@ -10,6 +10,7 @@ import 'package:posts_repository/posts_repository.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:shared/shared.dart';
 import 'package:treepnet/feed/post/post.dart';
+import 'package:treepnet/feed/widgets/widgets.dart';
 import 'package:treepnet/l10n/l10n.dart';
 
 /// A vertical, scrollable feed opened by tapping a tile in a grid. It starts on
@@ -58,6 +59,9 @@ class _NewestPostsPageState extends State<NewestPostsPage> {
   bool _loading = true; // initial load
   bool _loadingMore = false;
   bool _hasMore = true;
+
+  /// The last page couldn't come from the server: the list ends in a Retry.
+  bool _loadFailed = false;
   int _startIndex = 0;
 
   /// Next DB offset to page from. Tracks rows fetched (not the deduped display
@@ -92,13 +96,15 @@ class _NewestPostsPageState extends State<NewestPostsPage> {
       initial = widget.posts!;
       _hasMore = false;
     } else {
-      final (posts, offset, reachedEnd) = await _loadAround(
+      final (posts, offset, reachedEnd, failed) = await _loadAround(
         context.read<PostsRepository>(),
         widget.startPostId,
       );
       initial = posts;
       _hasMore = !reachedEnd;
-      _nextOffset = offset + posts.length;
+      // A failed page is asked for again from the same place.
+      _nextOffset = failed ? offset : offset + posts.length;
+      _loadFailed = failed;
     }
     if (!mounted) return;
     setState(() {
@@ -118,9 +124,10 @@ class _NewestPostsPageState extends State<NewestPostsPage> {
   /// ones. Its place comes from one count, not from paging in 50 at a time
   /// until it showed up — up to 20 reads, 1000 posts, for an old one, all
   /// for nothing when it had been deleted. Not in the feed any more: the
-  /// newest posts. Returns the page, the offset it starts at, and whether
-  /// the feed ends with it.
-  Future<(List<Post>, int, bool)> _loadAround(
+  /// newest posts. Returns the page, the offset it starts at, whether the
+  /// feed ends with it, and whether the server couldn't send it (then the
+  /// page holds what the phone had).
+  Future<(List<Post>, int, bool, bool)> _loadAround(
     PostsRepository repo,
     String startPostId,
   ) async {
@@ -129,12 +136,16 @@ class _NewestPostsPageState extends State<NewestPostsPage> {
       order: widget.order,
     );
     final offset = position == null ? 0 : max(0, position - _newerAbove);
-    final batch = await repo.getPage(
-      offset: offset,
-      limit: _pageSize,
-      order: widget.order,
-    );
-    return (batch, offset, batch.length < _pageSize);
+    try {
+      final batch = await repo.getPage(
+        offset: offset,
+        limit: _pageSize,
+        order: widget.order,
+      );
+      return (batch, offset, batch.length < _pageSize, false);
+    } on PostsPageIncomplete catch (incomplete) {
+      return (incomplete.posts, offset, false, true);
+    }
   }
 
   void _addPosts(Iterable<Post> posts) {
@@ -155,6 +166,7 @@ class _NewestPostsPageState extends State<NewestPostsPage> {
   }
 
   Future<void> _loadMore() async {
+    if (_loadingMore) return;
     _loadingMore = true;
     try {
       final batch = await context.read<PostsRepository>().getPage(
@@ -166,10 +178,12 @@ class _NewestPostsPageState extends State<NewestPostsPage> {
       if (!mounted) return;
       setState(() {
         _addPosts(batch);
+        _loadFailed = false;
         if (batch.length < _pageSize) _hasMore = false;
       });
     } catch (_) {
-      // Keep _hasMore so a later scroll retries.
+      // Keep _hasMore so a later scroll retries, and offer Retry meanwhile.
+      if (mounted) setState(() => _loadFailed = true);
     } finally {
       _loadingMore = false;
     }
@@ -209,12 +223,23 @@ class _NewestPostsPageState extends State<NewestPostsPage> {
       },
       slivers: [
         PostsListView(
-          postBuilder: (_, i, block) => PostView(
-            key: ValueKey(block.id),
-            block: block,
-            postIndex: i,
-            withCustomVideoPlayer: false,
-          ),
+          postBuilder: (_, i, block) {
+            final post = PostView(
+              key: ValueKey(block.id),
+              block: block,
+              postIndex: i,
+              withCustomVideoPlayer: false,
+            );
+            // The list scrolls on its own, so Retry rides under the last post.
+            if (!_loadFailed || i != blocks.length - 1) return post;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                post,
+                PageLoadRetry(onRetry: _loadMore),
+              ],
+            );
+          },
           withItemController: true,
           blocks: blocks,
           withLoading: false,

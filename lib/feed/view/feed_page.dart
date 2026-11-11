@@ -359,6 +359,7 @@ class _FeedBodyState extends State<FeedBody> {
                   ? FeedPageListView(
                       blocks: feedPage.blocks,
                       hasMore: feedPage.hasMore,
+                      failed: state.status.isFailure,
                     )
                   : const SliverToBoxAdapter(
                       child: Column(
@@ -585,6 +586,7 @@ class FeedPageListView extends StatefulWidget {
   const FeedPageListView({
     required this.blocks,
     required this.hasMore,
+    this.failed = false,
     super.key,
   });
 
@@ -594,6 +596,10 @@ class FeedPageListView extends StatefulWidget {
   /// [BlocBuilder] because `context.select` cannot reach the [FeedBloc]
   /// provider from inside a [SliverList] itemBuilder.
   final bool hasMore;
+
+  /// The last page request failed: the list ends in a Retry instead of a
+  /// loader (which asks once, on appearing, and would spin for good).
+  final bool failed;
 
   @override
   State<FeedPageListView> createState() => _FeedPageListViewState();
@@ -639,6 +645,12 @@ class _FeedPageListViewState extends State<FeedPageListView> {
           // for PowerSync keeps retrying instead of getting stuck empty.
           if (!widget.hasMore && blocks.isNotEmpty) {
             return const SizedBox.shrink();
+          }
+          if (widget.failed && blocks.isNotEmpty) {
+            return PageLoadRetry(
+              onRetry: () =>
+                  context.read<FeedBloc>().add(const FeedPageRequested()),
+            );
           }
           return Padding(
             padding: EdgeInsets.only(top: blocks.isEmpty ? AppSpacing.md : 0),

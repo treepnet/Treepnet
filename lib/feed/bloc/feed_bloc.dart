@@ -81,6 +81,25 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> with FeedBlocMixin {
       );
 
       emit(state.populated(feed: feed));
+    } on FeedPageIncomplete catch (incomplete, stackTrace) {
+      // Not the end of the feed: what the phone had goes on screen, and the
+      // list ends in a Retry for the same page.
+      addError(incomplete.cause, stackTrace);
+      final updatedBlocks = state.feed.feedPage.blocks.appendNew(
+        incomplete.blocks,
+      );
+      emit(
+        state
+            .copyWith(
+              feed: state.feed.copyWith(
+                feedPage: state.feed.feedPage.copyWith(
+                  blocks: updatedBlocks,
+                  totalBlocks: updatedBlocks.length,
+                ),
+              ),
+            )
+            .failure(),
+      );
     } catch (error, stackTrace) {
       addError(error, stackTrace);
       emit(state.failure());
@@ -157,6 +176,27 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> with FeedBlocMixin {
       );
 
       emit(state.populated(feed: feed));
+    } on FeedPageIncomplete catch (incomplete, stackTrace) {
+      addError(incomplete.cause, stackTrace);
+      // Posts already on screen stay; an empty feed shows what the phone had,
+      // from page 0, so Retry asks for the first page again.
+      if (state.feed.feedPage.blocks.isNotEmpty || incomplete.blocks.isEmpty) {
+        return emit(state.failure());
+      }
+      emit(
+        state
+            .copyWith(
+              feed: state.feed.copyWith(
+                feedPage: FeedPage(
+                  page: 0,
+                  blocks: incomplete.blocks,
+                  hasMore: true,
+                  totalBlocks: incomplete.blocks.length,
+                ),
+              ),
+            )
+            .failure(),
+      );
     } catch (error, stackTrace) {
       addError(error, stackTrace);
       emit(state.failure());

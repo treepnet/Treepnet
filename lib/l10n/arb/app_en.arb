@@ -703,6 +703,10 @@
     "placeholders": { "error": { "type": "String" } }
   },
   "retryText": "Retry",
+  "couldNotLoadMorePostsText": "Couldn't load more posts",
+  "@couldNotLoadMorePostsText": {
+    "description": "Shown at the end of a list of posts when the next page could not be loaded (offline, timeout). A Retry button follows."
+  },
   "messageNotSentText": "Message not sent",
   "typingText": "typing…",
   "failedToOpenUrlText": "Failed to open the url.",

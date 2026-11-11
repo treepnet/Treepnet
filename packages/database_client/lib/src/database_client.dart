@@ -279,6 +279,27 @@ enum PostOrder {
   trending,
 }
 
+/// A page of posts the server couldn't send (offline, a timeout, an error).
+///
+/// It used to come back as a short page, which every list read as its end:
+/// the feed stopped for good after one network blip. [posts] is what the
+/// phone could add on its own (possibly nothing): show it, and ask for the
+/// same page again rather than the next one.
+class PostsPageIncomplete implements Exception {
+  /// A page whose server part failed with [cause]; [posts] came from the
+  /// phone.
+  const PostsPageIncomplete(this.posts, this.cause);
+
+  /// The page's posts that came from the phone.
+  final List<Post> posts;
+
+  /// Why the server part failed.
+  final Object cause;
+
+  @override
+  String toString() => 'PostsPageIncomplete(${posts.length} local): $cause';
+}
+
 /// Abstract base class for a posts repository.
 abstract class PostsBaseRepository {
   /// Reads the associated post from the database by the [id].
@@ -1801,7 +1822,8 @@ ORDER BY ${_postOrderSql(order)} LIMIT ?1 OFFSET ?2
   /// Newest and Trends come from the server — every post the user may see,
   /// not just the ones on the phone. The feed is the user's own posts and
   /// those of the people they follow (on the phone), then everyone else's
-  /// (from the server). Offline, the posts on the phone.
+  /// (from the server). When the server can't be reached it throws
+  /// [PostsPageIncomplete] with the posts the phone has for that page.
   @override
   Future<List<Post>> getPage({
     required int offset,
@@ -1818,8 +1840,15 @@ ORDER BY ${_postOrderSql(order)} LIMIT ?1 OFFSET ?2
           'p_offset': offset,
           'p_exclude': hidden,
         });
-      } catch (_) {
-        return _localPage(offset: offset, limit: limit, order: order);
+      } catch (error) {
+        // Offline, the first page can still show the posts on the phone; a
+        // later one has nothing to fall back on.
+        throw PostsPageIncomplete(
+          offset == 0
+              ? await _localPage(offset: offset, limit: limit, order: order)
+              : const [],
+          error,
+        );
       }
     }
     final ownAndFollowed = await _ownAndFollowedCount();
@@ -1835,8 +1864,8 @@ ORDER BY ${_postOrderSql(order)} LIMIT ?1 OFFSET ?2
         'p_exclude': hidden,
       });
       return [...local, ...others];
-    } catch (_) {
-      return local;
+    } catch (error) {
+      throw PostsPageIncomplete(local, error);
     }
   }
 

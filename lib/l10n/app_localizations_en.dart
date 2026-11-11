@@ -1186,6 +1186,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get retryText => 'Retry';
 
   @override
+  String get couldNotLoadMorePostsText => 'Couldn\'t load more posts';
+
+  @override
   String get messageNotSentText => 'Message not sent';
 
   @override

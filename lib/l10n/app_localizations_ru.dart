@@ -1204,6 +1204,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get retryText => 'Повторить';
 
   @override
+  String get couldNotLoadMorePostsText => 'Не удалось загрузить посты';
+
+  @override
   String get messageNotSentText => 'Сообщение не отправлено';
 
   @override
