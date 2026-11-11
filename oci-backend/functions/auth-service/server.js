@@ -13,7 +13,6 @@
 //   /login             { usernameOrEmail, password }                 -> {token}
 //   /reset/send-code   { usernameOrEmail }                           -> emails a code
 //   /reset/verify      { continuationToken(email), code, newPassword }-> {ok}
-//   /verify-password   { usernameOrEmail, password }                 -> {ok}  (delete re-auth)
 //   /media/upload-url  { bucket, path, contentType } + Bearer ID token -> {uploadUrl, path}
 //       a one-object, 15-minute write link for a post, story or avatar file
 const http = require('http');
@@ -164,6 +163,27 @@ function codeEmailHtml(lang, lead, code, expires, ignore) {
 </body></html>`;
 }
 
+// Every code email goes out through one Gmail account, which stops at about
+// 500 a day. Each send is counted per day in mail_sends (shared with the
+// other mail-sending service); at MAIL_WARN_AT the error bot hears once,
+// before the cap would stop every sign-up, reset and deletion code.
+const MAIL_WARN_AT = 400;
+
+async function countMailSent() {
+  try {
+    const r = await pool.query(
+      `insert into mail_sends(day, sent) values (current_date, 1)
+       on conflict (day) do update set sent = mail_sends.sent + 1
+       returning sent`,
+    );
+    if (r.rows[0].sent === MAIL_WARN_AT) {
+      alertErrorBot(`${MAIL_WARN_AT} code emails sent today; Gmail stops at about 500`);
+    }
+  } catch (e) {
+    console.error('mail send count failed:', e.message);
+  }
+}
+
 async function sendCodeEmail(email, code, purpose, lang) {
   const l = emailLang(lang);
   const t = CODE_EMAIL[l];
@@ -176,6 +196,7 @@ async function sendCodeEmail(email, code, purpose, lang) {
     text: `${lead}\n\n${code}\n\n${expires}\n${t.ignore}`,
     html: codeEmailHtml(l, lead, code, expires, t.ignore),
   });
+  await countMailSent();
 }
 
 // A code email that couldn't go out: the stored code is dropped — otherwise a
@@ -575,24 +596,6 @@ async function login(res, b) {
   return send(res, 200, { token, userId: row.id });
 }
 
-async function verifyPassword(res, b) {
-  const email = await emailForUsernameOrEmail(b.usernameOrEmail);
-  const password = b.password || '';
-  const deny = () =>
-    fail(res, 401, 'Wrong username or password.', 'invalid_credentials');
-  if (!email || !password) return deny();
-  const r = await pool.query(
-    `select c.password_hash
-       from profiles p join auth_credentials c on c.user_id = p.id
-      where lower(p.email) = $1 limit 1`,
-    [email],
-  );
-  if (!r.rows[0]) return deny();
-  const ok = await bcrypt.compare(password, r.rows[0].password_hash);
-  if (!ok) return deny();
-  return send(res, 200, { ok: true });
-}
-
 async function resetSendCode(res, b) {
   const email = await emailForUsernameOrEmail(b.usernameOrEmail);
   // Always the same answer — ok and a fresh-looking token — so the endpoint
@@ -689,7 +692,6 @@ const ROUTES = {
   '/signup/send-code': signupSendCode,
   '/signup/verify': signupVerify,
   '/login': login,
-  '/verify-password': verifyPassword,
   '/reset/send-code': resetSendCode,
   '/reset/verify': resetVerify,
   '/media/upload-url': mediaUploadUrl,

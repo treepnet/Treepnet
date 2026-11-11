@@ -122,6 +122,28 @@ async function sendDeletionCodeEmail(email, code, lang) {
 </table>
 </body></html>`,
   });
+  await countMailSent();
+}
+
+// Every code email goes out through one Gmail account, which stops at about
+// 500 a day. Each send is counted per day in mail_sends (shared with
+// auth-service); at MAIL_WARN_AT the error bot hears once,
+// before the cap would stop every sign-up, reset and deletion code.
+const MAIL_WARN_AT = 400;
+
+async function countMailSent() {
+  try {
+    const r = await pool.query(
+      `insert into mail_sends(day, sent) values (current_date, 1)
+       on conflict (day) do update set sent = mail_sends.sent + 1
+       returning sent`,
+    );
+    if (r.rows[0].sent === MAIL_WARN_AT) {
+      alertErrorBot(`${MAIL_WARN_AT} code emails sent today; Gmail stops at about 500`);
+    }
+  } catch (e) {
+    console.error('mail send count failed:', e.message);
+  }
 }
 
 // Best-effort note to the private Telegram error bot (error-logger service).
