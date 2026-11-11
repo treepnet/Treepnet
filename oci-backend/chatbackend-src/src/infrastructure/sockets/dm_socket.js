@@ -56,13 +56,26 @@ function allow(socket) {
     return true;
 }
 
+// Xabar kaliti bazada `<yuboruvchi>:<suhbat>:<kalit>` ko'rinishida saqlanadi:
+// kalit faqat bitta yuboruvchining bitta suhbatida yagona. Ilova o'z kalitini
+// qaytarib oladi (shu bilan yuborilgan xabarini taniydi); eski xabarlarda
+// prefiks yo'q.
+const storedKey = (senderId, conversationId, key) => `${senderId}:${conversationId}:${key}`;
+
+const clientKey = (message) => {
+    const prefix = `${message.senderId}:${message.conversationId}:`;
+    return message.key && message.key.startsWith(prefix)
+        ? message.key.slice(prefix.length)
+        : message.key;
+};
+
 const toMessageDto = (message) => ({
     id: String(message.id),
     conversationId: String(message.conversationId),
     senderId: String(message.senderId),
     content: message.content,
     contentType: message.contentType,
-    key: message.key,
+    key: clientKey(message),
     isRead: message.isRead,
     isEdited: message.isEdited,
     isDeleted: message.isDeleted,
@@ -271,15 +284,23 @@ function register(io, socket) {
             }
 
             // Kalit bo'yicha idempotentlik: qayta yuborilgan xabar dublikat
-            // yaratmaydi.
-            const existing = await prisma.directMessage.findUnique({ where: { key } });
+            // yaratmaydi. Faqat shu yuboruvchining shu suhbatdagi xabari
+            // qidiriladi (oddiy kalit - prefiks paydo bo'lishidan oldingi
+            // xabarlar): boshqaning xabari hech qachon qaytarilmaydi.
+            const existing = await prisma.directMessage.findFirst({
+                where: {
+                    key: { in: [storedKey(socket.userId, conversationId, key), String(key)] },
+                    senderId: socket.userId,
+                    conversationId,
+                },
+            });
             const message = existing || await prisma.directMessage.create({
                 data: {
                     conversationId,
                     senderId: socket.userId,
                     content,
                     contentType,
-                    key,
+                    key: storedKey(socket.userId, conversationId, key),
                     svg: data.svg || null,
                     png: data.png || null,
                     duration: data.duration != null ? String(data.duration) : null,
@@ -498,4 +519,4 @@ function register(io, socket) {
     });
 }
 
-module.exports = { register, userRoom, toMessageDto, invalidateParticipants, isOnline };
+module.exports = { register, userRoom, toMessageDto, clientKey, invalidateParticipants, isOnline };

@@ -22,7 +22,7 @@ const toMessageDto = (message) => ({
     senderId: String(message.senderId),
     content: message.content,
     contentType: message.contentType,
-    key: message.key,
+    key: clientKey(message),
     isRead: message.isRead,
     isEdited: message.isEdited,
     isDeleted: message.isDeleted,
@@ -36,7 +36,7 @@ const toMessageDto = (message) => ({
     replyToSenderId: message.replyToSenderId,
 });
 
-const { isOnline, invalidateParticipants } = require('../../../infrastructure/sockets/dm_socket');
+const { isOnline, invalidateParticipants, clientKey } = require('../../../infrastructure/sockets/dm_socket');
 
 const toUserDto = (user) => ({
     id: String(user.id),
