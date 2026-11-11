@@ -147,6 +147,29 @@ deletions() {
   [ "${n:-0}" -gt 0 ] && echo "$n account deletion job(s) keep failing"
 }
 
+# The nightly backup and the weekly restore check only write to backup.log,
+# and a failed run just stops there. A good backup is due every night
+# (22:30 UTC) and an ok check every Sunday (23:30 UTC); allow some slack.
+backups() {
+  local log="$HOME/backup.log" now last age check
+  now=$(date +%s)
+  last=$(grep ' backup: ok ' "$log" 2>/dev/null | tail -1 | cut -d' ' -f1)
+  if [ -z "$last" ]; then
+    echo "no successful backup in backup.log"
+    return
+  fi
+  age=$(((now - $(date -d "$last" +%s)) / 3600))
+  [ "$age" -ge 26 ] && echo "last good backup was ${age} h ago"
+  check=$(grep ' check: ' "$log" 2>/dev/null | tail -1)
+  case "$check" in
+  *' check: FAILED'*) echo "restore check failed:${check#* check: FAILED:}" ;;
+  *' check: ok'*)
+    age=$(((now - $(date -d "${check%% *}" +%s)) / 3600))
+    [ "$age" -ge 200 ] && echo "last restore check was ${age} h ago"
+    ;;
+  esac
+}
+
 if [ ! -f "$STATE_DIR/installed" ]; then
   send "✅ TreepNet server monitor is on (checks every 5 min)"
   touch "$STATE_DIR/installed"
@@ -161,3 +184,4 @@ check replication replication
 check jwks jwks
 check push_queue push_queue
 check deletions deletions
+check backups backups
