@@ -177,10 +177,22 @@ function createCleanup({ pool, admin }) {
     }
   }
 
+  // The account's rows are gone by now, so a file still used by a post, a
+  // story, a highlight cover or an avatar belongs to someone else (its links
+  // are written by the app): it stays.
+  async function deleteAccountMedia(urls) {
+    const unused = [];
+    for (const url of urls || []) {
+      const inUse = await pool.query('select media_in_use($1) as used', [url]); // eslint-disable-line no-await-in-loop
+      if (!inUse.rows[0].used) unused.push(url);
+    }
+    await deleteMedia(unused);
+  }
+
   const STEPS = [
     ['firebase', (job) => deleteFirebaseUser(job.user_id)],
     ['chat', (job) => deleteChatUser(job.user_id)],
-    ['media', (job) => deleteMedia(job.media)],
+    ['media', (job) => deleteAccountMedia(job.media)],
   ];
 
   async function processJob(job) {
