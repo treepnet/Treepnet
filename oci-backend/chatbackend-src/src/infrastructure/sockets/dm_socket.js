@@ -238,11 +238,26 @@ function register(io, socket) {
         });
     });
 
+    // Mijoz `ack` o'rniga istalgan qiymat yubora oladi: faqat haqiqiy funksiya
+    // chaqiriladi. Kirishi muvaffaqiyatsiz soket uchun ishlovchi ishlamaydi,
+    // ishlovchidagi kutilmagan xato esa butun serverni yiqitmaydi.
+    const on = (event, handler) => socket.on(event, async (data, ack) => {
+        const reply = typeof ack === 'function' ? ack : undefined;
+        try {
+            if ((await socket.authReady) === false || !socket.userId) {
+                return reply?.({ status: 'error', error: 'unauthorized' });
+            }
+            await handler(data, reply);
+        } catch (error) {
+            console.error(`[DM] ${event} error:`, error);
+        }
+    });
+
     /**
      * Xabar yuborish.
      * data: { conversationId, content, contentType, key, svg, duration, size }
      */
-    socket.on('dm.send', async (data, ack) => {
+    on('dm.send', async (data, ack) => {
         try {
             await socket.authReady;
 
@@ -383,7 +398,7 @@ function register(io, socket) {
     /**
      * "Yozmoqda" - faqat suhbatdoshlarga.
      */
-    socket.on('dm.typing', async (data) => {
+    on('dm.typing', async (data) => {
         try {
             await socket.authReady;
             if (!allow(socket)) return;
@@ -409,7 +424,7 @@ function register(io, socket) {
     /**
      * O'qildi deb belgilash. messageId berilmasa - suhbatdagi hammasi.
      */
-    socket.on('dm.read', async (data, ack) => {
+    on('dm.read', async (data, ack) => {
         try {
             await socket.authReady;
             const conversationId = Number(data?.conversationId);
@@ -452,7 +467,7 @@ function register(io, socket) {
     });
 
     // Xabarni tahrirlash - faqat o'z xabaringizni.
-    socket.on('dm.edit', async (data, ack) => {
+    on('dm.edit', async (data, ack) => {
         try {
             await socket.authReady;
             const messageId = Number(data?.messageId);
@@ -489,7 +504,7 @@ function register(io, socket) {
 
     // Xabarni o'chirish (soft-delete) - faqat o'z xabaringizni. Yozuv qoladi,
     // lekin `isDeleted` bo'ladi va matn tozalanadi.
-    socket.on('dm.delete', async (data, ack) => {
+    on('dm.delete', async (data, ack) => {
         try {
             await socket.authReady;
             const messageId = Number(data?.messageId);

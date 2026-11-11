@@ -17,6 +17,12 @@ const cacheService = require('./src/infrastructure/cache/cache_service');
 const loggerMiddleware = require('./src/interfaces/http/middlewares/logger_middleware');
 const { apiLimiter } = require('./src/interfaces/http/middlewares/rate_limiter');
 
+// Biror joyda ushlanmagan xato butun chat jarayonini (va hamma ulanishlarni)
+// to'xtatmasin: logga yoziladi, server ishlashda davom etadi.
+process.on('unhandledRejection', (reason) => {
+    console.error('[unhandledRejection]', reason);
+});
+
 const app = express();
 // Behind Caddy (one proxy hop): take the client's address from
 // X-Forwarded-For. Without this every request came from Caddy's address, so
