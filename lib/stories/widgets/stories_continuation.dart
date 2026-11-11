@@ -25,33 +25,36 @@ StoriesContinuation nextProfileContinuation({
   required bool startedUnseen,
 }) {
   return () async {
-    final cursor = fromIndex + 1;
-    if (cursor >= authors.length) return null;
-    final author = authors[cursor];
+    for (var cursor = fromIndex + 1; cursor < authors.length; cursor++) {
+      final author = authors[cursor];
 
-    // `.first` on the merged stream, not a cached snapshot: the local
-    // seen-stories store is seeded asynchronously, so a snapshot taken too
-    // early reports everything as unseen.
-    final stories = await storiesRepository
-        .mergedStories(authorId: author.id, userId: viewerId)
-        .first;
-    if (stories.isEmpty) return null;
+      // `.first` on the merged stream, not a cached snapshot: the local
+      // seen-stories store is seeded asynchronously, so a snapshot taken too
+      // early reports everything as unseen.
+      final stories = await storiesRepository
+          .mergedStories(authorId: author.id, userId: viewerId)
+          .first;
+      // Their stories expired since the grid was built: skip them rather
+      // than closing on the people still to come.
+      if (stories.isEmpty) continue;
 
-    final unseen = stories.any((story) => !story.seen);
-    // The boundary between the unseen run and the seen run — stop here.
-    if (unseen != startedUnseen) return null;
+      final unseen = stories.any((story) => !story.seen);
+      // The boundary between the unseen run and the seen run — stop here.
+      if (unseen != startedUnseen) return null;
 
-    return StoriesProps(
-      stories: stories,
-      author: author,
-      continuation: nextProfileContinuation(
-        storiesRepository: storiesRepository,
-        authors: authors,
-        fromIndex: cursor,
-        viewerId: viewerId,
-        startedUnseen: startedUnseen,
-      ),
-    );
+      return StoriesProps(
+        stories: stories,
+        author: author,
+        continuation: nextProfileContinuation(
+          storiesRepository: storiesRepository,
+          authors: authors,
+          fromIndex: cursor,
+          viewerId: viewerId,
+          startedUnseen: startedUnseen,
+        ),
+      );
+    }
+    return null;
   };
 }
 

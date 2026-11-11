@@ -205,13 +205,16 @@ class StoriesRepository extends StoriesBaseRepository {
   ///
   /// Emits again whenever ANY of them posts, has a story expire, or has one
   /// marked seen, which is what lets the stories grid re-sort itself instead of
-  /// showing a snapshot taken when the tab opened.
-  Stream<List<List<Story>>> mergedStoriesOfAll(List<String> authorIds) =>
-      authorIds.isEmpty
-      ? Stream.value(const [])
-      : Rx.combineLatestList(
-          authorIds.map((id) => mergedStories(authorId: id)),
-        );
+  /// showing a snapshot taken when the tab opened. Seen is the signed-in
+  /// user's: without a viewer every story read as unseen, so the grid could
+  /// never put the watched ones last.
+  Stream<List<List<Story>>> mergedStoriesOfAll(List<String> authorIds) {
+    if (authorIds.isEmpty) return Stream.value(const []);
+    final viewerId = _databaseClient.currentUserId;
+    return Rx.combineLatestList(
+      authorIds.map((id) => mergedStories(authorId: id, userId: viewerId)),
+    );
+  }
 
   /// The stories tray as `(author, stories)` pairs — bounded to the followings
   /// who CURRENTLY have an active story, found via one reactive query, instead

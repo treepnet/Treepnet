@@ -104,6 +104,21 @@ void main() {
     await ring.cancel();
   });
 
+  test('the stories grid feed marks what the signed-in user watched', () async {
+    final feeds = <List<List<Story>>>[];
+    final sub = stories.mergedStoriesOfAll(['a', 'b']).listen(feeds.add);
+    await settle();
+    final a1 = _story('a1', 'a');
+    query.add([a1, _story('b1', 'b')]);
+    await settle();
+    expect(feeds.last.map((f) => f.single.seen), [false, false]);
+
+    await stories.setUserStorySeen(story: a1, userId: 'me');
+    await settle();
+    expect(feeds.last.map((f) => f.single.seen), [true, false]);
+    await sub.cancel();
+  });
+
   test('the query closes when the last ring leaves', () async {
     final a = stories
         .mergedStories(authorId: 'a', userId: 'me')
