@@ -164,7 +164,11 @@ class _StoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final currentUser = context.select((AppBloc bloc) => bloc.state.user);
 
+    // Keyed by the author: the grid reorders (your card arrives first, newest
+    // stories lead), and a card reused for another person kept the first
+    // one's stories under the new name.
     return BlocProvider(
+      key: ValueKey(author.id),
       create: (context) => UserStoriesBloc(
         author: author,
         storiesRepository: context.read<StoriesRepository>(),

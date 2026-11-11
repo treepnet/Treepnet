@@ -87,7 +87,12 @@ class UserStoriesAvatar extends StatelessWidget {
     // can find it without walking up past a SliverList (which throws). This
     // previously returned early when the author had stories, leaving the child
     // without the bloc and crashing inside the feed.
+    //
+    // Keyed by the author: `create` runs once per element, so in a list that
+    // reorders (the chats, on every message) an avatar reused for another
+    // person kept the first one's stories, ring and all.
     return BlocProvider(
+      key: ValueKey(author.id),
       create: (context) => UserStoriesBloc(
         author: author,
         storiesRepository: context.read<StoriesRepository>(),
