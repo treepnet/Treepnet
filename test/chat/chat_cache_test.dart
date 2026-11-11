@@ -126,4 +126,25 @@ void main() {
     expect(back.replyToContent, 'earlier');
     expect(back.date, original.date);
   });
+
+  test('a deleted chat leaves the saved inbox and its messages go', () async {
+    await cache.writeInbox(
+      'me',
+      myUserId: '42',
+      unread: 0,
+      conversations: [
+        {'id': 'c1', 'unreadCount': 0},
+        {'id': 'c2', 'unreadCount': 0},
+      ],
+    );
+    await cache.writeMessages('me', 'c1', [_message('1')]);
+    await cache.writeMessages('me', 'c2', [_message('2')]);
+
+    await cache.removeConversation('me', 'c1');
+
+    final saved = await cache.readInbox('me');
+    expect(saved!.conversations.map((c) => c['id']), ['c2']);
+    expect(await cache.readMessages('me', 'c1'), isNull);
+    expect(await cache.readMessages('me', 'c2'), hasLength(1));
+  });
 }

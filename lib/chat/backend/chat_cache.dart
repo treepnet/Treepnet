@@ -109,6 +109,31 @@ class ChatCache {
     });
   }
 
+  /// Forgets [conversationId]: it leaves the saved inbox and its saved
+  /// messages go. A deleted chat used to come back with the next start (the
+  /// inbox shows what is saved first), and opened on its old messages.
+  Future<void> removeConversation(String uuid, String conversationId) async {
+    final generation = _generation;
+    final inbox = File('${(await _accountDir(uuid)).path}/inbox');
+    await _queue(inbox.path, generation, () async {
+      final saved = await _read(inbox);
+      if (saved is! Map) return;
+      final conversations = saved['conversations'];
+      if (conversations is! List) return;
+      await _write(inbox, {
+        ...saved,
+        'conversations': [
+          for (final c in conversations)
+            if (c is! Map || c['id']?.toString() != conversationId) c,
+        ],
+      });
+    });
+    final messages = await _messagesFile(uuid, conversationId);
+    await _queue(messages.path, generation, () async {
+      if (messages.existsSync()) await messages.delete();
+    });
+  }
+
   /// The latest saved messages of [conversationId] (newest first), or null.
   Future<List<Map<dynamic, dynamic>>?> readMessages(
     String uuid,

@@ -429,6 +429,9 @@ class _ChatsList extends StatefulWidget {
 
 class _ChatsListState extends State<_ChatsList> {
   final Map<String, ChatConversation> _map = {};
+
+  /// Chats shown from the saved inbox until the server's first page comes.
+  final Set<String> _fromCache = {};
   StreamSubscription<ChatListEvent>? _sub;
   bool _loading = true;
   Object? _error;
@@ -522,7 +525,9 @@ class _ChatsListState extends State<_ChatsList> {
       if (saved.isNotEmpty) {
         setState(() {
           for (final c in saved) {
-            _map.putIfAbsent(c.id, () => c);
+            if (_map.containsKey(c.id)) continue;
+            _map[c.id] = c;
+            _fromCache.add(c.id);
           }
           _loading = false;
         });
@@ -535,6 +540,13 @@ class _ChatsListState extends State<_ChatsList> {
       for (final c in page.conversations) {
         _map[c.id] = c;
       }
+      // A saved chat the server doesn't list any more (deleted) leaves the
+      // list; one only pushed to a later page comes back with it.
+      final listed = {for (final c in page.conversations) c.id};
+      _map.removeWhere(
+        (id, _) => _fromCache.contains(id) && !listed.contains(id),
+      );
+      _fromCache.clear();
       _nextPage = 2;
       _hasMore = page.hasMore;
       _retries = 0;

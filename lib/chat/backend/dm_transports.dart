@@ -307,6 +307,9 @@ class DmListTransport implements ChatListTransport {
   /// and the badge counted only those.
   int _unreadElsewhere = 0;
 
+  /// Chats shown from the saved inbox until the server's first page comes.
+  final Set<String> _fromCache = {};
+
   int get _loadedUnread =>
       _conversations.values.fold<int>(0, (sum, c) => sum + c.unreadCount);
 
@@ -369,6 +372,7 @@ class DmListTransport implements ChatListTransport {
       for (final conversation in conversations) {
         _conversations[conversation.id] = conversation;
       }
+      _fromCache.addAll(conversations.map((c) => c.id));
       // The saved total covered the chats not saved too.
       _unreadElsewhere = saved.unread - _loadedUnread;
       if (_unreadElsewhere < 0) _unreadElsewhere = 0;
@@ -485,6 +489,16 @@ class DmListTransport implements ChatListTransport {
     for (final conversation in conversations) {
       _conversations[conversation.id] = conversation;
     }
+    if (page == 1) {
+      // Saved chats the server no longer lists (deleted, or pushed past the
+      // first page) go; the latter come back with the next page. Their
+      // unread counts would otherwise stay in the badge.
+      final listed = {for (final c in conversations) c.id};
+      for (final id in _fromCache) {
+        if (!listed.contains(id)) _conversations.remove(id);
+      }
+      _fromCache.clear();
+    }
     // The server counts every conversation; what isn't loaded is the rest.
     final serverTotal = response.data?['unreadTotal'];
     if (serverTotal is num) {
@@ -513,6 +527,9 @@ class DmListTransport implements ChatListTransport {
   /// Deletes a conversation on the backend and drops it from the inbox.
   Future<void> deleteConversation(String conversationId) async {
     await api.dio.delete<void>('/chat/dm/conversations/$conversationId');
+    unawaited(
+      ChatCache.instance.removeConversation(api.myUuid, conversationId),
+    );
     _conversations.remove(conversationId);
     _peerUuidById.remove(conversationId);
     _recomputeUnread();
