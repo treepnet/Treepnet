@@ -51,8 +51,11 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 app.use((err, req, res, next) => {
     console.error('[GlobalError]', err.stack);
-    res.status(err.status || 500).json({
-        error: err.message || 'Internal Server Error',
+    const status = err.status || 500;
+    // A server error's own message (Prisma's includes file paths) stays in
+    // the log above; the client gets a plain one.
+    res.status(status).json({
+        error: status < 500 ? err.message || 'Bad request' : 'Internal Server Error',
         code: err.code || 'INTERNAL_ERROR',
     });
 });

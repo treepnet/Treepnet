@@ -18,7 +18,11 @@ class SocketManager {
     init(server) {
         this.io = new Server(server, {
             cors: { origin: CORS_ORIGIN, methods: ['GET', 'POST'] },
-            maxHttpBufferSize: 1e8,
+            // One packet at most 64 KB: the longest message (8000 characters
+            // and a 500-character quote) fits with room to spare. It was
+            // 100 MB, read before sign-in is checked, against a 512 MB
+            // container: a few packets could take chat down for everyone.
+            maxHttpBufferSize: 64 * 1024,
         });
 
         this.io.on('connection', (socket) => this.handleConnection(socket));

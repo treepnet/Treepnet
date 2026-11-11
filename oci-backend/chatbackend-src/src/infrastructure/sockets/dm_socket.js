@@ -15,8 +15,23 @@ const { isBlockedBetween } = require('../external/blocks');
 
 const userRoom = (userId) => `user_${userId}`;
 
-/// Ruxsat etilgan xabar turlari - ixtiyoriy satr qabul qilinmaydi.
-const ALLOWED_CONTENT_TYPES = new Set(['text', 'photo', 'video', 'voice', 'document']);
+/// Ruxsat etilgan xabar turlari - ixtiyoriy satr qabul qilinmaydi. Chat
+/// faqat matnli (fayl yuklash olib tashlangan): rasm, video, ovoz va hujjat
+/// endi qabul qilinmaydi.
+const ALLOWED_CONTENT_TYPES = new Set(['text']);
+
+/**
+ * [value] qisqa satr sifatida, yoki yo'q, juda uzun yoki [pattern] ga mos
+ * kelmasa - null. Mijozdan kelgan qo'shimcha maydonlar tekshirilmasdi:
+ * ularga ulkan matn joylab 8000 belgi chegarasini chetlab o'tish mumkin edi.
+ */
+function shortField(value, max, pattern) {
+    if (value == null) return null;
+    const text = String(value);
+    if (text.length === 0 || text.length > max) return null;
+    if (pattern && !pattern.test(text)) return null;
+    return text;
+}
 
 /**
  * Bitta xabar uchun chegara.
@@ -324,17 +339,14 @@ function register(io, socket) {
                     content,
                     contentType,
                     key: storedKey(socket.userId, conversationId, key),
-                    svg: data.svg || null,
-                    png: data.png || null,
-                    duration: data.duration != null ? String(data.duration) : null,
-                    size: data.size != null ? String(data.size) : null,
-                    replyToId: data.replyToId != null ? String(data.replyToId) : null,
+                    // Faqat matn: eski plaginning svg/png/duration/size
+                    // maydonlari saqlanmaydi (ularda hech qanday chegara
+                    // yo'q edi).
+                    replyToId: shortField(data.replyToId, 20, /^\d+$/),
                     replyToContent: data.replyToContent != null
-                        ? String(data.replyToContent).slice(0, 500)
+                        ? String(data.replyToContent).replace(/\0/g, '').slice(0, 500)
                         : null,
-                    replyToSenderId: data.replyToSenderId != null
-                        ? String(data.replyToSenderId)
-                        : null,
+                    replyToSenderId: shortField(data.replyToSenderId, 64),
                 },
             });
 
@@ -404,7 +416,7 @@ function register(io, socket) {
             ack?.({ status: 'ok', message: dto });
         } catch (error) {
             console.error('[DM] dm.send error:', error);
-            ack?.({ status: 'error', error: error.message });
+            ack?.({ status: 'error', error: 'server error' });
         }
     });
 
@@ -475,7 +487,7 @@ function register(io, socket) {
             ack?.({ status: 'ok' });
         } catch (error) {
             console.error('[DM] dm.read error:', error);
-            ack?.({ status: 'error', error: error.message });
+            ack?.({ status: 'error', error: 'server error' });
         }
     });
 
@@ -483,6 +495,9 @@ function register(io, socket) {
     on('dm.edit', async (data, ack) => {
         try {
             await socket.authReady;
+            if (!allow(socket)) {
+                return ack?.({ status: 'error', error: 'rate limit exceeded' });
+            }
             const messageId = Number(data?.messageId);
             const content = String(data?.content ?? '').replace(/\0/g, '');
             if (!messageId) return ack?.({ status: 'error', error: 'messageId is required' });
@@ -511,7 +526,7 @@ function register(io, socket) {
             ack?.({ status: 'ok', message: dto });
         } catch (error) {
             console.error('[DM] dm.edit error:', error);
-            ack?.({ status: 'error', error: error.message });
+            ack?.({ status: 'error', error: 'server error' });
         }
     });
 
@@ -520,6 +535,9 @@ function register(io, socket) {
     on('dm.delete', async (data, ack) => {
         try {
             await socket.authReady;
+            if (!allow(socket)) {
+                return ack?.({ status: 'error', error: 'rate limit exceeded' });
+            }
             const messageId = Number(data?.messageId);
             if (!messageId) return ack?.({ status: 'error', error: 'messageId is required' });
 
@@ -542,7 +560,7 @@ function register(io, socket) {
             ack?.({ status: 'ok', message: dto });
         } catch (error) {
             console.error('[DM] dm.delete error:', error);
-            ack?.({ status: 'error', error: error.message });
+            ack?.({ status: 'error', error: 'server error' });
         }
     });
 }
