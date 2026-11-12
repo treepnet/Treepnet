@@ -1542,22 +1542,53 @@ posts.user_id = ?
   );
 
   /// Turns raw post rows into [Post]s, decoding their media off the UI isolate.
-  Future<List<Post>> _hydratePosts(ResultSet result) async {
-    final jsonListMedia = result
-        .map((row) => Map<String, dynamic>.from(row)['media'] as String)
-        .toList();
-    final media = await _decodeMediaLists(jsonListMedia);
+  Future<List<Post>> _hydratePosts(ResultSet result) => _postsFromRows([
+    for (final row in result) Map<String, dynamic>.from(row),
+  ]);
+
+  /// Post [rows] as [Post]s, one by one: a row that can't be read (media that
+  /// isn't a list of media, no caption) is left out and reported. It used to
+  /// fail the whole list, so one bad post broke the feed of everyone
+  /// following its author, and Newest and Trends for everyone.
+  Future<List<Post>> _postsFromRows(List<Map<String, dynamic>> rows) async {
+    final media = await _decodeMediaLists([
+      for (final row in rows)
+        row['media'] is String ? row['media'] as String : null,
+    ]);
     final posts = <Post>[];
-    for (var i = 0; i < result.length; i++) {
-      final json = Map<String, dynamic>.from(result[i]);
-      posts.add(
-        Post.fromJson(
-          json,
-          media: List<Media>.from(media[i].map(Media.fromJson).toList()),
-        ),
-      );
+    for (var i = 0; i < rows.length; i++) {
+      final row = rows[i];
+      try {
+        final items = media[i];
+        if (items == null || row['media'] is! String) {
+          throw const FormatException('media is not a list of media');
+        }
+        posts.add(
+          Post.fromJson(
+            {...row, 'caption': row['caption'] ?? ''},
+            media: [for (final item in items) Media.fromJson(item)],
+          ),
+        );
+      } catch (error, stackTrace) {
+        _reportUnreadablePost(row['id'], error, stackTrace);
+      }
     }
     return posts;
+  }
+
+  /// Posts already reported this run, so a list read again stays quiet.
+  final Set<Object?> _unreadablePosts = {};
+
+  void _reportUnreadablePost(Object? id, Object error, StackTrace stackTrace) {
+    if (!_unreadablePosts.add(id)) return;
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'database_client',
+        context: ErrorDescription('while reading post $id (left out)'),
+      ),
+    );
   }
 
   @override
@@ -1594,27 +1625,7 @@ ${limit != null ? 'LIMIT ?' : ''}
             if (limit != null) limit,
           ],
         )
-        .asyncMap(
-          (result) async {
-            final jsonListMedia = result.map((row) {
-              final json = Map<String, dynamic>.from(row);
-              return json['media'] as String;
-            }).toList();
-
-            final media = await _decodeMediaLists(jsonListMedia);
-
-            final posts = <Post>[];
-            for (var i = 0; i < result.length; i++) {
-              final json = Map<String, dynamic>.from(result[i]);
-              final post = Post.fromJson(
-                json,
-                media: List<Media>.from(media[i].map(Media.fromJson).toList()),
-              );
-              posts.add(post);
-            }
-            return posts;
-          },
-        );
+        .asyncMap(_hydratePosts);
   }
 
   @override
@@ -1632,7 +1643,7 @@ ${limit != null ? 'LIMIT ?' : ''}
   /// to start an isolate — and set up platform channels in it it never used
   /// — which cost more than the decoding, on each refresh of a profile or
   /// place page.
-  static Future<List<List<Map<String, dynamic>>>> _decodeMediaLists(
+  static Future<List<List<Map<String, dynamic>>?>> _decodeMediaLists(
     List<String?> jsons,
   ) async {
     final size = jsons.fold<int>(0, (sum, json) => sum + (json?.length ?? 0));
@@ -1642,14 +1653,25 @@ ${limit != null ? 'LIMIT ?' : ''}
 
   static const int _isolateDecodeBytes = 50 * 1024;
 
-  static List<List<Map<String, dynamic>>> _decodeMediaListsNow(
+  /// Each of [jsons] as a list of media maps; null for one that isn't (one
+  /// bad post must not fail the others' decoding).
+  static List<List<Map<String, dynamic>>?> _decodeMediaListsNow(
     List<String?> jsons,
   ) => [
     for (final json in jsons)
-      json == null
-          ? <Map<String, dynamic>>[]
-          : (jsonDecode(json) as List<dynamic>).cast<Map<String, dynamic>>(),
+      if (json == null) null else _decodeMediaList(json),
   ];
+
+  static List<Map<String, dynamic>>? _decodeMediaList(String json) {
+    try {
+      return [
+        for (final item in jsonDecode(json) as List<dynamic>)
+          item as Map<String, dynamic>,
+      ];
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// One post's media JSON (a few hundred bytes), decoded in place. It used
   /// to start a background isolate per post — far more work than the decoding
@@ -1682,16 +1704,7 @@ ${limit != null ? 'LIMIT ?' : ''}
       params: params,
     )).cast<Map<String, dynamic>>();
     _remotePosts.putAll(rows);
-    final media = await _decodeMediaLists([
-      for (final row in rows) row['media'] as String?,
-    ]);
-    return [
-      for (var i = 0; i < rows.length; i++)
-        Post.fromJson(
-          {...rows[i], 'caption': rows[i]['caption'] ?? ''},
-          media: List<Media>.from(media[i].map(Media.fromJson)),
-        ),
-    ];
+    return _postsFromRows(rows);
   }
 
   /// The feed's first part: the user's own posts and those of the people they
@@ -2282,23 +2295,7 @@ ORDER BY saved_posts.created_at DESC LIMIT ?2 OFFSET ?3
     ''',
       [currentUserId, limit, offset],
     );
-    final jsonListMedia = result.map((row) {
-      final json = Map<String, dynamic>.from(row);
-      return json['media'] as String;
-    }).toList();
-
-    final media = await _decodeMediaLists(jsonListMedia);
-
-    final posts = <Post>[];
-    for (var i = 0; i < result.length; i++) {
-      final json = Map<String, dynamic>.from(result[i]);
-      final post = Post.fromJson(
-        json,
-        media: List<Media>.from(media[i].map(Media.fromJson).toList()),
-      );
-      posts.add(post);
-    }
-    return posts;
+    return _hydratePosts(result);
   }
 
   @override
@@ -2368,23 +2365,7 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
     ''',
       [currentUserId, limit, offset],
     );
-    final jsonListMedia = result.map((row) {
-      final json = Map<String, dynamic>.from(row);
-      return json['media'] as String;
-    }).toList();
-
-    final media = await _decodeMediaLists(jsonListMedia);
-
-    final posts = <Post>[];
-    for (var i = 0; i < result.length; i++) {
-      final json = Map<String, dynamic>.from(result[i]);
-      final post = Post.fromJson(
-        json,
-        media: List<Media>.from(media[i].map(Media.fromJson).toList()),
-      );
-      posts.add(post);
-    }
-    return posts;
+    return _hydratePosts(result);
   }
 
   /// The user's own: counted from their follows on the phone, so it moves
