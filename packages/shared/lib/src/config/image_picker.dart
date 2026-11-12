@@ -20,6 +20,9 @@ class PickImage {
 
   late TabsTexts _tabsTexts;
 
+  /// The app's translated picker texts (set in [init]).
+  TabsTexts get tabsTexts => _tabsTexts;
+
   // ignore: use_setters_to_change_properties
   void init({TabsTexts? tabsTexts}) {
     _tabsTexts = tabsTexts ?? const TabsTexts();

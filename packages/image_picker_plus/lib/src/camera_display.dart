@@ -8,10 +8,12 @@ import 'package:image_picker_plus/src/custom_crop.dart';
 import 'package:image_picker_plus/src/entities/app_theme.dart';
 import 'package:image_picker_plus/src/entities/selected_image_details.dart';
 import 'package:image_picker_plus/src/entities/tabs_texts.dart';
+import 'package:image_picker_plus/src/pill_button.dart';
 import 'package:image_picker_plus/src/utilities/extensions/file_extension.dart';
 import 'package:image_picker_plus/src/video_layout/record_count.dart';
 import 'package:image_picker_plus/src/video_layout/record_fade_animation.dart';
 import 'package:insta_assets_crop/insta_assets_crop.dart';
+import 'package:photo_manager/photo_manager.dart';
 
 class CustomCameraDisplay extends StatefulWidget {
   const CustomCameraDisplay({
@@ -140,13 +142,28 @@ class CustomCameraDisplayState extends State<CustomCameraDisplay> {
       children: [
         appBar(withLeading: false),
         Align(
-          child: Text(
-            widget.tabsNames.acceptAllPermissions,
-            textAlign: TextAlign.center,
-            style: Theme.of(context)
-                .textTheme
-                .headlineSmall
-                ?.apply(color: widget.appTheme.onSurfaceColor),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.tabsNames.acceptAllPermissions,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
+                      ?.apply(color: widget.appTheme.onSurfaceColor),
+                ),
+                const SizedBox(height: 20),
+                // The only way back once access was refused (the system
+                // doesn't ask again); opened on a tap, never by itself.
+                PickerPillButton(
+                  label: widget.tabsNames.openSettingsText,
+                  onPressed: PhotoManager.openSetting,
+                ),
+              ],
+            ),
           ),
         ),
       ],

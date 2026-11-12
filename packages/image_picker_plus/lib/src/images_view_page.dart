@@ -9,6 +9,7 @@ import 'package:image_picker_plus/src/custom_crop.dart';
 import 'package:image_picker_plus/src/image.dart';
 import 'package:image_picker_plus/src/multi_selection_mode.dart';
 import 'package:image_picker_plus/src/photo_crops.dart';
+import 'package:image_picker_plus/src/pill_button.dart';
 import 'package:image_picker_plus/src/prepare_files.dart';
 import 'package:insta_assets_crop/insta_assets_crop.dart';
 import 'package:shimmer/shimmer.dart';
@@ -116,6 +117,17 @@ class _ImagesViewPageState extends State<ImagesViewPage>
   final scrollPixels = ValueNotifier<double>(0);
   final ValueNotifier<bool> isScrolling = ValueNotifier(false);
   final ValueNotifier<bool> noMedia = ValueNotifier(false);
+
+  /// Photo access refused: the gallery says so and offers Settings (it said
+  /// "There is no media", with no way out).
+  final ValueNotifier<bool> noAccess = ValueNotifier(false);
+
+  /// Only the photos the user chose are visible (iOS "Selected Photos",
+  /// Android 14 partial access): a button adds more.
+  final ValueNotifier<bool> limitedAccess = ValueNotifier(false);
+
+  /// Back from Settings with access now given: load the gallery.
+  late final AppLifecycleListener _lifecycle;
   final ValueNotifier<bool> noDuration = ValueNotifier(false);
 
   AppTheme get appTheme => widget.appTheme;
@@ -140,6 +152,9 @@ class _ImagesViewPageState extends State<ImagesViewPage>
     expandImageView.dispose();
     enableVerticalTapping.dispose();
     noDuration.dispose();
+    _lifecycle.dispose();
+    noAccess.dispose();
+    limitedAccess.dispose();
     selectedMedia.removeListener(_onPreviewChanged);
     previewShown.dispose();
     _busy.dispose();
@@ -150,6 +165,7 @@ class _ImagesViewPageState extends State<ImagesViewPage>
   @override
   void initState() {
     selectedMedia.addListener(_onPreviewChanged);
+    _lifecycle = AppLifecycleListener(onResume: _recheckAccess);
     _applyFilerOption();
 
     _fetchNewMedia(currentPageValue: 0);
@@ -206,6 +222,9 @@ class _ImagesViewPageState extends State<ImagesViewPage>
     );
     // `hasAccess` (not `isAuth`) so users who grant *limited* photo access
     // still see their selected photos instead of being treated as denied.
+    if (!mounted) return;
+    limitedAccess.value = result == PermissionState.limited;
+    if (result.hasAccess && noAccess.value) noAccess.value = false;
     if (result.hasAccess) {
       final albums = await PhotoManager.getAssetPathList(
         onlyAll: true,
@@ -271,10 +290,108 @@ class _ImagesViewPageState extends State<ImagesViewPage>
       });
     } else {
       // Respect the user's decision — do NOT force-open the Settings app
-      // (App Store Guideline 5.1.1(iv)). Show the empty/no-access state; the
-      // user can enable access later from iOS Settings on their own.
-      WidgetsBinding.instance.addPostFrameCallback((_) => noMedia.value = true);
+      // (App Store Guideline 5.1.1(iv)). Show the no-access state, whose
+      // button opens Settings only when tapped.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) noAccess.value = true;
+      });
     }
+  }
+
+  /// Loads the gallery again from the first page (after Settings or adding
+  /// photos to limited access). The selection is cleared: its files belong
+  /// to the old list.
+  void _reloadGallery() {
+    _assets.clear();
+    _mediaList.value = <FutureBuilder<Uint8List?>>[];
+    allMedia.value = <File?>[];
+    currentPage.value = 0;
+    lastPage.value = 0;
+    clearMultiImages();
+    selectedMedia.value = null;
+    _fetchNewMedia(currentPageValue: 0);
+  }
+
+  /// The media types this picker shows (only those are asked for: asking
+  /// for videos without READ_MEDIA_VIDEO failed on Android 13+).
+  RequestType get _requestType =>
+      widget.showInternalVideos && widget.showInternalImages
+          ? RequestType.common
+          : (widget.showInternalImages ? RequestType.image : RequestType.video);
+
+  /// Back in the app with access refused: if it was given in Settings, load
+  /// the gallery. Only reads the state: asking here would show Android's
+  /// permission dialog again on every resume (the dialog itself pauses and
+  /// resumes the app).
+  Future<void> _recheckAccess() async {
+    if (!noAccess.value) return;
+    final state = await PhotoManager.getPermissionState(
+      requestOption: PermissionRequestOption(
+        androidPermission: AndroidPermission(
+          type: _requestType,
+          mediaLocation: false,
+        ),
+      ),
+    );
+    if (state.hasAccess && mounted) _reloadGallery();
+  }
+
+  Future<void> _selectMorePhotos() async {
+    await PhotoManager.presentLimited(type: _requestType);
+    if (mounted) _reloadGallery();
+  }
+
+  Widget _noAccessView() {
+    return Stack(
+      children: [
+        normalAppBar(withDoneButton: false, noImages: true),
+        Align(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.tabsTexts.noPhotoAccessText,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                PickerPillButton(
+                  label: widget.tabsTexts.openSettingsText,
+                  onPressed: PhotoManager.openSetting,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// The "Select more photos" pill over the bottom of the grid, with limited
+  /// access only.
+  Widget _selectMoreButton() {
+    return ValueListenableBuilder<bool>(
+      valueListenable: limitedAccess,
+      builder: (context, limited, _) {
+        if (!limited) return const SizedBox.shrink();
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: SafeArea(
+            minimum: const EdgeInsets.only(bottom: 16),
+            child: PickerPillButton(
+              label: widget.tabsTexts.selectMorePhotosText,
+              icon: Icons.add,
+              onPressed: _selectMorePhotos,
+            ),
+          ),
+        );
+      },
+    );
   }
 
   FutureBuilder<Uint8List?> getImageGallery(List<AssetEntity> media, int i) {
@@ -403,6 +520,14 @@ class _ImagesViewPageState extends State<ImagesViewPage>
   Widget build(BuildContext context) {
     super.build(context);
     return ValueListenableBuilder<bool>(
+      valueListenable: noAccess,
+      builder: (context, refused, _) =>
+          refused ? _noAccessView() : _galleryOrEmpty(),
+    );
+  }
+
+  Widget _galleryOrEmpty() {
+    return ValueListenableBuilder<bool>(
       valueListenable: noMedia,
       builder: (context, noImages, child) {
         if (noImages) {
@@ -418,10 +543,18 @@ class _ImagesViewPageState extends State<ImagesViewPage>
                   ),
                 ),
               ),
+              // Limited access with nothing chosen yet looks empty too.
+              _selectMoreButton(),
             ],
           );
         } else {
-          return buildGridView();
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              buildGridView(),
+              _selectMoreButton(),
+            ],
+          );
         }
       },
     );

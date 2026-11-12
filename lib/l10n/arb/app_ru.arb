@@ -253,6 +253,8 @@
   "notFoundingCameraText": "Дополнительная камера не найдена",
   "holdButtonText": "Нажмите и удерживайте, чтобы записать",
   "noMediaFound": "Галерея пуста",
+  "noPhotoAccessText": "Нет доступа к фото. Разрешите его в настройках, чтобы публиковать из галереи.",
+  "selectMorePhotosText": "Выбрать ещё фото",
   "photoUnavailableText": "Фото недоступно (iCloud или нет интернета).",
   "photoCantBeUsedText": "Это фото нельзя использовать. Оно убрано из выбранных.",
   "acceptAllPermissionsText": "Чтобы продолжить, разрешите доступ в настройках.",

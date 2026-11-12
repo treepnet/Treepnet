@@ -273,7 +273,11 @@ class _StoryCameraPageState extends State<StoryCameraPage>
       cropImage: false,
       showPreview: false,
       // Reached from the story camera, so the header must not say "New post".
-      tabsTexts: TabsTexts(newPostText: context.l10n.newStoryText),
+      // The app's translated texts, with this title: a bare TabsTexts left
+      // every other text (no access, Settings, ...) in English.
+      tabsTexts: PickImage().tabsTexts.copyWith(
+        newPostText: context.l10n.newStoryText,
+      ),
       // A story is a full-height frame, so its picker shows fewer, taller
       // tiles than the post grid's four square columns.
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(

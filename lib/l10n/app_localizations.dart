@@ -903,6 +903,18 @@ abstract class AppLocalizations {
   /// **'There is no media'**
   String get noMediaFound;
 
+  /// No description provided for @noPhotoAccessText.
+  ///
+  /// In en, this message translates to:
+  /// **'No access to photos. Allow it in Settings to post from your gallery.'**
+  String get noPhotoAccessText;
+
+  /// No description provided for @selectMorePhotosText.
+  ///
+  /// In en, this message translates to:
+  /// **'Select more photos'**
+  String get selectMorePhotosText;
+
   /// No description provided for @photoUnavailableText.
   ///
   /// In en, this message translates to:
