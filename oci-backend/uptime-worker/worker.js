@@ -1,6 +1,6 @@
 // TreepNet uptime check from outside the server (Cloudflare Worker, cron every
 // 5 minutes). The server's own watchdog (oci-backend/monitor) can't report the
-// server being off or unreachable; this can. It tells the private Telegram log
+// server being off or unreachable, or itself not running; this can. It tells the private Telegram log
 // chat when the app's services stay unreachable for two checks in a row,
 // repeats every 6 hours while that lasts, and says when they are back.
 //
@@ -11,8 +11,25 @@ const TARGETS = [
   ['API', 'https://api.treepnet.com/profiles?select=id&limit=1'],
   ['Sign-in', 'https://api.treepnet.com/auth/health'],
   ['Sync', 'https://sync.treepnet.com/probes/liveness'],
-  ['Chat', 'https://chat.130-61-138-104.sslip.io/health'],
+  ['Chat', 'https://chat.treepnet.com/health'],
+  ['Account deletion page', 'https://treepnet.com/delete-account/'],
 ];
+
+// The server's monitor writes the time of each run (every 5 minutes) here;
+// a stale one means the monitor itself stopped, which it can't report.
+const HEARTBEAT = 'https://api.treepnet.com/app-config/heartbeat.txt';
+
+async function heartbeat() {
+  try {
+    const res = await fetch(HEARTBEAT, { signal: AbortSignal.timeout(10000), cf: { cacheTtl: 0 } });
+    if (res.status !== 200) return `HTTP ${res.status}`;
+    const age = Date.now() / 1000 - Number((await res.text()).trim());
+    if (!Number.isFinite(age)) return 'no time in the heartbeat';
+    return age > 15 * 60 ? `last ran ${Math.round(age / 60)} min ago` : null;
+  } catch (e) {
+    return e && e.name === 'TimeoutError' ? 'no answer in 10 s' : 'unreachable';
+  }
+}
 
 async function probe(url) {
   try {
@@ -49,9 +66,10 @@ async function run(env) {
     if (sent) await env.STATE.put('installed', '1');
   }
 
-  const results = await Promise.all(
-    TARGETS.map(async ([name, url]) => [name, await probe(url)]),
-  );
+  const results = await Promise.all([
+    ...TARGETS.map(async ([name, url]) => [name, await probe(url)]),
+    (async () => ['Server monitor', await heartbeat()])(),
+  ]);
   const failing = results.filter(([, error]) => error);
   const before = Number((await env.STATE.get('fails')) || 0);
   console.log(JSON.stringify({ failing, before }));

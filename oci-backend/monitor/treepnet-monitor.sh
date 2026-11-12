@@ -87,8 +87,10 @@ endpoints() {
     'https://api.treepnet.com/auth/health' \
     'https://api.treepnet.com/delete-account/health' \
     'https://api.treepnet.com/log/health' \
+    'https://api.treepnet.com/app-config/version.json' \
     'https://sync.treepnet.com/probes/readiness' \
-    'https://chat.130-61-138-104.sslip.io/health'; do
+    'https://chat.treepnet.com/health' \
+    'https://treepnet.com/delete-account/'; do
     code=$(curl -s -o /dev/null -m 10 -w '%{http_code}' "$url")
     [ "$code" = "200" ] || printf '%s answered %s; ' "$url" "$code"
   done
@@ -147,6 +149,31 @@ deletions() {
   [ "${n:-0}" -gt 0 ] && echo "$n account deletion job(s) keep failing"
 }
 
+# Certificates renew on their own (Caddy; Cloudflare for treepnet.com): one
+# within 14 days of its end means renewal is failing.
+certs() {
+  local host end left
+  for host in api.treepnet.com sync.treepnet.com chat.treepnet.com admin.treepnet.com treepnet.com; do
+    end=$(echo | timeout 10 openssl s_client -servername "$host" -connect "$host:443" 2>/dev/null |
+      openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+    if [ -z "$end" ]; then
+      printf '%s: no certificate read; ' "$host"
+      continue
+    fi
+    left=$((($(date -d "$end" +%s) - $(date +%s)) / 86400))
+    [ "$left" -lt 14 ] && printf '%s certificate ends in %s days; ' "$host" "$left"
+  done
+}
+
+# The server has no swap, and Postgres takes at most 100 connections.
+resources() {
+  local total avail conns
+  read -r total avail < <(free -m | awk '/^Mem:/ {print $2, $7}')
+  [ $((avail * 100 / total)) -lt 10 ] && printf 'memory low: %s of %s MB available; ' "$avail" "$total"
+  conns=$(sql "select count(*) from pg_stat_activity")
+  [ "${conns:-0}" -gt 80 ] && printf 'postgres has %s connections (max 100); ' "$conns"
+}
+
 # Scheduled jobs that have no log of their own send their errors to
 # cron-errors.log (crontab.txt); one written to in the last 10 minutes is a
 # job failing now.
@@ -195,3 +222,11 @@ check push_queue push_queue
 check deletions deletions
 check backups backups
 check cron_errors cron_errors
+check certs certs
+check resources resources
+
+# Proof of life for the uptime worker outside (oci-backend/uptime-worker): it
+# reads this time and reports when the monitor stops running, which nothing
+# here can.
+date -u +%s >"$HOME/treepnet/caddy/web/app-config/heartbeat.txt" 2>/dev/null ||
+  echo "$(date -u +%FT%TZ) heartbeat write failed"
