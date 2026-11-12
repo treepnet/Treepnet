@@ -26,10 +26,16 @@ class SearchRepository {
   /// differently), so a poisoned-empty entry on one key survived next to a good
   /// entry on the other. Not caching empties lets a later search re-query once
   /// the data is there.
-  final _usersHashedQueryResults = <String, List<User>>{};
+  ///
+  /// Each result is kept for [_maxAge] only: it used to stay for the whole run,
+  /// so a user who joined or renamed meanwhile stayed missing from it.
+  final _usersHashedQueryResults = <String, ({List<User> users, DateTime at})>{};
+
+  static const _maxAge = Duration(minutes: 2);
 
   /// Forgets cached search results — after a block, so the blocked person
-  /// doesn't linger in a result cached before it.
+  /// doesn't linger in a result cached before it, and when another account
+  /// signs in on this phone.
   void clearCache() => _usersHashedQueryResults.clear();
 
   /// Searches users by handle / name. Caches only non-empty successful results.
@@ -43,7 +49,9 @@ class SearchRepository {
 
     final hash = generateHash([query, limit, offset]);
     final cached = _usersHashedQueryResults[hash];
-    if (cached != null) return cached;
+    if (cached != null && DateTime.now().difference(cached.at) < _maxAge) {
+      return cached.users;
+    }
 
     try {
       final users = await _databaseClient.searchUsers(
@@ -51,7 +59,9 @@ class SearchRepository {
         offset: offset,
         query: query,
       );
-      if (users.isNotEmpty) _usersHashedQueryResults[hash] = users;
+      if (users.isNotEmpty) {
+        _usersHashedQueryResults[hash] = (users: users, at: DateTime.now());
+      }
       return users;
     } catch (_) {
       // Don't cache a failure — let the next search try again.

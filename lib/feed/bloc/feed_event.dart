@@ -68,6 +68,12 @@ final class FeedRecommendedPostsPageRequested extends FeedPageBasedEvent {
   List<Object?> get props => [page];
 }
 
+/// The signed-in account changed: the feed starts empty, not with the last
+/// account's posts.
+final class FeedResetRequested extends FeedEvent {
+  const FeedResetRequested();
+}
+
 final class FeedRefreshRequested extends FeedEvent {
   const FeedRefreshRequested();
 }

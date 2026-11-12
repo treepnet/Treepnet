@@ -44,6 +44,9 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> with FeedBlocMixin {
     );
     on<FeedPostCreateRequested>(_onFeedPostCreateRequested);
     on<FeedUpdateRequested>(_onFeedUpdateRequested);
+    on<FeedResetRequested>(
+      (event, emit) => emit(const FeedState.initial()),
+    );
   }
 
   @override
@@ -55,14 +58,15 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> with FeedBlocMixin {
     FeedPageRequested event,
     Emitter<FeedState> emit,
   ) async {
+    // The first page is always fetched afresh. This came after the "no more
+    // pages" check, so a feed read to its end (by the last account, too)
+    // never reloaded until a manual refresh.
+    if (event.page == 0) return add(const FeedRefreshRequested());
     if (!state.feed.feedPage.hasMore) {
       return add(const FeedRecommendedPostsPageRequested());
     }
     emit(state.loading());
     try {
-      if (event.page != null && event.page == 0) {
-        return add(const FeedRefreshRequested());
-      }
       final currentPage = event.page ?? state.feed.feedPage.page;
       final (:newPage, :hasMore, :blocks) = await fetchFeedPage(
         page: currentPage,

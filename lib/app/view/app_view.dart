@@ -55,6 +55,7 @@ class AppView extends StatelessWidget {
                         const PushNotificationListener(),
                         const RejectedUploadListener(),
                         const QueuedPostPublisher(),
+                        const AccountSwitchReset(),
                         AppSnackbar(key: snackbarKey),
                         AppLoadingIndeterminate(key: loadingIndeterminateKey),
                         // Last, so "Update required" covers everything above.
