@@ -55,11 +55,21 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     }
   }
 
+  /// A sign-out is under way: another tap does nothing.
+  bool _loggingOut = false;
+
   Future<void> _onAppLogoutRequested(
     AppLogoutRequested event,
     Emitter<AppState> emit,
   ) async {
+    if (_loggingOut) return;
+    _loggingOut = true;
+    // Something on screen while it runs: there was nothing, and people tapped
+    // again or closed the app half-way.
+    toggleLoadingIndeterminate();
     try {
+      // Never throws (each step is guarded): a failing clean-up step used to
+      // stop the sign-out itself.
       await tearDownUserSession(_userRepository);
       await _userRepository.logOut();
       openSnackbar(
@@ -67,12 +77,11 @@ class AppBloc extends Bloc<AppEvent, AppState> {
       );
     } catch (error, stackTrace) {
       addError(error, stackTrace);
-      openSnackbar(
-        SnackbarMessage.error(
-          title: l10nGlobal.logOutFailedText,
-          description: error.toString(),
-        ),
-      );
+      // Plain words only, not the raw error text.
+      openSnackbar(SnackbarMessage.error(title: l10nGlobal.logOutFailedText));
+    } finally {
+      toggleLoadingIndeterminate(enable: false);
+      _loggingOut = false;
     }
   }
 
