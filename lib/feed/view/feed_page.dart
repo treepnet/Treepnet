@@ -101,6 +101,15 @@ class _FeedViewState extends State<FeedView> {
     FeedPageController().init(
       nestedScrollController: _nestedScrollController,
       context: context,
+      currentTab: () => _tab,
+      showTab: (tab) {
+        if (tab == _tab || !_tabController.hasClients) return;
+        _tabController.animateToPage(
+          tab,
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+        );
+      },
     );
   }
 
@@ -145,6 +154,7 @@ class _FeedViewState extends State<FeedView> {
   void dispose() {
     _syncSub?.cancel();
     _videoGate?.dispose();
+    FeedPageController().detach(_nestedScrollController);
     _nestedScrollController.dispose();
     _tabController.dispose();
     super.dispose();
@@ -176,9 +186,11 @@ class _FeedViewState extends State<FeedView> {
               },
               // Both tabs stay alive: coming back to Posts finds the list
               // where it was left, not rebuilt from the top.
-              children: const [
-                FeedKeepAliveTab(child: FeedBody()),
-                FeedKeepAliveTab(child: StoriesGridView()),
+              children: [
+                FeedKeepAliveTab(
+                  child: FeedBody(scrollController: _nestedScrollController),
+                ),
+                const FeedKeepAliveTab(child: StoriesGridView()),
               ],
             ),
           ),
@@ -189,7 +201,11 @@ class _FeedViewState extends State<FeedView> {
 }
 
 class FeedBody extends StatefulWidget {
-  const FeedBody({super.key});
+  const FeedBody({this.scrollController, super.key});
+
+  /// The posts list's controller: the Feed tab tapped again, or a post just
+  /// shared, scroll it back to the top (FeedPageController).
+  final ScrollController? scrollController;
 
   @override
   State<FeedBody> createState() => _FeedBodyState();
@@ -331,6 +347,7 @@ class _FeedBodyState extends State<FeedBody> {
 
   Widget _feedScrollView() {
     return InViewNotifierCustomScrollView(
+      controller: widget.scrollController,
       initialInViewIds: const ['0'],
       isInViewPortCondition: (deltaTop, deltaBottom, vpHeight) {
         return deltaTop < (0.5 * vpHeight) + 80.0 &&

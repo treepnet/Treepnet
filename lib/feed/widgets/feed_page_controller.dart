@@ -17,15 +17,40 @@ class FeedPageController extends ChangeNotifier {
 
   static final FeedPageController _internal = FeedPageController._();
 
-  late ScrollController _nestedScrollController;
+  /// The Posts tab's scroll view (FeedBody), the Stories grid's, and the
+  /// feed's tab switch — registered by the feed while it is on screen.
+  ScrollController? _postsScroll;
+  ScrollController? _storiesScroll;
+  int Function()? _currentTab;
+  void Function(int tab)? _showTab;
   late BuildContext _context;
 
   void init({
     required ScrollController nestedScrollController,
     required BuildContext context,
+    int Function()? currentTab,
+    void Function(int tab)? showTab,
   }) {
-    _nestedScrollController = nestedScrollController;
+    _postsScroll = nestedScrollController;
     _context = context;
+    _currentTab = currentTab;
+    _showTab = showTab;
+  }
+
+  /// The feed went away with [nestedScrollController]: forget it.
+  void detach(ScrollController nestedScrollController) {
+    if (_postsScroll != nestedScrollController) return;
+    _postsScroll = null;
+    _currentTab = null;
+    _showTab = null;
+  }
+
+  /// The Stories grid's scroll view, while it is built.
+  void attachStoriesScroll(ScrollController controller) =>
+      _storiesScroll = controller;
+
+  void detachStoriesScroll(ScrollController controller) {
+    if (_storiesScroll == controller) _storiesScroll = null;
   }
 
   bool _hasPlayedAnimation = false;
@@ -49,17 +74,27 @@ class FeedPageController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The Feed tab tapped again: the tab on screen (Posts or Stories) goes
+  /// back to its top. The posts' controller used to be attached to nothing,
+  /// so this never did anything.
   void scrollToTop() {
-    // Tapping the Feed nav tab from another tab calls this before the feed's
-    // scroll view is attached; animateTo on a controller with no clients trips
-    // an assertion ("ScrollController not attached to any scroll views").
-    // Nothing to scroll when it isn't attached, so just skip.
-    if (!_nestedScrollController.hasClients) return;
-    _nestedScrollController.animateTo(
-      0,
-      duration: 250.ms,
-      curve: Curves.ease,
-    );
+    final onStories = (_currentTab?.call() ?? 0) == 1;
+    _animateToTop(onStories ? _storiesScroll : _postsScroll);
+  }
+
+  /// After sharing a post: the Posts tab at its top, where the "Posting…"
+  /// banner and then the new post are. It used to stay wherever the reader
+  /// was, so it looked as if nothing had happened.
+  void showNewPost() {
+    _showTab?.call(0);
+    _animateToTop(_postsScroll);
+  }
+
+  void _animateToTop(ScrollController? controller) {
+    // Not built yet (e.g. the Feed tab tapped from another tab first), or
+    // gone: nothing to scroll. animateTo with no clients would assert.
+    if (controller == null || !controller.hasClients) return;
+    controller.animateTo(0, duration: 250.ms, curve: Curves.ease);
   }
 
   /// Publishes a new post. The picked files and the post are saved to the

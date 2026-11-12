@@ -321,7 +321,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
     void goHome() {
       if (!widget.props.pickVideo) {
         HomeProvider().animateToPage(1);
-        FeedPageController().scrollToTop();
+        FeedPageController().showNewPost();
       }
       if (context.canPop()) {
         context.pop();

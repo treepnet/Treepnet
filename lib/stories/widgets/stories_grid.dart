@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:stories_repository/stories_repository.dart';
 import 'package:treepnet/app/app.dart';
+import 'package:treepnet/feed/widgets/feed_page_controller.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:treepnet/stories/stories.dart';
@@ -52,7 +53,15 @@ class _GridState extends State<_Grid> {
   final _controller = ScrollController();
 
   @override
+  void initState() {
+    super.initState();
+    // Tapping the Feed tab again while Stories is shown scrolls this grid up.
+    FeedPageController().attachStoriesScroll(_controller);
+  }
+
+  @override
   void dispose() {
+    FeedPageController().detachStoriesScroll(_controller);
     _controller.dispose();
     super.dispose();
   }
