@@ -6,7 +6,7 @@ compose up` stack; it supersedes the Azure-era `treepnet-push-func/` and
 `treepnet-delete-account-func/` folders at the repo root (kept only for
 reference).
 
-The new app version talks to this stack; old store versions still hit Azure.
+Every app version talks to this stack; the Azure services are gone.
 
 ## Services (`docker-compose.yml`)
 
@@ -15,15 +15,22 @@ The new app version talks to this stack; old store versions still hit Azure.
 | `caddy` | `caddy:2` | TLS (Let's Encrypt) + reverse proxy for the domains below |
 | `postgres` | `postgres:16` | App database (`wal_level=logical` for PowerSync) |
 | `powersync` | `journeyapps/powersync-service` | Sync service (reads → app) |
-| `postgrest` | `postgrest/postgrest` | REST API (writes + RPCs), JWT via Entra JWKS |
+| `postgrest` | `postgrest/postgrest` | REST API (writes + RPCs), Firebase ID tokens checked against Google's JWKS |
+| `authservice` | `functions/auth-service` | Sign-up, login, password reset (email codes), Firebase custom tokens, photo upload links |
 | `pushworker` | `functions/push-worker` | Polls `push_outbox`, sends FCM v1 pushes |
-| `deleteaccount` | `functions/delete-account` | Web "delete account" flow (email code + delete) |
+| `deleteaccount` | `functions/delete-account` | Web "delete account" flow (email code + delete), and the clean-up after every account deletion |
+| `chatbackend` | `./chatbackend` (from `chatbackend-src/`) | Direct messages: Node + Socket.IO + Prisma, its own `chat` database |
 | `errorlogger` | `functions/error-logger` | Forwards app crash/error reports to the private Telegram bot |
+| `analyticsapi` | `functions/analytics-api` | Read-only numbers for the admin panel (`analytics_ro` role) |
 
 Public endpoints (Caddy): `https://sync.treepnet.com` → powersync,
-`https://api.treepnet.com` → postgrest, `https://api.treepnet.com/delete-account/*`
-→ deleteaccount, `https://api.treepnet.com/log/error` → errorlogger. Auth is
-Microsoft Entra External ID (validated via its JWKS).
+`https://api.treepnet.com` → postgrest, `https://api.treepnet.com/auth/*` →
+authservice, `https://api.treepnet.com/delete-account/*` → deleteaccount,
+`https://api.treepnet.com/log/error` → errorlogger,
+`https://api.treepnet.com/app-config/*` → the force-update file,
+`https://chat.treepnet.com` → chatbackend, `https://admin.treepnet.com` → the
+admin panel and analyticsapi. Auth is Firebase: authservice mints custom
+tokens, and PowerSync, PostgREST and chat check the Firebase ID token.
 
 The `errorlogger` needs three env vars in `.env` (`TG_LOG_BOT_TOKEN`,
 `TG_LOG_CHAT_ID`, `LOG_APP_KEY`). It has no database or secret-file dependency,
@@ -36,19 +43,17 @@ reload Caddy for the new `/log/*` route
 1. **Secrets (not in git — see `.gitignore`):**
    - `cp .env.example .env` and fill in real values.
    - Put the Firebase service-account JSON at `functions/fcm-service-account.json`.
-   - Fetch the Entra JWKS for PostgREST:
-     ```bash
-     mkdir -p postgrest
-     curl -s https://treepnet.ciamlogin.com/51c579e4-0e9f-4921-b96d-49470969c035/discovery/v2.0/keys \
-       -o postgrest/jwks.json
-     ```
-     (Refresh this when Entra rotates its signing keys.)
+   - Fetch Google's JWKS for PostgREST with `postgrest/refresh-jwks.sh`; the
+     hourly cron keeps it fresh (Firebase rotates its keys every few days).
 2. **Bring it up:**
    ```bash
    docker compose up -d --build
    ```
    On first run, `postgres/initdb/01-powersync.sh` creates the PowerSync
-   replication role + `powersync` publication. Then the schema: create the
+   replication role + `powersync` publication. Create the `chat` and
+   `powersync_storage` (owner powersync) databases, and apply the server
+   settings in `postgres/cluster-settings.sql` (then restart postgres). Then
+   the schema: create the
    roles (`sql/setup-roles.sql`: roles only, no privileges, then set the
    analytics_ro / chat_blocks_ro passwords from `.env`), run `sql/migrate.sh`
    (it builds everything, privileges included, from

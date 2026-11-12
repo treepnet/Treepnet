@@ -6,7 +6,7 @@
 --   anon           : granted a few public columns (profiles id, username).
 --   analytics_ro   : analytics-api (SELECT on the analytics.* views).
 --   chat_blocks_ro : the chat server's block check (sql/chat_blocks_ro.sql).
--- (powersync comes from postgres/initdb/01-powersync.sh.)
+-- (powersync comes from postgres/initdb/01-powersync.sh, which runs first.)
 --
 -- Only the roles: every privilege, default privileges included, comes from
 -- the migrations (000_baseline.sql records them as production had them). This
@@ -39,3 +39,12 @@ END $$;
 ALTER ROLE authenticator WITH PASSWORD :'pw';
 GRANT authenticated TO authenticator;
 GRANT anon TO authenticator;
+
+-- Role settings production has (not in 000_baseline.sql, which is a schema
+-- dump; a restore from backup gets them from globals.sql instead). Requests
+-- stop after 5 s rather than tie up the database; PowerSync must read every
+-- row past RLS, or tables whose rows are only the owner's sync empty after a
+-- re-snapshot (sql/powersync-bypassrls.sql).
+ALTER ROLE authenticated SET statement_timeout = '5s';
+ALTER ROLE anon SET statement_timeout = '5s';
+ALTER ROLE powersync BYPASSRLS;

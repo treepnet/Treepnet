@@ -4,8 +4,10 @@ Every night at 22:30 UTC (03:30 Tashkent) `treepnet-backup.sh` on the server
 takes one encrypted archive and uploads it to the private OCI bucket
 `treepnet-backups` (namespace `fryarohmp0gm`, eu-frankfurt-1). The last 7
 nights also stay on the server in `~/backups`. On Sundays at 23:30 UTC
-`treepnet-backup-check.sh` restores the newest one into scratch databases and
-logs `ok` or `FAILED` to `~/backup.log`.
+`treepnet-backup-check.sh` restores the newest one into scratch databases,
+compares them with the live ones (tables, rows, RLS policies, functions,
+triggers, API grants) and logs `ok` or `FAILED` to `~/backup.log`; the server
+monitor alerts when a check fails or is overdue.
 
 An archive `treepnet-<UTC timestamp>.tar.enc` holds:
 
@@ -41,17 +43,30 @@ database.
    ```
 
 3. On a fresh server: unpack `server-config.tar.gz` into `~`, start only the
-   `postgres` service, then:
+   `postgres` service (its first start creates the `treepnet` database, the
+   powersync role and publication), then, with `<super>` = `POSTGRES_USER`
+   from `.env`:
 
    ```bash
+   cd ~/treepnet
+   # Roles with their passwords and settings (BYPASSRLS, statement_timeout);
+   # "already exists" for the superuser and powersync is expected.
    docker exec -i treepnet-postgres psql -U <super> -d postgres < globals.sql
+   # The other two databases aren't in any dump.
+   docker exec -i treepnet-postgres psql -U <super> -d postgres \
+     -c 'create database chat' -c 'create database powersync_storage owner powersync'
    docker exec -i treepnet-postgres pg_restore -U <super> -d treepnet --clean --if-exists < treepnet.dump
    docker exec -i treepnet-postgres pg_restore -U <super> -d chat --clean --if-exists < chat.dump
+   # Server settings (memory, WAL limit, slow-query log): see the file.
+   docker exec -i treepnet-postgres psql -U <super> -d postgres < postgres/cluster-settings.sql
+   docker restart treepnet-postgres
    ```
 
    then unpack `chat_uploads.tar.gz` into the `treepnet_chat_uploads` volume
    and start the rest. PowerSync re-snapshots on its own (see the PowerSync
-   notes on BYPASSRLS before checking bucket counts).
+   notes on BYPASSRLS before checking bucket counts). Last, compare with what
+   the weekly check compares: tables, rows, RLS policies, functions, triggers
+   and API grants.
 
 ## Retention
 
