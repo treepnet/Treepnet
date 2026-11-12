@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -249,17 +250,19 @@ class _ImagesViewPageState extends State<ImagesViewPage>
         List<File?>.filled(media.length, null, growable: true),
       );
 
+      currentPage.value++;
+      isMediaReady.value = true;
       // Resolve just the FIRST asset so the crop preview has something to show
       // and single-select keeps its "first image pre-selected" behaviour. One
-      // export — cheap — and only on the first page.
+      // export — cheap — and only on the first page. After the grid is shown,
+      // and allowed to fail: it used to come first, unguarded, so one photo
+      // that couldn't be had (only in iCloud, offline) left the picker loading
+      // for good, blocking new posts and stories. Then nothing is preselected.
       if (currentPageValue == 0 &&
           selectedMedia.value == null &&
           _assets.isNotEmpty) {
-        final first = await _resolveFile(0);
-        if (first != null) selectedMedia.value = first;
+        unawaited(_preselectFirst());
       }
-      currentPage.value++;
-      isMediaReady.value = true;
       // Guard against setState after the page was disposed (fast back-out while
       // media is still paging in) — otherwise the post-frame callback throws
       // "Null check operator used on a null value".
@@ -335,16 +338,36 @@ class _ImagesViewPageState extends State<ImagesViewPage>
     return file;
   }
 
+  Future<void> _preselectFirst() async {
+    try {
+      final first = await _resolveFile(0);
+      if (first != null && mounted && selectedMedia.value == null) {
+        selectedMedia.value = first;
+      }
+    } catch (_) {
+      // Unavailable: the user picks another one.
+    }
+  }
+
+  /// A tapped photo's file can't be had: say so instead of nothing.
+  void _showUnavailable() {
+    if (!mounted) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(content: Text(widget.tabsTexts.photoUnavailableText)),
+    );
+  }
+
   /// Tap on a tile: resolve its file lazily, then run the normal select logic.
   Future<void> _handleTap(int index) async {
     final File? image;
     try {
       image = await _resolveFile(index);
     } catch (_) {
-      _showCantUse();
+      _showUnavailable();
       return;
     }
-    if (image == null || !mounted) return;
+    if (!mounted) return;
+    if (image == null) return _showUnavailable();
     onTapImage(image, widget.multiSelectedMedia.value, index);
   }
 
@@ -355,10 +378,11 @@ class _ImagesViewPageState extends State<ImagesViewPage>
     try {
       image = await _resolveFile(index);
     } catch (_) {
-      _showCantUse();
+      _showUnavailable();
       return;
     }
-    if (image == null || !mounted) return;
+    if (!mounted) return;
+    if (image == null) return _showUnavailable();
     if (widget.multiSelectionMode.value) {
       selectionImageCheck(
         image,

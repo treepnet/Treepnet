@@ -35,6 +35,7 @@ void initUtilities(BuildContext context, Locale locale) {
       holdButtonText: l10n.holdButtonText,
       noMediaFound: l10n.noMediaFound,
       photoCantBeUsedText: l10n.photoCantBeUsedText,
+      photoUnavailableText: l10n.photoUnavailableText,
       notFoundingCameraText: l10n.notFoundingCameraText,
       noCameraFoundText: l10n.noCameraFoundText,
       newPostText: l10n.newPostText,

@@ -903,6 +903,12 @@ abstract class AppLocalizations {
   /// **'There is no media'**
   String get noMediaFound;
 
+  /// No description provided for @photoUnavailableText.
+  ///
+  /// In en, this message translates to:
+  /// **'This photo isn\'t available (iCloud or no internet).'**
+  String get photoUnavailableText;
+
   /// No description provided for @photoCantBeUsedText.
   ///
   /// In en, this message translates to:

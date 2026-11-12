@@ -76,13 +76,21 @@ class _CropImageViewState extends State<CropImageView> {
             : null,
         child: ValueListenableBuilder<File?>(
           valueListenable: widget.selectedImage,
-          child: Container(key: GlobalKey(debugLabel: 'do not have')),
           builder: (context, selectedImage, _) {
             if (selectedImage != null) {
               return showSelectedImage(context, selectedImage);
-            } else {
-              return child!;
             }
+            // No photo yet (the first one is still being fetched, or couldn't
+            // be): an empty preview of the same size. This returned the outer
+            // builder's child, which is null: a red "Null check" screen for a
+            // moment on every open once the grid stopped waiting for it.
+            // The app's grey (as the picker's loading tiles), not the
+            // theme's onSurface white.
+            return Container(
+              color: widget.appTheme.shimmerBaseColor,
+              height: 360,
+              width: MediaQuery.sizeOf(context).width,
+            );
           },
         ),
       ),

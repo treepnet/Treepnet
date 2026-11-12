@@ -10,6 +10,7 @@ class TabsTexts {
     this.holdButtonText = 'Press and hold to record',
     this.noMediaFound = 'There is no media',
     this.photoCantBeUsedText = "This photo can't be used.",
+    this.photoUnavailableText = "This photo isn't available.",
     this.acceptAllPermissions = 'Failed! Accept all access permissions.',
     this.noCameraFoundText = 'No camera found!',
     this.newPostText = 'New post',
@@ -28,6 +29,10 @@ class TabsTexts {
   /// Shown when a picked photo can't be opened or cropped (it is taken out
   /// of the selection).
   final String photoCantBeUsedText;
+
+  /// Shown when a tapped photo's file can't be had (only in iCloud with no
+  /// internet, or gone from the library).
+  final String photoUnavailableText;
   final String acceptAllPermissions;
   final String noCameraFoundText;
   final String newPostText;

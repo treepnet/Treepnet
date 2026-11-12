@@ -504,6 +504,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noMediaFound => 'There is no media';
 
   @override
+  String get photoUnavailableText =>
+      'This photo isn\'t available (iCloud or no internet).';
+
+  @override
   String get photoCantBeUsedText =>
       'This photo can\'t be used. It was taken out of the selection.';
 

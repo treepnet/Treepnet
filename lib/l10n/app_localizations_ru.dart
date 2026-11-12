@@ -508,6 +508,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get noMediaFound => 'Галерея пуста';
 
   @override
+  String get photoUnavailableText =>
+      'Фото недоступно (iCloud или нет интернета).';
+
+  @override
   String get photoCantBeUsedText =>
       'Это фото нельзя использовать. Оно убрано из выбранных.';
 
