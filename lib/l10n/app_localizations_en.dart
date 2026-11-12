@@ -1704,6 +1704,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String logOutPublishingText(int count) {
+    return 'Posts and stories still publishing: $count. They will finish the next time you log in to this account on this phone.';
+  }
+
+  @override
   String get logOutAnywayText => 'Log out anyway';
 
   @override

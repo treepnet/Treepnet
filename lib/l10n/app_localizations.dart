@@ -2919,6 +2919,12 @@ abstract class AppLocalizations {
   /// **'Unsaved changes: {count}. They haven\'t reached the server yet and will be lost if you log out now.'**
   String logOutUnsavedChangesText(int count);
 
+  /// No description provided for @logOutPublishingText.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts and stories still publishing: {count}. They will finish the next time you log in to this account on this phone.'**
+  String logOutPublishingText(int count);
+
   /// No description provided for @logOutAnywayText.
   ///
   /// In en, this message translates to:

@@ -30,9 +30,12 @@ class _QueuedPostPublisherState extends State<QueuedPostPublisher> {
   @override
   void initState() {
     super.initState();
+    final users = context.read<UserRepository>();
     _queue = context.read<MediaUploadQueue>()
       ..attachPostCreator(_create)
-      ..attachStoryCreator(_createStory);
+      ..attachStoryCreator(_createStory)
+      // Only this account's posts and stories are shown and published.
+      ..attachUser(() => users.currentUserId);
   }
 
   Future<bool> _create(PendingPost post) async {
@@ -91,10 +94,16 @@ class _QueuedPostPublisherState extends State<QueuedPostPublisher> {
   void dispose() {
     _queue
       ..detachPostCreator()
-      ..detachStoryCreator();
+      ..detachStoryCreator()
+      ..detachUser();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => const SizedBox.shrink();
+  Widget build(BuildContext context) => BlocListener<AppBloc, AppState>(
+    // Another account signed in: its items, not the last one's.
+    listenWhen: (previous, current) => previous.user.id != current.user.id,
+    listener: (_, _) => _queue.userChanged(),
+    child: const SizedBox.shrink(),
+  );
 }

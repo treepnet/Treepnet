@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:powersync_repository/powersync_repository.dart';
 import 'package:treepnet/app/app.dart';
+import 'package:treepnet/app/services/media_upload_queue.dart';
 import 'package:treepnet/l10n/l10n.dart';
+import 'package:user_repository/user_repository.dart';
 
 /// Signs out — but first lets local changes that haven't reached the server
 /// (an offline like, comment, follow or profile edit) upload for a few
@@ -14,6 +16,13 @@ import 'package:treepnet/l10n/l10n.dart';
 Future<void> logOutSafely(BuildContext context) async {
   final appBloc = context.read<AppBloc>();
   final powerSync = context.read<PowerSyncRepository>();
+  // Posts and stories this account is still publishing: they stay on the
+  // phone and finish when it signs in again, but say so (they weren't
+  // counted).
+  final me = context.read<UserRepository>().currentUserId;
+  final publishing = me == null
+      ? 0
+      : context.read<MediaUploadQueue>().pendingCountFor(me);
 
   var pending = await _pending(powerSync);
   if (pending > 0) {
@@ -26,14 +35,19 @@ Future<void> logOutSafely(BuildContext context) async {
     toggleLoadingIndeterminate(enable: false);
   }
 
-  if (pending > 0) {
+  if (pending > 0 || publishing > 0) {
     if (!context.mounted) return;
     final l10n = context.l10n;
     final leave = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(l10n.logOutText),
-        content: Text(l10n.logOutUnsavedChangesText(pending)),
+        content: Text(
+          [
+            if (pending > 0) l10n.logOutUnsavedChangesText(pending),
+            if (publishing > 0) l10n.logOutPublishingText(publishing),
+          ].join('\n\n'),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),

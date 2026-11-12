@@ -1728,6 +1728,11 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
+  String logOutPublishingText(int count) {
+    return 'Ещё публикуется постов и историй: $count. Они допубликуются, когда вы снова войдёте в этот аккаунт на этом телефоне.';
+  }
+
+  @override
   String get logOutAnywayText => 'Всё равно выйти';
 
   @override

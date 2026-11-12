@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/app/bloc/session_teardown.dart';
+import 'package:treepnet/app/services/media_upload_queue.dart';
 import 'package:treepnet/auth/auth_error_text.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/monitoring/crash_reporter.dart';
@@ -84,6 +85,8 @@ class SettingsPage extends StatelessWidget {
     if (password == null || password.isEmpty || !context.mounted) return;
 
     final userRepository = context.read<UserRepository>();
+    final uploadQueue = context.read<MediaUploadQueue>();
+    final deletedId = userRepository.currentUserId;
     // Nothing else can be tapped while the account is being erased.
     BuildContext? progress;
     void closeProgress() {
@@ -113,6 +116,9 @@ class SettingsPage extends StatelessWidget {
         // its chat closes, so nothing reaches the next account here.
         beforeSignOut: () async {
           try {
+            // Its posts and stories still being published go too: they'd
+            // never be created, and their files would upload with no owner.
+            if (deletedId != null) await uploadQueue.cancelAllOf(deletedId);
             await tearDownUserSession(userRepository);
           } finally {
             closeProgress();

@@ -898,6 +898,14 @@
       }
     }
   },
+  "logOutPublishingText": "Posts and stories still publishing: {count}. They will finish the next time you log in to this account on this phone.",
+  "@logOutPublishingText": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "logOutAnywayText": "Log out anyway",
   "avatarUpdateFailedText": "Couldn't update the photo. Try again.",
   "signInIdInvalidText": "Enter your username or email.",

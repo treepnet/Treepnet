@@ -451,6 +451,25 @@ class MediaUploadQueue {
   /// Like [_postCreator], for stories.
   Future<bool> Function(PendingStory story)? _storyCreator;
 
+  /// Who is signed in now ([attachUser]); null when no one, or not attached
+  /// yet. Only that account's posts and stories are shown, uploaded and
+  /// created: the queue lives on the phone, and after A signed out, B saw A's
+  /// photo in the "Posting…" banner (and could cancel it, deleting A's post),
+  /// A's files uploaded under B's session, and an unfinished story of A's
+  /// held back B's. Another account's items wait for it to sign in again.
+  String? Function()? _currentUserId;
+
+  bool _isMine(String userId) {
+    final me = _currentUserId?.call();
+    return me != null && me.isNotEmpty && me == userId;
+  }
+
+  /// The owner of an upload task: its post's or story's author, or null for a
+  /// task with neither in the queue (left from older versions: uploaded as
+  /// before).
+  String? _ownerOf(String postId) =>
+      _loadDrafts()[postId]?.userId ?? _loadStories()[postId]?.userId;
+
   final ValueNotifier<PostPublishStatus?> _status = ValueNotifier(null);
   final Map<String, Uint8List?> _thumbnails = {};
   PostPublishStatus? _posted;
@@ -532,6 +551,47 @@ class MediaUploadQueue {
   }
 
   void detachStoryCreator() => _storyCreator = null;
+
+  /// Tells the queue who is signed in ([currentUserId] is read each time).
+  void attachUser(String? Function() currentUserId) {
+    _currentUserId = currentUserId;
+    userChanged();
+  }
+
+  /// No one to publish for (signed out): the banner empties.
+  void detachUser() {
+    _currentUserId = null;
+    // Nor the last account's "Posted" tick.
+    _postedTimer?.cancel();
+    _posted = null;
+    unawaited(_refreshStatus());
+  }
+
+  /// The signed-in account changed: show and go on with its items.
+  void userChanged() {
+    triggerProcessing();
+    unawaited(_refreshStatus());
+  }
+
+  /// How many posts and stories of [userId] are still being published (for
+  /// the sign-out warning: they finish when that account signs in again).
+  int pendingCountFor(String userId) =>
+      _loadDrafts().values.where((d) => d.userId == userId).length +
+      _loadStories().values.where((s) => s.userId == userId).length;
+
+  /// Drops every post and story of [userId] being published, with their
+  /// files and uploads (the account was deleted).
+  Future<void> cancelAllOf(String userId) async {
+    final ids = {
+      for (final d in _loadDrafts().values)
+        if (d.userId == userId) d.postId,
+      for (final s in _loadStories().values)
+        if (s.userId == userId) s.storyId,
+    };
+    for (final id in ids) {
+      await cancel(id);
+    }
+  }
 
   /// Publishes a new story: saves the edited image to this phone first, then
   /// compresses, uploads and creates it in the background, after any story
@@ -636,6 +696,8 @@ class MediaUploadQueue {
   /// Tries a failed post or story ([id]) again now (its uploads also retry
   /// on their own).
   Future<void> retry(String id) async {
+    final owner = _ownerOf(id);
+    if (owner != null && !_isMine(owner)) return;
     final draft = _loadDrafts()[id];
     if (draft != null) await _saveDraft(draft.copyWith(clearError: true));
     final story = _loadStories()[id];
@@ -764,6 +826,7 @@ class MediaUploadQueue {
   /// `<storyId>/image`, as the app always stored them).
   Future<void> _prepareStories() async {
     for (final story in _loadStories().values) {
+      if (!_isMine(story.userId)) continue;
       if (story.prepared || story.error != null) continue;
       try {
         final source = File(story.sourcePath);
@@ -817,6 +880,8 @@ class MediaUploadQueue {
     final creator = _storyCreator;
     if (creator == null) return;
     for (final story in _loadStories().values) {
+      // Another account's waits for it, and doesn't hold this one's back.
+      if (!_isMine(story.userId)) continue;
       // In the order they were shared: a story still uploading (or failed)
       // holds back the ones after it.
       if (story.contentUrl == null) break;
@@ -851,6 +916,7 @@ class MediaUploadQueue {
   /// until the user retries it.
   Future<void> _prepareDrafts() async {
     for (final draft in _loadDrafts().values) {
+      if (!_isMine(draft.userId)) continue;
       if (draft.sources.isEmpty || draft.error != null) continue;
       var current = draft;
       try {
@@ -1003,9 +1069,14 @@ class MediaUploadQueue {
 
   /// Recomputes [status] from the queued posts and their uploads.
   Future<void> _refreshStatus() async {
-    final drafts = _loadDrafts().values.toList();
+    // Only the signed-in account's: never another's photo in the banner.
+    final drafts = _loadDrafts().values
+        .where((d) => _isMine(d.userId))
+        .toList();
     if (drafts.isEmpty) {
-      final stories = _loadStories().values.toList();
+      final stories = _loadStories().values
+          .where((s) => _isMine(s.userId))
+          .toList();
       if (stories.isEmpty) {
         _status.value = _posted;
         return;
@@ -1092,6 +1163,9 @@ class MediaUploadQueue {
     for (final task in tasks) {
       final due = task.nextAttemptAt;
       if (due != null && due.isAfter(now)) continue;
+      // Another account's file waits for it to sign in again.
+      final owner = _ownerOf(task.postId);
+      if (owner != null && !_isMine(owner)) continue;
       try {
         await _processTask(task);
       } catch (error, stackTrace) {
@@ -1108,6 +1182,7 @@ class MediaUploadQueue {
     if (creator == null) return;
     final uploading = _loadTasks().map((t) => t.postId).toSet();
     for (final draft in _loadDrafts().values) {
+      if (!_isMine(draft.userId)) continue;
       if (uploading.contains(draft.postId)) continue;
       if (draft.sources.isNotEmpty || draft.error != null) continue;
 
