@@ -7,7 +7,9 @@
 # two runs in a row (so a blip stays quiet), repeated every 6 hours while it
 # lasts, and followed by an "OK again" once it clears. A container restart is
 # an event and is sent at once. Telegram is called directly — not through our
-# own error logger — so alerts still go out when our services are down.
+# own error logger — so alerts still go out when our services are down. A
+# message counts as sent only once Telegram took it: until then it is tried
+# again on every run, so one failed send no longer hides a problem for 6 hours.
 # (The server being off entirely is caught from outside by the Cloudflare
 # uptime worker, oci-backend/uptime-worker.)
 set -u
@@ -16,13 +18,29 @@ STATE_DIR="$HOME/.treepnet-monitor"
 ENV_FILE="$HOME/treepnet/.env"
 mkdir -p "$STATE_DIR"
 
+# One run at a time: with Telegram down, retries can make a run outlast the
+# 5 minutes, and two runs would count the same failure twice.
+exec 9>"$STATE_DIR/lock"
+flock -n 9 || exit 0
+
 TOKEN=$(grep -m1 '^TG_LOG_BOT_TOKEN=' "$ENV_FILE" | cut -d= -f2-)
 CHAT=$(grep -m1 '^TG_LOG_CHAT_ID=' "$ENV_FILE" | cut -d= -f2-)
 
+# send TEXT — true once Telegram took it: three tries (1 s, then 4 s apart).
+# After a send that failed every try, the rest of the run doesn't wait on
+# Telegram again; what wasn't sent is tried on the next run.
+TG_DOWN=0
 send() {
-  curl -fsS -m 15 -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
-    --data-urlencode "chat_id=${CHAT}" --data-urlencode "text=$1" >/dev/null ||
-    echo "$(date -u +%FT%TZ) telegram send failed"
+  local try
+  [ "$TG_DOWN" = 1 ] && return 1
+  for try in 1 2 3; do
+    curl -fsS -m 10 -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+      --data-urlencode "chat_id=${CHAT}" --data-urlencode "text=$1" >/dev/null 2>&1 && return 0
+    case $try in 1) sleep 1 ;; 2) sleep 4 ;; esac
+  done
+  TG_DOWN=1
+  echo "$(date -u +%FT%TZ) telegram send failed; trying again next run"
+  return 1
 }
 
 sql() {
@@ -30,7 +48,8 @@ sql() {
 }
 
 # check NAME COMMAND... — alert after 2 failing runs, every 72 runs (6 h)
-# while it lasts, and once when it recovers.
+# while it lasts, and once when it recovers. An alert Telegram didn't take
+# ($name.unsent, $name.recovered) is sent again on the next run.
 check() {
   local name=$1
   shift
@@ -38,15 +57,26 @@ check() {
   out=$("$@" 2>&1)
   fails=$(cat "$STATE_DIR/$name.fails" 2>/dev/null || echo 0)
   if [ -n "$out" ]; then
+    rm -f "$STATE_DIR/$name.recovered"
     fails=$((fails + 1))
     echo "$fails" >"$STATE_DIR/$name.fails"
-    if [ "$fails" -eq 2 ] || [ $((fails % 72)) -eq 0 ]; then
-      send "🔴 TreepNet server: $out"
+    if [ "$fails" -eq 2 ] || [ $((fails % 72)) -eq 0 ] || [ -f "$STATE_DIR/$name.unsent" ]; then
+      if send "🔴 TreepNet server: $out"; then
+        rm -f "$STATE_DIR/$name.unsent"
+      else
+        touch "$STATE_DIR/$name.unsent"
+      fi
     fi
     echo "$(date -u +%FT%TZ) $name: $out"
   else
-    if [ "$fails" -ge 2 ]; then send "✅ TreepNet server: $name is OK again"; fi
-    rm -f "$STATE_DIR/$name.fails"
+    if [ "$fails" -ge 2 ]; then
+      echo "✅ TreepNet server: $name is OK again (failed for about $((fails * 5)) min)" \
+        >"$STATE_DIR/$name.recovered"
+    fi
+    rm -f "$STATE_DIR/$name.fails" "$STATE_DIR/$name.unsent"
+    if [ -f "$STATE_DIR/$name.recovered" ] && send "$(cat "$STATE_DIR/$name.recovered")"; then
+      rm -f "$STATE_DIR/$name.recovered"
+    fi
   fi
 }
 
@@ -67,14 +97,16 @@ health() {
     --filter health=unhealthy --format '{{.Names}}' | awk '{ printf "%s is unhealthy; ", $1 }'
 }
 
-# Restarts are events: report each new one at once.
+# Restarts are events: report each new one at once. The count is saved only
+# once the report went out, so one Telegram didn't take is sent next run.
 restarts() {
   local name count prev
   for name in $(docker ps --filter label=com.docker.compose.project=treepnet --format '{{.Names}}'); do
     count=$(docker inspect -f '{{.RestartCount}}' "$name")
     prev=$(cat "$STATE_DIR/$name.restarts" 2>/dev/null || echo "$count")
     if [ "$count" -gt "$prev" ]; then
-      send "🟠 TreepNet server: $name restarted ($((count - prev)) time(s) in the last 5 min)"
+      send "🟠 TreepNet server: $name restarted ($((count - prev)) time(s) since the last report)" ||
+        continue
     fi
     echo "$count" >"$STATE_DIR/$name.restarts"
   done
@@ -143,10 +175,22 @@ push_queue() {
   [ -n "$row" ] && echo "push queue stuck: $row"
 }
 
+# Account deletions finish in the background (functions/delete-account/
+# cleanup.js). A job still there after a day is failing, or waiting on
+# something like a lost bucket permission (waiting doesn't count as an
+# attempt, so attempts alone would never show it).
 deletions() {
-  local n
-  n=$(sql "select count(*) from account_deletion_jobs where attempts >= 3")
-  [ "${n:-0}" -gt 0 ] && echo "$n account deletion job(s) keep failing"
+  local row
+  row=$(sql "select count(*) || ' account deletion job(s) unfinished; last error: ' || coalesce(left(max(last_error), 150), '-') from account_deletion_jobs where attempts >= 3 or created_at < now() - interval '1 day' having count(*) > 0")
+  [ -n "$row" ] && echo "$row"
+}
+
+# Photo files of deleted posts, stories and avatars wait in
+# media_deletion_queue for the same worker, which deletes them within a minute.
+media_queue() {
+  local row
+  row=$(sql "select count(*) || ' photo file(s) not deleted from storage; last error: ' || coalesce(left(max(last_error), 150), 'none, but waiting over a day') from media_deletion_queue where attempts >= 3 or queued_at < now() - interval '1 day' having count(*) > 0")
+  [ -n "$row" ] && echo "$row"
 }
 
 # Certificates renew on their own (Caddy; Cloudflare for treepnet.com): one
@@ -207,8 +251,7 @@ backups() {
 }
 
 if [ ! -f "$STATE_DIR/installed" ]; then
-  send "✅ TreepNet server monitor is on (checks every 5 min)"
-  touch "$STATE_DIR/installed"
+  send "✅ TreepNet server monitor is on (checks every 5 min)" && touch "$STATE_DIR/installed"
 fi
 
 check disk disk
@@ -220,6 +263,7 @@ check replication replication
 check jwks jwks
 check push_queue push_queue
 check deletions deletions
+check media_queue media_queue
 check backups backups
 check cron_errors cron_errors
 check certs certs
