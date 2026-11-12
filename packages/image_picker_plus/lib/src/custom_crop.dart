@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:image_picker_plus/src/photo_crops.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
@@ -27,8 +28,13 @@ class CustomCrop extends StatefulWidget {
     this.alwaysShowGrid = false,
     this.isThatImage = true,
     this.onImageError,
+    this.shownImage,
   });
   final File image;
+
+  /// Set to [image] once it is decoded and laid out, i.e. once [CustomCropState.area]
+  /// is that photo's crop (until then it is still the previous photo's).
+  final ValueNotifier<File?>? shownImage;
   final double? aspectRatio;
   final double maximumScale;
 
@@ -86,6 +92,19 @@ class CustomCropState extends State<CustomCrop> with TickerProviderStateMixin {
         );
   bool get _isEnabled => _view.isEmpty == false && _image != null;
 
+  /// The photo [area] and [scale] belong to: set when it has been decoded and
+  /// laid out, cleared when another photo is given.
+  File? _shownImage;
+
+  /// [file]'s crop as the preview shows it now, or null when the preview isn't
+  /// showing [file] (yet): right after the photo changes, [area] is still
+  /// the previous photo's.
+  PhotoCrop? cropOf(File file) {
+    final area = this.area;
+    if (area == null || _shownImage?.path != file.path) return null;
+    return PhotoCrop(scale: scale, area: area);
+  }
+
   final Map<double, double> _maxAreaWidthMap = {};
 
   int pointers = 0;
@@ -128,6 +147,7 @@ class CustomCropState extends State<CustomCrop> with TickerProviderStateMixin {
     super.didUpdateWidget(oldWidget);
 
     if (widget.image != oldWidget.image) {
+      _shownImage = null;
       _getImage();
     } else if (widget.aspectRatio != oldWidget.aspectRatio) {
       // _area = _calculateDefaultArea(
@@ -424,6 +444,9 @@ class CustomCropState extends State<CustomCrop> with TickerProviderStateMixin {
     if (boundaries == null) return;
 
     final image = imageInfo.image;
+    // Only the current photo's stream is listened to (_getImage), so this is
+    // widget.image's picture.
+    final file = widget.image;
 
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
       setState(() {
@@ -457,7 +480,9 @@ class CustomCropState extends State<CustomCrop> with TickerProviderStateMixin {
         );
 
         _updateView(boundaries);
+        if (file == widget.image) _shownImage = file;
       });
+      if (mounted && file == widget.image) widget.shownImage?.value = file;
     });
 
     WidgetsBinding.instance.ensureVisualUpdate();

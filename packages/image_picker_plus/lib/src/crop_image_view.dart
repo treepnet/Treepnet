@@ -15,6 +15,7 @@ class CropImageView extends StatefulWidget {
     required this.expandImageView,
     required this.enableVerticalTapping,
     required this.selectedImage,
+    this.shownImage,
     required this.appTheme,
     required this.noDuration,
     required this.withMultiSelection,
@@ -32,6 +33,9 @@ class CropImageView extends StatefulWidget {
   /// To avoid lag when you interacting with image when it expanded
   final ValueNotifier<bool> enableVerticalTapping;
   final ValueNotifier<File?> selectedImage;
+
+  /// Which photo the crop preview has finished loading (see CustomCrop).
+  final ValueNotifier<File?>? shownImage;
 
   final VoidCallback clearMultiImages;
 
@@ -100,6 +104,7 @@ class _CropImageViewState extends State<CropImageView> {
               builder: (context, expandMedia, _) => CropPreview(
                 selectedMedia: selectedImage,
                 cropKey: widget.cropKey,
+                shownImage: widget.shownImage,
                 expandMedia: expandMedia,
                 paintColor: widget.appTheme.shimmerBaseColor,
               ),
@@ -155,10 +160,12 @@ class CropPreview extends StatelessWidget {
     required this.cropKey,
     required this.paintColor,
     required this.expandMedia,
+    this.shownImage,
     super.key,
   });
 
   final File selectedMedia;
+  final ValueNotifier<File?>? shownImage;
   final GlobalKey<CustomCropState> cropKey;
   final Color paintColor;
   final bool expandMedia;
@@ -171,6 +178,7 @@ class CropPreview extends StatelessWidget {
       isThatImage: !selectedMedia.isVideo,
       paintColor: paintColor,
       aspectRatio: expandMedia ? 4 / 5 : 1.0,
+      shownImage: shownImage,
     );
   }
 }

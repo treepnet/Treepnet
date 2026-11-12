@@ -7,6 +7,7 @@ import 'package:image_picker_plus/src/crop_image_view.dart';
 import 'package:image_picker_plus/src/custom_crop.dart';
 import 'package:image_picker_plus/src/image.dart';
 import 'package:image_picker_plus/src/multi_selection_mode.dart';
+import 'package:image_picker_plus/src/photo_crops.dart';
 import 'package:insta_assets_crop/insta_assets_crop.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -79,9 +80,17 @@ class _ImagesViewPageState extends State<ImagesViewPage>
   final List<AssetEntity> _assets = <AssetEntity>[];
 
   final ValueNotifier<List<File?>> allMedia = ValueNotifier(<File?>[]);
-  final ValueNotifier<List<double?>> scaleOfCropsKeys =
-      ValueNotifier(<double?>[]);
-  final ValueNotifier<List<Rect?>> areaOfCropsKeys = ValueNotifier(<Rect?>[]);
+
+  /// Each picked photo's crop, kept under that photo (see [PhotoCrops]).
+  final _crops = PhotoCrops();
+
+  /// The photo in the preview ([selectedMedia]) as of the last change, so its
+  /// crop can be kept when the preview moves to another one.
+  File? _previewFile;
+
+  /// The photo the crop preview has finished loading: until it is the one in
+  /// [selectedMedia], the preview's crop is still the previous photo's.
+  final previewShown = ValueNotifier<File?>(null);
 
   final selectedMedia = ValueNotifier<File?>(null);
   final ValueNotifier<List<int>> indexOfSelectedMedia = ValueNotifier(<int>[]);
@@ -106,14 +115,14 @@ class _ImagesViewPageState extends State<ImagesViewPage>
   final ValueNotifier<bool> isScrolling = ValueNotifier(false);
   final ValueNotifier<bool> noMedia = ValueNotifier(false);
   final ValueNotifier<bool> noDuration = ValueNotifier(false);
-  final indexOfLatestMedia = ValueNotifier<int>(-1);
 
   AppTheme get appTheme => widget.appTheme;
 
   void resetAll() {
     selectedMedia.value = allMedia.value.isEmpty ? null : allMedia.value.first;
-    widget.multiSelectedMedia.value.clear();
+    widget.multiSelectedMedia.value = [];
     widget.multiSelectionMode.value = false;
+    _crops.clear();
   }
 
   @override
@@ -129,14 +138,15 @@ class _ImagesViewPageState extends State<ImagesViewPage>
     expandImageView.dispose();
     enableVerticalTapping.dispose();
     noDuration.dispose();
-    scaleOfCropsKeys.dispose();
-    areaOfCropsKeys.dispose();
+    selectedMedia.removeListener(_onPreviewChanged);
+    previewShown.dispose();
     indexOfSelectedMedia.dispose();
     super.dispose();
   }
 
   @override
   void initState() {
+    selectedMedia.addListener(_onPreviewChanged);
     _applyFilerOption();
 
     _fetchNewMedia(currentPageValue: 0);
@@ -529,107 +539,118 @@ class _ImagesViewPageState extends State<ImagesViewPage>
     );
   }
 
+  /// The preview moved off a photo: keep that photo's crop as it was left.
+  void _onPreviewChanged() {
+    final previous = _previewFile;
+    _previewFile = selectedMedia.value;
+    if (previous == null || previous.path == _previewFile?.path) return;
+    _saveCrop(previous);
+  }
+
+  void _saveCrop(File file) {
+    final crop = cropKey.currentState?.cropOf(file);
+    if (crop != null) _crops.save(file.path, crop, aspect: _aspect);
+  }
+
+  /// The frame's shape: 4:5 when expanded, else square.
+  double get _aspect => expandMedia.value ? 4 / 5 : 1.0;
+
+  /// [file]'s crop: the preview's when it shows [file], else the one kept
+  /// when the preview left it, else the middle of the photo (it was never on
+  /// screen long enough to load, or was cropped for the other frame shape).
+  Future<PhotoCrop?> _cropFor(File file) async {
+    final live = cropKey.currentState?.cropOf(file);
+    if (live != null) return live;
+    return _crops.of(file.path, aspect: _aspect) ??
+        await PhotoCrops.centeredOf(file.path, aspect: _aspect);
+  }
+
+  /// Next is enabled once the photo in the preview has loaded: before that the
+  /// preview's crop is still the previous photo's, and the photo used to go
+  /// out uncropped.
+  bool _previewReady(File? preview, File? shown) =>
+      preview != null &&
+      (!widget.showImagePreview ||
+          !widget.cropImage ||
+          preview.isVideo ||
+          shown?.path == preview.path);
+
   Widget doneButton() {
-    return ValueListenableBuilder(
-      valueListenable: indexOfSelectedMedia,
-      builder: (context, List<int> indexOfSelectedImagesValue, child) =>
-          ValueListenableBuilder<int>(
-        valueListenable: indexOfLatestMedia,
-        builder: (context, indexOfLatestImage, snapshot) {
-          return IconButton(
-            icon: Icon(
-              Icons.arrow_forward_rounded,
-              color: Colors.white,
-              size: 30,
-            ),
-            onPressed: () async {
-              final aspect = expandMedia.value ? 4 / 5 : 1.0;
-              if (widget.multiSelectionMode.value && widget.multiSelection) {
-                if (areaOfCropsKeys.value.length !=
-                    widget.multiSelectedMedia.value.length) {
-                  scaleOfCropsKeys.value.add(cropKey.currentState?.scale);
-                  areaOfCropsKeys.value.add(cropKey.currentState?.area);
-                } else {
-                  // Bounds-check: the crop-key lists can lag behind the latest
-                  // index when selections change quickly, and a bare []= then
-                  // throws RangeError.
-                  if (indexOfLatestImage != -1 &&
-                      indexOfLatestImage < scaleOfCropsKeys.value.length &&
-                      indexOfLatestImage < areaOfCropsKeys.value.length) {
-                    scaleOfCropsKeys.value[indexOfLatestImage] =
-                        cropKey.currentState?.scale;
-                    areaOfCropsKeys.value[indexOfLatestImage] =
-                        cropKey.currentState?.area;
-                  }
-                }
-
-                final selectedBytes = <SelectedByte>[];
-                for (var i = 0;
-                    i < widget.multiSelectedMedia.value.length;
-                    i++) {
-                  final currentImage = widget.multiSelectedMedia.value[i];
-                  final isThatVideo = currentImage.isVideo;
-                  final croppedImage = !isThatVideo && widget.cropImage
-                      ? await cropImage(currentImage, indexOfCropImage: i)
-                      : null;
-                  final image = croppedImage ?? currentImage;
-                  final byte = await image.readAsBytes();
-                  final img = SelectedByte(
-                    isThatImage: !isThatVideo,
-                    selectedFile: image,
-                    selectedByte: byte,
-                  );
-                  selectedBytes.add(img);
-                }
-                if (selectedBytes.isNotEmpty) {
-                  final details = SelectedImagesDetails(
-                    selectedFiles: selectedBytes,
-                    multiSelectionMode: true,
-                    aspectRatio: aspect,
-                  );
-                  if (!mounted) return;
-
-                  void pop() => Navigator.of(context).maybePop(details);
-                  if (widget.callbackFunction != null) {
-                    await widget.callbackFunction!.call(details);
-                  } else {
-                    pop.call();
-                  }
-                }
-              } else {
-                final image = selectedMedia.value;
-                if (image == null) return;
-                final isThatVideo = image.isVideo;
-                final croppedImage = !isThatVideo && widget.cropImage
-                    ? await cropImage(image)
-                    : null;
-                final img = croppedImage ?? image;
-                final byte = await img.readAsBytes();
-
-                final selectedByte = SelectedByte(
-                  isThatImage: !isThatVideo,
-                  selectedFile: img,
-                  selectedByte: byte,
-                );
-                final details = SelectedImagesDetails(
-                  multiSelectionMode: false,
-                  aspectRatio: aspect,
-                  selectedFiles: [selectedByte],
-                );
-                if (!mounted) return;
-
-                void pop() => Navigator.of(context).maybePop(details);
-                if (widget.callbackFunction != null) {
-                  await widget.callbackFunction!(details);
-                } else {
-                  pop.call();
-                }
-              }
-            },
-          );
-        },
-      ),
+    return ListenableBuilder(
+      listenable: Listenable.merge([selectedMedia, previewShown]),
+      builder: (context, _) {
+        final ready = _previewReady(selectedMedia.value, previewShown.value);
+        return IconButton(
+          icon: Icon(
+            Icons.arrow_forward_rounded,
+            color: ready ? Colors.white : Colors.white.withValues(alpha: 0.35),
+            size: 30,
+          ),
+          onPressed: ready ? _onNext : null,
+        );
+      },
     );
+  }
+
+  Future<void> _onNext() async {
+    final aspect = _aspect;
+    if (widget.multiSelectionMode.value && widget.multiSelection) {
+      final selectedBytes = <SelectedByte>[];
+      for (final currentImage
+          in List<File>.of(widget.multiSelectedMedia.value)) {
+        final isThatVideo = currentImage.isVideo;
+        final croppedImage = !isThatVideo && widget.cropImage
+            ? await cropImage(currentImage)
+            : null;
+        final image = croppedImage ?? currentImage;
+        final byte = await image.readAsBytes();
+        selectedBytes.add(
+          SelectedByte(
+            isThatImage: !isThatVideo,
+            selectedFile: image,
+            selectedByte: byte,
+          ),
+        );
+      }
+      if (selectedBytes.isNotEmpty) {
+        final details = SelectedImagesDetails(
+          selectedFiles: selectedBytes,
+          multiSelectionMode: true,
+          aspectRatio: aspect,
+        );
+        if (!mounted) return;
+        if (widget.callbackFunction != null) {
+          await widget.callbackFunction!.call(details);
+        } else {
+          await Navigator.of(context).maybePop(details);
+        }
+      }
+    } else {
+      final image = selectedMedia.value;
+      if (image == null) return;
+      final isThatVideo = image.isVideo;
+      final croppedImage =
+          !isThatVideo && widget.cropImage ? await cropImage(image) : null;
+      final img = croppedImage ?? image;
+      final byte = await img.readAsBytes();
+
+      final selectedByte = SelectedByte(
+        isThatImage: !isThatVideo,
+        selectedFile: img,
+        selectedByte: byte,
+      );
+      final details = SelectedImagesDetails(
+        multiSelectionMode: false,
+        aspectRatio: aspect,
+        selectedFiles: [selectedByte],
+      );
+      if (!mounted) return;
+      if (widget.callbackFunction != null) {
+        await widget.callbackFunction!(details);
+      } else {
+        await Navigator.of(context).maybePop(details);
+      }
+    }
   }
 
   Widget normalGridView(
@@ -740,7 +761,6 @@ class _ImagesViewPageState extends State<ImagesViewPage>
       animation: Listenable.merge([
         widget.multiSelectionMode,
         widget.multiSelectedMedia,
-        indexOfLatestMedia,
       ]),
       builder: (context, child) {
         return GestureDetector(
@@ -772,85 +792,52 @@ class _ImagesViewPageState extends State<ImagesViewPage>
     // });
   }
 
+  /// A tap in multi-select. A selected photo is taken out, and the preview
+  /// moves to the last one still selected (it used to show the photo just
+  /// taken out). Another photo is added, up to the limit, and shown. Each
+  /// change sets a new list, so the number badges update at once (edits in
+  /// place notified no one). Returns true when the tap is fully handled.
   bool selectionImageCheck(
     File image,
     List<File> multiSelectionValue,
     int index, {
     bool enableCopy = false,
   }) {
-    selectedMedia.value = image;
-    if (multiSelectionValue.contains(image) && selectedMedia.value == image) {
-      final indexOfImage =
-          multiSelectionValue.indexWhere((element) => element == image);
-      multiSelectionValue.removeAt(indexOfImage);
-      if (multiSelectionValue.isNotEmpty &&
-          indexOfImage < scaleOfCropsKeys.value.length) {
-        indexOfSelectedMedia.value.remove(index);
-
-        scaleOfCropsKeys.value.removeAt(indexOfImage);
-        areaOfCropsKeys.value.removeAt(indexOfImage);
-        indexOfLatestMedia.value = -1;
-      }
-
+    final selected = List<File>.of(multiSelectionValue);
+    if (selected.contains(image)) {
+      selected.remove(image);
+      indexOfSelectedMedia.value = List<int>.of(indexOfSelectedMedia.value)
+        ..remove(index);
+      widget.multiSelectedMedia.value = selected;
+      selectedMedia.value = selected.isNotEmpty ? selected.last : image;
+      // After the preview moved (which keeps the crop of the photo it leaves).
+      _crops.remove(image.path);
       return true;
-    } else {
-      if (multiSelectionValue.length < widget.maximumSelection) {
-        if (!multiSelectionValue.contains(image)) {
-          multiSelectionValue.add(image);
-          if (multiSelectionValue.length > 1) {
-            scaleOfCropsKeys.value.add(cropKey.currentState?.scale);
-            areaOfCropsKeys.value.add(cropKey.currentState?.area);
-            indexOfSelectedMedia.value.add(index);
-          }
-        } else if (areaOfCropsKeys.value.length != multiSelectionValue.length) {
-          scaleOfCropsKeys.value.add(cropKey.currentState?.scale);
-          areaOfCropsKeys.value.add(cropKey.currentState?.area);
-        }
-        if (widget.showImagePreview && multiSelectionValue.contains(image)) {
-          final index =
-              multiSelectionValue.indexWhere((element) => element == image);
-          // Bounds-check: tapping images quickly can leave the crop-key lists
-          // shorter than the latest index, and a bare []= then throws
-          // RangeError (the most frequent picker crash in the logs).
-          if (indexOfLatestMedia.value != -1 &&
-              indexOfLatestMedia.value < scaleOfCropsKeys.value.length &&
-              indexOfLatestMedia.value < areaOfCropsKeys.value.length) {
-            scaleOfCropsKeys.value[indexOfLatestMedia.value] =
-                cropKey.currentState?.scale;
-            areaOfCropsKeys.value[indexOfLatestMedia.value] =
-                cropKey.currentState?.area;
-          }
-          indexOfLatestMedia.value = index;
-        }
-
-        if (enableCopy) selectedMedia.value = image;
-      }
-      return false;
     }
+    if (selected.length < widget.maximumSelection) {
+      selected.add(image);
+      indexOfSelectedMedia.value = [...indexOfSelectedMedia.value, index];
+      widget.multiSelectedMedia.value = selected;
+    }
+    selectedMedia.value = image;
+    return false;
   }
 
-  Future<File?> cropImage(File imageFile, {int? indexOfCropImage}) async {
+  /// [imageFile] cropped as [_cropFor] says; null when it can't be (then the
+  /// photo goes as it is).
+  Future<File?> cropImage(File imageFile) async {
+    final crop = await _cropFor(imageFile);
+    if (crop == null) return null;
     await InstaAssetsCrop.requestPermissions();
-    double? scale;
-    Rect? area;
-    if (indexOfCropImage == null) {
-      scale = cropKey.currentState?.scale;
-      area = cropKey.currentState?.area;
-    } else {
-      scale = scaleOfCropsKeys.value[indexOfCropImage];
-      area = areaOfCropsKeys.value[indexOfCropImage];
-    }
-
-    if (area == null || scale == null) return null;
 
     final sample = await InstaAssetsCrop.sampleImage(
       file: imageFile,
-      preferredSize: (2000 / scale).round(),
+      preferredSize: (2000 / crop.scale).round(),
     );
 
     final file = await InstaAssetsCrop.cropImage(
       file: sample,
-      area: area,
+      area: crop.area,
     );
     await sample.delete();
     return file;
@@ -859,9 +846,8 @@ class _ImagesViewPageState extends State<ImagesViewPage>
   void clearMultiImages() {
     widget.multiSelectedMedia.value = [];
     widget.clearMultiImages();
-    indexOfSelectedMedia.value.clear();
-    scaleOfCropsKeys.value.clear();
-    areaOfCropsKeys.value.clear();
+    indexOfSelectedMedia.value = [];
+    _crops.clear();
   }
 
   Widget instagramGridView(
@@ -964,6 +950,7 @@ class _ImagesViewPageState extends State<ImagesViewPage>
                                   indexOfSelectedImages: indexOfSelectedMedia,
                                   withMultiSelection: widget.multiSelection,
                                   selectedImage: selectedMedia,
+                                  shownImage: previewShown,
                                   appTheme: widget.appTheme,
                                   multiSelectionMode: widget.multiSelectionMode,
                                   enableVerticalTapping: enableVerticalTapping,
