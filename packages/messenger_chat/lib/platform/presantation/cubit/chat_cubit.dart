@@ -363,7 +363,7 @@ class ChatCubit extends Cubit<ChatState> {
     final updatedMessages = state.messages.messages.map((e) {
       if (message.key.isNotEmpty && e.key == message.key) {
         matched = true;
-        if (e.isRead) {
+        if (keepsRead(wasRead: e.isRead, updateIsLocal: message.isLocal)) {
           return message.copyWith(isRead: true, status: MessageStatus.seen);
         }
         return message;
@@ -447,14 +447,12 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   void markAllMessagesAsRead() {
-    final updatedMessages = state.messages.messages.map((message) {
-      final messageData = message.copyWith(
-        isRead: true,
-        status: MessageStatus.seen,
-      );
-
-      return messageData;
-    }).toList();
+    // Not one still being sent or failed (see markRead).
+    final updatedMessages = markRead(
+      state.messages.messages,
+      idOf: (m) => m.id.toString(),
+      asRead: (m) => m.copyWith(isRead: true, status: MessageStatus.seen),
+    );
 
     emit(
       state.copyWith(
@@ -464,17 +462,12 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   void markMessageAsRead(dynamic id) {
-    final updatedMessages = state.messages.messages.map((message) {
-      if (message.id.toString() == id.toString()) {
-        final messageData = message.copyWith(
-          isRead: true,
-          status: MessageStatus.seen,
-        );
-        return messageData;
-      }
-
-      return message;
-    }).toList();
+    final updatedMessages = markRead(
+      state.messages.messages,
+      idOf: (m) => m.id.toString(),
+      asRead: (m) => m.copyWith(isRead: true, status: MessageStatus.seen),
+      id: id.toString(),
+    );
 
     emit(
       state.copyWith(

@@ -376,7 +376,17 @@ class _SwipeToReplyState extends State<_SwipeToReply> {
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.enabled) return widget.child;
+    if (!widget.enabled) {
+      // No swipe (e.g. a message not sent yet), but a long press still works:
+      // it was dropped here, so long-pressing a failed message did nothing.
+      final onLongPress = widget.onLongPress;
+      if (onLongPress == null) return widget.child;
+      return GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onLongPress: onLongPress,
+        child: widget.child,
+      );
+    }
 
     return GestureDetector(
       behavior: HitTestBehavior.translucent,

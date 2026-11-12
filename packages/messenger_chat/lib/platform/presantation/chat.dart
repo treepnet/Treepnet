@@ -487,15 +487,14 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
     _replyingTo.value = null;
 
     final key = DateTime.now().millisecondsSinceEpoch.toString();
-    _cubit?.addMessage(
-      _MessageModel.initial.copyWith(
-        content: Message(content: message),
-        date: DateTime.now().toIso8601String(),
-        key: key,
-        status: MessageStatus.sending,
-        replyTo: replyInfo,
-      ),
+    final pending = _MessageModel.initial.copyWith(
+      content: Message(content: message),
+      date: DateTime.now().toIso8601String(),
+      key: key,
+      status: MessageStatus.sending,
+      replyTo: replyInfo,
     );
+    _cubit?.addMessage(pending);
 
     await _ChatSocket.send(
       ChatOutgoingMessage(
@@ -504,15 +503,10 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
         content: message,
         replyTo: replyInfo,
       ),
+      // The same message, failed: a new one here dropped its quote (a retry
+      // went without it) and its time.
       onError: (_) {
-        _cubit?.updateMessage(
-          _MessageModel.initial.copyWith(
-            content: Message(content: message),
-            date: DateTime.now().toIso8601String(),
-            key: key,
-            status: MessageStatus.error,
-          ),
-        );
+        _cubit?.updateMessage(pending.copyWith(status: MessageStatus.error));
       },
     );
 
