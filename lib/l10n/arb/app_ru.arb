@@ -253,6 +253,7 @@
   "notFoundingCameraText": "Дополнительная камера не найдена",
   "holdButtonText": "Нажмите и удерживайте, чтобы записать",
   "noMediaFound": "Галерея пуста",
+  "photoCantBeUsedText": "Это фото нельзя использовать. Оно убрано из выбранных.",
   "acceptAllPermissionsText": "Чтобы продолжить, разрешите доступ в настройках.",
   "addMessageText": "Сообщение",
   "messageText": "Сообщение",

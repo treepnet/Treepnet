@@ -508,6 +508,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get noMediaFound => 'Галерея пуста';
 
   @override
+  String get photoCantBeUsedText =>
+      'Это фото нельзя использовать. Оно убрано из выбранных.';
+
+  @override
   String get acceptAllPermissionsText =>
       'Чтобы продолжить, разрешите доступ в настройках.';
 

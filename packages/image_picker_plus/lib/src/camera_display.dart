@@ -268,7 +268,6 @@ class CustomCameraDisplayState extends State<CustomCameraDisplay> {
     );
   }
 
-
   CustomCrop buildCrop(File selectedImage) {
     final isThatVideo = selectedImage.isVideo;
     return CustomCrop(
@@ -283,17 +282,22 @@ class CustomCameraDisplayState extends State<CustomCameraDisplay> {
   AppBar appBar({bool withLeading = true}) {
     final selectedImage = widget.selectedCameraImage.value;
     final isPreviewing = selectedImage != null;
-    final textColor = isPreviewing ? widget.appTheme.onSurfaceColor : Colors.white;
-    final iconColor = isPreviewing ? widget.appTheme.onSurfaceColor : Colors.white;
+    final textColor =
+        isPreviewing ? widget.appTheme.onSurfaceColor : Colors.white;
+    final iconColor =
+        isPreviewing ? widget.appTheme.onSurfaceColor : Colors.white;
     return AppBar(
-      backgroundColor: isPreviewing ? widget.appTheme.surfaceColor : Colors.transparent,
+      backgroundColor:
+          isPreviewing ? widget.appTheme.surfaceColor : Colors.transparent,
       elevation: 0,
       title: Text(
         widget.tabsNames.newPostText,
         style: TextStyle(
           color: textColor,
           fontWeight: FontWeight.w600,
-          shadows: isPreviewing ? null : [const Shadow(color: Colors.black54, blurRadius: 8)],
+          shadows: isPreviewing
+              ? null
+              : [const Shadow(color: Colors.black54, blurRadius: 8)],
         ),
       ),
       centerTitle: false,
@@ -302,7 +306,9 @@ class CustomCameraDisplayState extends State<CustomCameraDisplay> {
           Icons.clear_rounded,
           color: iconColor,
           size: 30,
-          shadows: isPreviewing ? null : [const Shadow(color: Colors.black54, blurRadius: 8)],
+          shadows: isPreviewing
+              ? null
+              : [const Shadow(color: Colors.black54, blurRadius: 8)],
         ),
         onPressed: () async {
           // With a shot on screen, the cross belongs to the shot: throw it away
@@ -346,75 +352,114 @@ class CustomCameraDisplayState extends State<CustomCameraDisplay> {
       ),
       // Confirm arrow only once there is something to confirm. On the bare
       // viewfinder it did nothing, so it read as a dead button.
-      actions: !withLeading || (selectedImage == null && videoRecordFile == null)
-          ? null
-          : <Widget>[
-              AnimatedSwitcher(
-                duration: const Duration(seconds: 1),
-                switchInCurve: Curves.easeIn,
-                child: IconButton(
-                  icon: Icon(
-                    Icons.arrow_forward_rounded,
-                    color: Colors.white,
-                    shadows: isPreviewing ? null : [const Shadow(color: Colors.black54, blurRadius: 8)],
-                    size: 30,
+      actions:
+          !withLeading || (selectedImage == null && videoRecordFile == null)
+              ? null
+              : <Widget>[
+                  AnimatedSwitcher(
+                    duration: const Duration(seconds: 1),
+                    switchInCurve: Curves.easeIn,
+                    child: _confirming
+                        ? const Padding(
+                            key: ValueKey('confirming'),
+                            padding: EdgeInsets.all(14),
+                            child: SizedBox.square(
+                              dimension: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.white,
+                              ),
+                            ),
+                          )
+                        : IconButton(
+                            icon: Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white,
+                              shadows: isPreviewing
+                                  ? null
+                                  : [
+                                      const Shadow(
+                                          color: Colors.black54, blurRadius: 8)
+                                    ],
+                              size: 30,
+                            ),
+                            onPressed: () => _confirm(selectedImage),
+                          ),
                   ),
-                  onPressed: () async {
-                    if (videoRecordFile != null) {
-                      final byte = await videoRecordFile!.readAsBytes();
-                      final selectedByte = SelectedByte(
-                        isThatImage: false,
-                        selectedFile: videoRecordFile!,
-                        selectedByte: byte,
-                      );
-                      final details = SelectedImagesDetails(
-                        multiSelectionMode: false,
-                        selectedFiles: [selectedByte],
-                        aspectRatio: 1,
-                      );
-                      if (!mounted) return;
-
-                      void pop() => Navigator.of(context).maybePop(details);
-                      if (widget.callbackFunction != null) {
-                        await widget.callbackFunction!(details);
-                      } else {
-                        pop();
-                      }
-                    } else if (selectedImage != null) {
-                      final croppedByte = await cropImage(selectedImage);
-                      if (croppedByte != null) {
-                        final byte = await croppedByte.readAsBytes();
-
-                        final selectedByte = SelectedByte(
-                          isThatImage: true,
-                          selectedFile: croppedByte,
-                          selectedByte: byte,
-                        );
-
-                        final details = SelectedImagesDetails(
-                          selectedFiles: [selectedByte],
-                          multiSelectionMode: false,
-                          aspectRatio: 1,
-                        );
-                        if (!mounted) return;
-
-                        void pop() => Navigator.of(context).maybePop(details);
-                        if (widget.callbackFunction != null) {
-                          await widget.callbackFunction!(details);
-                        } else {
-                          pop.call();
-                        }
-                      }
-                    }
-                  },
-                ),
-              ),
-            ],
+                ],
     );
   }
 
+  /// The confirm arrow is working (cropping, reading): a spinner, and taps
+  /// are ignored. A second tap used to open a second "add details" page.
+  bool _confirming = false;
+
+  Future<void> _confirm(File? selectedImage) async {
+    if (_confirming) return;
+    setState(() => _confirming = true);
+    try {
+      if (videoRecordFile != null) {
+        final byte = await videoRecordFile!.readAsBytes();
+        final selectedByte = SelectedByte(
+          isThatImage: false,
+          selectedFile: videoRecordFile!,
+          selectedByte: byte,
+        );
+        final details = SelectedImagesDetails(
+          multiSelectionMode: false,
+          selectedFiles: [selectedByte],
+          aspectRatio: 1,
+        );
+        if (!mounted) return;
+
+        void pop() => Navigator.of(context).maybePop(details);
+        if (widget.callbackFunction != null) {
+          await widget.callbackFunction!(details);
+        } else {
+          pop();
+        }
+      } else if (selectedImage != null) {
+        final croppedByte = await cropImage(selectedImage);
+        if (croppedByte != null) {
+          final byte = await croppedByte.readAsBytes();
+
+          final selectedByte = SelectedByte(
+            isThatImage: true,
+            selectedFile: croppedByte,
+            selectedByte: byte,
+          );
+
+          final details = SelectedImagesDetails(
+            selectedFiles: [selectedByte],
+            multiSelectionMode: false,
+            aspectRatio: 1,
+          );
+          if (!mounted) return;
+
+          void pop() => Navigator.of(context).maybePop(details);
+          if (widget.callbackFunction != null) {
+            await widget.callbackFunction!(details);
+          } else {
+            pop.call();
+          }
+        }
+      }
+    } catch (_) {
+      // A photo that can't be read or cropped: say so instead of nothing.
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text(widget.tabsNames.photoCantBeUsedText)),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _confirming = false);
+    }
+  }
+
   Future<File?> cropImage(File imageFile) async {
-    await InstaAssetsCrop.requestPermissions();
+    // No InstaAssetsCrop.requestPermissions(): the photo is already the app's
+    // file, and the crop goes to its temp folder (on Android it asked for a
+    // storage permission the app no longer declares, every time).
     final scale = cropKey.currentState!.scale;
     final area = cropKey.currentState!.area;
     if (area == null) {

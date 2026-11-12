@@ -8,6 +8,7 @@ import 'package:image_picker_plus/src/custom_crop.dart';
 import 'package:image_picker_plus/src/image.dart';
 import 'package:image_picker_plus/src/multi_selection_mode.dart';
 import 'package:image_picker_plus/src/photo_crops.dart';
+import 'package:image_picker_plus/src/prepare_files.dart';
 import 'package:insta_assets_crop/insta_assets_crop.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -140,6 +141,7 @@ class _ImagesViewPageState extends State<ImagesViewPage>
     noDuration.dispose();
     selectedMedia.removeListener(_onPreviewChanged);
     previewShown.dispose();
+    _busy.dispose();
     indexOfSelectedMedia.dispose();
     super.dispose();
   }
@@ -335,7 +337,13 @@ class _ImagesViewPageState extends State<ImagesViewPage>
 
   /// Tap on a tile: resolve its file lazily, then run the normal select logic.
   Future<void> _handleTap(int index) async {
-    final image = await _resolveFile(index);
+    final File? image;
+    try {
+      image = await _resolveFile(index);
+    } catch (_) {
+      _showCantUse();
+      return;
+    }
     if (image == null || !mounted) return;
     onTapImage(image, widget.multiSelectedMedia.value, index);
   }
@@ -343,7 +351,13 @@ class _ImagesViewPageState extends State<ImagesViewPage>
   /// Long-press release on a tile — mirrors the original inline handler, but
   /// resolves the file first (see [_resolveFile]).
   Future<void> _handleLongPressUp(int index) async {
-    final image = await _resolveFile(index);
+    final File? image;
+    try {
+      image = await _resolveFile(index);
+    } catch (_) {
+      _showCantUse();
+      return;
+    }
     if (image == null || !mounted) return;
     if (widget.multiSelectionMode.value) {
       selectionImageCheck(
@@ -575,10 +589,28 @@ class _ImagesViewPageState extends State<ImagesViewPage>
           preview.isVideo ||
           shown?.path == preview.path);
 
+  /// Next is working (cropping and reading the photos): it shows a spinner
+  /// and ignores taps. There was no sign for the seconds 5–10 photos take, a
+  /// second tap opened a second "add details" page (a second post), and a
+  /// second tap while picking an avatar could close the edit page too.
+  final _busy = ValueNotifier<bool>(false);
+
   Widget doneButton() {
     return ListenableBuilder(
-      listenable: Listenable.merge([selectedMedia, previewShown]),
+      listenable: Listenable.merge([selectedMedia, previewShown, _busy]),
       builder: (context, _) {
+        if (_busy.value) {
+          return const Padding(
+            padding: EdgeInsets.all(14),
+            child: SizedBox.square(
+              dimension: 22,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: Colors.white,
+              ),
+            ),
+          );
+        }
         final ready = _previewReady(selectedMedia.value, previewShown.value);
         return IconButton(
           icon: Icon(
@@ -592,64 +624,83 @@ class _ImagesViewPageState extends State<ImagesViewPage>
     );
   }
 
+  /// A photo that can't be opened or cropped: say so (it used to fail
+  /// silently, Next doing nothing).
+  void _showCantUse() {
+    if (!mounted) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(content: Text(widget.tabsTexts.photoCantBeUsedText)),
+    );
+  }
+
+  /// [file] cropped (a photo) and read, ready to post. Throws when it can't be.
+  Future<SelectedByte> _prepare(File file) async {
+    final isThatVideo = file.isVideo;
+    final cropped =
+        !isThatVideo && widget.cropImage ? await cropImage(file) : null;
+    final ready = cropped ?? file;
+    return SelectedByte(
+      isThatImage: !isThatVideo,
+      selectedFile: ready,
+      selectedByte: await ready.readAsBytes(),
+    );
+  }
+
   Future<void> _onNext() async {
+    if (_busy.value) return;
+    _busy.value = true;
+    try {
+      await _next();
+    } finally {
+      if (mounted) _busy.value = false;
+    }
+  }
+
+  Future<void> _next() async {
     final aspect = _aspect;
-    if (widget.multiSelectionMode.value && widget.multiSelection) {
-      final selectedBytes = <SelectedByte>[];
-      for (final currentImage
-          in List<File>.of(widget.multiSelectedMedia.value)) {
-        final isThatVideo = currentImage.isVideo;
-        final croppedImage = !isThatVideo && widget.cropImage
-            ? await cropImage(currentImage)
-            : null;
-        final image = croppedImage ?? currentImage;
-        final byte = await image.readAsBytes();
-        selectedBytes.add(
-          SelectedByte(
-            isThatImage: !isThatVideo,
-            selectedFile: image,
-            selectedByte: byte,
-          ),
-        );
-      }
-      if (selectedBytes.isNotEmpty) {
-        final details = SelectedImagesDetails(
-          selectedFiles: selectedBytes,
-          multiSelectionMode: true,
-          aspectRatio: aspect,
-        );
-        if (!mounted) return;
-        if (widget.callbackFunction != null) {
-          await widget.callbackFunction!.call(details);
-        } else {
-          await Navigator.of(context).maybePop(details);
-        }
-      }
+    final multi = widget.multiSelectionMode.value && widget.multiSelection;
+    final List<File> files;
+    if (multi) {
+      files = List<File>.of(widget.multiSelectedMedia.value);
     } else {
       final image = selectedMedia.value;
       if (image == null) return;
-      final isThatVideo = image.isVideo;
-      final croppedImage =
-          !isThatVideo && widget.cropImage ? await cropImage(image) : null;
-      final img = croppedImage ?? image;
-      final byte = await img.readAsBytes();
+      files = [image];
+    }
+    if (files.isEmpty) return;
 
-      final selectedByte = SelectedByte(
-        isThatImage: !isThatVideo,
-        selectedFile: img,
-        selectedByte: byte,
-      );
-      final details = SelectedImagesDetails(
-        multiSelectionMode: false,
-        aspectRatio: aspect,
-        selectedFiles: [selectedByte],
-      );
-      if (!mounted) return;
-      if (widget.callbackFunction != null) {
-        await widget.callbackFunction!(details);
-      } else {
-        await Navigator.of(context).maybePop(details);
+    final done = await prepareTwoAtATime(files, _prepare);
+    final prepared = done.results;
+    final failed = done.failed;
+    if (!mounted) return;
+    if (failed.isNotEmpty) {
+      // Out of the selection; the rest stay picked for another Next.
+      final failedPaths = {for (final f in failed) f.path};
+      final remaining = [
+        for (final f in widget.multiSelectedMedia.value)
+          if (!failedPaths.contains(f.path)) f,
+      ];
+      widget.multiSelectedMedia.value = remaining;
+      for (final f in failed) {
+        _crops.remove(f.path);
       }
+      if (remaining.isNotEmpty &&
+          failedPaths.contains(selectedMedia.value?.path)) {
+        selectedMedia.value = remaining.last;
+      }
+      _showCantUse();
+      return;
+    }
+
+    final details = SelectedImagesDetails(
+      selectedFiles: prepared.cast<SelectedByte>(),
+      multiSelectionMode: multi,
+      aspectRatio: aspect,
+    );
+    if (widget.callbackFunction != null) {
+      await widget.callbackFunction!(details);
+    } else {
+      await Navigator.of(context).maybePop(details);
     }
   }
 
@@ -828,7 +879,10 @@ class _ImagesViewPageState extends State<ImagesViewPage>
   Future<File?> cropImage(File imageFile) async {
     final crop = await _cropFor(imageFile);
     if (crop == null) return null;
-    await InstaAssetsCrop.requestPermissions();
+    // No InstaAssetsCrop.requestPermissions(): the photo is already a file
+    // the app can read, and the crop goes to the app's own temp folder. On
+    // Android it asked for storage write access (removed from the manifest,
+    // so never granted) before every photo.
 
     final sample = await InstaAssetsCrop.sampleImage(
       file: imageFile,

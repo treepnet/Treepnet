@@ -504,6 +504,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noMediaFound => 'There is no media';
 
   @override
+  String get photoCantBeUsedText =>
+      'This photo can\'t be used. It was taken out of the selection.';
+
+  @override
   String get acceptAllPermissionsText =>
       'Allow access in Settings to continue.';
 

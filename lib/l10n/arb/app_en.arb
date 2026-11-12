@@ -338,6 +338,7 @@
   "notFoundingCameraText": "No secondary camera found",
   "holdButtonText": "Press and hold to record",
   "noMediaFound": "There is no media",
+  "photoCantBeUsedText": "This photo can't be used. It was taken out of the selection.",
   "acceptAllPermissionsText": "Allow access in Settings to continue.",
   "noLastMessagesText": "No last messages",
   "onlineText": "online",

@@ -903,6 +903,12 @@ abstract class AppLocalizations {
   /// **'There is no media'**
   String get noMediaFound;
 
+  /// No description provided for @photoCantBeUsedText.
+  ///
+  /// In en, this message translates to:
+  /// **'This photo can\'t be used. It was taken out of the selection.'**
+  String get photoCantBeUsedText;
+
   /// No description provided for @acceptAllPermissionsText.
   ///
   /// In en, this message translates to:
