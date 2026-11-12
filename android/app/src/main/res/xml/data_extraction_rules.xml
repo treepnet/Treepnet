@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+: nothing of the app goes into a cloud backup or onto a new
+     phone. A restored copy brought back the old session, settings and local
+     database, while the chat's encrypted store couldn't be read without its
+     Keystore key (which isn't backed up) and broke the chat. Everything is on
+     the server: the user signs in again. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

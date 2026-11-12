@@ -402,6 +402,16 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
 
   /// Whether [error] is a password complaint (belongs back on the password
   /// screen). The sign-up cubit calls it.
+  /// Signs out a Firebase session left from an earlier install of the app
+  /// (iOS keeps it in the Keychain, which survives deleting the app), without
+  /// the server calls of a normal sign-out: nothing of this install is
+  /// registered yet.
+  static Future<void> signOutLeftoverSession() async {
+    if (FirebaseAuth.instance.currentUser != null) {
+      await FirebaseAuth.instance.signOut();
+    }
+  }
+
   static bool isPasswordProblem(Object error) {
     final inner = error is SignUpWithPasswordFailure ? error.error : error;
     if (inner is! AuthServiceError) return false;

@@ -18,80 +18,106 @@ mixin _SecureStorage {
     ),
   );
 
+  /// Reads [key], or '' when the store can't be read. On an Android phone
+  /// restored from a backup the encrypted store's Keystore key is gone, so
+  /// every read threw (and chat broke): the store is wiped then, and starts
+  /// over empty (the chat signs in again on its own).
+  static Future<String> _read(String key) async {
+    try {
+      return await storage.read(key: key) ?? '';
+    } catch (e) {
+      await _heal(e);
+      return '';
+    }
+  }
+
+  static Future<void> _write(String key, String value) async {
+    try {
+      await storage.write(key: key, value: value);
+    } catch (e) {
+      await _heal(e);
+      try {
+        await storage.write(key: key, value: value);
+      } catch (_) {
+        // Still unusable: the chat works without it this run.
+      }
+    }
+  }
+
+  static Future<void> _heal(Object error) async {
+    _ChatLogger.failure('Secure storage unreadable, wiping it: $error');
+    try {
+      await storage.deleteAll();
+    } catch (_) {
+      // Nothing more to do here.
+    }
+  }
+
   static Future<String> getBaseUrl() async {
-    final value = await storage.read(key: baseUrl);
-    return value ?? '';
+    return _read(baseUrl);
   }
 
   static Future<void> setBaseUrl(String value) async {
-    await storage.write(key: baseUrl, value: value);
+    await _write(baseUrl, value);
   }
 
   static Future<String> getUserUuid() async {
-    final value = await storage.read(key: userUuid);
-    return value ?? '';
+    return _read(userUuid);
   }
 
   static Future<void> setUserUuid(String value) async {
-    if (value.isNotEmpty) await storage.write(key: userUuid, value: value);
+    if (value.isNotEmpty) await _write(userUuid, value);
   }
 
   static Future<String> getXApp() async {
-    final value = await storage.read(key: xApp);
-    return value ?? '';
+    return _read(xApp);
   }
 
   static Future<void> setXApp(String value) async {
-    await storage.write(key: xApp, value: value);
+    await _write(xApp, value);
   }
 
   static Future<String> getDeviceId() async {
-    final value = await storage.read(key: deviceId);
-    return value ?? '';
+    return _read(deviceId);
   }
 
   static Future<void> setDeviceId(String value) async {
-    await storage.write(key: deviceId, value: value);
+    await _write(deviceId, value);
   }
 
   static Future<String> getDeviceName() async {
-    final value = await storage.read(key: deviceName);
-    return value ?? '';
+    return _read(deviceName);
   }
 
   static Future<void> setDeviceName(String value) async {
-    await storage.write(key: deviceName, value: value);
+    await _write(deviceName, value);
   }
 
   static Future<String> getDeviceType() async {
-    final value = await storage.read(key: deviceType);
-    return value ?? '';
+    return _read(deviceType);
   }
 
   static Future<void> setLang(String value) async {
-    await storage.write(key: lang, value: value);
+    await _write(lang, value);
   }
 
   static Future<String> getLang() async {
-    final value = await storage.read(key: lang);
-    return value ?? '';
+    return _read(lang);
   }
 
   static Future<void> setFirstTime(String value) async {
     final first = await getFirstTime();
     if (first.isNotEmpty) return;
 
-    await storage.write(key: firstTime, value: value);
+    await _write(firstTime, value);
   }
 
   static Future<String> getFirstTime() async {
-    final value = await storage.read(key: firstTime);
-
-    return value ?? '';
+    return _read(firstTime);
   }
 
   static Future<void> setDeviceType(String value) async {
-    await storage.write(key: deviceType, value: value);
+    await _write(deviceType, value);
   }
 
   //TODO (change if version change)
@@ -101,10 +127,15 @@ mixin _SecureStorage {
   static String get versionName => '1.0.8';
 
   static Future<void> deleteAllData() async {
-    await storage.delete(key: userUuid);
-    await storage.delete(key: deviceType);
-    await storage.delete(key: deviceName);
-    await storage.delete(key: deviceId);
-    await storage.delete(key: messageKeyList);
+    try {
+      await storage.delete(key: userUuid);
+      await storage.delete(key: deviceType);
+      await storage.delete(key: deviceName);
+      await storage.delete(key: deviceId);
+      await storage.delete(key: messageKeyList);
+    } catch (e) {
+      // Unreadable store (see [_read]): wiped whole instead.
+      await _heal(e);
+    }
   }
 }

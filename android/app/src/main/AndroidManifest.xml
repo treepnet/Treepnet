@@ -69,7 +69,12 @@ package="com.treepnet.application">
         android:enableOnBackInvokedCallback="true"
         android:requestLegacyExternalStorage="true"
         android:usesCleartextTraffic="false"
-        tools:replace="android:usesCleartextTraffic">
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        tools:replace="android:usesCleartextTraffic,android:allowBackup">
+        <!-- No backup (Android 11 and below: allowBackup; 12+: the rules
+             file): a restored copy brought back the old session and data,
+             and the chat's encrypted store couldn't be read. -->
         <!-- HTTPS only. The chat plugin's manifest allows plain http for the
              whole app; everything we load (API, media, chat) is https. -->
 

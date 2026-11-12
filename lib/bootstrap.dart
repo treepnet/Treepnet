@@ -3,16 +3,19 @@ import 'dart:developer';
 import 'dart:io';
 
 import 'package:app_ui/app_ui.dart';
+import 'package:firebase_authentication_client/firebase_authentication_client.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:hydrated_bloc/hydrated_bloc.dart';
+import 'package:messenger_chat/messenger_chat.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:persistent_storage/persistent_storage.dart';
 import 'package:powersync_repository/powersync_repository.dart';
 import 'package:shared/shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:token_storage/token_storage.dart';
+import 'package:treepnet/app/services/fresh_install.dart';
 import 'package:treepnet/app/services/media_upload_queue.dart';
 import 'package:treepnet/map/geo_regions.dart';
 import 'package:treepnet/monitoring/crash_reporter.dart';
@@ -80,6 +83,11 @@ Future<void> bootstrap(
       boot('2 hydrated storage (ok)');
 
       final powerSyncRepository = PowerSyncRepository(env: appFlavor.getEnv);
+      // Before the database is opened (that creates its file): a fresh
+      // install has none ([FreshInstall]).
+      final hadDatabase = FreshInstall.databaseExisted(
+        await powerSyncRepository.getDatabasePath(),
+      );
       boot('3 powersync.initialize (start)');
       await powerSyncRepository.initialize();
       boot('4 powersync.initialize (ok)');
@@ -111,6 +119,18 @@ Future<void> bootstrap(
       boot('7 sharedPreferences (start)');
       final sharedPreferences = await SharedPreferences.getInstance();
       boot('8 sharedPreferences (ok)');
+
+      // A fresh install doesn't open a session left by an earlier one (iOS
+      // keeps it in the Keychain past an uninstall). Before the session is
+      // restored (in builder).
+      await FreshInstall.check(
+        preferences: sharedPreferences,
+        hadDatabase: hadDatabase,
+        clearOldSession: () async {
+          await FirebaseAuthenticationClient.signOutLeftoverSession();
+          await MessengerChat.wipeSession();
+        },
+      );
 
       // Uploads ask the backend for a per-file link as the signed-in user.
       MediaStorage.instance.idToken = AuthSession.instance.idToken;
