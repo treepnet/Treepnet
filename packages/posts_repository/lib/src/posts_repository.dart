@@ -22,6 +22,10 @@ class PostsRepository implements PostsBaseRepository {
   SyncScope postScope({required String postId, required String ownerId}) =>
       _databaseClient.postScope(postId: postId, ownerId: ownerId);
 
+  /// Posts the user just deleted, hid or archived, and authors they blocked:
+  /// screens with their own list of posts drop them (see [PostRemoval]).
+  Stream<PostRemoval> get postRemovals => _databaseClient.postRemovals;
+
   /// The live counts and viewer state a post card shows for [postId]. All
   /// cards share one query (see [PostStatsHub]).
   Stream<PostStats> statsOf({required String postId}) =>

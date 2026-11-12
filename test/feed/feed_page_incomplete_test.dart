@@ -46,7 +46,10 @@ void main() {
   ).thenThrow(PostsPageIncomplete(local, Exception('offline')));
 
   setUpAll(() => registerFallbackValue(PostOrder.feed));
-  setUp(() => posts = _MockPostsRepository());
+  setUp(() {
+    posts = _MockPostsRepository();
+    when(() => posts.postRemovals).thenAnswer((_) => const Stream.empty());
+  });
 
   test(
     'the feed keeps its page and shows the phone\'s posts, then retries',

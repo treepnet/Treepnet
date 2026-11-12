@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:app_ui/app_ui.dart';
@@ -69,6 +70,10 @@ class _NewestPostsPageState extends State<NewestPostsPage> {
   /// dropped on the way in.
   int _nextOffset = 0;
 
+  /// Posts deleted, hidden or archived, and blocked authors' (see
+  /// [_onRemoved]).
+  StreamSubscription<PostRemoval>? _removals;
+
   /// Only the "newest" feed paginates. A passed-in [NewestPostsPage.posts] set
   /// is a complete, bounded list (e.g. one place's posts) and must not grow.
   bool get _paginates => widget.posts == null;
@@ -81,13 +86,35 @@ class _NewestPostsPageState extends State<NewestPostsPage> {
     _scrollOffsetController = ScrollOffsetController();
     _scrollOffsetListener = ScrollOffsetListener.create();
     _itemPositionsListener.itemPositions.addListener(_onPositionsChanged);
+    _removals = context.read<PostsRepository>().postRemovals.listen(_onRemoved);
     _loadInitial();
   }
 
   @override
   void dispose() {
+    _removals?.cancel();
     _itemPositionsListener.itemPositions.removeListener(_onPositionsChanged);
     super.dispose();
+  }
+
+  /// A post deleted, hidden or archived (here or anywhere), or a blocked
+  /// author's posts, leave this list as well, not only the home feed. They
+  /// used to stay: a like on a deleted one was refused, and a blocked
+  /// person's photos stayed in view. Nothing left: back to the grid.
+  void _onRemoved(PostRemoval removal) {
+    bool gone(Post p) => removal.removes(postId: p.id, authorId: p.author.id);
+    final removed = _posts.where(gone).length;
+    if (removed == 0 || !mounted) return;
+    setState(() {
+      _posts.removeWhere(gone);
+      // Gone from the server's order too: the next page starts that many
+      // rows earlier, or it would skip as many posts.
+      if (_paginates) _nextOffset = max(0, _nextOffset - removed);
+      _startIndex = min(_startIndex, max(0, _posts.length - 1));
+    });
+    if (_posts.isEmpty && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _loadInitial() async {

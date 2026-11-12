@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:database_client/src/invite_badge.dart';
 import 'package:database_client/src/comment_stats.dart';
+import 'package:database_client/src/post_removal.dart';
 import 'package:database_client/src/post_stats.dart';
 import 'package:database_client/src/server_snapshots.dart';
 import 'package:powersync_repository/powersync_repository.dart';
@@ -671,6 +672,10 @@ abstract class DatabaseClient
 
   /// Forgets what the server lists said (counts, likes) — signing out.
   void forgetServerSnapshots();
+
+  /// Posts the user just deleted, hid or archived, and authors they blocked
+  /// (see [PostRemoval]), for screens that keep their own copy of posts.
+  Stream<PostRemoval> get postRemovals;
 }
 
 /// {@template power_sync_database_client}
@@ -694,6 +699,11 @@ class PowerSyncDatabaseClient extends DatabaseClient {
 
   /// The story views sent this session ([recordStoryView]).
   final _viewsSent = <String>{};
+
+  final _postRemovals = StreamController<PostRemoval>.broadcast();
+
+  @override
+  Stream<PostRemoval> get postRemovals => _postRemovals.stream;
 
   @override
   String? get currentUserId => AuthSession.instance.current?.userId;
@@ -1635,6 +1645,7 @@ ${limit != null ? 'LIMIT ?' : ''}
       [id],
     );
     if (result.isEmpty) return null;
+    _postRemovals.add(PostRemoval.post(id));
     return result.first['id'] as String;
   }
 
@@ -2204,6 +2215,7 @@ WHERE NOT EXISTS (
 )''',
       [me, postId, DateTime.timestamp().toIso8601String()],
     );
+    _postRemovals.add(PostRemoval.post(postId));
   }
 
   @override
@@ -2313,6 +2325,9 @@ ORDER BY saved_posts.created_at DESC LIMIT ?2 OFFSET ?3
       ''',
         [currentUserId, postId, DateTime.timestamp().toIso8601String()],
       );
+      // Archived: out of view like a deleted post (unarchiving brings it
+      // back on the next load).
+      _postRemovals.add(PostRemoval.post(postId));
       return;
     }
     await _powerSyncRepository.db().execute(
@@ -2983,6 +2998,8 @@ VALUES(?, ?, ?, ?)''',
         [uuid.v4(), userId, blockedId, JiffyX.now()],
       );
     }
+    // Their posts leave every screen now, not only the home feed.
+    _postRemovals.add(PostRemoval.author(blockedId));
     // A block ends the follow both ways (and any pending request), as the
     // block dialog says. Its own statement, so the block above stands even if
     // this part were ever refused by the server.

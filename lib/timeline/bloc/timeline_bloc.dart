@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:posts_repository/posts_repository.dart';
@@ -18,9 +20,45 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
       _onTimelineRefreshRequested,
       transformer: throttleDroppable(duration: 550.ms),
     );
+    on<TimelinePostsRemoved>(_onPostsRemoved);
+    _removals = postsRepository.postRemovals.listen(
+      (removal) => add(TimelinePostsRemoved(removal)),
+    );
   }
 
   final PostsRepository _postsRepository;
+  late final StreamSubscription<PostRemoval> _removals;
+
+  @override
+  Future<void> close() async {
+    await _removals.cancel();
+    return super.close();
+  }
+
+  /// A deleted, hidden or archived post, or a blocked author's posts, leave
+  /// the grid at once. A stale tile used to stay, and tapping it opened a
+  /// different post (the gone one has no place in the order any more).
+  void _onPostsRemoved(
+    TimelinePostsRemoved event,
+    Emitter<TimelineState> emit,
+  ) {
+    final blocks = state.timeline.blocks;
+    final kept = [
+      for (final block in blocks)
+        if (block is! PostBlock ||
+            !event.removal.removes(postId: block.id, authorId: block.author.id))
+          block,
+    ];
+    if (kept.length == blocks.length) return;
+    emit(
+      state.copyWith(
+        timeline: state.timeline.copyWith(
+          blocks: kept,
+          totalBlocks: kept.length,
+        ),
+      ),
+    );
+  }
 
   static const _pageSize = 15;
 

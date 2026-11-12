@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:posts_repository/posts_repository.dart';
 import 'package:treepnet/feed/feed.dart';
 import 'package:treepnet/feed/post/post.dart';
 import 'package:treepnet/l10n/l10n.dart';
@@ -60,10 +63,12 @@ class _PostPreviewDetailsState extends State<PostPreviewDetails> {
   PostBlock? _block;
   bool _hasData = true;
   bool _isLoading = false;
+  StreamSubscription<PostRemoval>? _removals;
 
   @override
   void initState() {
     super.initState();
+    _removals = context.read<PostsRepository>().postRemovals.listen(_onRemoved);
     setState(() => _isLoading = true);
     context.read<FeedBloc>().getPostBy(widget.id).then((value) {
       if (!mounted) return;
@@ -72,6 +77,31 @@ class _PostPreviewDetailsState extends State<PostPreviewDetails> {
         _hasData = value != null;
         _isLoading = false;
       });
+    });
+  }
+
+  @override
+  void dispose() {
+    _removals?.cancel();
+    super.dispose();
+  }
+
+  /// This post deleted, hidden or archived, or its author blocked. Done on
+  /// this page (it is the one on top): step back, as after a reload that
+  /// finds it gone. Done elsewhere while this page waits below: "No post
+  /// found" here instead of a post that can't be liked or saved any more.
+  void _onRemoved(PostRemoval removal) {
+    final block = _block;
+    if (!mounted || block == null) return;
+    if (!removal.removes(postId: block.id, authorId: block.author.id)) return;
+    if ((ModalRoute.of(context)?.isCurrent ?? false) &&
+        Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() {
+      _block = null;
+      _hasData = false;
     });
   }
 
