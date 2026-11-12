@@ -12,6 +12,7 @@ import 'package:powersync_repository/powersync_repository.dart'
     show PowerSyncRepository;
 import 'package:treepnet/feed/feed.dart';
 import 'package:treepnet/feed/post/post.dart';
+import 'package:treepnet/feed/post/video/widgets/video_player_inherited_widget.dart';
 import 'package:treepnet/app/services/media_upload_queue.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/stories/stories.dart';
@@ -83,9 +84,16 @@ class _FeedViewState extends State<FeedView> {
   /// Refreshes the feed each time PowerSync finishes a sync round.
   StreamSubscription<void>? _syncSub;
 
+  /// Pauses feed videos while the Stories tab is shown.
+  FeedTabsVideoGate? _videoGate;
+
   @override
   void initState() {
     super.initState();
+    final videoPlayer = VideoPlayerInheritedWidget.maybeOf(context);
+    if (videoPlayer != null) {
+      _videoGate = FeedTabsVideoGate(videoPlayer.videoPlayerState);
+    }
     context.read<FeedBloc>().add(const FeedPageRequested(page: 0));
     unawaited(_refetchWhenFirstSyncLands());
 
@@ -136,6 +144,7 @@ class _FeedViewState extends State<FeedView> {
   @override
   void dispose() {
     _syncSub?.cancel();
+    _videoGate?.dispose();
     _nestedScrollController.dispose();
     _tabController.dispose();
     super.dispose();
@@ -161,8 +170,16 @@ class _FeedViewState extends State<FeedView> {
           Expanded(
             child: PageView(
               controller: _tabController,
-              onPageChanged: (tab) => setState(() => _tab = tab),
-              children: const [FeedBody(), StoriesGridView()],
+              onPageChanged: (tab) {
+                setState(() => _tab = tab);
+                _videoGate?.tabChanged(tab);
+              },
+              // Both tabs stay alive: coming back to Posts finds the list
+              // where it was left, not rebuilt from the top.
+              children: const [
+                FeedKeepAliveTab(child: FeedBody()),
+                FeedKeepAliveTab(child: StoriesGridView()),
+              ],
             ),
           ),
         ],

@@ -4,4 +4,5 @@ export 'feed_top_bar.dart';
 export 'feed_item_loader.dart';
 export 'feed_loading_block.dart';
 export 'feed_page_controller.dart';
+export 'feed_tabs.dart';
 export 'page_load_retry.dart';
