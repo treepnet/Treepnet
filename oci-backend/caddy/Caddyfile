@@ -2,6 +2,14 @@
 # hostnames are kept as a fallback. Each label gets its own cert (HTTP/TLS-ALPN
 # on ports 80/443). Cloudflare/registrar DNS must point these at 130.61.138.104
 # with proxy OFF (DNS only).
+{
+	# HTTP/1.1 and HTTP/2 only. UDP 443 is neither published nor open, so
+	# advertising HTTP/3 (alt-svc) only made browsers try QUIC first and fall
+	# back. To turn it on: publish 443/udp, open it, then drop this.
+	servers {
+		protocols h1 h2
+	}
+}
 
 # Headers every public API answer carries: HTTPS only from now on (HSTS), no
 # content-type guessing, no referrer leaks, no server banner.
@@ -44,7 +52,12 @@ sync.treepnet.com, sync.130-61-138-104.sslip.io {
 	# deployed from the config file, not through it.
 	@powersync_admin path /api/admin /api/admin/* /api/sync-rules /api/sync-rules/*
 	respond @powersync_admin 404
-	reverse_proxy powersync:80
+	# Not compressed: the sync stream is long-lived and hasn't been tested
+	# behind encode. On a config reload, open streams stay up to 5 minutes
+	# instead of all closing (and reconnecting) at once.
+	reverse_proxy powersync:80 {
+		stream_close_delay 5m
+	}
 }
 
 api.treepnet.com, rest.130-61-138-104.sslip.io {
@@ -55,6 +68,9 @@ api.treepnet.com, rest.130-61-138-104.sslip.io {
 	request_body {
 		max_size 2MB
 	}
+	# Compressed answers (the app's HTTP client asks for gzip and unpacks it);
+	# feed and list pages are JSON, several times smaller packed.
+	encode zstd gzip
 	# Web "Delete account" backend (prefix stripped -> service sees /api/*).
 	handle_path /delete-account/* {
 		reverse_proxy deleteaccount:4000
@@ -91,7 +107,14 @@ chat.treepnet.com, chat.130-61-138-104.sslip.io {
 	request_body {
 		max_size 1MB
 	}
-	reverse_proxy chatbackend:3000
+	# Compressed REST answers (chat list, messages). WebSocket upgrades pass
+	# through unchanged.
+	encode zstd gzip
+	# On a config reload, open sockets stay up to 5 minutes instead of all
+	# closing (and reconnecting) at once.
+	reverse_proxy chatbackend:3000 {
+		stream_close_delay 5m
+	}
 }
 
 # Custom admin analytics panel. Static SPA built from the Treepnet-admin-panel
