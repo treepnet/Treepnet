@@ -507,6 +507,10 @@ class UserProfileAppBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final isOwner = context.select((UserProfileBloc bloc) => bloc.isOwner);
     final user$ = context.select((UserProfileBloc b) => b.state.user);
+    // Known from the start; the loaded user's id is empty until the profile
+    // has synced (asking for the badge of '' failed the server call it shared
+    // with every other card asked for at that moment).
+    final profileId = context.select((UserProfileBloc b) => b.userId);
     final user = sponsoredPost == null
         ? user$
         : user$.isAnonymous
@@ -552,7 +556,10 @@ class UserProfileAppBar extends StatelessWidget {
             // This used to sit next to a second, server-persisted `referral_tier`
             // mark that never expired, so a profile could wear two different
             // checkmarks at once.
-            TravelTierBadge(userId: user.id, size: 20),
+            TravelTierBadge(
+              userId: user.isAnonymous ? profileId : user.id,
+              size: 20,
+            ),
           ],
         ),
         actions: [
@@ -571,15 +578,19 @@ class UserProfileActions extends StatelessWidget {
 
   Future<void> _showMenu(BuildContext context) async {
     final profileUser = context.read<UserProfileBloc>().state.user;
+    // Not the loaded user's id: that is empty until the profile has synced,
+    // and saving or blocking then wrote a row with an empty id the server
+    // refused.
+    final profileId = context.read<UserProfileBloc>().userId;
     final currentUserId = context.read<AppBloc>().state.user.id;
     final userRepo = context.read<UserRepository>();
     final link = 'https://treepnet.com/${profileUser.displayUsername}';
     final linkCopiedTitle = context.l10n.profileLinkCopiedText;
     final isSaved = await userRepo
-        .isProfileSaved(userId: currentUserId, profileId: profileUser.id)
+        .isProfileSaved(userId: currentUserId, profileId: profileId)
         .first;
     final isBlockedByMe = await userRepo
-        .isBlocked(userId: currentUserId, otherUserId: profileUser.id)
+        .isBlocked(userId: currentUserId, otherUserId: profileId)
         .first;
     if (!context.mounted) return;
 
@@ -604,12 +615,12 @@ class UserProfileActions extends StatelessWidget {
             if (isSaved) {
               await userRepo.unsaveProfile(
                 userId: currentUserId,
-                profileId: profileUser.id,
+                profileId: profileId,
               );
             } else {
               await userRepo.saveProfile(
                 userId: currentUserId,
-                profileId: profileUser.id,
+                profileId: profileId,
               );
             }
             openSnackbar(
@@ -635,7 +646,7 @@ class UserProfileActions extends StatelessWidget {
             onTap: () async {
               await context.read<UserRepository>().unblockUser(
                 userId: currentUserId,
-                blockedId: profileUser.id,
+                blockedId: profileId,
               );
               openSnackbar(
                 SnackbarMessage.success(title: context.l10n.unblockedText),
@@ -658,7 +669,7 @@ class UserProfileActions extends StatelessWidget {
             onTap: () async {
               await context.read<UserRepository>().blockUser(
                 userId: currentUserId,
-                blockedId: profileUser.id,
+                blockedId: profileId,
               );
               if (!context.mounted) return;
               // Live lists update on their own; these two hold a snapshot.

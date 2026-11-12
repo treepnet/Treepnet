@@ -1053,27 +1053,33 @@ SELECT * FROM profiles WHERE id = ?
   ///
   /// Someone whose profile isn't on the phone (not followed): their card from
   /// the server ([_cards]).
+  ///
+  /// No one (an empty id, e.g. a profile page whose user hasn't loaded yet):
+  /// no badge, and nothing is asked.
   @override
-  Stream<int> travelTierOf({required String userId}) => _powerSyncRepository
-      .db()
-      .watch(
-        'SELECT referral_tier, referral_tier_expires_at FROM profiles '
-        'WHERE id = ?',
-        parameters: [userId],
-      )
-      .asyncMap((event) async {
-        final rows = event.toList();
-        if (rows.isEmpty) {
-          final card = (await _cards([userId]))[userId];
-          return _liveTier(card?.tier, card?.tierExpiresAt, DateTime.now());
-        }
-        final row = rows.first;
-        return _liveTier(
-          row['referral_tier'] as int?,
-          row['referral_tier_expires_at'] as String?,
-          DateTime.now(),
-        );
-      });
+  Stream<int> travelTierOf({required String userId}) {
+    if (!_uuidShape.hasMatch(userId)) return Stream.value(0);
+    return _powerSyncRepository
+        .db()
+        .watch(
+          'SELECT referral_tier, referral_tier_expires_at FROM profiles '
+          'WHERE id = ?',
+          parameters: [userId],
+        )
+        .asyncMap((event) async {
+          final rows = event.toList();
+          if (rows.isEmpty) {
+            final card = (await _cards([userId]))[userId];
+            return _liveTier(card?.tier, card?.tierExpiresAt, DateTime.now());
+          }
+          final row = rows.first;
+          return _liveTier(
+            row['referral_tier'] as int?,
+            row['referral_tier_expires_at'] as String?,
+            DateTime.now(),
+          );
+        });
+  }
 
   @override
   Stream<InviteBadgeStatus> inviteBadgeStatusOf({required String userId}) =>
@@ -2678,12 +2684,17 @@ ${limited ? 'LIMIT ?2' : ''}''';
 
   /// The server's card (name, username, avatar, badge) of each of [ids] it
   /// knows; none offline.
+  ///
+  /// Only ids shaped like a UUID are asked for: the ids of a few moments go to
+  /// the server as one `uuid[]`, and a single empty one (a profile not loaded
+  /// yet, a story or notification without an author) failed the whole call —
+  /// everyone asked for with it lost their name, avatar and badge.
   Future<Map<String, _Card>> _cards(List<String> ids) async {
-    if (ids.isEmpty) return const {};
     final now = DateTime.now();
     final cards = <String, _Card>{};
     final wanted = <String>[];
     for (final id in ids) {
+      if (!_uuidShape.hasMatch(id)) continue;
       final cached = _cardCache[id];
       if (cached != null && now.difference(cached.at) < _cardLife) {
         cards[id] = cached.card;
