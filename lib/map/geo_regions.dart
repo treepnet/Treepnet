@@ -386,6 +386,31 @@ class GeoRegions {
   /// The light country-outline base rings for the travel map.
   List<List<Offset>> get countryRings => _countryRings;
 
+  /// The map file as loaded, kept so the globe can build its levels of
+  /// detail from it in a background isolate ([readWorldRings]): sending it
+  /// is one 2 MB copy, where the parsed rings are ~400,000 small objects.
+  ByteData? get geoBytes => _geoBytes;
+  ByteData? _geoBytes;
+
+  /// The country rings and every region's rings, read straight from the map
+  /// file [data] (the same rings [countryRings] and [allRegions] hold). For
+  /// background isolates.
+  static ({List<List<Offset>> countries, List<List<Offset>> regions})
+  readWorldRings(ByteData data) {
+    final reader = _GeoReader(data);
+    final countries = [for (var i = reader.count(); i > 0; i--) reader.ring()];
+    final regions = <List<Offset>>[];
+    for (var i = reader.count(); i > 0; i--) {
+      final iso = reader.text();
+      for (var t = 0; t < 5; t++) {
+        reader.text(); // cc, raw name, admin, English name, Russian name
+      }
+      final rings = [for (var r = reader.count(); r > 0; r--) reader.ring()];
+      if (iso.isNotEmpty) regions.addAll(rings);
+    }
+    return (countries: countries, regions: regions);
+  }
+
   /// Country labels (name + anchor + span) for the zoom-dependent map labels.
   final List<CountryLabel> _countryLabels = [];
   List<CountryLabel> get countryLabels => _countryLabels;
@@ -611,6 +636,7 @@ class GeoRegions {
       // Missing/older bundle: English country names only.
     }
     final index = await _indexInBackground(data, countryNames);
+    _geoBytes = data;
     _countryRings.addAll(index.countryRings);
     _byIso.addAll(index.byIso);
     _countries
@@ -702,10 +728,13 @@ class GeoRegions {
 
     _markNameClashes();
     _buildCountryLabels();
-    // Every label anchor now, in the background, so the first globe frame
-    // doesn't compute them (the interior point is the costly part).
+    // Every label anchor and bounding box now, in the background, so the
+    // globe doesn't compute them on the UI thread (the interior point is the
+    // costly part; the boxes walk ~400,000 points).
     for (final region in _byIso.values) {
-      region.centroidLngLat;
+      region
+        ..centroidLngLat
+        ..lngLatBounds;
     }
 
     return (

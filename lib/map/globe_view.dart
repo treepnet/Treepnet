@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -13,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:treepnet/map/geo_regions.dart';
 import 'package:treepnet/map/map_base_layers.dart';
 import 'package:treepnet/map/travel_map.dart';
+import 'package:treepnet/map/world_levels.dart';
 
 /// The travel map drawn as a rotatable 3D globe.
 ///
@@ -197,14 +199,17 @@ Rect _visibleRect(Size size, EdgeInsets padding) {
 }
 
 /// Decimation steps (degrees) for the levels of detail, coarsest first.
-const _steps = [0.8, 0.32, 0.13, 0.05, 0.02, 0.0];
+/// No 0.0 ("every point") level: the map file holds points to 0.01°, so it
+/// was all but the 0.02 one again (242,455 vs 240,762 province points), kept
+/// in memory for nothing.
+const _steps = [0.8, 0.32, 0.13, 0.05, 0.02];
 
 /// The coarsest level whose segments stay under ~2.5 px at [ppd].
 double _stepFor(double ppd) {
   for (final s in _steps) {
     if (s * ppd <= 2.5) return s;
   }
-  return 0;
+  return _steps.last;
 }
 
 /// Where the globe is looking. The painter listens to it, so a rotation frame
@@ -272,16 +277,19 @@ class _GlobeViewState extends State<GlobeView>
     widget.controller?._view = this;
     _cam.addListener(_syncSplit);
     if (widget.look == GlobeLook.travelMap) unawaited(_loadSeenPoints());
-    // Putting the province layer on the sphere takes a moment. Do it while the
-    // globe idles rather than on the user's first zoom.
+    // The two coarse levels, in the background, as soon as the map is in:
+    // the whole-globe views need them first.
+    unawaited(
+      GeoRegions.instance.load().then((_) {
+        if (mounted) _GlobeData.levels.prefetch([_steps[0], _steps[1]]);
+      }),
+    );
+    // The region labels while the globe idles (their anchors and boxes were
+    // computed when the map loaded).
     Future<void>.delayed(const Duration(milliseconds: 500), () {
       final geo = GeoRegions.instance;
       if (!mounted || !geo.isLoaded) return;
-      final data = _GlobeData.of(geo);
-      data.provinces
-        ..at(_steps[0])
-        ..at(_steps[1]);
-      data.regionLabels.length;
+      _GlobeData.of(geo).regionLabels.length;
     });
   }
 
@@ -1329,17 +1337,44 @@ class _Layer {
   });
 }
 
+/// The whole world on the sphere at one level of detail: country rings (land
+/// and borders) and every region's rings (province borders).
+class _WorldLevel {
+  _WorldLevel(this.countries, this.provinces);
+
+  final List<_SphereRing> countries;
+  final List<_SphereRing> provinces;
+
+  /// Builds the level for [step] in a background isolate, from the map file
+  /// itself ([GeoRegions.geoBytes]): one 2 MB copy in, and the result comes
+  /// back without copying (Isolate.run hands it over).
+  static Future<_WorldLevel> inBackground(double step) {
+    final bytes = GeoRegions.instance.geoBytes;
+    if (bytes == null) return Future.error(StateError('Map not loaded'));
+    return Isolate.run(() => _build(bytes, step));
+  }
+
+  static _WorldLevel _build(ByteData bytes, double step) {
+    final rings = GeoRegions.readWorldRings(bytes);
+    List<_SphereRing> onSphere(List<List<Offset>> list) => [
+      for (final ring in list) ?_SphereRing.fromLngLat(ring, step),
+    ];
+    return _WorldLevel(onSphere(rings.countries), onSphere(rings.regions));
+  }
+}
+
 /// The base geometry on the sphere, built once per session and shared.
 class _GlobeData {
-  _GlobeData._(this._geo) : countries = _Layer(_geo.countryRings);
+  _GlobeData._(this._geo);
 
   final GeoRegions _geo;
-  final _Layer countries;
 
-  /// Every admin-1 ring. Lazy: parsing all ~4,500 regions is the slow part.
-  late final provinces = _Layer([
-    for (final region in _geo.allRegions) ...region.rings,
-  ]);
+  /// The world's levels of detail, each built in the background on first
+  /// need ([WorldLevels]); the painter repaints when one lands.
+  static final levels = WorldLevels<_WorldLevel>(
+    steps: _steps,
+    build: _WorldLevel.inBackground,
+  );
 
   late final countryLabels = [
     for (final label in _geo.countryLabels) _CountryName(label),
@@ -1441,7 +1476,8 @@ class _GlobePainter extends CustomPainter {
     required this.padding,
     this.split,
   }) : super(
-         repaint: split == null ? camera : Listenable.merge([camera, split]),
+         // A level of detail that finishes building repaints too.
+         repaint: Listenable.merge([camera, split, _GlobeData.levels]),
        );
 
   final _Camera camera;
@@ -1680,11 +1716,14 @@ class _GlobePainter extends CustomPainter {
     final step = _stepFor(ppd);
     final data = scene.geoLoaded ? _GlobeData.of(GeoRegions.instance) : null;
 
-    if (data != null) {
+    // The level for this zoom, or the closest one built while it's built in
+    // the background (null only in the moment before the first one lands).
+    final level = data == null ? null : _GlobeData.levels.at(step);
+    if (data != null && level != null) {
       // Land.
       final land = Path();
       final borders = Path();
-      for (final ring in data.countries.at(step)) {
+      for (final ring in level.countries) {
         if (ring.cap * r < 0.6) continue; // smaller than a pixel
         addRing(ring, area: land, outline: borders);
       }
@@ -1711,7 +1750,7 @@ class _GlobePainter extends CustomPainter {
       final t = ((ppd - 3.5) / (_provincePpd - 3.5)).clamp(0.0, 1.0);
       if (t > 0) {
         final provinces = Path();
-        for (final ring in data.provinces.at(step)) {
+        for (final ring in level.provinces) {
           if (ring.cap * r < 1.5) continue;
           addRing(ring, outline: provinces);
         }
