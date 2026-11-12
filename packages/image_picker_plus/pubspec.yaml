@@ -8,7 +8,6 @@ environment:
   flutter: ">=1.17.0"
 
 dependencies:
-  cached_memory_image: ^1.5.0
   # The vendored copy. Pub allows only one source per package name, so once the
   # app took camera from packages/, every dependant has to point at it too.
   camera:

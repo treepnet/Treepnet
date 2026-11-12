@@ -1,10 +1,17 @@
 import 'dart:typed_data';
 
-import 'package:cached_memory_image/cached_memory_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker_plus/image_picker_plus.dart';
 
-class MemoryImageDisplay extends StatefulWidget {
+/// One gallery tile: the photo's thumbnail bytes, drawn straight from memory.
+///
+/// It used `CachedMemoryImage` keyed by the bytes' LENGTH only, which wrote
+/// every tile to the app's shared disk cache: two photos whose thumbnails
+/// came out the same size showed the same picture (for 30 days), and each
+/// visit pushed avatars and story images out of that cache (200 files).
+/// The thumbnails are small (200 or 350 px), so decoding them as they are
+/// costs little; they stay in Flutter's in-memory image cache only.
+class MemoryImageDisplay extends StatelessWidget {
   const MemoryImageDisplay({
     required this.imageBytes,
     required this.appTheme,
@@ -14,31 +21,16 @@ class MemoryImageDisplay extends StatefulWidget {
   final AppTheme appTheme;
 
   @override
-  State<MemoryImageDisplay> createState() => _NetworkImageDisplayState();
-}
-
-class _NetworkImageDisplayState extends State<MemoryImageDisplay> {
-  @override
-  void didChangeDependencies() {
-    precacheImage(MemoryImage(widget.imageBytes), context);
-    super.didChangeDependencies();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return buildOctoImage();
-  }
-
-  Widget buildOctoImage() {
     return Container(
       width: double.infinity,
-      color: widget.appTheme.shimmerBaseColor,
-      child: CachedMemoryImage(
-        uniqueKey: 'app://content/${widget.imageBytes.length}',
-        bytes: widget.imageBytes,
-        errorBuilder: (context, url, error) => buildError(),
+      color: appTheme.shimmerBaseColor,
+      child: Image.memory(
+        imageBytes,
         fit: BoxFit.cover,
         width: double.infinity,
+        gaplessPlayback: true,
+        errorBuilder: (context, error, stackTrace) => buildError(),
       ),
     );
   }
@@ -48,7 +40,7 @@ class _NetworkImageDisplayState extends State<MemoryImageDisplay> {
       width: double.infinity,
       child: Icon(
         Icons.warning_amber_rounded,
-        color: widget.appTheme.onSurfaceColor,
+        color: appTheme.onSurfaceColor,
       ),
     );
   }
