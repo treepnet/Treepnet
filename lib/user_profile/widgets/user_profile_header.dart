@@ -243,13 +243,14 @@ class UserProfileFollowUserButton extends StatelessWidget {
     // awaiting approval), `accepted` → Following. Tapping Follow on a private
     // account sends a request; tapping Requested withdraws it; tapping
     // Following opens the unfollow modal.
-    return StreamBuilder<String>(
-      stream: bloc.followState(),
-      initialData: 'none',
-      builder: (context, snapshot) {
-        final state = snapshot.data ?? 'none';
-        final isFollowing = state == 'accepted';
-        final isPending = state == 'pending';
+    // One watch per profile, cancelled with the button (FollowStateBuilder).
+    // It was bloc.followState() in build: a new watch on every build, never
+    // cancelled (asBroadcastStream), one left running per profile visited.
+    return FollowStateBuilder(
+      userId: bloc.userId,
+      builder: (context, relation) {
+        final isFollowing = relation == FollowRelation.following;
+        final isPending = relation == FollowRelation.requested;
         final grey = isFollowing || isPending;
         final label = isFollowing
             ? '${l10n.followingUser} ▼'

@@ -103,4 +103,72 @@ void main() {
     expect(emitted.last.isAnonymous, isTrue);
     await subscription.cancel();
   });
+
+  group('one shared stream', () {
+    test(
+      'every read is the same stream, so screens share one chain',
+      () async {
+        final repository = buildRepository();
+        expect(identical(repository.user, repository.user), isTrue);
+        // (Listened to once, so tearDown's close completes.)
+        await repository.user.listen((_) {}).cancel();
+      },
+    );
+
+    test('a new listener gets the current user at once', () async {
+      final repository = buildRepository();
+      final first = repository.user.listen((_) {});
+      authUsers.add(authUser);
+      await Future<void>.delayed(Duration.zero);
+      profiles.add(profile);
+      await Future<void>.delayed(Duration.zero);
+
+      // E.g. the owner's profile page, opened later.
+      final late = <User>[];
+      final second = repository.user.listen(late.add);
+      await Future<void>.delayed(Duration.zero);
+      expect(late.single.username, 'hikmatcoder');
+      await second.cancel();
+      await first.cancel();
+    });
+
+    test('one auth and profile chain, however many come and go', () async {
+      var authListens = 0;
+      authUsers.onListen = () => authListens++;
+      final repository = buildRepository();
+
+      for (var i = 0; i < 3; i++) {
+        await repository.user.listen((_) {}).cancel();
+      }
+      final last = repository.user.listen((_) {});
+      expect(authListens, 1);
+      await last.cancel();
+    });
+
+    test('after main takes the first user, the profile still arrives', () async {
+      // As at start-up: main reads user.first, which leaves the stream with
+      // no listener; then the app listens. With rxdart's refCount the chain
+      // never connected again, and the profile stayed the bare identity
+      // ("Unknown", no avatar).
+      when(() => authenticationClient.user).thenAnswer(
+        (_) => Stream<AuthenticationUser>.multi((c) => c.add(authUser)),
+      );
+      final repository = buildRepository();
+      // (Listened to once, so tearDown's close completes.)
+      authUsers.stream.listen((_) {});
+
+      final first = await repository.user.first;
+      expect(first.username, isNull);
+      await Future<void>.delayed(Duration.zero);
+
+      final emitted = <User>[];
+      final subscription = repository.user.listen(emitted.add);
+      await Future<void>.delayed(Duration.zero);
+      profiles.add(profile);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(emitted.last.username, 'hikmatcoder');
+      await subscription.cancel();
+    });
+  });
 }

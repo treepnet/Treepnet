@@ -1,5 +1,6 @@
 import 'package:authentication_client/authentication_client.dart';
 import 'package:database_client/database_client.dart';
+import 'package:rxdart/rxdart.dart' show ConnectableStreamExtensions;
 import 'package:shared/shared.dart';
 import 'package:user_repository/user_repository.dart';
 
@@ -8,7 +9,7 @@ import 'package:user_repository/user_repository.dart';
 /// {@endtemplate}
 class UserRepository implements UserBaseRepository {
   /// {@macro user_repository}
-  const UserRepository({
+  UserRepository({
     required DatabaseClient databaseClient,
     required AuthenticationClient authenticationClient,
   })  : _databaseClient = databaseClient,
@@ -37,16 +38,36 @@ class UserRepository implements UserBaseRepository {
   /// completes, and `asyncExpand` waits for each inner stream to finish before
   /// handling the next auth event — which swallowed the sign-out and left the
   /// app stuck as the signed-in user.
-  Stream<User> get user =>
-      _authenticationClient.user.switchMap<User>((AuthenticationUser authUser) {
-        final base = User.fromAuthenticationUser(authenticationUser: authUser);
-        if (authUser.isAnonymous) return Stream.value(base);
-        // Until the row syncs, keep showing the identity we already have.
-        return _databaseClient
-            .profile(id: authUser.id)
-            .map((profile) => profile.isAnonymous ? base : profile)
-            .startWith(base);
-      }).asBroadcastStream();
+  ///
+  /// One stream for the whole app, made once: the getter used to build a new
+  /// chain (auth → profile watch) on every access, wrapped in
+  /// asBroadcastStream, which never cancels its source — each owner profile
+  /// visit left one running, re-querying on every 45 s presence heartbeat.
+  /// Now one chain, connected on first use and kept for the app's life (the
+  /// AppBloc listens all along anyway); a new listener gets the current user
+  /// at once. Not refCount: once every listener had left (main's
+  /// `user.first`), rxdart never connected it again, and the profile stayed
+  /// the bare identity ("Unknown", no avatar).
+  Stream<User> get user => _user;
+
+  late final Stream<User> _user = _connectUser();
+
+  Stream<User> _connectUser() {
+    final shared = _authenticationClient.user
+        .switchMap<User>((AuthenticationUser authUser) {
+      final base = User.fromAuthenticationUser(
+        authenticationUser: authUser,
+      );
+      if (authUser.isAnonymous) return Stream.value(base);
+      // Until the row syncs, keep showing the identity we already have.
+      return _databaseClient
+          .profile(id: authUser.id)
+          .map((profile) => profile.isAnonymous ? base : profile)
+          .startWith(base);
+    }).publishValue();
+    shared.connect();
+    return shared;
+  }
 
   /// Signs out the current user which will emit
   /// [User.anonymous] from the [user] Stream.

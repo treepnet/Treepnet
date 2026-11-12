@@ -152,10 +152,15 @@ class UserProfilePostsAppBar extends StatelessWidget {
       centerTitle: false,
       pinned: true,
       actions: [
-        BetterStreamBuilder<bool>(
-          stream: bloc.followingStatus(),
-          builder: (context, isFollowed) {
-            if (isFollowed || isOwner) return const SizedBox.shrink();
+        // One watch, cancelled with this bar (it was a new, never-cancelled
+        // one on every build).
+        FollowStateBuilder(
+          userId: bloc.userId,
+          builder: (context, relation) {
+            final isFollowed = relation == FollowRelation.following;
+            if (relation == null || isFollowed || isOwner) {
+              return const SizedBox.shrink();
+            }
 
             return AnimatedSwitcher(
               switchInCurve: Curves.easeIn,

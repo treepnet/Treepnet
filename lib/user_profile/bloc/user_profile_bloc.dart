@@ -204,15 +204,6 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
     );
   }
 
-  Stream<bool> followingStatus({String? followerId}) =>
-      _userRepository.followingStatus(userId: _userId).asBroadcastStream();
-
-  /// `none` / `pending` / `accepted` — drives the tri-state Follow button
-  /// (Follow → Requested → Following) on a private account.
-  Stream<String> followState({String? followerId}) => _userRepository
-      .followState(userId: _userId, followerId: followerId)
-      .asBroadcastStream();
-
   Future<void> _onUserProfileUpdateRequested(
     UserProfileUpdateRequested event,
     Emitter<UserProfileState> emit,
