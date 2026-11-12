@@ -167,10 +167,29 @@ class CustomCropState extends State<CustomCrop> with TickerProviderStateMixin {
     }
   }
 
+  /// The preview needs no more pixels than the screen shows at the largest
+  /// zoom: the photo is decoded to fit a box of screen width × pixel ratio ×
+  /// [CustomCrop.maximumScale] (about 2600 px on a phone) instead of in full —
+  /// 48 MB for a 12 MP photo, 195 MB for 48 MP, on every photo tapped. The
+  /// crop math is in 0–1 units, and the post is cut from the original file,
+  /// so neither depends on this size.
+  ImageProvider _previewImage(File file) {
+    final size = MediaQuery.maybeSizeOf(context);
+    if (size == null) return FileImage(file);
+    final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 3;
+    final box = (size.width * dpr * max(widget.maximumScale, 1)).ceil();
+    return ResizeImage(
+      FileImage(file),
+      width: box,
+      height: box,
+      policy: ResizeImagePolicy.fit,
+    );
+  }
+
   void _getImage({bool force = false}) {
     if (widget.isThatImage) {
       final oldImageStream = _imageStream;
-      final image = FileImage(widget.image);
+      final image = _previewImage(widget.image);
       final newImageStream =
           image.resolve(createLocalImageConfiguration(context));
       _imageStream = newImageStream;
