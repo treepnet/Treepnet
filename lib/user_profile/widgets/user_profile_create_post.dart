@@ -219,6 +219,7 @@ class LocationSeed {
     required this.lat,
     required this.lng,
     this.name,
+    this.wholeRegion = false,
   });
 
   final GeoRegion region;
@@ -229,6 +230,11 @@ class LocationSeed {
   /// an existing location arrives with its name already filled — otherwise the
   /// publish screen's required-name check would reject the pre-picked spot.
   final String? name;
+
+  /// Added on a whole region's page: the region is the place, with no name of
+  /// its own. It needs none to publish and stores none, so the region's name
+  /// is shown in each viewer's language.
+  final bool wholeRegion;
 }
 
 /// Opens the media picker and, once something is chosen, the publish page with
@@ -274,6 +280,9 @@ class _CreatePostPageState extends State<CreatePostPage> {
   /// The custom name the user typed for the spot (e.g. "Kiz Kulesi").
   String? _placeName;
 
+  /// The place is a whole region with no name of its own ([LocationSeed]).
+  bool _wholeRegion = false;
+
   late List<Media> _media;
   bool _sharing = false;
 
@@ -295,6 +304,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
       // Carry the place name through so the required-location check passes for a
       // post added straight from an existing location (bug: it errored before).
       _placeName = seed.name;
+      _wholeRegion = seed.wholeRegion;
     }
     _media = selectedFiles
         .map(
@@ -312,7 +322,8 @@ class _CreatePostPageState extends State<CreatePostPage> {
     if (_sharing) return;
     // A named location is required — it's what colors the profile travel map
     // and what everyone sees on the pin.
-    if (_region == null || (_placeName ?? '').trim().isEmpty) {
+    if (_region == null ||
+        ((_placeName ?? '').trim().isEmpty && !_wholeRegion)) {
       setState(() => _locationError = true);
       return;
     }
@@ -344,7 +355,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
           locationRegion: region?.iso,
           locationName: (_placeName != null && _placeName!.isNotEmpty)
               ? _placeName
-              : region == null
+              : region == null || _wholeRegion
               ? null
               : '${region.name}, ${region.countryName}',
           locationLat: _lat,
@@ -376,6 +387,13 @@ class _CreatePostPageState extends State<CreatePostPage> {
     if (result != null) setState(() => _caption = result);
   }
 
+  /// "Region, Country" in the app's language (a whole-region place).
+  String _regionLabel(BuildContext context, GeoRegion region) {
+    final lang = Localizations.localeOf(context).languageCode;
+    return '${region.localizedDisplayName(lang)}, '
+        '${region.localizedCountryName(lang)}';
+  }
+
   Future<void> _editLocation() async {
     final picked = await showLocationPicker(context);
     if (picked != null) {
@@ -384,6 +402,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
         _lat = picked.lat;
         _lng = picked.lng;
         _placeName = picked.placeName;
+        _wholeRegion = false;
         _locationError = false;
       });
     }
@@ -458,6 +477,8 @@ class _CreatePostPageState extends State<CreatePostPage> {
               _InfoRow(
                 value: region == null
                     ? null
+                    : _wholeRegion
+                    ? _regionLabel(context, region)
                     : '${region.name}, ${region.countryName}',
                 placeholder: context.l10n.locationText,
                 onTap: _editLocation,
@@ -468,6 +489,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
                         _region = null;
                         _lat = null;
                         _lng = null;
+                        _wholeRegion = false;
                       }),
               ),
             ],

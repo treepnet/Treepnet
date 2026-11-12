@@ -97,8 +97,41 @@ class GeoRegion {
   /// maxLng, maxLat)`). Used for viewport culling and label sizing.
   Rect get lngLatBounds => _bounds ??= _computeBounds();
 
-  /// Approximate label anchor (centroid of the largest ring), in lng/lat.
+  /// The label anchor, in lng/lat: a point inside the region. The middle of
+  /// its largest ring when that is inside; otherwise its innermost point
+  /// ([_interiorPoint]). Computed for every region while the map loads, in
+  /// the background.
   Offset get centroidLngLat => _centroid ??= _computeCentroid();
+
+  /// Whether [text] is just one of this region's own names, in any language
+  /// or form the app has stored it (source, English, Russian, "X Region",
+  /// "X, Country"): a pin or post "named" that way has no name of its own and
+  /// is shown as the region in the viewer's language. A post added on a
+  /// region page used to keep its creator's language for everyone.
+  bool isOwnName(String text) {
+    final t = text.trim().toLowerCase();
+    if (t.isEmpty) return false;
+    final names = <String>{
+      for (final n in [
+        name,
+        nameEn,
+        nameRu,
+        localizedDisplayName('en'),
+        localizedDisplayName('ru'),
+      ])
+        if (n.trim().isNotEmpty) n.trim().toLowerCase(),
+    };
+    if (names.contains(t)) return true;
+    for (final country in {countryName, countryNameRu}) {
+      if (country.trim().isEmpty) continue;
+      final suffix = ', ${country.trim().toLowerCase()}';
+      if (t.endsWith(suffix) &&
+          names.contains(t.substring(0, t.length - suffix.length).trim())) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   Rect _computeBounds() {
     var minX = 180.0;
@@ -146,7 +179,120 @@ class GeoRegion {
       sx += p.dx;
       sy += p.dy;
     }
-    return Offset(sx / big.length, sy / big.length);
+    final mean = Offset(sx / big.length, sy / big.length);
+    // The vertices' mean is pulled toward dense coastlines and rivers and
+    // falls outside concave shapes: 161 of 4,499 anchors were outside their
+    // own region (Karakalpakstan over Turkmenistan, Namangan over Kyrgyzstan,
+    // Antalya in the sea), so names sat over the neighbours and a post added
+    // on such a region page got a pin that opened the neighbour.
+    if (big.length < 3 || containsLngLat(mean)) return mean;
+    return _interiorPoint(big) ?? mean;
+  }
+
+  /// Whether [p] (lng/lat) is inside this region: inside an odd number of its
+  /// rings, so a hole (an enclave) counts as outside.
+  bool containsLngLat(Offset p) {
+    var inside = false;
+    for (final ring in rings) {
+      if (ring.length >= 3 && _ringContains(ring, p)) inside = !inside;
+    }
+    return inside;
+  }
+
+  static bool _ringContains(List<Offset> ring, Offset p) {
+    var inside = false;
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      final a = ring[i];
+      final b = ring[j];
+      if ((a.dy > p.dy) != (b.dy > p.dy) &&
+          p.dx < (b.dx - a.dx) * (p.dy - a.dy) / (b.dy - a.dy) + a.dx) {
+        inside = !inside;
+      }
+    }
+    return inside;
+  }
+
+  /// Distance from [p] to this region's nearest edge, negative outside.
+  double _signedDistance(Offset p) {
+    var best = double.infinity;
+    for (final ring in rings) {
+      for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        final d = _segmentDistance2(p, ring[j], ring[i]);
+        if (d < best) best = d;
+      }
+    }
+    final d = math.sqrt(best);
+    return containsLngLat(p) ? d : -d;
+  }
+
+  static double _segmentDistance2(Offset p, Offset a, Offset b) {
+    var x = a.dx;
+    var y = a.dy;
+    final dx = b.dx - x;
+    final dy = b.dy - y;
+    if (dx != 0 || dy != 0) {
+      final t = ((p.dx - x) * dx + (p.dy - y) * dy) / (dx * dx + dy * dy);
+      if (t > 1) {
+        x = b.dx;
+        y = b.dy;
+      } else if (t > 0) {
+        x += dx * t;
+        y += dy * t;
+      }
+    }
+    final ex = p.dx - x;
+    final ey = p.dy - y;
+    return ex * ex + ey * ey;
+  }
+
+  /// The point of [ring]'s area farthest from the region's edges (the "pole
+  /// of inaccessibility", found by splitting cells as Mapbox's polylabel
+  /// does), to 1/50 of the ring's smaller side.
+  Offset? _interiorPoint(List<Offset> ring) {
+    var minX = double.infinity;
+    var minY = double.infinity;
+    var maxX = -double.infinity;
+    var maxY = -double.infinity;
+    for (final p in ring) {
+      minX = math.min(minX, p.dx);
+      minY = math.min(minY, p.dy);
+      maxX = math.max(maxX, p.dx);
+      maxY = math.max(maxY, p.dy);
+    }
+    final size = math.min(maxX - minX, maxY - minY);
+    if (size <= 0) return null;
+    final precision = math.max(size / 50, 0.005);
+
+    _Cell cell(double x, double y, double half) {
+      final d = _signedDistance(Offset(x, y));
+      return _Cell(x, y, half, d, d + half * math.sqrt2);
+    }
+
+    final queue = <_Cell>[];
+    final half = size / 2;
+    for (var x = minX; x < maxX; x += size) {
+      for (var y = minY; y < maxY; y += size) {
+        queue.add(cell(x + half, y + half, half));
+      }
+    }
+    var best = cell(minX + (maxX - minX) / 2, minY + (maxY - minY) / 2, 0);
+    while (queue.isNotEmpty) {
+      // The most promising cell first (a list will do for these few cells).
+      var at = 0;
+      for (var i = 1; i < queue.length; i++) {
+        if (queue[i].max > queue[at].max) at = i;
+      }
+      final c = queue.removeAt(at);
+      if (c.d > best.d) best = c;
+      if (c.max - best.d <= precision) continue;
+      final h = c.half / 2;
+      queue
+        ..add(cell(c.x - h, c.y - h, h))
+        ..add(cell(c.x + h, c.y - h, h))
+        ..add(cell(c.x - h, c.y + h, h))
+        ..add(cell(c.x + h, c.y + h, h));
+    }
+    return best.d > 0 ? Offset(best.x, best.y) : null;
   }
 
   double? _ringArea;
@@ -170,7 +316,6 @@ class GeoRegion {
     }
     return total;
   }
-
 }
 
 /// A country grouping its [regions].
@@ -557,6 +702,11 @@ class GeoRegions {
 
     _markNameClashes();
     _buildCountryLabels();
+    // Every label anchor now, in the background, so the first globe frame
+    // doesn't compute them (the interior point is the costly part).
+    for (final region in _byIso.values) {
+      region.centroidLngLat;
+    }
 
     return (
       countryRings: _countryRings,
@@ -802,4 +952,17 @@ class _GeoReader {
     _at += points * 4;
     return ring;
   }
+}
+
+/// A square of [GeoRegion._interiorPoint]'s search: its centre, half its side,
+/// the distance from the centre to the region's edge, and the most any point
+/// in it could reach.
+class _Cell {
+  _Cell(this.x, this.y, this.half, this.d, this.max);
+
+  final double x;
+  final double y;
+  final double half;
+  final double d;
+  final double max;
 }

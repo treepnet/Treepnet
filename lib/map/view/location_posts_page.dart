@@ -120,9 +120,18 @@ class LocationPostsPage extends StatelessWidget {
   /// The heading: the name the author gave this spot, falling back to the
   /// region when there is none to show (a region tap, or an older pin saved
   /// before names were asked for).
-  String get _title => (placeName != null && placeName!.trim().isNotEmpty)
-      ? placeName!.trim()
-      : regionName;
+  String get _title => _ownPlaceName ?? regionName;
+
+  /// The name the author gave this spot, or null when there is none: empty,
+  /// or just the region's own name in some language (shown as [regionName],
+  /// in the viewer's language, rather than as the creator typed it).
+  String? get _ownPlaceName {
+    final name = placeName?.trim() ?? '';
+    if (name.isEmpty) return null;
+    final region = GeoRegions.instance.regionByIso(regionIso);
+    if (region != null && region.isOwnName(name)) return null;
+    return name;
+  }
 
   Stream<List<Post>> _posts(PostsRepository repository) => switch (scope) {
     LocationPostsScope.point => repository.postsAtPoint(
@@ -266,14 +275,19 @@ class LocationPostsPage extends StatelessWidget {
   Future<void> _addPostHere(BuildContext context) async {
     final region = GeoRegions.instance.regionByIso(regionIso);
     if (region == null) return;
+    final name = _ownPlaceName;
     final seed = LocationSeed(
       region: region,
-      // A region tap has no pin of its own; its centroid is the honest answer.
+      // A region tap has no pin of its own; its anchor (a point inside it) is
+      // the honest answer.
       lat: lat ?? region.centroidLngLat.dy,
       lng: lng ?? region.centroidLngLat.dx,
-      // This place already has a name (or falls back to the region) — pass it so
-      // the publish screen doesn't demand the location be picked again.
-      name: _title,
+      // This place's own name, so the publish screen doesn't demand the
+      // location be picked again. A whole region has none: the post is the
+      // region's, and every viewer sees the region's name in their language
+      // (it used to store the creator's, e.g. "Бухарская область" for all).
+      name: name,
+      wholeRegion: name == null,
     );
     await createPostAt(context, seed);
   }

@@ -562,7 +562,9 @@ class _TravelMapState extends State<TravelMap> {
   String _pinLabel(({double lat, double lng, String? name}) p, String lang) {
     final typed = p.name?.trim() ?? '';
     final region = GeoRegions.instance.regionAt(p.lng, p.lat);
-    if (region != null && (typed.isEmpty || typed == region.name.trim())) {
+    // Any of the region's own names (in any language, e.g. a post added on
+    // a region page) is no name of the author's: shown in the viewer's.
+    if (region != null && (typed.isEmpty || region.isOwnName(typed))) {
       return region.localizedDisplayName(lang);
     }
     return typed;
