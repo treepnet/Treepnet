@@ -325,6 +325,43 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
       _ownTransport != null &&
       identical(_ChatRuntime.instance._transport, _ownTransport);
 
+  /// Another page (the peer's profile or story, a shared post) is on top of
+  /// this thread. It stays open underneath, and it used to count as seen:
+  /// a message arriving meanwhile was marked read at once (the sender saw
+  /// ✓✓, no badge, no notification). Now that is treated like the app in
+  /// the background, until the thread is back in view.
+  bool _covered = false;
+  bool _appInBackground = false;
+  ModalRoute<Object?>? _route;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (!identical(route, _route)) {
+      _route?.secondaryAnimation?.removeStatusListener(_onCoverChanged);
+      _route = route;
+      // It runs while a page is pushed over this one and stays forward (or
+      // completed) until that page is gone again.
+      route?.secondaryAnimation?.addStatusListener(_onCoverChanged);
+    }
+  }
+
+  void _onCoverChanged(AnimationStatus status) {
+    final covered = status != AnimationStatus.dismissed;
+    if (covered == _covered) return;
+    _covered = covered;
+    _syncSeen();
+  }
+
+  /// Unseen while the app is in the background or a page covers the thread;
+  /// back in view, what arrived meanwhile is marked read.
+  void _syncSeen() {
+    final hidden = _appInBackground || _covered;
+    _cubit?.setIsBackgroundApp(hidden);
+    if (!hidden && _isActive) _cubit?.markAsRead();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -386,10 +423,10 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final background = state != AppLifecycleState.resumed;
-    _cubit?.setIsBackgroundApp(background);
-    // Back in front of the thread: what arrived meanwhile is seen now.
-    if (!background && _isActive) _cubit?.markAsRead();
+    _appInBackground = state != AppLifecycleState.resumed;
+    // Back in front of the thread (and nothing over it): what arrived
+    // meanwhile is seen now.
+    _syncSeen();
   }
 
   /// Ichki suhbat yopilib, bu ekran yana ko'rindi (qarang
@@ -509,6 +546,7 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
 
   @override
   void dispose() {
+    _route?.secondaryAnimation?.removeStatusListener(_onCoverChanged);
     _ChatRuntime.instance.resumeSignal.removeListener(_onResume);
     // Faqat socket hali shu ekranga ulangan bo'lsa (qarang disposeFor).
     _ChatSocket.disposeFor(_cubit);
