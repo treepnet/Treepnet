@@ -203,7 +203,7 @@ class _MessageListState extends State<_MessageList> {
                   widget.bottomPaddingNotifier ?? ValueNotifier<double>(0.0),
               builder: (context, bottomPadding, _) {
                 final topPadding = widget.hasAppBar
-                    ? (MediaQuery.of(context).padding.top + 72.0)
+                    ? (MediaQuery.paddingOf(context).top + 72.0)
                     : 8.0;
 
                 return ListView.builder(

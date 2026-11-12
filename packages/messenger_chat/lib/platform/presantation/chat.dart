@@ -313,7 +313,6 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
   final ValueNotifier<_MessageModel?> _editingMessage =
       ValueNotifier<_MessageModel?>(null);
 
-  String _baseUrl = '';
 
   /// Bu ekran ochilgandagi transport. Ichma-ich suhbat ochilsa, umumiy
   /// transport boshqasiga almashadi: shu orada bu ekran ulanish, "o'qildi"
@@ -396,8 +395,6 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
         _cubit?.markAsRead();
       }
 
-      initBaseUrl();
-      await setInitialTexts();
 
       _connectionSteam = MessengerChat.controller.connectionStream.listen((
         connection,
@@ -439,10 +436,6 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
       _cubit?.getMessages(isRefresh: true);
       _cubit?.markAsRead();
     }());
-  }
-
-  Future<void> setInitialTexts() async {
-    await _SecureStorage.setFirstTime(DateTime.now().toUtc().toIso8601String());
   }
 
   Future<void> _sendMessage() async {
@@ -520,11 +513,6 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
     if (_cubit != null) {
       await _ChatSocket.connect(cubit: _cubit!);
     }
-  }
-
-  void initBaseUrl() async {
-    _baseUrl = await _SecureStorage.getBaseUrl();
-    if (mounted) setState(() {});
   }
 
   void _updateBottomPadding() {

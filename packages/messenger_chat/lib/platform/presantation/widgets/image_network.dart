@@ -48,7 +48,7 @@ class _ChatCachedImageState extends State<_ChatCachedImage> {
   void _loadImage() {
     _imageProvider = CachedNetworkImageProvider(widget.imageUrl);
 
-    final screenSize = MediaQuery.of(context).size;
+    final screenSize = MediaQuery.sizeOf(context);
     final stream = _imageProvider.resolve(const ImageConfiguration());
     stream.addListener(
       ImageStreamListener(

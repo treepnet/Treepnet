@@ -51,8 +51,21 @@ class _TextMessageState extends State<_TextMessage> {
     return emoji.length <= 3;
   }
 
-  /// The tap handlers of the links in the text, made again on each build.
+  /// The tap handlers of the links in the text.
   final _linkRecognizers = <TapGestureRecognizer>[];
+
+  /// The text with its links ([_withLinks]) and whether it is emoji only,
+  /// made when the text changes, not on every build: the bubble used to
+  /// rebuild on every keyboard frame, re-running the link search and making
+  /// new tap handlers (a tap while the keyboard moved could miss its link).
+  late List<InlineSpan> _spans;
+  late bool _emojiOnlyText;
+
+  void _prepareText() {
+    final content = widget.message.content.content;
+    _spans = _withLinks(content);
+    _emojiOnlyText = _isEmojiOnly(content);
+  }
 
   /// [text] with every http(s) link in it underlined and tappable.
   List<InlineSpan> _withLinks(String text) {
@@ -90,6 +103,7 @@ class _TextMessageState extends State<_TextMessage> {
   @override
   void initState() {
     super.initState();
+    _prepareText();
     _checkAndFetch();
   }
 
@@ -105,6 +119,7 @@ class _TextMessageState extends State<_TextMessage> {
   void didUpdateWidget(covariant _TextMessage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.message.content.content != oldWidget.message.content.content) {
+      _prepareText();
       _checkAndFetch();
     }
   }
@@ -192,7 +207,7 @@ class _TextMessageState extends State<_TextMessage> {
           : style.clientMessageTextStyle;
       return Container(
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.85,
+          maxWidth: MediaQuery.sizeOf(context).width * 0.85,
         ),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(
@@ -265,7 +280,9 @@ class _TextMessageState extends State<_TextMessage> {
 
     return Container(
       constraints: BoxConstraints(
-        maxWidth: MediaQuery.of(context).size.width * 0.85,
+        // sizeOf: only the screen's size. MediaQuery.of rebuilt every bubble
+        // on each frame of the keyboard moving (its insets change).
+        maxWidth: MediaQuery.sizeOf(context).width * 0.85,
       ),
       decoration: BoxDecoration(
         color: isAdmin
@@ -304,13 +321,13 @@ class _TextMessageState extends State<_TextMessage> {
                 ),
               // Links tap open; one to three emoji alone are shown large.
               Text.rich(
-                TextSpan(children: _withLinks(content)),
+                TextSpan(children: _spans),
                 maxLines: 1000,
                 style: () {
                   final base = isAdmin
                       ? style.adminMessageTextStyle
                       : style.clientMessageTextStyle;
-                  return _isEmojiOnly(content)
+                  return _emojiOnlyText
                       ? base.copyWith(fontSize: 40, height: 1.15)
                       : base;
                 }(),

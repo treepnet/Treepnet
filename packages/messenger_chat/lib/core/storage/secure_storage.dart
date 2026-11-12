@@ -53,10 +53,6 @@ mixin _SecureStorage {
     }
   }
 
-  static Future<String> getBaseUrl() async {
-    return _read(baseUrl);
-  }
-
   static Future<void> setBaseUrl(String value) async {
     await _write(baseUrl, value);
   }
@@ -103,17 +99,6 @@ mixin _SecureStorage {
 
   static Future<String> getLang() async {
     return _read(lang);
-  }
-
-  static Future<void> setFirstTime(String value) async {
-    final first = await getFirstTime();
-    if (first.isNotEmpty) return;
-
-    await _write(firstTime, value);
-  }
-
-  static Future<String> getFirstTime() async {
-    return _read(firstTime);
   }
 
   static Future<void> setDeviceType(String value) async {
