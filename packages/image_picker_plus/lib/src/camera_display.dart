@@ -80,6 +80,10 @@ class CustomCameraDisplayState extends State<CustomCameraDisplay> {
   }
 
   Future<void> _initializeCamera() async {
+    // Kept here until it is ready: if the page goes while it starts (back to
+    // the grid within a second), it is disposed instead of left open, and no
+    // setState runs on the gone page (that logged null-check errors).
+    CameraController? created;
     try {
       // The camera view needs only the CAMERA permission, which the controller
       // requests on initialize(). It must NOT gate on photo-library access:
@@ -89,6 +93,7 @@ class CustomCameraDisplayState extends State<CustomCameraDisplay> {
       allPermissionsAccessed = true;
       if (!mounted) return;
       cameras = await availableCameras();
+      if (!mounted) return;
       if (cameras == null || (cameras?.isEmpty ?? true)) {
         setState(() {
           _hasCamera = false;
@@ -96,28 +101,40 @@ class CustomCameraDisplayState extends State<CustomCameraDisplay> {
         });
         return;
       }
-      controller = CameraController(
+      created = CameraController(
         cameras![0],
-        ResolutionPreset.high,
+        // 1080p: "high" is 1280×720 on both platforms, so a square camera
+        // post came out 720×720, visibly softer than gallery posts. Not
+        // "max": it can make the viewfinder stutter on cheap phones and
+        // makes each crop heavier.
+        ResolutionPreset.veryHigh,
         // No audio: the app captures photos only, and RECORD_AUDIO is not
         // declared. The default (enableAudio: true) asked for the mic and made
         // initialize() fail with "accept all permissions".
         enableAudio: false,
       );
-      await controller?.initialize();
+      await created.initialize();
       // The plugin defaults to auto. With the flash control gone there is no
       // way to stop the lamp firing, so pin it off.
       try {
-        await controller?.setFlashMode(FlashMode.off);
+        await created.setFlashMode(FlashMode.off);
       } on CameraException {
         // Front lenses have no lamp — nothing to turn off.
       }
+      if (!mounted) {
+        await created.dispose();
+        return;
+      }
+      controller = created;
       initializeDone = true;
       _hasCamera = true;
     } catch (e) {
+      if (created != null && created != controller) {
+        await created.dispose().catchError((Object _) {});
+      }
       allPermissionsAccessed = false;
     }
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   @override

@@ -167,7 +167,8 @@ class _StoryCameraPageState extends State<StoryCameraPage>
     final description = _cameras[target];
     final controller = CameraController(
       description,
-      ResolutionPreset.high,
+      // 1080p (1080×1920 stories): "high" is 1280×720 on both platforms.
+      ResolutionPreset.veryHigh,
       enableAudio: false,
     );
     try {
