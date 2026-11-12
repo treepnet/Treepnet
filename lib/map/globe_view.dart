@@ -46,7 +46,7 @@ class GlobeView extends StatefulWidget {
     this.initialCenter,
     this.initialZoom = 3,
     this.controller,
-    this.autoRotate = false,
+    this.faceTravels = false,
     this.showButtons = true,
     this.borderRadius = 16,
     this.padding = EdgeInsets.zero,
@@ -88,8 +88,11 @@ class GlobeView extends StatefulWidget {
   /// Reads where the globe is looking and moves it (the location picker).
   final GlobeController? controller;
 
-  /// Spin gently until the first touch.
-  final bool autoRotate;
+  /// Until the first touch, turn to face the travels when they arrive (they
+  /// stream in after the globe is built). It used to spin as well, until the
+  /// first touch: frames at 60 Hz even with the profile's Posts tab shown (a
+  /// kept-alive tab's ticker isn't muted), draining the battery.
+  final bool faceTravels;
 
   /// The +, − and "my location" buttons ([TravelMap] has them; the picker
   /// draws its own).
@@ -234,7 +237,7 @@ class _GlobeViewState extends State<GlobeView>
   Size _size = Size.zero;
 
   // Motion.
-  late bool _autoRotate = widget.autoRotate;
+  late bool _faceTravels = widget.faceTravels;
   double _vLon = 0; // degrees per second
   double _vLat = 0;
   double? _zoomTarget;
@@ -268,7 +271,6 @@ class _GlobeViewState extends State<GlobeView>
       ..addListener(_notifyController);
     widget.controller?._view = this;
     _cam.addListener(_syncSplit);
-    if (_autoRotate) _ensureTicking();
     if (widget.look == GlobeLook.travelMap) unawaited(_loadSeenPoints());
     // Putting the province layer on the sphere takes a moment. Do it while the
     // globe idles rather than on the user's first zoom.
@@ -308,7 +310,7 @@ class _GlobeViewState extends State<GlobeView>
     final hadData =
         oldWidget.visitedCounts.isNotEmpty || oldWidget.points.isNotEmpty;
     final hasData = widget.visitedCounts.isNotEmpty || widget.points.isNotEmpty;
-    if (_autoRotate && !hadData && hasData) {
+    if (_faceTravels && !hadData && hasData) {
       _panTarget = _homeCenter();
       _ensureTicking();
     }
@@ -477,9 +479,6 @@ class _GlobeViewState extends State<GlobeView>
       _vLon *= f;
       _vLat *= f;
       changed = true;
-    } else if (_autoRotate) {
-      _cam.lon += 5 * dt; // gentle spin until the first touch
-      changed = true;
     }
 
     final zt = _zoomTarget;
@@ -596,7 +595,7 @@ class _GlobeViewState extends State<GlobeView>
 
   void _stopMotion() {
     final wasFlying = _panTarget != null;
-    _autoRotate = false;
+    _faceTravels = false;
     _vLon = 0;
     _vLat = 0;
     _panTarget = null;
@@ -1706,8 +1705,10 @@ class _GlobePainter extends CustomPainter {
         );
 
       // Province borders over the country lines (as on the flat map), fading
-      // in towards its province zoom.
-      final t = ((ppd - 2.5) / (_provincePpd - 2.5)).clamp(0.0, 1.0);
+      // in towards its province zoom. From 3.5 px/degree: below that they
+      // were stroked at about 5% alpha (a phone's whole-globe view is ~3),
+      // ~4,000 rings a frame for lines no one could see.
+      final t = ((ppd - 3.5) / (_provincePpd - 3.5)).clamp(0.0, 1.0);
       if (t > 0) {
         final provinces = Path();
         for (final ring in data.provinces.at(step)) {

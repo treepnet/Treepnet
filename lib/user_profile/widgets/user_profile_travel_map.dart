@@ -162,7 +162,7 @@ class _UserProfileTravelMapState extends State<UserProfileTravelMap>
       child: GlobeView(
         visitedCounts: _visited,
         points: _points,
-        autoRotate: true,
+        faceTravels: true,
         padding: EdgeInsets.only(
           top: math.max(0, _overlap - UserProfileTravelMap._inset),
         ),
