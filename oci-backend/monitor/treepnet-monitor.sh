@@ -147,6 +147,15 @@ deletions() {
   [ "${n:-0}" -gt 0 ] && echo "$n account deletion job(s) keep failing"
 }
 
+# Scheduled jobs that have no log of their own send their errors to
+# cron-errors.log (crontab.txt); one written to in the last 10 minutes is a
+# job failing now.
+cron_errors() {
+  local log="$HOME/cron-errors.log"
+  [ -s "$log" ] && [ -n "$(find "$log" -mmin -10)" ] &&
+    echo "a scheduled job is failing: $(tail -1 "$log" | cut -c1-200)"
+}
+
 # The nightly backup and the weekly restore check only write to backup.log,
 # and a failed run just stops there. A good backup is due every night
 # (22:30 UTC) and an ok check every Sunday (23:30 UTC); allow some slack.
@@ -185,3 +194,4 @@ check jwks jwks
 check push_queue push_queue
 check deletions deletions
 check backups backups
+check cron_errors cron_errors
