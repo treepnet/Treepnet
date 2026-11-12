@@ -1,5 +1,6 @@
 const admin = require('firebase-admin');
 const { getFirebaseApp } = require('../../infrastructure/external/firebase_app');
+const { profileCard } = require('../../infrastructure/external/profiles');
 
 /**
  * Mijoz kimligini aniqlaydi.
@@ -16,6 +17,21 @@ const { getFirebaseApp } = require('../../infrastructure/external/firebase_app')
  * soatda nechta eski va yangi mijoz kelgani logga yoziladi.
  */
 const REQUIRED = process.env.CHAT_AUTH_REQUIRED === 'true';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const NO_ACCOUNT = { status: 403, code: 'NO_ACCOUNT', message: 'No TreepNet account for this sign-in' };
+
+/**
+ * Faqat TreepNet akkaunti bor foydalanuvchi o'tadi: uid - profiles.id (UUID)
+ * va o'sha profil mavjud. Token Firebase loyihasining boshqa kirish usulidan
+ * (email, anonim, telefon...) kelsa ham - hozir ularning hammasi o'chiq,
+ * lekin biri yoqilib qolsa - chatga kira olmaydi. Profilni so'rab bo'lmasa
+ * (baza javob bermasa), chat to'xtab qolmasligi uchun o'tkaziladi.
+ */
+async function requireAccount(uid) {
+    if (!UUID_RE.test(String(uid))) throw NO_ACCOUNT;
+    if ((await profileCard(uid)) === null) throw NO_ACCOUNT;
+}
 
 const stats = { token: new Set(), legacy: new Set() };
 setInterval(() => {
@@ -60,6 +76,7 @@ async function resolveIdentity({ token, headerUuid }) {
         if (headerUuid && headerUuid !== uid) {
             throw { status: 403, code: 'IDENTITY_MISMATCH', message: 'x-uuid does not match the token' };
         }
+        await requireAccount(uid);
         stats.token.add(uid);
         return uid;
     }
@@ -70,6 +87,7 @@ async function resolveIdentity({ token, headerUuid }) {
     if (!headerUuid) {
         throw { status: 401, code: 'MISSING_UUID', message: 'Missing x-uuid header' };
     }
+    await requireAccount(headerUuid);
     stats.legacy.add(headerUuid);
     return headerUuid;
 }

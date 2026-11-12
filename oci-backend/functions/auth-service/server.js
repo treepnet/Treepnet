@@ -393,6 +393,12 @@ async function uidFromRequest(headers) {
 async function mediaUploadUrl(res, b, headers) {
   const uid = await uidFromRequest(headers);
   if (!uid) return fail(res, 401, 'Sign in again.', 'unauthorized');
+  // Only a TreepNet account (uid = profiles.id) gets upload links, even if
+  // another Firebase sign-in method (email, anonymous, phone) is ever turned
+  // on: those would mint valid tokens for uids with no profile.
+  if (!UUID_RE.test(uid) || (await pool.query('select 1 from profiles where id = $1', [uid])).rowCount === 0) {
+    return fail(res, 403, 'No account.', 'no_account');
+  }
   const contentType = String(b.contentType || '');
   if (!CONTENT_TYPE_RE.test(contentType)) return fail(res, 400, 'Unsupported file type.');
   const target = uploadTarget(uid, b.bucket, b.path);

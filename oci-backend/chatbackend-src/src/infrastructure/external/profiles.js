@@ -12,10 +12,13 @@ const { db } = require('./blocks');
  *
  * Natija 10 daqiqa keshlanadi: username o'zgarsa, ko'pi bilan 10 daqiqada
  * yangilanadi. Baza javob bermasa `undefined` qaytadi (1 daqiqa eslab
- * qolinadi) va chaqiruvchi saqlangan qiymatga tegmaydi.
+ * qolinadi) va chaqiruvchi saqlangan qiymatga tegmaydi. "Bunday profil yo'q"
+ * (`null`) 30 soniya eslab qolinadi: u bilan kirish rad etiladi
+ * (resolve_identity.js), endi yaratilgan profil uzoq kutib qolmasin.
  */
 const TTL_MS = 10 * 60 * 1000;
 const FAILED_TTL_MS = 60 * 1000;
+const NOT_FOUND_TTL_MS = 30 * 1000;
 const cache = new Map(); // uuid -> { card, expiresAt }
 
 /**
@@ -35,6 +38,7 @@ async function profileCard(uuid) {
         card = row
             ? { name: row.username || null, avatar: row.avatar_url || null }
             : null;
+        if (card === null) ttl = NOT_FOUND_TTL_MS;
     } catch (error) {
         console.error('[Profiles] lookup failed:', error.message);
         card = undefined;
