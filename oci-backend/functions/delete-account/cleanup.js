@@ -6,7 +6,8 @@
 //   firebase — the Firebase Auth user, so the account can't sign in again;
 //   chat     — the chat-server user and EVERY conversation they were in, both
 //              sides, with its uploaded files and the user's push tokens;
-//   media    — the account's photos in object storage.
+//   media    — the account's photos in object storage;
+//   avatars  — everything in its avatar folder (earlier avatars too).
 // Each step is retried until it succeeds (finished steps are remembered), then
 // the job row is deleted so no trace of the account is kept.
 //
@@ -22,13 +23,15 @@ const CHAT_PROJECT = process.env.CHAT_PROJECT || 'treepnet';
 const CHAT_UPLOADS_DIR = process.env.CHAT_UPLOADS_DIR || '/chat-uploads';
 const MEDIA_NAMESPACE = 'fryarohmp0gm';
 const MEDIA_BUCKET = 'treepnet-media';
+const MEDIA_REGION = 'eu-frankfurt-1';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Report a job to Telegram once it has failed this many times in a row.
 const ALERT_AFTER = 3;
 
 /** A step that can't run yet (e.g. no permission) — retried later, not a failure. */
 class NotYet extends Error {}
 
-function createCleanup({ pool, admin }) {
+function createCleanup({ pool, admin, storage: storageClient = null }) {
   const chatPool = process.env.CHAT_PG_CONNECTION_STRING
     ? new Pool({ connectionString: process.env.CHAT_PG_CONNECTION_STRING, ssl: false, max: 2 })
     : null;
@@ -114,16 +117,25 @@ function createCleanup({ pool, admin }) {
   // and policy `treepnet-server-media-delete`, limited to the treepnet-media
   // bucket: object delete / inspect (this worker), object create / overwrite
   // and PAR_MANAGE (auth-service's per-file upload links).
-  let storage = null;
+  let storage = storageClient;
   async function objectStorage() {
     if (!storage) {
       const common = require('oci-common');
       const { ObjectStorageClient } = require('oci-objectstorage');
       const provider = await new common.InstancePrincipalsAuthenticationDetailsProviderBuilder().build();
       storage = new ObjectStorageClient({ authenticationDetailsProvider: provider });
-      storage.regionId = 'eu-frankfurt-1';
+      storage.regionId = MEDIA_REGION;
     }
     return storage;
+  }
+
+  async function signedIn() {
+    try {
+      return await objectStorage();
+    } catch (e) {
+      storage = null;
+      throw new NotYet(`object storage sign-in failed: ${e.message}`);
+    }
   }
 
   // A media URL is the bucket's own or the media.treepnet.com CDN in front of
@@ -140,16 +152,52 @@ function createCleanup({ pool, admin }) {
     return { namespaceName: m[1], bucketName: m[2], objectName: decodeURIComponent(m[3]) };
   }
 
+  // The link to object [name] the way the app writes it: the bucket URL, each
+  // path segment percent-encoded (an avatar's ':' as %3A).
+  function mediaUrl(name) {
+    const encoded = String(name).split('/').map(encodeURIComponent).join('/');
+    return `https://objectstorage.${MEDIA_REGION}.oraclecloud.com/n/${MEDIA_NAMESPACE}/b/${MEDIA_BUCKET}/o/${encoded}`;
+  }
+
+  // Whether something still uses object [name]: asked for its link as the app
+  // writes it and, in case one was ever stored unencoded, for the raw name.
+  async function nameInUse(name) {
+    const raw = `https://objectstorage.${MEDIA_REGION}.oraclecloud.com/n/${MEDIA_NAMESPACE}/b/${MEDIA_BUCKET}/o/${name}`;
+    const r = await pool.query('select media_in_use($1) or media_in_use($2) as used', [mediaUrl(name), raw]);
+    return r.rows[0].used;
+  }
+
+  // The bucket's objects under [prefix] (name, size, timeCreated, timeModified).
+  async function listMedia(prefix) {
+    const client = await signedIn();
+    const objects = [];
+    let start;
+    do {
+      let r;
+      try {
+        r = await client.listObjects({ // eslint-disable-line no-await-in-loop
+          namespaceName: MEDIA_NAMESPACE,
+          bucketName: MEDIA_BUCKET,
+          prefix,
+          start,
+          fields: 'name,size,timeCreated,timeModified',
+        });
+      } catch (e) {
+        if (e.statusCode === 401 || e.statusCode === 403 || e.statusCode === 404) {
+          throw new NotYet(`no permission to list media (${e.serviceCode || e.statusCode})`);
+        }
+        throw e;
+      }
+      objects.push(...r.listObjects.objects);
+      start = r.listObjects.nextStartWith;
+    } while (start);
+    return objects;
+  }
+
   async function deleteMedia(urls) {
     const objects = urls.map(objectOf).filter(Boolean);
     if (objects.length === 0) return;
-    let client;
-    try {
-      client = await objectStorage();
-    } catch (e) {
-      storage = null;
-      throw new NotYet(`object storage sign-in failed: ${e.message}`);
-    }
+    const client = await signedIn();
     for (const o of objects) {
       try {
         await client.deleteObject(o); // eslint-disable-line no-await-in-loop
@@ -189,10 +237,25 @@ function createCleanup({ pool, admin }) {
     await deleteMedia(unused);
   }
 
+  // Everything in the account's avatar folder (avatars/<uid>/, where avatars
+  // are uploaded since 2026-11): earlier avatars and ones uploaded but never
+  // set, not only the current one (which job.media holds). Avatars from before
+  // sit directly in avatars/; replacing one deletes the old file
+  // (012_old_avatar_deleted.sql). A file something still uses stays.
+  async function deleteAvatarFolder(uid) {
+    if (!UUID_RE.test(String(uid || ''))) return;
+    const unused = [];
+    for (const o of await listMedia(`avatars/${uid}/`)) {
+      if (!(await nameInUse(o.name))) unused.push(mediaUrl(o.name)); // eslint-disable-line no-await-in-loop
+    }
+    await deleteMedia(unused);
+  }
+
   const STEPS = [
     ['firebase', (job) => deleteFirebaseUser(job.user_id)],
     ['chat', (job) => deleteChatUser(job.user_id)],
     ['media', (job) => deleteAccountMedia(job.media)],
+    ['avatars', (job) => deleteAvatarFolder(job.user_id)],
   ];
 
   async function processJob(job) {
@@ -290,7 +353,7 @@ function createCleanup({ pool, admin }) {
     setInterval(runOnce, POLL_MS).unref();
   }
 
-  return { start, runOnce, deleteChatUser, chatPool };
+  return { start, runOnce, deleteChatUser, chatPool, listMedia, mediaUrl, nameInUse, processJob };
 }
 
 module.exports = { createCleanup };
