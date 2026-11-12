@@ -63,6 +63,28 @@ reload Caddy for the new `/log/*` route
    `verify.sql`, …) are diagnostic queries; `sql/setup-roles.sql` documents the
    `authenticator`/`authenticated` role setup PostgREST relies on.
 
+## Monthly maintenance (OS updates and reboot)
+
+Unattended upgrades install Ubuntu security fixes but never reboot, and
+Docker's own packages aren't covered: a new kernel or libc only runs after a
+reboot (`/var/run/reboot-required`). Once a month, at a quiet hour (all
+services are down for about a minute):
+
+1. Back up the boot volume (OCI console → the instance → Boot volume →
+   Create backup; free tier keeps up to 5).
+2. `sudo apt-get update && sudo apt-get full-upgrade` (keep existing config
+   files when asked).
+3. `sudo reboot`, then check: `docker ps` (all 10 healthy), the public URLs,
+   and the PowerSync slot (`pg_replication_slots`, active, small lag).
+
+`/etc/iptables/rules.v4` and `rules.v6` must hold only the server's own rules
+(SSH, 80/443, Oracle's InstanceServices): Docker adds its rules each time it
+starts. Never `netfilter-persistent save` while Docker runs — that stores
+Docker's rules with the current container addresses, and after a later
+reboot they point at the wrong containers (it happened: the August file sent
+127.0.0.1:5432 to PowerSync's address). Last done: 2026-11-13 (kernel
+7.0.0-1016, Docker 29.9.3; backup `before-reboot-2026-11-13`).
+
 ## Database changes
 
 `sql/migrations/` is the treepnet database's history: `000_baseline.sql` is
