@@ -12,6 +12,37 @@
     <meta property="og:image" content="" />
     <meta property="og:type" content="website" />
     <title>Treepnet — Turn the whole world into your personal achievement map</title>
+    <script>
+      // iOS invite (/invite/<handle>): the App Store button first copies the
+      // invite link, so the newly installed app can read it on first launch
+      // (iOS has no install referrer; detectValues(.probableWebURL), no paste
+      // prompt). Inline and on the document, so it works even when the main
+      // script never loads (throttled networks). Organic visits: a plain link.
+      document.addEventListener('click', function (e) {
+        var m = location.pathname.match(/^\/invite\/([^/]+)\/?$/);
+        var a = m && e.target.closest && e.target.closest('a[href^="https://apps.apple.com/"]');
+        if (!a) return;
+        e.preventDefault();
+        var handle = m[1];
+        try { handle = decodeURIComponent(handle); } catch (_) {}
+        var code = 'https://treepnet.com/invite/' + handle;
+        try {
+          // Synchronous copy: the only reliable way to copy and navigate
+          // within one tap on iOS Safari.
+          var ta = document.createElement('textarea');
+          ta.value = code;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+        } catch (_) {
+          try { navigator.clipboard && navigator.clipboard.writeText(code); } catch (_) {}
+        }
+        location.href = a.href;
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>

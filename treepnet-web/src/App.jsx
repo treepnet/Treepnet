@@ -1,16 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { I18N, LANGS } from "./i18n";
-import { Phone, FeedScreen, ProfileScreen, MapScreen, ChatScreen } from "./Mockups";
-import LeafletMap from "./LeafletMap";
 import "./App.css";
 
-/* Reveal-on-scroll wrapper. */
+const APP_STORE_URL = "https://apps.apple.com/uz/app/treepnet/id6801508746";
+
+/* Reveal-on-scroll wrapper. The page is pre-rendered to HTML (prerender.js)
+ * and must read fine without this script, so everything starts shown; once
+ * the script runs, only what is still below the screen hides and fades in on
+ * scroll (nothing on screen blinks). */
 function Reveal({ children, className = "", delay = 0, tag: Tag = "div" }) {
   const ref = useRef(null);
-  const [seen, setSeen] = useState(false);
+  const [seen, setSeen] = useState(true);
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    if (el.getBoundingClientRect().top < window.innerHeight) return;
+    setSeen(false);
     const io = new IntersectionObserver(
       ([e]) => { if (e.isIntersecting) { setSeen(true); io.disconnect(); } },
       { threshold: 0.12 }
@@ -27,7 +32,18 @@ function Reveal({ children, className = "", delay = 0, tag: Tag = "div" }) {
 
 function AutoSlider({ slides }) {
   const [idx, setIdx] = useState(0);
+  // Pictures load as the slider gets to them (the shown one and the next),
+  // not all five with the page; without the script only the first loads.
+  const [loaded, setLoaded] = useState(() => new Set([0]));
   const timerRef = useRef(null);
+
+  useEffect(() => {
+    setLoaded((prev) => {
+      const next = (idx + 1) % slides.length;
+      if (prev.has(idx) && prev.has(next)) return prev;
+      return new Set([...prev, idx, next]);
+    });
+  }, [idx, slides.length]);
 
   const resetTimer = () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -79,7 +95,7 @@ function AutoSlider({ slides }) {
         {slides.map((s, i) => (
           <img 
             key={s.src} 
-            src={s.src} 
+            src={loaded.has(i) ? s.src : undefined} 
             className={i === idx ? "active" : ""} 
             alt="" 
             draggable="false"
@@ -107,48 +123,27 @@ function AutoSlider({ slides }) {
 
 /* -------------------------------------------------------------------------- */
 export default function App() {
-  const [lang, setLang] = useState(() => {
-    const saved = localStorage.getItem("tn_lang");
-    return I18N[saved] ? saved : "en";
-  });
+  // English in the pre-rendered page; a language chosen before is applied
+  // once the script runs.
+  const [lang, setLang] = useState("en");
   const [scrolled, setScrolled] = useState(false);
-  const [menu, setMenu] = useState(false);
   const t = I18N[lang];
 
-  // Referral deferred attribution (iOS): when we arrive on /invite/<handle>,
-  // the App Store button copies the handle to the clipboard so the freshly
-  // installed app can read it on first launch — iOS has no Play-style install
-  // referrer. Organic visitors (no handle) just follow the link normally.
-  const inviteHandle = (() => {
-    const m = window.location.pathname.match(/^\/invite\/([^/]+)\/?$/);
-    return m ? decodeURIComponent(m[1]) : null;
-  })();
-  const APP_STORE_URL = "https://apps.apple.com/uz/app/treepnet/id6801508746";
-  function onAppStore(e) {
-    if (!inviteHandle) return; // organic — let the href open normally
-    e.preventDefault();
-    // Copy the invite as a URL so the iOS app can read it with
-    // detectValues(.probableWebURL) — no "Allow Paste?" prompt.
-    const code = "https://treepnet.com/invite/" + inviteHandle;
-    try {
-      // Synchronous copy: the only reliable way to copy AND immediately
-      // navigate within one user gesture on iOS Safari.
-      const ta = document.createElement("textarea");
-      ta.value = code;
-      ta.style.position = "fixed";
-      ta.style.opacity = "0";
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
-    } catch (_) {
-      try { navigator.clipboard?.writeText(code); } catch (_) {}
-    }
-    window.location.href = APP_STORE_URL;
+  // The iOS invite step (the App Store button copies /invite/<handle> first)
+  // is a small script in index.html, so it works even when this one can't
+  // load.
+
+  useEffect(() => {
+    let saved = null;
+    try { saved = localStorage.getItem("tn_lang"); } catch { /* storage blocked */ }
+    if (I18N[saved]) setLang(saved);
+  }, []);
+  function chooseLang(l) {
+    setLang(l);
+    try { localStorage.setItem("tn_lang", l); } catch { /* storage blocked */ }
   }
 
   useEffect(() => {
-    localStorage.setItem("tn_lang", lang);
     document.documentElement.lang = lang;
     
     // Update SEO tags dynamically
@@ -169,8 +164,6 @@ export default function App() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const nav = [];
-
   return (
     <>
       {/* ---------------------------------------------------------- NAV --- */}
@@ -184,7 +177,7 @@ export default function App() {
           <div className="nav-right">
             <div className="lang">
               {LANGS.map((l) => (
-                <button key={l} className={lang === l ? "on" : ""} onClick={() => setLang(l)}>{l.toUpperCase()}</button>
+                <button key={l} className={lang === l ? "on" : ""} onClick={() => chooseLang(l)}>{l.toUpperCase()}</button>
               ))}
             </div>
             <a href="#get" className="btn btn-primary nav-cta">{t.nav_get}</a>
@@ -265,7 +258,7 @@ export default function App() {
                 </span>
                 <span className="store-txt" style={{ justifyContent: 'center' }}><b>Google Play</b></span>
               </a>
-              <a className="store" href={APP_STORE_URL} onClick={onAppStore} target="_blank" rel="noopener noreferrer">
+              <a className="store" href={APP_STORE_URL} target="_blank" rel="noopener noreferrer">
                 <span className="store-ico" style={{ display: 'flex', alignItems: 'center' }}>
                   <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.68.78-1.3 2.22-.11 3.597 1.35.1 2.662-.806 3.497-1.818z"/></svg>
                 </span>

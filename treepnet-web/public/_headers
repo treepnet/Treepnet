@@ -1,0 +1,4 @@
+# Built files carry a content hash in their name: a changed file gets a new
+# name, so they can be kept for a year without checking back.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
