@@ -3,6 +3,10 @@
 // NOT IN USE (2026-10-31): stored URLs point at the bucket again
 // (sql/media_cdn_urls_rollback.sql). Russian ISPs throttle Cloudflare to the
 // first ~16 KB of each file, so photos would never finish loading there.
+// REMOVED 2026-11-13 (`wrangler delete --name treepnet-media-cdn`): nothing
+// pointed at it, and it was one more public way into the bucket. Kept here
+// in case a CDN comes back; then key the cache on the object alone (not
+// url.search, which let any ?x= skip the cache) and pass only an allowed ?v=.
 //
 // Every photo used to come straight from the OCI bucket in Frankfurt. This
 // Worker serves https://media.treepnet.com/<object> from the nearest Cloudflare

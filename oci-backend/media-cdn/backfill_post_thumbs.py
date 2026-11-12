@@ -13,6 +13,11 @@ and then sets thumb_url, all posts in one transaction. A post changed in the
 meantime is left alone (the update matches the old media text). Safe to run
 again: photos that have a thumbnail are skipped.
 
+thumb_url is the bucket's own URL, like every stored photo URL. Never the
+media.treepnet.com CDN: Russian ISPs throttle Cloudflare, so its photos didn't
+load there (rolled back 2026-10-31, Worker removed 2026-11-13); the run stops
+before writing if any new URL is not the bucket's.
+
 Runs on a Mac: macOS `sips`, the OCI CLI signed in (~/.oci/config) and SSH to
 the server.
   python3 backfill_post_thumbs.py           # lists what it would do
@@ -34,7 +39,8 @@ OCI = os.path.expanduser('~/Library/Python/3.9/bin/oci')
 NAMESPACE = 'fryarohmp0gm'
 BUCKET = 'treepnet-media'
 ORIGIN = f'https://objectstorage.eu-frankfurt-1.oraclecloud.com/n/{NAMESPACE}/b/{BUCKET}/o/'
-CDN = 'https://media.treepnet.com/'
+# Retired CDN: still recognised in old URLs, never written.
+LEGACY_CDN = 'https://media.treepnet.com/'
 IMAGE = '__image_media__'
 SHORT_SIDE = 480
 QUALITY = 75
@@ -47,10 +53,18 @@ def psql(sql, *flags):
 
 
 def object_of(url):
-    for base in (CDN, ORIGIN):
+    for base in (LEGACY_CDN, ORIGIN):
         if url.startswith(base):
             return url[len(base):].split('?')[0]
     return None
+
+
+def check_written(urls):
+    """Stops the run when a URL about to be stored is not the bucket's."""
+    bad = [u for u in urls if not u.startswith(ORIGIN)]
+    if bad:
+        sys.exit(f'refusing to store {len(bad)} URL(s) outside the bucket, e.g. {bad[0]}; '
+                 'nothing was written to the database')
 
 
 def make_thumb(obj, workdir):
@@ -124,12 +138,13 @@ def main():
         if error:
             print('  failed', thumb_obj, error)
             continue
-        done.setdefault(post_id, {})[i] = CDN + thumb_obj
+        done.setdefault(post_id, {})[i] = ORIGIN + thumb_obj
         total_before += before
         total_after += after
     print(f'uploaded {sum(len(v) for v in done.values())} thumbnails: '
           f'{total_before // 1024} KB of photos -> {total_after // 1024} KB')
 
+    check_written([u for thumbs in done.values() for u in thumbs.values()])
     tag = '$t' + secrets.token_hex(4) + '$'
     statements = []
     for row in rows:

@@ -1,4 +1,6 @@
 -- Point every stored photo URL at the media.treepnet.com CDN.
+-- DO NOT RUN: the CDN was rolled back (media_cdn_urls_rollback.sql, 2026-10-31)
+-- and its Worker removed (2026-11-13); these URLs would no longer load.
 --
 -- ROLLED BACK 2026-10-31 (media_cdn_urls_rollback.sql): Russian ISPs throttle
 -- Cloudflare to the first ~16 KB of each file. Don't re-apply without a CDN

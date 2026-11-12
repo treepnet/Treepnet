@@ -1,6 +1,7 @@
 {
   // media.treepnet.com: the app's photos through Cloudflare's cache (worker.js).
-  // Deploy: ../../treepnet-web/node_modules/.bin/wrangler deploy
+  // Removed 2026-11-13 and not deployed (see worker.js). Deploy only if the
+  // CDN is brought back: ../../treepnet-web/node_modules/.bin/wrangler deploy
   "$schema": "../../treepnet-web/node_modules/wrangler/config-schema.json",
   "name": "treepnet-media-cdn",
   "main": "worker.js",
