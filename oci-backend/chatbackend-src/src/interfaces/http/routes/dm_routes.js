@@ -4,7 +4,9 @@ const prisma = require('../../../infrastructure/database/prisma');
 const checkUser = require('../middlewares/check_user');
 const { isBlockedBetween } = require('../../../infrastructure/external/blocks');
 const { profileCard } = require('../../../infrastructure/external/profiles');
-const { apiLimiter } = require('../middlewares/rate_limiter');
+// The address limit runs once for every request (index.js); here each
+// signed-in user is counted on their own.
+const { userLimiter } = require('../middlewares/rate_limiter');
 
 const router = express.Router();
 
@@ -81,7 +83,7 @@ async function lastMessagesOf(conversationIds) {
  * Joriy foydalanuvchining barcha suhbatlari: suhbatdosh, oxirgi xabar,
  * o'qilmaganlar soni.
  */
-router.get('/conversations', apiLimiter, checkUser, async (req, res, next) => {
+router.get('/conversations', checkUser, userLimiter, async (req, res, next) => {
     try {
         const page = Math.max(1, Number(req.query.page) || 1);
         const size = Math.min(Math.max(1, Number(req.query.size) || 30), 100);
@@ -172,7 +174,7 @@ function allowNewChat(userId) {
     return allowed;
 }
 
-router.post('/conversations', apiLimiter, checkUser, async (req, res, next) => {
+router.post('/conversations', checkUser, userLimiter, async (req, res, next) => {
     try {
         const { peerId, peerUuid } = req.body || {};
         if (!peerId && !peerUuid) {
@@ -279,7 +281,7 @@ router.post('/conversations', apiLimiter, checkUser, async (req, res, next) => {
 /**
  * GET /chat/dm/conversations/:id/messages
  */
-router.get('/conversations/:id/messages', apiLimiter, checkUser, async (req, res, next) => {
+router.get('/conversations/:id/messages', checkUser, userLimiter, async (req, res, next) => {
     try {
         const conversationId = Number(req.params.id);
         // Salbiy yoki nol qiymat Prisma `skip` ga tushib 500 berardi.
@@ -320,7 +322,7 @@ router.get('/conversations/:id/messages', apiLimiter, checkUser, async (req, res
  * Joriy foydalanuvchining serverdagi identifikatori - klient xabar kimdan
  * kelganini shu bilan aniqlaydi.
  */
-router.get('/me', apiLimiter, checkUser, async (req, res, next) => {
+router.get('/me', checkUser, userLimiter, async (req, res, next) => {
     try {
         res.json(toUserDto(req.user));
     } catch (err) {
@@ -332,7 +334,7 @@ router.get('/me', apiLimiter, checkUser, async (req, res, next) => {
  * GET /chat/dm/users
  * Loyihadagi boshqa foydalanuvchilar - kim bilan suhbat boshlash mumkinligi.
  */
-router.get('/users', apiLimiter, checkUser, async (req, res, next) => {
+router.get('/users', checkUser, userLimiter, async (req, res, next) => {
     try {
         // `q` berilsa ism yoki telefon bo'yicha qidiriladi.
         const q = (req.query.q || '').toString().trim();
@@ -365,7 +367,7 @@ router.get('/users', apiLimiter, checkUser, async (req, res, next) => {
  * Push (FCM) uchun qurilma tokenini ro'yxatdan o'tkazadi. Token boshqa
  * foydalanuvchida bo'lsa - shu foydalanuvchiga ko'chiriladi.
  */
-router.post('/device-token', apiLimiter, checkUser, async (req, res, next) => {
+router.post('/device-token', checkUser, userLimiter, async (req, res, next) => {
     try {
         const token = (req.body?.token || '').toString().trim();
         if (!token) return res.status(400).json({ error: 'token is required' });
@@ -388,7 +390,7 @@ router.post('/device-token', apiLimiter, checkUser, async (req, res, next) => {
  * Chiqishda: bu qurilma endi shu foydalanuvchining xabarlari uchun push
  * olmaydi (keyingi akkaunt oldingisining bildirishnomalarini ko'rmasin).
  */
-router.delete('/device-token', apiLimiter, checkUser, async (req, res, next) => {
+router.delete('/device-token', checkUser, userLimiter, async (req, res, next) => {
     try {
         const token = (req.body?.token || '').toString().trim();
         if (!token) return res.status(400).json({ error: 'token is required' });
@@ -411,7 +413,7 @@ router.delete('/device-token', apiLimiter, checkUser, async (req, res, next) => 
  * list and messages routes). Messages are never destroyed.
  * Faqat suhbat ishtirokchisi o'chira oladi.
  */
-router.delete('/conversations/:id', apiLimiter, checkUser, async (req, res, next) => {
+router.delete('/conversations/:id', checkUser, userLimiter, async (req, res, next) => {
     try {
         const conversationId = Number(req.params.id);
         if (!conversationId) return res.status(400).json({ error: 'invalid conversation id' });
