@@ -88,8 +88,33 @@ router.get('/conversations', checkUser, userLimiter, async (req, res, next) => {
         const page = Math.max(1, Number(req.query.page) || 1);
         const size = Math.min(Math.max(1, Number(req.query.size) || 30), 100);
 
+        // Only conversations with a message, and one this user "deleted"
+        // (clearedAt) only once a newer message came: filtered in the query,
+        // so every page holds real chats. Filtered after the page was taken,
+        // most pages could be empty (a profile's Message button opens a
+        // conversation that is often never written in), and the app took an
+        // empty page for "no chats" and asked for no more.
+        const cleared = await prisma.conversationParticipant.findMany({
+            where: { userId: req.user.id, clearedAt: { not: null } },
+            select: {
+                conversationId: true,
+                clearedAt: true,
+                conversation: { select: { lastMessageAt: true } },
+            },
+        });
+        const reappeared = cleared
+            .filter((m) => {
+                const lastAt = m.conversation.lastMessageAt;
+                return lastAt != null && new Date(lastAt) > new Date(m.clearedAt);
+            })
+            .map((m) => m.conversationId);
+
         const memberships = await prisma.conversationParticipant.findMany({
-            where: { userId: req.user.id },
+            where: {
+                userId: req.user.id,
+                conversation: { messages: { some: {} } },
+                OR: [{ clearedAt: null }, { conversationId: { in: reappeared } }],
+            },
             include: {
                 conversation: {
                     include: {
@@ -110,16 +135,9 @@ router.get('/conversations', checkUser, userLimiter, async (req, res, next) => {
             items.map((membership) => membership.conversation.id),
         );
 
+        // A reappeared conversation shows only the messages after the clear
+        // (see the messages route).
         const data = items
-            // A conversation this user has "deleted" (clearedAt set) stays hidden
-            // until a message newer than the clear arrives — then it reappears
-            // (showing only the messages after the clear, see the messages route).
-            .filter((membership) => {
-                const clearedAt = membership.clearedAt;
-                if (!clearedAt) return true;
-                const lastAt = membership.conversation.lastMessageAt;
-                return lastAt != null && new Date(lastAt) > new Date(clearedAt);
-            })
             .map((membership) => {
                 const conversation = membership.conversation;
                 const peer = peerOf(conversation, req.user.id);
