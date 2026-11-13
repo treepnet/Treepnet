@@ -68,10 +68,24 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGIN || '*')
 const CODE_TTL_MIN = parseInt(process.env.CODE_TTL_MIN || '15', 10);
 const PORT = parseInt(process.env.PORT || '4000', 10);
 
+// Ten seconds at most for each step: nodemailer waited up to 2 minutes to
+// connect and 10 to send, long after the app had given up (~15 s) and taken a
+// retry's "already sent" for a code that then never came. One kept
+// connection instead of a new one per mail.
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  pool: true,
+  maxConnections: 3,
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
 });
+
+// Email addresses out of text that goes to logs and the error bot (a mail
+// error repeats the address it failed on).
+const maskAddresses = (text) =>
+  String(text).replace(/[^\s<>"'(),;:@]+@[^\s<>"'(),;:@]+\.[a-z]{2,}/gi, '<address>');
 
 // Browsers accept a single origin per response, so echo the caller's when it
 // is one of ours.
@@ -171,9 +185,24 @@ function alertErrorBot(message) {
   fetch('http://errorlogger:4200/error', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-app-key': process.env.LOG_APP_KEY },
-    body: JSON.stringify({ env: 'server', kind: 'deletion-email', message }),
+    body: JSON.stringify({ env: 'server', kind: 'deletion-email', message: maskAddresses(message) }),
   }).catch(() => {});
 }
+
+// Deletion codes nobody used (and the email they were sent to): gone a day
+// after they expire; every 6 hours.
+async function purgeOldCodes() {
+  try {
+    const r = await pool.query(
+      `delete from account_deletion_codes where expires_at < now() - interval '1 day'`,
+    );
+    if (r.rowCount) console.log(`delete-account: purged ${r.rowCount} old code(s)`);
+  } catch (e) {
+    console.error('delete-account code purge failed:', e.message);
+  }
+}
+setTimeout(purgeOldCodes, 60 * 1000).unref();
+setInterval(purgeOldCodes, 6 * 60 * 60 * 1000).unref();
 
 async function findUser(username) {
   const r = await pool.query(
@@ -204,7 +233,7 @@ async function requestCode(res, body) {
       } catch (e) {
         // Dropped, so a code that never arrived can't be used either; the
         // error bot hears about it (no address, no code).
-        console.error('delete-account code email failed:', e.message);
+        console.error('delete-account code email failed:', maskAddresses(e.message));
         await pool
           .query('delete from account_deletion_codes where email = $1', [user.email])
           .catch(() => {});
@@ -286,7 +315,7 @@ async function confirm(res, body) {
 // or code.
 function failed(step, e) {
   const message = String(e && e.message ? e.message : e).slice(0, 300);
-  console.error(`delete-account ${step} failed:`, message);
+  console.error(`delete-account ${step} failed:`, maskAddresses(message));
   alertErrorBot(`web account deletion (${step}) failed: ${message}`);
 }
 

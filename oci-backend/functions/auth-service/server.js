@@ -83,10 +83,24 @@ const CONTENT_TYPE_RE = /^(image\/(jpeg|jpg|png|heic|heif|webp|gif)|video\/[a-z0
 const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '10', 10);
 const CODE_LENGTH = 6;
 
+// Ten seconds at most for each step: nodemailer waited up to 2 minutes to
+// connect and 10 to send, long after the app had given up (~15 s) and taken a
+// retry's "already sent" for a code that then never came. One kept
+// connection instead of a new one per mail.
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  pool: true,
+  maxConnections: 3,
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
 });
+
+// Email addresses out of text that goes to logs and the error bot (a mail
+// error repeats the address it failed on).
+const maskAddresses = (text) =>
+  String(text).replace(/[^\s<>"'(),;:@]+@[^\s<>"'(),;:@]+\.[a-z]{2,}/gi, '<address>');
 
 // --- helpers ------------------------------------------------------------
 function corsHeaders() {
@@ -224,11 +238,17 @@ async function sendCodeEmail(email, code, purpose, lang) {
 // error bot hears about it (no address, no code), and the app is told plainly.
 // A 4xx, so even an app that only reads {error} from 4xx shows the reason.
 async function emailFailed(res, email, purpose, error) {
-  console.error(`auth-service ${purpose} code email failed:`, error.message);
+  const message = maskAddresses(error.message);
+  console.error(`auth-service ${purpose} code email failed:`, message);
   await pool
     .query('delete from auth_codes where email = $1 and purpose = $2', [email, purpose])
     .catch(() => {});
-  alertErrorBot(`${purpose} code email failed: ${error.message}`);
+  // Gmail refused the address itself (no such mailbox): the person mistyped
+  // it. They were told to try again later, and the bot got a false alarm.
+  if (recipientRejected(error)) {
+    return fail(res, 400, 'Enter a valid email address.', 'invalid_email');
+  }
+  alertErrorBot(`${purpose} code email failed: ${message}`);
   return fail(
     res,
     424,
@@ -237,15 +257,37 @@ async function emailFailed(res, email, purpose, error) {
   );
 }
 
+/** Whether the mail server refused the recipient (5.1.x: no such mailbox). */
+function recipientRejected(error) {
+  if (!error) return false;
+  if (error.code === 'EENVELOPE') return true;
+  if (Array.isArray(error.rejected) && error.rejected.length > 0) return true;
+  const code = Number(error.responseCode);
+  return code >= 550 && code < 560 && /\b5\.1\.\d\b/.test(String(error.response || error.message));
+}
+
 // Best-effort note to the private Telegram error bot (error-logger service).
 function alertErrorBot(message) {
   if (!process.env.LOG_APP_KEY) return;
   fetch('http://errorlogger:4200/error', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-app-key': process.env.LOG_APP_KEY },
-    body: JSON.stringify({ env: 'server', kind: 'auth-email', message }),
+    body: JSON.stringify({ env: 'server', kind: 'auth-email', message: maskAddresses(message) }),
   }).catch(() => {});
 }
+
+// Codes nobody used: the email of someone who never finished signing up was
+// kept for good. Gone a day after they expire; every 6 hours.
+async function purgeOldCodes() {
+  try {
+    const r = await pool.query(`delete from auth_codes where expires_at < now() - interval '1 day'`);
+    if (r.rowCount) console.log(`auth-service: purged ${r.rowCount} old code(s)`);
+  } catch (e) {
+    console.error('auth-service code purge failed:', e.message);
+  }
+}
+setTimeout(purgeOldCodes, 60 * 1000).unref();
+setInterval(purgeOldCodes, 6 * 60 * 60 * 1000).unref();
 
 async function upsertCode(email, code, purpose, payload = null) {
   const expires = new Date(Date.now() + CODE_TTL_MIN * 60000).toISOString();
