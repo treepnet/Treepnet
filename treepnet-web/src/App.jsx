@@ -123,8 +123,9 @@ function AutoSlider({ slides }) {
 
 /* -------------------------------------------------------------------------- */
 export default function App() {
-  // English in the pre-rendered page; a language chosen before is applied
-  // once the script runs.
+  // English in the pre-rendered page; once the script runs, the language
+  // chosen before, or Russian for a browser set to Russian or Uzbek (most of
+  // the audience; it opened in English for everyone).
   const [lang, setLang] = useState("en");
   const [scrolled, setScrolled] = useState(false);
   const t = I18N[lang];
@@ -136,7 +137,17 @@ export default function App() {
   useEffect(() => {
     let saved = null;
     try { saved = localStorage.getItem("tn_lang"); } catch { /* storage blocked */ }
-    if (I18N[saved]) setLang(saved);
+    if (I18N[saved]) {
+      setLang(saved);
+      return;
+    }
+    const prefers = (navigator.languages && navigator.languages.length
+      ? navigator.languages
+      : [navigator.language || ""]
+    ).map((l) => String(l).toLowerCase());
+    if (prefers[0] && (prefers[0].startsWith("ru") || prefers[0].startsWith("uz"))) {
+      setLang("ru");
+    }
   }, []);
   function chooseLang(l) {
     setLang(l);
