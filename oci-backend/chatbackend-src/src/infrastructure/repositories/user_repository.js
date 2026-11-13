@@ -13,10 +13,10 @@ class UserRepository {
         return prisma.user.findUnique({ where: { id } });
     }
 
+    /** The whole row: auth_user.js compares it before writing. */
     findByUuid(uuid, projectId) {
         return prisma.user.findUnique({
             where: { uuid_projectId: { uuid, projectId } },
-            select: { id: true },
         });
     }
 

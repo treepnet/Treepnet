@@ -404,11 +404,19 @@ router.post('/device-token', checkUser, userLimiter, async (req, res, next) => {
         if (!token) return res.status(400).json({ error: 'token is required' });
         const platform = (req.body?.platform || 'mobile').toString();
 
-        await prisma.deviceToken.upsert({
+        // The app sends it on every start: written only when it is new or
+        // belonged to someone else (or another platform), not each time.
+        const current = await prisma.deviceToken.findUnique({
             where: { token },
-            update: { userId: req.user.id, platform, updatedAt: new Date() },
-            create: { userId: req.user.id, token, platform },
+            select: { userId: true, platform: true },
         });
+        if (!current || current.userId !== req.user.id || current.platform !== platform) {
+            await prisma.deviceToken.upsert({
+                where: { token },
+                update: { userId: req.user.id, platform, updatedAt: new Date() },
+                create: { userId: req.user.id, token, platform },
+            });
+        }
 
         res.json({ status: 'ok' });
     } catch (err) {

@@ -2,6 +2,23 @@ const userRepository = require('../../infrastructure/repositories/user_repositor
 const cacheService = require('../../infrastructure/cache/cache_service');
 const { profileCard } = require('../../infrastructure/external/profiles');
 
+/** Hech narsa o'zgarmasa ham yozuv shuncha vaqtda bir yangilanadi. */
+const REFRESH_MS = 60 * 60 * 1000;
+
+/**
+ * [userData] dagi biror maydon [existing] dagidan farq qiladimi, yoki yozuv
+ * eskirganmi. Kelmagan (`undefined`) maydon e'tiborsiz qoldiriladi: u
+ * yozilmasdi ham. IP bu yerda solishtirilmaydi.
+ */
+function userChanged(existing, userData, now = Date.now()) {
+    for (const [field, value] of Object.entries(userData)) {
+        if (value === undefined || field === 'ipAddress') continue;
+        if ((existing[field] ?? null) !== (value ?? null)) return true;
+    }
+    const updatedAt = new Date(existing.updatedAt).getTime();
+    return !Number.isFinite(updatedAt) || now - updatedAt >= REFRESH_MS;
+}
+
 /**
  * Mijozni sarlavhalar asosida tanib oladi.
  *
@@ -31,13 +48,6 @@ class AuthUserUseCase {
         }
 
         if (!project) throw { status: 403, message: 'Invalid Project' };
-
-        // 2. Foydalanuvchi keshi
-        const userCacheKey = `user:${project.id}:${uuid}`;
-        const cachedUser = await cacheService.get(userCacheKey);
-        if (cachedUser) {
-            return { user: JSON.parse(cachedUser), project };
-        }
 
         // 3. Yaratish/yangilash
         //
@@ -69,8 +79,9 @@ class AuthUserUseCase {
         // bazadan so'raladi: o'chirilgan akkaunt keshda yana 10 daqiqa turadi,
         // shu orada boshqa telefonda ochiq qolgan ilova (tokeni 1 soatgacha
         // amal qiladi) o'chirish olib tashlagan yozuvni qaytarib qo'yardi.
-        // Bazani so'rab bo'lmasa (`undefined`), avvalgidek o'tkaziladi.
-        const isNew = !(await userRepository.findByUuid(uuid, project.id));
+        // Shuning uchun foydalanuvchi keshlanmaydi: o'qish arzon.
+        const existing = await userRepository.findByUuid(uuid, project.id);
+        const isNew = !existing;
         const card = await profileCard(uuid, { fresh: isNew });
         if (isNew && card === null) {
             throw { status: 403, code: 'NO_ACCOUNT', message: 'No TreepNet account for this sign-in' };
@@ -80,12 +91,18 @@ class AuthUserUseCase {
             userData.avatar = card.avatar;
         }
 
+        // Hech narsa o'zgarmagan bo'lsa, yozilmaydi. Har bir so'rov va socket
+        // ulanishi yozuvni qayta yozardi (prod: 102 kishiga 9 692 yozuv).
+        // IP har tarmoq almashganda o'zgaradi: u boshqa o'zgarish bilan yoki
+        // soatiga bir marta yoziladi (updatedAt ham shunda yangilanadi).
+        if (existing && !userChanged(existing, userData)) {
+            return { user: existing, project };
+        }
+
         const user = await userRepository.upsertUser(uuid, project.id, userData);
-
-        await cacheService.set(userCacheKey, JSON.stringify(user), 600);
-
         return { user, project };
     }
 }
 
 module.exports = new AuthUserUseCase();
+module.exports.userChanged = userChanged;

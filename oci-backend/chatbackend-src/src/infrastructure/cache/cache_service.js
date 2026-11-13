@@ -1,41 +1,42 @@
-const redis = require('redis');
+/**
+ * Server ichidagi kichik kesh (muddatli kalit -> qiymat).
+ *
+ * Avval bu Redis edi, lekin serverda Redis yo'q: har bir `get` null
+ * qaytarardi, kesh hech narsani saqlamasdi, fonda esa node-redis
+ * localhost:6379 ga to'xtovsiz qayta ulanishga urinib turardi (xatolari
+ * yashirilgan). Bitta jarayon uchun shu yetarli: blocks.js va profiles.js ham
+ * shunday ishlaydi.
+ *
+ * Interfeys o'zgarmadi (async get/set/del/delByPattern), shuning uchun
+ * chaqiruvchilar tegilmaydi.
+ */
+const MAX_ENTRIES = 5000;
 
 class CacheService {
     constructor() {
-        this.client = redis.createClient({
-            url: process.env.REDIS_URL || 'redis://localhost:6379'
-        });
-        this.client.on('error', (err) => {
-            if (this.isConnected) {
-                console.log('Redis Client Error', err);
-            }
-        });
-        this.isConnected = false;
+        this.entries = new Map(); // key -> { value, expiresAt }
     }
 
-    async connect() {
-        if (!this.isConnected) {
-            try {
-                await this.client.connect();
-                this.isConnected = true;
-                console.log('Redis connected successfully');
-            } catch (e) {
-                // Connection failed, we will work without cache
-                this.isConnected = false;
-            }
-        }
-    }
+    /** Eski chaqiruv uchun (index.js): ulanadigan narsa yo'q. */
+    async connect() {}
 
     async get(key) {
-        if (!this.isConnected) return null;
-        return await this.client.get(key);
+        const entry = this.entries.get(key);
+        if (!entry) return null;
+        if (entry.expiresAt <= Date.now()) {
+            this.entries.delete(key);
+            return null;
+        }
+        return entry.value;
     }
 
     async set(key, value, ttl = 300) {
-        if (!this.isConnected) return;
-        await this.client.set(key, value, {
-            EX: ttl
-        });
+        this.entries.delete(key);
+        this.entries.set(key, { value, expiresAt: Date.now() + ttl * 1000 });
+        // Eng eskisi (birinchi qo'yilgani) chiqariladi.
+        while (this.entries.size > MAX_ENTRIES) {
+            this.entries.delete(this.entries.keys().next().value);
+        }
     }
 
     /**
@@ -45,27 +46,15 @@ class CacheService {
      * TTL tugaguncha (1 soatgacha) ishlatilib turadi.
      */
     async del(...keys) {
-        if (!this.isConnected || keys.length === 0) return;
-        try {
-            await this.client.del(keys.flat());
-        } catch (e) {
-            console.warn('[Cache] del failed:', e.message);
-        }
+        for (const key of keys.flat()) this.entries.delete(key);
     }
 
-    /**
-     * Namunaga mos kalitlarni o'chiradi (masalan `project:*`).
-     *
-     * `SCAN` ishlatiladi - `KEYS` katta bazada serverni bloklaydi.
-     */
+    /** Namunaga mos kalitlarni o'chiradi (`*` - istalgan belgilar). */
     async delByPattern(pattern) {
-        if (!this.isConnected) return;
-        try {
-            for await (const key of this.client.scanIterator({ MATCH: pattern, COUNT: 100 })) {
-                await this.client.del(key);
-            }
-        } catch (e) {
-            console.warn('[Cache] delByPattern failed:', e.message);
+        const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp(`^${escaped.replace(/\*/g, '.*')}$`);
+        for (const key of [...this.entries.keys()]) {
+            if (re.test(key)) this.entries.delete(key);
         }
     }
 }
