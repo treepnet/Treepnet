@@ -23,10 +23,14 @@ import 'package:treepnet/l10n/l10n.dart';
 /// loaded to reach the tapped one). Pass [posts] to scroll through a specific,
 /// fixed set instead: a place's grid has to stay inside that place, otherwise
 /// tapping a photo of one spot walks you into everyone else's.
+/// The next [limit] posts of a list from [offset] (a profile's, for one).
+typedef PostsLoader = Future<List<Post>> Function(int offset, int limit);
+
 class NewestPostsPage extends StatefulWidget {
   const NewestPostsPage({
     required this.startPostId,
     this.posts,
+    this.loadMore,
     this.order = PostOrder.newest,
     super.key,
   });
@@ -35,6 +39,12 @@ class NewestPostsPage extends StatefulWidget {
 
   /// The exact feed to scroll, in order. Null means every post, in [order].
   final List<Post>? posts;
+
+  /// Where [posts] goes on: a profile grid passes the posts it has loaded so
+  /// far (21, 42, …) and this for the rest. Without it the list stopped at the
+  /// last post the grid had loaded, though the author had older ones. Null:
+  /// [posts] is the whole list (one place's posts).
+  final PostsLoader? loadMore;
 
   /// The order it pages in when [posts] is null: the grid it was opened from
   /// (Trends ranks its posts), so the posts around the tapped one are the
@@ -74,9 +84,10 @@ class _NewestPostsPageState extends State<NewestPostsPage> {
   /// [_onRemoved]).
   StreamSubscription<PostRemoval>? _removals;
 
-  /// Only the "newest" feed paginates. A passed-in [NewestPostsPage.posts] set
-  /// is a complete, bounded list (e.g. one place's posts) and must not grow.
-  bool get _paginates => widget.posts == null;
+  /// The "newest" feed paginates, and so does a passed list with
+  /// [NewestPostsPage.loadMore]. Without it a passed list is complete and
+  /// bounded (e.g. one place's posts) and must not grow.
+  bool get _paginates => widget.posts == null || widget.loadMore != null;
 
   @override
   void initState() {
@@ -121,7 +132,8 @@ class _NewestPostsPageState extends State<NewestPostsPage> {
     List<Post> initial;
     if (widget.posts != null) {
       initial = widget.posts!;
-      _hasMore = false;
+      _hasMore = widget.loadMore != null;
+      _nextOffset = initial.length;
     } else {
       final (posts, offset, reachedEnd, failed) = await _loadAround(
         context.read<PostsRepository>(),
@@ -196,11 +208,14 @@ class _NewestPostsPageState extends State<NewestPostsPage> {
     if (_loadingMore) return;
     _loadingMore = true;
     try {
-      final batch = await context.read<PostsRepository>().getPage(
-        offset: _nextOffset,
-        limit: _pageSize,
-        order: widget.order,
-      );
+      final loader = widget.loadMore;
+      final batch = loader != null
+          ? await loader(_nextOffset, _pageSize)
+          : await context.read<PostsRepository>().getPage(
+              offset: _nextOffset,
+              limit: _pageSize,
+              order: widget.order,
+            );
       _nextOffset += batch.length;
       if (!mounted) return;
       setState(() {

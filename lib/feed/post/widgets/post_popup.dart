@@ -64,6 +64,7 @@ class PostPopup extends StatelessWidget {
     required this.builder,
     this.showComments = true,
     this.feedPosts,
+    this.feedLoadMore,
     this.postOrder = PostOrder.newest,
     super.key,
   });
@@ -76,6 +77,10 @@ class PostPopup extends StatelessWidget {
   /// The feed a tap should scroll through. Null falls back to every post in
   /// [postOrder] — right for Trends and a profile, wrong for a place.
   final List<Post>? feedPosts;
+
+  /// Where [feedPosts] goes on, when it is only what has loaded so far (a
+  /// profile grid's window).
+  final PostsLoader? feedLoadMore;
 
   /// The order of that fallback: the grid's own (Trends ranks its posts).
   final PostOrder postOrder;
@@ -96,6 +101,7 @@ class PostPopup extends StatelessWidget {
         builder: builder,
         showComments: showComments,
         feedPosts: feedPosts,
+        feedLoadMore: feedLoadMore,
         postOrder: postOrder,
       ),
     );
@@ -109,6 +115,7 @@ class PopupModal extends StatefulWidget {
     required this.builder,
     required this.showComments,
     this.feedPosts,
+    this.feedLoadMore,
     this.postOrder = PostOrder.newest,
     super.key,
   });
@@ -118,6 +125,7 @@ class PopupModal extends StatefulWidget {
   final WidgetBuilder builder;
   final bool showComments;
   final List<Post>? feedPosts;
+  final PostsLoader? feedLoadMore;
   final PostOrder postOrder;
 
   @override
@@ -229,6 +237,7 @@ class _PostPopupState extends State<PopupModal>
               builder: (_) => NewestPostsPage(
                 startPostId: widget.block.id,
                 posts: widget.feedPosts,
+                loadMore: widget.feedLoadMore,
                 order: widget.postOrder,
               ),
             ),

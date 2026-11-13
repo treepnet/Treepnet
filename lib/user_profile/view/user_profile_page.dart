@@ -165,48 +165,52 @@ class _UserProfileViewState extends State<UserProfileView>
                                   // do for nearly everyone.
                                   if (access != ProfileAccess.locked)
                                     SliverPersistentHeader(
-                                    // Always pinned: the tab bar has to stay on screen so
-                                    // that a tab whose content fills the viewport (the
-                                    // full-height travel map) can't scroll it away and
-                                    // trap the user with no way back to the grid.
-                                    pinned: true,
-                                    delegate: _SliverAppBarDelegate(
-                                      TabBar(
-                                        indicatorSize: TabBarIndicatorSize.tab,
-                                        padding: EdgeInsets.zero,
-                                        labelPadding: EdgeInsets.zero,
-                                        indicatorWeight: 1,
-                                        tabs: [
-                                          Tab(
-                                            // Figma icon set; the other two tabs stay on
-                                            // Material until their icons are exported.
-                                            icon: Assets.icons.globusLined.svg(
-                                              width: AppSize.iconSizeMedium,
-                                              height: AppSize.iconSizeMedium,
-                                              colorFilter:
-                                                  const ColorFilter.mode(
-                                                    AppColors.white,
-                                                    BlendMode.srcIn,
+                                      // Always pinned: the tab bar has to stay on screen so
+                                      // that a tab whose content fills the viewport (the
+                                      // full-height travel map) can't scroll it away and
+                                      // trap the user with no way back to the grid.
+                                      pinned: true,
+                                      delegate: _SliverAppBarDelegate(
+                                        TabBar(
+                                          indicatorSize:
+                                              TabBarIndicatorSize.tab,
+                                          padding: EdgeInsets.zero,
+                                          labelPadding: EdgeInsets.zero,
+                                          indicatorWeight: 1,
+                                          tabs: [
+                                            Tab(
+                                              // Figma icon set; the other two tabs stay on
+                                              // Material until their icons are exported.
+                                              icon: Assets.icons.globusLined
+                                                  .svg(
+                                                    width:
+                                                        AppSize.iconSizeMedium,
+                                                    height:
+                                                        AppSize.iconSizeMedium,
+                                                    colorFilter:
+                                                        const ColorFilter.mode(
+                                                          AppColors.white,
+                                                          BlendMode.srcIn,
+                                                        ),
                                                   ),
+                                              iconMargin: EdgeInsets.zero,
                                             ),
-                                            iconMargin: EdgeInsets.zero,
-                                          ),
-                                          Tab(
-                                            icon: Assets.icons.postsLined.svg(
-                                              width: AppSize.iconSizeMedium,
-                                              height: AppSize.iconSizeMedium,
-                                              colorFilter:
-                                                  const ColorFilter.mode(
-                                                    AppColors.white,
-                                                    BlendMode.srcIn,
-                                                  ),
+                                            Tab(
+                                              icon: Assets.icons.postsLined.svg(
+                                                width: AppSize.iconSizeMedium,
+                                                height: AppSize.iconSizeMedium,
+                                                colorFilter:
+                                                    const ColorFilter.mode(
+                                                      AppColors.white,
+                                                      BlendMode.srcIn,
+                                                    ),
+                                              ),
+                                              iconMargin: EdgeInsets.zero,
                                             ),
-                                            iconMargin: EdgeInsets.zero,
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                  ),
                                 ],
                               ],
                             ),
@@ -225,19 +229,19 @@ class _UserProfileViewState extends State<UserProfileView>
                           ),
                         ),
                         ProfileAccess.visible => TabBarView(
-                              physics: onMap
-                                  ? const NeverScrollableScrollPhysics()
-                                  : null,
-                              children: [
-                                UserProfileTravelMap(userId: widget.userId),
-                                PostsPage(
-                                  key: _gridKey,
-                                  sponsoredPost: props.sponsoredPost,
-                                ),
-                              ],
+                          physics: onMap
+                              ? const NeverScrollableScrollPhysics()
+                              : null,
+                          children: [
+                            UserProfileTravelMap(userId: widget.userId),
+                            PostsPage(
+                              key: _gridKey,
+                              sponsoredPost: props.sponsoredPost,
                             ),
+                          ],
+                        ),
                       },
-                  );
+                    );
                   }
 
                   // Locked for a private account the viewer doesn't follow,
@@ -435,8 +439,8 @@ class _PostsPageState extends State<PostsPage>
                       index >= posts.length - 1) {
                     _maybeGrow(posts.length);
                   }
-                  final block = widget.sponsoredPost ??
-                      posts[index].toPostSmallBlock;
+                  final block =
+                      widget.sponsoredPost ?? posts[index].toPostSmallBlock;
                   final multiMedia = block.media.length > 1;
 
                   return PostPopup(
@@ -445,6 +449,16 @@ class _PostsPageState extends State<PostsPage>
                     // Keep the feed inside this profile; a sponsored tile keeps
                     // the default (newest) feed.
                     feedPosts: widget.sponsoredPost != null ? null : posts,
+                    // The grid has loaded a window (21, 42, …); the list
+                    // opened from it goes on with the author's older posts.
+                    feedLoadMore: widget.sponsoredPost != null
+                        ? null
+                        : (offset, limit) async =>
+                              (await bloc
+                                      .userPostsRaw(limit: offset + limit)
+                                      .first)
+                                  .skip(offset)
+                                  .toList(),
                     builder: (_) => PostSmall(
                       key: ValueKey(block.id),
                       pinned: false,
