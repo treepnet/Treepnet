@@ -2919,6 +2919,30 @@ abstract class AppLocalizations {
   /// **'Couldn\'t post'**
   String get postNotPublishedText;
 
+  /// No description provided for @storyPostingText.
+  ///
+  /// In en, this message translates to:
+  /// **'Posting story…'**
+  String get storyPostingText;
+
+  /// No description provided for @storyPostedText.
+  ///
+  /// In en, this message translates to:
+  /// **'Story posted'**
+  String get storyPostedText;
+
+  /// No description provided for @storyNotPublishedText.
+  ///
+  /// In en, this message translates to:
+  /// **'Story not posted'**
+  String get storyNotPublishedText;
+
+  /// No description provided for @waitingForNetworkText.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for network…'**
+  String get waitingForNetworkText;
+
   /// No description provided for @chatsLoadFailedText.
   ///
   /// In en, this message translates to:

@@ -1739,6 +1739,18 @@ class AppLocalizationsRu extends AppLocalizations {
   String get postNotPublishedText => 'Не удалось опубликовать';
 
   @override
+  String get storyPostingText => 'Публикуется история…';
+
+  @override
+  String get storyPostedText => 'История опубликована';
+
+  @override
+  String get storyNotPublishedText => 'История не опубликована';
+
+  @override
+  String get waitingForNetworkText => 'Ожидание сети…';
+
+  @override
   String get chatsLoadFailedText => 'Не удалось загрузить чаты';
 
   @override

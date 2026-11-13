@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
@@ -41,6 +42,9 @@ class _Bucket extends Fake implements MediaBucket {
   /// Remote paths whose upload throws.
   final failing = <String>{};
 
+  /// No connection: every upload fails before reaching the server.
+  bool offline = false;
+
   /// Remote paths whose upload waits for this to complete.
   final held = <String, Completer<void>>{};
 
@@ -63,6 +67,12 @@ class _Bucket extends Fake implements MediaBucket {
     mostAtOnce = inFlight > mostAtOnce ? inFlight : mostAtOnce;
     try {
       await held[path]?.future;
+      if (offline) {
+        throw DioException(
+          requestOptions: RequestOptions(path: path),
+          type: DioExceptionType.connectionError,
+        );
+      }
       if (failing.contains(path)) throw Exception('upload failed: $path');
       uploaded.add(path);
       return path;
@@ -389,5 +399,86 @@ void main() {
     expect(bucket.linkUsed.containsKey('p1/image_0'), isTrue);
     expect(bucket.linkUsed['p1/image_0'], isNull);
     expect(created.single.postId, 'p1');
+  });
+
+  /// The attempts counted for each queued upload, by its id.
+  Future<Map<String, int>> attemptsNow() async {
+    final prefs = await SharedPreferences.getInstance();
+    return {
+      for (final raw
+          in prefs.getStringList('treepnet_pending_uploads_queue') ??
+              const <String>[])
+        (json.decode(raw) as Map<String, dynamic>)['id'] as String:
+            (json.decode(raw) as Map<String, dynamic>)['attempts'] as int,
+    };
+  }
+
+  test('PowerSync disconnected: the files still go up', () async {
+    await open(posts: [_post('p1')], tasks: [task('p1', 0)]);
+    when(() => db.currentStatus).thenReturn(const SyncStatus());
+    await run();
+
+    expect(bucket.uploaded, ['p1/image_0']);
+    expect(created.single.postId, 'p1');
+  });
+
+  test(
+    'no connection: waits for the network, not counted as a failure',
+    () async {
+      await open(posts: [_post('p1')], tasks: [task('p1', 0, attempts: 2)]);
+      when(() => db.currentStatus).thenReturn(const SyncStatus());
+      bucket.offline = true;
+      await run();
+
+      expect(queue.status.value?.waitingForNetwork, isTrue);
+      expect(queue.status.value?.failed, isFalse, reason: 'no Retry / Cancel');
+      expect(await attemptsNow(), {'p1_0': 2}, reason: 'not one more attempt');
+      expect(created, isEmpty);
+
+      // Back online (Retry stands in for the wait).
+      bucket.offline = false;
+      await queue.retry('p1');
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(created.single.postId, 'p1');
+      expect(queue.status.value?.waitingForNetwork, isNot(isTrue));
+    },
+  );
+
+  test(
+    'no connection to the storage while PowerSync is online: a failure',
+    () async {
+      await open(posts: [_post('p1')], tasks: [task('p1', 0, attempts: 2)]);
+      bucket.offline = true;
+      await run();
+
+      expect(queue.status.value?.failed, isTrue);
+      expect(queue.status.value?.waitingForNetwork, isFalse);
+    },
+  );
+
+  test("a story's banner says it is a story", () async {
+    await open(
+      stories: [_story('s1')],
+      tasks: [task('s1', 0, bucket: 'stories', attempts: 2)],
+    );
+    bucket.failing.add('s1/image_0');
+    await run();
+    expect(queue.status.value?.failed, isTrue);
+    expect(queue.status.value?.isStory, isTrue);
+
+    bucket.failing.clear();
+    await queue.retry('s1');
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(createdStories, ['s1']);
+    expect(queue.status.value?.posted, isTrue);
+    expect(queue.status.value?.isStory, isTrue);
+  });
+
+  test("a post's banner isn't a story's", () async {
+    await open(posts: [_post('p1')], tasks: [task('p1', 0, attempts: 2)]);
+    bucket.failing.add('p1/image_0');
+    await run();
+    expect(queue.status.value?.failed, isTrue);
+    expect(queue.status.value?.isStory, isFalse);
   });
 }

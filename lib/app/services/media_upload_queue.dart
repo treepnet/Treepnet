@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+import 'package:dio/dio.dart' show DioException, DioExceptionType;
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -358,10 +359,19 @@ class PostPublishStatus {
     this.thumbnail,
     this.failed = false,
     this.posted = false,
+    this.isStory = false,
+    this.waitingForNetwork = false,
   });
 
   /// The post's or story's id.
   final String id;
+
+  /// A story, not a post: the banner says so.
+  final bool isStory;
+
+  /// Its files couldn't reach the server (no connection): they go once it is
+  /// back, and the banner says it is waiting for the network.
+  final bool waitingForNetwork;
 
   /// 0.0 – 1.0: files prepared and uploaded so far.
   final double progress;
@@ -452,6 +462,10 @@ class MediaUploadQueue {
   /// After this many failed uploads the banner offers Retry / Cancel.
   static const int _failAfterAttempts = 3;
 
+  /// An upload that couldn't reach the server is tried again after this,
+  /// without counting as a failed attempt ([_waitForNetwork]).
+  static const Duration _networkWait = Duration(seconds: 15);
+
   /// Files uploaded at once. They went one at a time, each behind its own
   /// link request: a 10-photo post on a mobile connection took far longer
   /// than its bytes needed.
@@ -500,6 +514,10 @@ class MediaUploadQueue {
   PostPublishStatus? _posted;
   Timer? _postedTimer;
 
+  /// The last uploads tried couldn't reach the server: the banner says it is
+  /// waiting for the network. Cleared once one gets through.
+  bool _offline = false;
+
   /// The oldest post being published, or null when there is none.
   ValueListenable<PostPublishStatus?> get status => _status;
 
@@ -514,8 +532,8 @@ class MediaUploadQueue {
   void start() {
     shared.logI('MediaUploadQueue: Starting background worker...');
 
-    // Listen to PowerSync connection status changes.
-    // When we transition to connected, trigger queue processing.
+    // Uploads don't wait for PowerSync (they go to the media storage, not
+    // to it), but its reconnecting is a good moment to try again.
     _syncStatusSubscription = _db.statusStream.listen((status) {
       if (status.connected) {
         shared.logI('MediaUploadQueue: Database status changed to CONNECTED. Processing queue...');
@@ -922,7 +940,7 @@ class MediaUploadQueue {
       }
       try {
         if (await creator(story)) {
-          _showPosted(story.storyId);
+          _showPosted(story.storyId, isStory: true);
           await _removeStory(story.storyId);
           shared.logI('MediaUploadQueue: Created queued story ${story.storyId}.');
         }
@@ -1108,6 +1126,9 @@ class MediaUploadQueue {
       }
       final story = stories.first;
       final tasks = _loadTasks().where((t) => t.postId == story.storyId);
+      final failed =
+          story.error != null ||
+          tasks.any((t) => t.attempts >= _failAfterAttempts);
       _status.value = PostPublishStatus(
         id: story.storyId,
         progress: story.contentUrl != null
@@ -1116,9 +1137,9 @@ class MediaUploadQueue {
             ? 0.3
             : 0.03,
         thumbnail: await _thumbnailFor(story.storyId, story.sourcePath),
-        failed:
-            story.error != null ||
-            tasks.any((t) => t.attempts >= _failAfterAttempts),
+        failed: failed,
+        isStory: true,
+        waitingForNetwork: _offline && !failed && tasks.isNotEmpty,
       );
       return;
     }
@@ -1132,14 +1153,16 @@ class MediaUploadQueue {
     final progress = total == 0
         ? 0.0
         : (prepared * 0.3 + uploaded * 0.7) / total;
+    final failed =
+        draft.error != null ||
+        tasks.any((t) => t.attempts >= _failAfterAttempts);
     _status.value = PostPublishStatus(
       id: draft.postId,
       // Never shows 0 % (it has started) or 100 % (that means posted).
       progress: progress.clamp(0.03, 0.95),
       thumbnail: await _thumbnailFor(draft.postId, draft.thumbnailPath),
-      failed:
-          draft.error != null ||
-          tasks.any((t) => t.attempts >= _failAfterAttempts),
+      failed: failed,
+      waitingForNetwork: _offline && !failed && tasks.isNotEmpty,
     );
   }
 
@@ -1155,12 +1178,13 @@ class MediaUploadQueue {
   }
 
   /// Shows "Posted" for the post or story [id] for a moment.
-  void _showPosted(String id) {
+  void _showPosted(String id, {bool isStory = false}) {
     _posted = PostPublishStatus(
       id: id,
       progress: 1,
       thumbnail: _thumbnails[id],
       posted: true,
+      isStory: isStory,
     );
     _postedTimer?.cancel();
     _postedTimer = Timer(const Duration(milliseconds: 1500), () {
@@ -1175,13 +1199,10 @@ class MediaUploadQueue {
 
     shared.logI('MediaUploadQueue: Found ${tasks.length} pending upload tasks.');
 
-    // Verify online connectivity before starting.
-    final isOnline = _db.currentStatus.connected;
-    if (!isOnline) {
-      shared.logW('MediaUploadQueue: PowerSync is not connected. Skipping upload cycle.');
-      return;
-    }
-
+    // Not held back while PowerSync is disconnected: the files go to the
+    // media storage, which may well be reachable when PowerSync isn't (it
+    // was stopped, or slow to reconnect), and an upload with no connection
+    // just waits for it ([_waitForNetwork]).
     // Every due task gets its own try: one failing file no longer blocks the
     // ones queued after it.
     final now = DateTime.now();
@@ -1194,14 +1215,31 @@ class MediaUploadQueue {
     ];
     if (due.isNotEmpty) {
       final links = await _linksFor(due);
+      // The backend answered: the network is back, the banner can say so
+      // while the files go up.
+      if (links.links.isNotEmpty && _offline) {
+        _offline = false;
+        await _refreshStatus();
+      }
       var next = 0;
+      var noConnection = false;
+      var wentThrough = false;
       Future<void> worker() async {
         while (next < due.length) {
           final task = due[next++];
           try {
             await _processTask(task, links);
+            wentThrough = true;
           } catch (error, stackTrace) {
-            await _recordFailure(task, error, stackTrace);
+            // PowerSync connected means the phone is online: then it is the
+            // storage that can't be reached, a failure like any other (so it
+            // ends in Retry / Cancel, not in waiting forever).
+            if (_isNoConnection(error) && !_db.currentStatus.connected) {
+              noConnection = true;
+              await _waitForNetwork(task, error);
+            } else {
+              await _recordFailure(task, error, stackTrace);
+            }
           }
         }
       }
@@ -1210,8 +1248,38 @@ class MediaUploadQueue {
         for (var i = 0; i < math.min(_parallelUploads, due.length); i++)
           worker(),
       ]);
+      _offline = noConnection && !wentThrough;
     }
     _scheduleRetry();
+  }
+
+  /// The phone couldn't reach the server at all: no network, no DNS, the
+  /// connection couldn't be opened (also when refreshing the sign-in token),
+  /// as opposed to the server refusing or an upload failing midway.
+  static bool _isNoConnection(Object error) {
+    if (error is SocketException) return true;
+    if (error is DioException) {
+      return error.type == DioExceptionType.connectionError ||
+          error.type == DioExceptionType.connectionTimeout ||
+          error.error is SocketException;
+    }
+    return error.toString().contains('network-request-failed');
+  }
+
+  /// Tries [task] again in [_networkWait], without counting it as a failed
+  /// attempt or reporting it: a phone offline for an hour has no broken
+  /// upload.
+  Future<void> _waitForNetwork(PendingUploadTask task, Object error) async {
+    await _saveTask(
+      task.retryLater(
+        attempts: task.attempts,
+        at: DateTime.now().add(_networkWait),
+      ),
+    );
+    shared.logW(
+      'MediaUploadQueue: No connection for task ${task.id} '
+      '(${error.runtimeType}); trying again in ${_networkWait.inSeconds}s.',
+    );
   }
 
   /// Write links for every file of [tasks] (the media, video first frames and

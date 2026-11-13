@@ -1712,6 +1712,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postNotPublishedText => 'Couldn\'t post';
 
   @override
+  String get storyPostingText => 'Posting story…';
+
+  @override
+  String get storyPostedText => 'Story posted';
+
+  @override
+  String get storyNotPublishedText => 'Story not posted';
+
+  @override
+  String get waitingForNetworkText => 'Waiting for network…';
+
+  @override
   String get chatsLoadFailedText => 'Couldn\'t load chats';
 
   @override

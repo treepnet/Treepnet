@@ -459,9 +459,10 @@ class _NewPostsButton extends StatelessWidget {
 }
 
 /// Non-blocking "Posting… N%" banner shown under the stories row while a post
-/// is being published. Driven by [MediaUploadQueue.status], so it also shows a
-/// post still on its way after the app was reopened, and offers Retry / Cancel
-/// when publishing fails.
+/// or story is being published. Driven by [MediaUploadQueue.status], so it
+/// also shows a post still on its way after the app was reopened, says when
+/// it is waiting for the network, and offers Retry / Cancel when publishing
+/// fails.
 class _UploadProgressBanner extends StatelessWidget {
   const _UploadProgressBanner();
 
@@ -475,6 +476,14 @@ class _UploadProgressBanner extends StatelessWidget {
           if (status == null) return const SizedBox.shrink();
           final pct = (status.progress * 100).clamp(0, 100).round();
           final thumbnail = status.thumbnail;
+          final l10n = context.l10n;
+          final label = status.posted
+              ? (status.isStory ? l10n.storyPostedText : l10n.postedText)
+              : status.waitingForNetwork
+              ? l10n.waitingForNetworkText
+              : status.isStory
+              ? l10n.storyPostingText
+              : l10n.postingText;
           return Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.md,
@@ -513,20 +522,20 @@ class _UploadProgressBanner extends StatelessWidget {
                           children: [
                             Expanded(
                               child: Text(
-                                context.l10n.postNotPublishedText,
+                                status.isStory
+                                    ? l10n.storyNotPublishedText
+                                    : l10n.postNotPublishedText,
                                 style: context.bodyMedium?.copyWith(
                                   fontWeight: AppFontWeight.semiBold,
                                 ),
                               ),
                             ),
                             TextButton(
-                              onPressed: () =>
-                                  queue.retry(status.id),
+                              onPressed: () => queue.retry(status.id),
                               child: Text(context.l10n.retryText),
                             ),
                             TextButton(
-                              onPressed: () =>
-                                  queue.cancel(status.id),
+                              onPressed: () => queue.cancel(status.id),
                               child: Text(context.l10n.cancelText),
                             ),
                           ],
@@ -539,19 +548,16 @@ class _UploadProgressBanner extends StatelessWidget {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  status.posted
-                                      ? context.l10n.postedText
-                                      : context.l10n.postingText,
+                                  label,
                                   style: context.bodyMedium?.copyWith(
                                     fontWeight: AppFontWeight.semiBold,
                                   ),
                                 ),
                                 Text(
                                   '$pct%',
-                                  style: context.textTheme.bodyMedium
-                                      ?.copyWith(
-                                        color: AppColors.textSecondary,
-                                      ),
+                                  style: context.textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.textSecondary,
+                                  ),
                                 ),
                               ],
                             ),
