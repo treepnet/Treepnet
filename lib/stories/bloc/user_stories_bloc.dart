@@ -3,12 +3,10 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:bloc/bloc.dart';
-import 'package:json_annotation/json_annotation.dart';
 import 'package:shared/shared.dart';
 import 'package:stories_repository/stories_repository.dart';
 import 'package:user_repository/user_repository.dart';
 
-part 'user_stories_bloc.g.dart';
 part 'user_stories_event.dart';
 part 'user_stories_state.dart';
 
@@ -25,8 +23,6 @@ class UserStoriesBloc extends Bloc<UserStoriesEvent, UserStoriesState> {
       // adding another must replace it, not stack one more on top.
       transformer: restartable(),
     );
-    on<UserStoriesStorySeenRequested>(_onUserStoriesStorySeenRequested);
-    on<UserStoriesStoryDeleteRequested>(_onUserStoriesStoryDeleteRequested);
   }
 
   final User _author;
@@ -49,18 +45,4 @@ class UserStoriesBloc extends Bloc<UserStoriesEvent, UserStoriesState> {
       ),
     );
   }
-
-  Future<void> _onUserStoriesStorySeenRequested(
-    UserStoriesStorySeenRequested event,
-    Emitter<UserStoriesState> emit,
-  ) => _storiesRepository.setUserStorySeen(
-    story: event.story,
-    userId: event.userId,
-  );
-
-  Future<void> _onUserStoriesStoryDeleteRequested(
-    UserStoriesStoryDeleteRequested event,
-    Emitter<UserStoriesState> emit,
-  ) => _storiesRepository.deleteStory(id: event.id);
-
 }

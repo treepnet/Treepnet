@@ -231,12 +231,6 @@ abstract class AppLocalizations {
   /// **'Successfully saved'**
   String get successfullySavedText;
 
-  /// No description provided for @tapToTypeText.
-  ///
-  /// In en, this message translates to:
-  /// **'Tap to type...'**
-  String get tapToTypeText;
-
   /// No description provided for @noPostsText.
   ///
   /// In en, this message translates to:

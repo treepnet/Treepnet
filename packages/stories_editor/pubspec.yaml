@@ -21,8 +21,6 @@ dependencies:
   #own packages
   gal: ^2.3.2
   go_router: ^14.2.7
-  # image
-  image: ^4.1.4
   #photo_view:
   #  git:
   #    url: https://github.com/bluefireteam/photo_view
@@ -46,29 +44,8 @@ flutter:
     - packages/stories_editor/assets/svg/time.svg
     - packages/stories_editor/assets/svg/place.svg
     - packages/stories_editor/assets/svg/done.svg
-    - packages/stories_editor/assets/icons/align_center.png
-    - packages/stories_editor/assets/icons/align_left.png
-    - packages/stories_editor/assets/icons/align_rigth.png
-    - packages/stories_editor/assets/icons/arrow.png
-    - packages/stories_editor/assets/icons/brush.png
-    - packages/stories_editor/assets/icons/check.png
-    - packages/stories_editor/assets/icons/circular_gradient.png
-    - packages/stories_editor/assets/icons/colorpalette.png
-    - packages/stories_editor/assets/icons/download.png
-    - packages/stories_editor/assets/icons/draft.png
-    - packages/stories_editor/assets/icons/draw.png
-    - packages/stories_editor/assets/icons/font_backGround.png
-    - packages/stories_editor/assets/icons/marker.png
-    - packages/stories_editor/assets/icons/neon.png
-    - packages/stories_editor/assets/icons/pen.png
     - packages/stories_editor/assets/icons/pickColor.png
-    - packages/stories_editor/assets/icons/return.png
-    - packages/stories_editor/assets/icons/stickers.png
-    - packages/stories_editor/assets/icons/text.png
     - packages/stories_editor/assets/icons/trash.png
-    - packages/stories_editor/assets/icons/photo_filter.png
-    - packages/stories_editor/assets/icons/video_trim.png
-    - packages/stories_editor/assets/images/instagram_logo.png
 
   fonts:
     # Each covers Latin, Russian and Uzbek Cyrillic (Ўў Ққ Ғғ Ҳҳ) — a font

@@ -90,9 +90,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get successfullySavedText => 'Успешно сохранено';
 
   @override
-  String get tapToTypeText => 'Нажмите, чтобы печатать...';
-
-  @override
   String get noPostsText => 'Постов пока нет';
 
   @override

@@ -112,7 +112,6 @@ StoriesEditorLocalizationDelegate storiesEditorLocalizationDelegate(
     loseAllEditsText: l10n.loseAllEditsText,
     saveDraft: l10n.saveDraft,
     successfullySavedText: l10n.successfullySavedText,
-    tapToTypeText: l10n.tapToTypeText,
     uploadText: l10n.uploadText,
     storyNotReadyText: l10n.storyNotReadyText,
   );

@@ -10,7 +10,6 @@ import 'package:stories_editor/src/domain/providers/notifiers/text_editing_notif
 import 'package:stories_editor/src/presentation/text_editor_view/widgets/font_selector.dart';
 import 'package:stories_editor/src/presentation/text_editor_view/widgets/text_field_widget.dart';
 import 'package:stories_editor/src/presentation/utils/constants/app_enums.dart';
-import 'package:stories_editor/src/presentation/widgets/color_selector.dart';
 
 class TextEditor extends StatefulWidget {
   final BuildContext context;
@@ -97,20 +96,6 @@ class _TextEditorState extends State<TextEditor> {
                               ),
                             ),
                           ),
-                        ),
-
-                        /// font color selector (bottom)
-                        Positioned(
-                          bottom: screenUtil.screenHeight * 0.21,
-                          child: Visibility(
-                              visible: !editorNotifier.isFontFamily,
-                              child: const Align(
-                                alignment: Alignment.bottomCenter,
-                                child: Padding(
-                                  padding: EdgeInsets.only(bottom: 20),
-                                  child: ColorSelector(),
-                                ),
-                              )),
                         ),
                       ],
                     )),

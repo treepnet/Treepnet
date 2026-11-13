@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:collection/collection.dart';
 import 'package:database_client/database_client.dart';
@@ -50,17 +49,6 @@ class StoriesRepository extends StoriesBaseRepository {
     locationName: locationName,
     locationLat: locationLat,
     locationLng: locationLng,
-  );
-
-  @override
-  Future<String> uploadStoryMedia({
-    required String storyId,
-    required File imageFile,
-    required Uint8List imageBytes,
-  }) => _databaseClient.uploadStoryMedia(
-    storyId: storyId,
-    imageFile: imageFile,
-    imageBytes: imageBytes,
   );
 
   @override
@@ -285,28 +273,6 @@ class StoriesRepository extends StoriesBaseRepository {
   /// Removes a highlight and its items.
   Future<void> deleteStoryHighlight({required String highlightId}) =>
       _databaseClient.deleteStoryHighlight(highlightId: highlightId);
-
-  /// Adds an existing story to an existing highlight.
-  Future<void> addStoryToHighlight({
-    required String highlightId,
-    required String storyId,
-  }) => _databaseClient.addStoryToHighlight(
-    highlightId: highlightId,
-    storyId: storyId,
-  );
-
-  /// Sets a story's own location so it shows on the owner's map at that place.
-  Future<void> setStoryLocation({
-    required String storyId,
-    required double lat,
-    required double lng,
-    String? name,
-  }) => _databaseClient.setStoryLocation(
-    storyId: storyId,
-    lat: lat,
-    lng: lng,
-    name: name,
-  );
 
   /// Whether the story is pinned to any place or highlight.
   Future<bool> isStoryPinned({required String storyId}) =>

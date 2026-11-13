@@ -3,18 +3,6 @@ import 'package:stories_editor/src/presentation/utils/constants/app_colors.dart'
 import 'package:stories_editor/src/presentation/utils/constants/font_family.dart';
 
 class ControlNotifier extends ChangeNotifier {
-  int _gradientIndex = 0;
-
-  /// current gradient index
-  int get gradientIndex => _gradientIndex;
-
-  /// get current gradient index
-  set gradientIndex(int index) {
-    /// set new current gradient index
-    _gradientIndex = index;
-    notifyListeners();
-  }
-
   bool _isTextEditing = false;
 
   /// is text editor open
@@ -45,33 +33,6 @@ class ControlNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
-  List<List<Color>>? _gradientColors = AppColors.gradientBackgroundColors;
-
-  /// here you can define your own background gradients
-  List<List<Color>>? get gradientColors => _gradientColors;
-  set gradientColors(List<List<Color>>? color) {
-    _gradientColors = color;
-    notifyListeners();
-  }
-
-  Widget? _middleBottomWidget;
-
-  /// you can add a custom widget on the bottom
-  Widget? get middleBottomWidget => _middleBottomWidget;
-  set middleBottomWidget(Widget? widget) {
-    _middleBottomWidget = widget;
-    notifyListeners();
-  }
-
-  Future<bool>? _exitDialogWidget;
-
-  /// you can create you own exit window
-  Future<bool>? get exitDialogWidget => _exitDialogWidget;
-  set exitDialogWidget(Future<bool>? widget) {
-    _exitDialogWidget = widget;
-    notifyListeners();
-  }
-
   List<Color>? _colorList = AppColors.defaultColors;
 
   /// you can add your own color palette list
@@ -86,13 +47,6 @@ class ControlNotifier extends ChangeNotifier {
   String get mediaPath => _mediaPath;
   set mediaPath(String media) {
     _mediaPath = media;
-    notifyListeners();
-  }
-
-  bool _isPhotoFilter = false;
-  bool get isPhotoFilter => _isPhotoFilter;
-  set isPhotoFilter(bool filter) {
-    _isPhotoFilter = filter;
     notifyListeners();
   }
 }

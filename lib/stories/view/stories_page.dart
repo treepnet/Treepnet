@@ -210,7 +210,7 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
   }
 
   /// The story-owner's "more" menu: Pin story (add to a place / highlight) and
-  /// Delete. Moved out of the old bottom-right [StoryOptions] overlay into the
+  /// Delete. Moved out of the old bottom-right options overlay into the
   /// footer; playback pauses while the menu is open and resumes after.
   Future<void> _openStoryMore() async {
     final story = _currentStory.value;
@@ -502,9 +502,6 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
                                               _stories[index].createdAt;
                                           _showAspectOf(_stories[index]);
                                         });
-                                    if (props.onStorySeen != null) {
-                                      props.onStorySeen!.call(index, _stories);
-                                    }
                                     WidgetsBinding.instance
                                         .addPostFrameCallback((_) {
                                           context.read<StoriesBloc>().add(
@@ -624,97 +621,6 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
   }
 }
 
-class StoryOptions extends StatelessWidget {
-  const StoryOptions({
-    required this.currentStory,
-    required this.controller,
-    required this.author,
-    required this.onStoryDeleted,
-    this.iconColor,
-    super.key,
-  });
-
-  final Story currentStory;
-  final StoryController controller;
-  final User author;
-  final ValueSetter<Story> onStoryDeleted;
-  final Color? iconColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final user = context.select((AppBloc bloc) => bloc.state.user);
-    final isMine = author.id == user.id;
-
-    if (!isMine) return const SizedBox.shrink();
-
-    return Row(
-      children: [
-        Tappable.faded(
-          onTap: () async {
-            controller.pause();
-            await context
-                .showListOptionsModal(
-                  options: [
-                    ModalOption(
-                      name: context.l10n.deleteText,
-                      actionTitle: context.l10n.deleteStoryText,
-                      actionContent: context.l10n.storyDeleteConfirmationText,
-                      actionYesText: context.l10n.deleteText,
-                      actionNoText: context.l10n.cancelText,
-                      icon: Assets.icons.trash.svg(
-                        height: AppSize.iconSizeMedium,
-                        colorFilter: const ColorFilter.mode(
-                          AppColors.red,
-                          BlendMode.srcIn,
-                        ),
-                      ),
-                      distractive: true,
-                      noAction: (context) {
-                        context.pop(false);
-                        controller.play();
-                      },
-                      onTap: () => context.read<StoriesBloc>().add(
-                        StoriesStoryDeleteRequested(
-                          id: currentStory.id,
-                          onStoryDeleted: () {
-                            onStoryDeleted.call(currentStory);
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
-                )
-                .then((option) {
-                  if (option == null) {
-                    controller.play();
-                    return;
-                  }
-                  void onTap() => option.onTap(context);
-                  onTap.call();
-                });
-          },
-          child: AnimatedDefaultTextStyle(
-            duration: 150.ms,
-            style: context.bodyMedium!.copyWith(
-              fontWeight: AppFontWeight.bold,
-              letterSpacing: 0.4,
-              color: iconColor,
-            ),
-            overflow: TextOverflow.ellipsis,
-            child: Column(
-              children: [
-                Icon(Icons.more_vert_outlined, color: iconColor),
-                const Gap.v(AppSpacing.sm),
-                Text(context.l10n.moreText),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 /// The author block at the foot of a story, per Figma: avatar on the left,
 /// then the name with its verified badge, the place the story was taken, and
 /// the date — each on its own line.
@@ -823,26 +729,21 @@ extension on List<Story> {
   List<StoryItem> toStoryItems(
     StoryController controller, {
     void Function(Story story, Size size)? onImageSize,
+  // Stories are photos only: the app has never made a video one, and none
+  // exist. One that did would show the "couldn't load" state, and the viewer
+  // would move on.
   }) => safeMap(
-    (story) => switch (story.contentType) {
-      StoryContentType.image => StoryItem.inlineImage(
-        url: story.contentUrl,
-        shown: story.seen,
-        controller: controller,
-        duration: 5.seconds,
-        roundedTop: false,
-        errorBuilder: (context, retry) => _StoryLoadError(onRetry: retry),
-        onImageSize: onImageSize == null
-            ? null
-            : (size) => onImageSize(story, size),
-      ),
-      StoryContentType.video => StoryItem.pageVideo(
-        story.contentUrl,
-        shown: story.seen,
-        controller: controller,
-        duration: story.duration == null ? null : (story.duration! * 1000).ms,
-      ),
-    },
+    (story) => StoryItem.inlineImage(
+      url: story.contentUrl,
+      shown: story.seen,
+      controller: controller,
+      duration: 5.seconds,
+      roundedTop: false,
+      errorBuilder: (context, retry) => _StoryLoadError(onRetry: retry),
+      onImageSize: onImageSize == null
+          ? null
+          : (size) => onImageSize(story, size),
+    ),
   ).toList();
 }
 

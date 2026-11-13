@@ -96,9 +96,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get successfullySavedText => 'Successfully saved';
 
   @override
-  String get tapToTypeText => 'Tap to type...';
-
-  @override
   String get noPostsText => 'No Posts Yet!';
 
   @override

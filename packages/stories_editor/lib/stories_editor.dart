@@ -19,18 +19,6 @@ export 'src/l10n/l10n.dart';
 export 'package:stories_editor/stories_editor.dart';
 
 class StoriesEditor extends StatelessWidget {
-  /// editor custom font families
-  final List<String>? fontFamilyList;
-
-  /// editor custom font families package
-  final bool? isCustomFontList;
-
-  /// editor custom color gradients
-  final List<List<Color>>? gradientColors;
-
-  /// editor custom logo
-  final Widget? middleBottomWidget;
-
   /// on done
   final Function(String)? onDone;
 
@@ -38,22 +26,6 @@ class StoriesEditor extends StatelessWidget {
   /// hides that button — the editor cannot read EXIF or reverse-geocode on its
   /// own, the app supplies both.
   final StoryPlaceResolver? onResolvePlace;
-
-  /// Function that should be executed when user wants to go back from the page.
-  /// Usually pops current page.
-  final VoidCallback? onGoBack;
-
-  /// on done button Text
-  final Widget? onDoneButtonStyle;
-
-  /// on back pressed
-  final Future<bool>? onBackPress;
-
-  /// editor custom color palette list
-  final List<Color>? colorList;
-
-  /// editor background color
-  final Color? editorBackgroundColor;
 
   final StoriesEditorLocalizationDelegate? storiesEditorLocalizationDelegate;
 
@@ -68,15 +40,6 @@ class StoriesEditor extends StatelessWidget {
     required this.onDone,
     this.onResolvePlace,
     this.initialMediaPath,
-    this.middleBottomWidget,
-    this.onGoBack,
-    this.colorList,
-    this.gradientColors,
-    this.fontFamilyList,
-    this.isCustomFontList,
-    this.onBackPress,
-    this.onDoneButtonStyle,
-    this.editorBackgroundColor,
     this.storiesEditorLocalizationDelegate,
   });
 
@@ -97,17 +60,9 @@ class StoriesEditor extends StatelessWidget {
             ChangeNotifierProvider(create: (_) => TextEditingNotifier()),
           ],
           child: MainView(
-      onResolvePlace: onResolvePlace,
+            onResolvePlace: onResolvePlace,
             onDone: onDone,
             initialMediaPath: initialMediaPath,
-            fontFamilyList: fontFamilyList,
-            isCustomFontList: isCustomFontList,
-            middleBottomWidget: middleBottomWidget,
-            gradientColors: gradientColors,
-            colorList: colorList,
-            onDoneButtonStyle: onDoneButtonStyle,
-            onBackPress: onBackPress,
-            editorBackgroundColor: editorBackgroundColor,
             storiesEditorLocalizationDelegate:
                 storiesEditorLocalizationDelegate,
           ),

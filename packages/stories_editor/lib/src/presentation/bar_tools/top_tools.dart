@@ -14,7 +14,6 @@ import 'package:stories_editor/src/presentation/utils/constants/app_enums.dart';
 import 'package:stories_editor/src/presentation/utils/mixins/safe_set_state_mixin.dart';
 import 'package:stories_editor/src/presentation/utils/modal_sheets.dart';
 import 'package:stories_editor/src/presentation/widgets/animated_onTap_button.dart';
-import 'package:stories_editor/src/presentation/widgets/tool_button.dart';
 
 /// Finds the country and region the story belongs to. Supplied by the app,
 /// which owns both the EXIF reading and the region index — the editor only
@@ -174,20 +173,6 @@ class _TopToolsState extends State<TopTools> with SafeSetStateMixin {
                   child: _icon('back'),
                 ),
 
-                /// only a blank story has a background to cycle
-                if (controlNotifier.mediaPath.isEmpty)
-                  _selectColor(
-                    controlProvider: controlNotifier,
-                    onTap: () {
-                      if (controlNotifier.gradientIndex >=
-                          controlNotifier.gradientColors!.length - 1) {
-                        safeSetState(() => controlNotifier.gradientIndex = 0);
-                      } else {
-                        safeSetState(() => controlNotifier.gradientIndex += 1);
-                      }
-                    },
-                  ),
-
                 Expanded(
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -222,38 +207,9 @@ class _TopToolsState extends State<TopTools> with SafeSetStateMixin {
       },
     );
   }
-
-  /// gradient color selector
-  Widget _selectColor({onTap, controlProvider}) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 5, right: 5, top: 8),
-      child: AnimatedOnTapButton(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(2),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-          ),
-          child: Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: controlProvider
-                      .gradientColors![controlProvider.gradientIndex]),
-              shape: BoxShape.circle,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
-/// A bare glyph with a comfortable tap target — no ring, unlike [ToolButton].
+/// A bare glyph with a comfortable tap target.
 class _BarButton extends StatelessWidget {
   const _BarButton({required this.onTap, required this.child});
 

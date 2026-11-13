@@ -12,22 +12,3 @@ final class UserStoriesSubscriptionRequested extends UserStoriesEvent {
 
   final String userId;
 }
-
-final class UserStoriesStorySeenRequested extends UserStoriesEvent {
-  const UserStoriesStorySeenRequested(this.story, this.userId);
-
-  final Story story;
-  final String userId;
-
-  @override
-  List<Object> get props => [story, userId];
-}
-
-final class UserStoriesStoryDeleteRequested extends UserStoriesEvent {
-  const UserStoriesStoryDeleteRequested(this.id);
-
-  final String id;
-
-  @override
-  List<Object> get props => [id];
-}

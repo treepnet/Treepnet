@@ -91,9 +91,6 @@ class DraggableWidget extends StatelessWidget {
           overlayWidget = Container();
         }
         break;
-
-      case ItemType.video:
-        overlayWidget = const Center();
     }
 
     /// set widget data position on main screen

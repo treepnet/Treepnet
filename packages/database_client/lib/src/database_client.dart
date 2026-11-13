@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:database_client/src/invite_badge.dart';
@@ -608,13 +607,6 @@ abstract class StoriesBaseRepository {
 
   /// Deletes the [Story] identified by [id].
   Future<void> deleteStory({required String id});
-
-  /// Uploads the story media to the media storage.
-  Future<String> uploadStoryMedia({
-    required String storyId,
-    required File imageFile,
-    required Uint8List imageBytes,
-  });
 
   /// Records that [viewerId] has seen the story [storyId]. Idempotent — a
   /// second view by the same person changes nothing.
@@ -3728,29 +3720,6 @@ WHERE user_id = ?1 AND story_id = ?2 AND region_iso = ?3
   /// How near a pin has to be to a place's point to count as there; the
   /// place pages list pins with the same default radius.
   static const double _pinRadiusDegrees = 0.0002;
-
-  @override
-  Future<String> uploadStoryMedia({
-    required String storyId,
-    required File imageFile,
-    required Uint8List imageBytes,
-  }) async {
-    final stories = MediaStorage.instance.from('stories');
-    final extension = imageFile.path.split('.').last.toLowerCase();
-    // `image/jpg` is not a registered MIME type; stories are now JPEGs.
-    final imageExtension = extension == 'jpg' ? 'jpeg' : extension;
-    final imagePath = '$storyId/image';
-
-    final storedPath = await stories.uploadBinary(
-      imagePath,
-      imageBytes,
-      fileOptions: MediaFileOptions(
-        contentType: 'image/$imageExtension',
-        cacheControl: '9000000',
-      ),
-    );
-    return stories.getPublicUrl(storedPath);
-  }
 
   /// From the server: the phone keeps only the user's own likes.
   @override

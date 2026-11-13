@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:ui' as ui show instantiateImageCodec;
 // ignore_for_file: deprecated_member_use
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -26,41 +25,13 @@ import 'package:stories_editor/src/presentation/utils/modal_sheets.dart';
 /// The gap between the toolbar and the top of the story.
 const double _kToolsToCanvasGap = 10;
 
-/// A [ToolButton] is 35 tall with 8 of padding above it.
+/// A toolbar button is 35 tall with 8 of padding above it.
 const double _kToolButtonHeight = 43;
 
 class MainView extends StatefulWidget {
-  /// editor custom font families
-  final List<String>? fontFamilyList;
-
-  /// editor custom font families package
-  final bool? isCustomFontList;
-
-  /// editor custom color gradients
-  final List<List<Color>>? gradientColors;
-
-  /// editor custom logo
-  final Widget? middleBottomWidget;
-
   /// on done
   final Function(String)? onDone;
   final StoryPlaceResolver? onResolvePlace;
-
-  /// Function that should be executed when user wants to go back from the page.
-  /// Usually pops current page.
-  final VoidCallback? onGoBack;
-
-  /// on done button Text
-  final Widget? onDoneButtonStyle;
-
-  /// on back pressed
-  final Future<bool>? onBackPress;
-
-  /// editor background color
-  final Color? editorBackgroundColor;
-
-  /// editor custom color palette list
-  final List<Color>? colorList;
 
   final StoriesEditorLocalizationDelegate? storiesEditorLocalizationDelegate;
 
@@ -73,15 +44,6 @@ class MainView extends StatefulWidget {
     this.onResolvePlace,
     this.initialMediaPath,
     this.storiesEditorLocalizationDelegate,
-    this.onGoBack,
-    this.middleBottomWidget,
-    this.colorList,
-    this.isCustomFontList,
-    this.fontFamilyList,
-    this.gradientColors,
-    this.onBackPress,
-    this.onDoneButtonStyle,
-    this.editorBackgroundColor,
   });
 
   @override
@@ -114,19 +76,6 @@ class _MainViewState extends State<MainView> with SafeSetStateMixin {
       );
 
       var control = Provider.of<ControlNotifier>(context, listen: false);
-
-      /// initialize control variable provider
-      control.middleBottomWidget = widget.middleBottomWidget;
-      control.isCustomFontList = widget.isCustomFontList ?? false;
-      if (widget.gradientColors != null) {
-        control.gradientColors = widget.gradientColors;
-      }
-      if (widget.fontFamilyList != null) {
-        control.fontList = widget.fontFamilyList;
-      }
-      if (widget.colorList != null) {
-        control.colorList = widget.colorList;
-      }
 
       /// open straight onto the picture the caller handed us, the same way the
       /// gallery page seeds the canvas once something is picked
@@ -193,9 +142,7 @@ class _MainViewState extends State<MainView> with SafeSetStateMixin {
     return WillPopScope(
       onWillPop: _popScope,
       child: Material(
-        color: widget.editorBackgroundColor == Colors.transparent
-            ? Colors.black
-            : widget.editorBackgroundColor ?? Colors.black,
+        color: Colors.black,
         child: Consumer4<ControlNotifier, DraggableWidgetNotifier,
             GradientNotifier, TextEditingNotifier>(
           builder: (context, controlNotifier, itemProvider, colorProvider,
@@ -240,25 +187,17 @@ class _MainViewState extends State<MainView> with SafeSetStateMixin {
                                     child: AnimatedContainer(
                                       duration:
                                           const Duration(milliseconds: 200),
+                                      // Behind the picture: its own
+                                      // colours, shown where it is zoomed out.
                                       decoration: BoxDecoration(
-                                          gradient: controlNotifier
-                                                  .mediaPath.isEmpty
-                                              ? LinearGradient(
-                                                  colors: controlNotifier
-                                                          .gradientColors![
-                                                      controlNotifier
-                                                          .gradientIndex],
-                                                  begin: Alignment.topLeft,
-                                                  end: Alignment.bottomRight,
-                                                )
-                                              : LinearGradient(
-                                                  colors: [
-                                                    colorProvider.color1,
-                                                    colorProvider.color2
-                                                  ],
-                                                  begin: Alignment.topCenter,
-                                                  end: Alignment.bottomCenter,
-                                                )),
+                                          gradient: LinearGradient(
+                                        colors: [
+                                          colorProvider.color1,
+                                          colorProvider.color2
+                                        ],
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                      )),
                                       child: GestureDetector(
                                         onScaleStart: _onScaleStart,
                                         onScaleUpdate: _onScaleUpdate,
@@ -311,35 +250,6 @@ class _MainViewState extends State<MainView> with SafeSetStateMixin {
                             ),
                           ),
                         ),
-
-                        /// middle text
-                        if (itemProvider.draggableWidget.isEmpty &&
-                            !controlNotifier.isTextEditing)
-                          IgnorePointer(
-                            ignoring: true,
-                            child: Align(
-                              alignment: const Alignment(0, -0.1),
-                              child: Text(
-                                StoriesEditorLocalization()
-                                    .delegate
-                                    .tapToTypeText,
-                                style: TextStyle(
-                                  fontFamily: 'Alegreya',
-                                  package: 'stories_editor',
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 30,
-                                  color: Colors.white.withOpacity(0.5),
-                                  shadows: <Shadow>[
-                                    Shadow(
-                                        offset: const Offset(1.0, 1.0),
-                                        blurRadius: 3.0,
-                                        color: Colors.black45.withOpacity(0.3))
-                                  ],
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ),
 
                         /// top tools
                         Visibility(
@@ -404,7 +314,7 @@ class _MainViewState extends State<MainView> with SafeSetStateMixin {
     else {
       late final exit = exitDialog(context: context, contentKey: contentKey);
 
-      return await widget.onBackPress ?? (await exit) ?? false;
+      return (await exit) ?? false;
     }
   }
 

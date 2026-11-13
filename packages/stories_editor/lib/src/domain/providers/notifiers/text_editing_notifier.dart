@@ -20,20 +20,6 @@ class TextEditingNotifier extends ChangeNotifier {
   PageController _fontFamilyController = PageController(viewportFraction: .125);
   TextEditingController _textController = TextEditingController();
 
-  int _currentColorBackground = 0;
-  final List<Color> _textColorBackGround = [
-    Colors.transparent,
-    Colors.black,
-    Colors.white
-  ];
-
-  int _currentAlign = 0;
-  final List<TextAlign> _texAlignment = [
-    TextAlign.center,
-    TextAlign.right,
-    TextAlign.left
-  ];
-
   String get text => _text;
   int get textColor => _textColor;
   double get textSize => _textSize;
@@ -97,30 +83,6 @@ class TextEditingNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
-  onBackGroundChange() {
-    if (_currentColorBackground < _textColorBackGround.length - 1) {
-      _currentColorBackground += 1;
-      _backGroundColor = _textColorBackGround[_currentColorBackground];
-      notifyListeners();
-    } else {
-      _currentColorBackground = 0;
-      _backGroundColor = _textColorBackGround[_currentColorBackground];
-      notifyListeners();
-    }
-  }
-
-  onAlignmentChange() {
-    if (_currentAlign < _texAlignment.length - 1) {
-      _currentAlign += 1;
-      _textAlign = _texAlignment[_currentAlign];
-      notifyListeners();
-    } else {
-      _currentAlign = 0;
-      _textAlign = _texAlignment[_currentAlign];
-      notifyListeners();
-    }
-  }
-
   /// Back to how the first text starts (also after a text is added or the
   /// tool cancelled): it used to reset to 20 and no chip, so every text after
   /// the first came out smaller and bare, with no buttons left to fix it.
@@ -134,10 +96,5 @@ class TextEditingNotifier extends ChangeNotifier {
     _backGroundColor = storyChipBackground;
     _fontFamilyController = PageController(viewportFraction: .125);
     _isFontFamily = true;
-  }
-
-  disposeController() {
-    _textController.dispose();
-    _fontFamilyController.dispose();
   }
 }

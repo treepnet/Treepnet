@@ -22,7 +22,6 @@ class StoriesEditorLocalizationDelegate {
     this.successfullySavedText = 'Successfully saved',
     this.errorText = 'Error',
     this.uploadText = 'Upload',
-    this.tapToTypeText = 'Tap to type...',
     this.cancelText = 'Cancel',
     this.doneText = 'Done',
     this.discardEditsText = 'Discard Edits?',
@@ -37,7 +36,6 @@ class StoriesEditorLocalizationDelegate {
   final String uploadText;
   final String successfullySavedText;
   final String errorText;
-  final String tapToTypeText;
   final String cancelText;
   final String doneText;
   final String discardEditsText;
