@@ -14,6 +14,7 @@
 //   /reset/send-code   { usernameOrEmail }                           -> emails a code
 //   /reset/verify      { continuationToken(email), code, newPassword }-> {ok}
 //   /media/upload-url  { bucket, path, contentType } + Bearer ID token -> {uploadUrl, path}
+//   /media/upload-urls { files: [{ bucket, path, contentType }, ...] } -> { links: [...] }
 //       a one-object, 15-minute write link for a post, story or avatar file
 const http = require('http');
 const crypto = require('crypto');
@@ -390,20 +391,26 @@ async function uidFromRequest(headers) {
   }
 }
 
-async function mediaUploadUrl(res, b, headers) {
+// The signed-in TreepNet account of a request, or a refusal to send.
+async function uploader(headers) {
   const uid = await uidFromRequest(headers);
-  if (!uid) return fail(res, 401, 'Sign in again.', 'unauthorized');
+  if (!uid) return { status: 401, message: 'Sign in again.', code: 'unauthorized' };
   // Only a TreepNet account (uid = profiles.id) gets upload links, even if
   // another Firebase sign-in method (email, anonymous, phone) is ever turned
   // on: those would mint valid tokens for uids with no profile.
   if (!UUID_RE.test(uid) || (await pool.query('select 1 from profiles where id = $1', [uid])).rowCount === 0) {
-    return fail(res, 403, 'No account.', 'no_account');
+    return { status: 403, message: 'No account.', code: 'no_account' };
   }
-  const contentType = String(b.contentType || '');
-  if (!CONTENT_TYPE_RE.test(contentType)) return fail(res, 400, 'Unsupported file type.');
-  const target = uploadTarget(uid, b.bucket, b.path);
-  if (!target) return fail(res, 400, 'Invalid file name.');
+  return { uid };
+}
 
+// Checks one file [uid] wants to write ({ bucket, path, contentType }) and
+// returns its target, or a refusal ({ status, message, code }).
+async function checkUpload(uid, b) {
+  const contentType = String(b.contentType || '');
+  if (!CONTENT_TYPE_RE.test(contentType)) return { status: 400, message: 'Unsupported file type.' };
+  const target = uploadTarget(uid, b.bucket, b.path);
+  if (!target) return { status: 400, message: 'Invalid file name.' };
   // A post or story that already exists must be the caller's.
   if (target.owner) {
     const r = await pool.query(
@@ -411,17 +418,21 @@ async function mediaUploadUrl(res, b, headers) {
       [target.owner.id],
     );
     if (r.rows[0] && r.rows[0].user_id !== uid) {
-      return fail(res, 403, 'Not allowed.', 'forbidden');
+      return { status: 403, message: 'Not allowed.', code: 'forbidden' };
     }
   }
+  return { target };
+}
 
+// A link that writes only [target]'s object, for UPLOAD_LINK_MIN minutes.
+async function linkFor(uid, target) {
   const client = await storageClient();
   const expires = new Date(Date.now() + UPLOAD_LINK_MIN * 60000);
   const par = await client.createPreauthenticatedRequest({
     namespaceName: MEDIA_NAMESPACE,
     bucketName: MEDIA_BUCKET,
     createPreauthenticatedRequestDetails: {
-      name: `upload-${uid}-${Date.now()}`,
+      name: `upload-${uid}-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
       objectName: target.objectName,
       accessType: 'ObjectWrite',
       timeExpires: expires,
@@ -435,7 +446,39 @@ async function mediaUploadUrl(res, b, headers) {
   const uploadUrl =
     `https://objectstorage.${MEDIA_REGION}.oraclecloud.com${tokenPart}` +
     `/n/${MEDIA_NAMESPACE}/b/${MEDIA_BUCKET}/o/${encoded}`;
-  return send(res, 200, { uploadUrl, path: target.path, expiresAt: expires.toISOString() });
+  return { uploadUrl, path: target.path, expiresAt: expires.toISOString() };
+}
+
+async function mediaUploadUrl(res, b, headers) {
+  const who = await uploader(headers);
+  if (!who.uid) return fail(res, who.status, who.message, who.code);
+  const checked = await checkUpload(who.uid, b);
+  if (!checked.target) return fail(res, checked.status, checked.message, checked.code);
+  return send(res, 200, await linkFor(who.uid, checked.target));
+}
+
+// The links for several files at once ({ files: [{ bucket, path,
+// contentType }, ...] }, at most MAX_LINKS), in the same order: a post's
+// photos, their thumbnails and video first frames. One file at a time, a
+// 10-photo post was ~20 round trips to this server before its uploads, each
+// waiting for the one before. Any file refused: the whole call is refused
+// (the app then asks one by one, as before).
+const MAX_LINKS = 25;
+async function mediaUploadUrls(res, b, headers) {
+  const who = await uploader(headers);
+  if (!who.uid) return fail(res, who.status, who.message, who.code);
+  const files = Array.isArray(b.files) ? b.files : null;
+  if (!files || files.length === 0 || files.length > MAX_LINKS) {
+    return fail(res, 400, `Between 1 and ${MAX_LINKS} files.`);
+  }
+  const targets = [];
+  for (const file of files) {
+    const checked = await checkUpload(who.uid, file || {});
+    if (!checked.target) return fail(res, checked.status, checked.message, checked.code);
+    targets.push(checked.target);
+  }
+  const links = await Promise.all(targets.map((target) => linkFor(who.uid, target)));
+  return send(res, 200, { links });
 }
 
 // Expired upload links stay listed on the bucket; clear them hourly.
@@ -701,6 +744,7 @@ const ROUTES = {
   '/reset/send-code': resetSendCode,
   '/reset/verify': resetVerify,
   '/media/upload-url': mediaUploadUrl,
+  '/media/upload-urls': mediaUploadUrls,
 };
 
 const server = http.createServer((req, res) => {

@@ -422,13 +422,23 @@ class MediaUploadQueue {
     required PowerSyncDatabase db,
     required SharedPreferences sharedPreferences,
     shared.MediaBucket Function(String bucket)? storageFor,
+    Future<List<shared.MediaUploadLink>> Function(
+      List<({String bucket, String path, String contentType})> files,
+    )? linksOf,
   })  : _db = db,
         _prefs = sharedPreferences,
-        _storageFor = storageFor ?? shared.MediaStorage.instance.from;
+        _storageFor = storageFor ?? shared.MediaStorage.instance.from,
+        _linksOf = linksOf ?? shared.MediaStorage.instance.uploadLinks;
 
   /// Where the files go: the media bucket's handle for a bucket name
   /// ([shared.MediaStorage]; a test passes its own).
   final shared.MediaBucket Function(String bucket) _storageFor;
+
+  /// Write links for several files in one call ([shared.MediaStorage];
+  /// a test passes its own).
+  final Future<List<shared.MediaUploadLink>> Function(
+    List<({String bucket, String path, String contentType})> files,
+  ) _linksOf;
 
   static const String _storageKey = 'treepnet_pending_uploads_queue';
   static const String _postsKey = 'treepnet_pending_posts';
@@ -441,6 +451,15 @@ class MediaUploadQueue {
 
   /// After this many failed uploads the banner offers Retry / Cancel.
   static const int _failAfterAttempts = 3;
+
+  /// Files uploaded at once. They went one at a time, each behind its own
+  /// link request: a 10-photo post on a mobile connection took far longer
+  /// than its bytes needed.
+  static const int _parallelUploads = 3;
+
+  /// A write link from [_linksFor] is used only while this fresh (they last
+  /// 15 minutes); after that the upload asks for its own.
+  static const Duration _linkLife = Duration(minutes: 10);
 
   /// The post is created only after all its media are uploaded or queued, so a
   /// fresh task may run before its post exists. Within this window a missing
@@ -1166,19 +1185,67 @@ class MediaUploadQueue {
     // Every due task gets its own try: one failing file no longer blocks the
     // ones queued after it.
     final now = DateTime.now();
-    for (final task in tasks) {
-      final due = task.nextAttemptAt;
-      if (due != null && due.isAfter(now)) continue;
-      // Another account's file waits for it to sign in again.
-      final owner = _ownerOf(task.postId);
-      if (owner != null && !_isMine(owner)) continue;
-      try {
-        await _processTask(task);
-      } catch (error, stackTrace) {
-        await _recordFailure(task, error, stackTrace);
+    final due = <PendingUploadTask>[
+      for (final task in tasks)
+        if (!(task.nextAttemptAt?.isAfter(now) ?? false) &&
+            // Another account's file waits for it to sign in again.
+            (_ownerOf(task.postId) == null || _isMine(_ownerOf(task.postId)!)))
+          task,
+    ];
+    if (due.isNotEmpty) {
+      final links = await _linksFor(due);
+      var next = 0;
+      Future<void> worker() async {
+        while (next < due.length) {
+          final task = due[next++];
+          try {
+            await _processTask(task, links);
+          } catch (error, stackTrace) {
+            await _recordFailure(task, error, stackTrace);
+          }
+        }
       }
+
+      await Future.wait([
+        for (var i = 0; i < math.min(_parallelUploads, due.length); i++)
+          worker(),
+      ]);
     }
     _scheduleRetry();
+  }
+
+  /// Write links for every file of [tasks] (the media, video first frames and
+  /// thumbnails), asked for together, 25 at a time, keyed `bucket/path`. Empty
+  /// when they can't be had: each upload then asks for its own, as before.
+  Future<_Links> _linksFor(List<PendingUploadTask> tasks) async {
+    final files = <({String bucket, String path, String contentType})>[
+      for (final task in tasks) ...[
+        (bucket: task.bucket, path: task.remotePath, contentType: task.contentType),
+        if (task.firstFrameRemotePath != null && task.firstFrameLocalPath != null)
+          (
+            bucket: task.bucket,
+            path: task.firstFrameRemotePath!,
+            contentType: 'image/jpeg',
+          ),
+        if (task.thumbRemotePath != null && task.thumbLocalPath != null)
+          (bucket: task.bucket, path: task.thumbRemotePath!, contentType: 'image/jpeg'),
+      ],
+    ];
+    final links = <String, shared.MediaUploadLink>{};
+    try {
+      for (var i = 0; i < files.length; i += 25) {
+        final chunk = files.sublist(i, math.min(i + 25, files.length));
+        final got = await _linksOf(chunk);
+        for (var j = 0; j < chunk.length; j++) {
+          links['${chunk[j].bucket}/${chunk[j].path}'] = got[j];
+        }
+      }
+    } catch (e) {
+      shared.logW('MediaUploadQueue: No upload links in one call ($e); '
+          'asking one by one.');
+      links.clear();
+    }
+    return (links: links, at: DateTime.now());
   }
 
   /// Creates every queued post whose media are all uploaded. A post that
@@ -1283,7 +1350,7 @@ class MediaUploadQueue {
     );
   }
 
-  Future<void> _processTask(PendingUploadTask task) async {
+  Future<void> _processTask(PendingUploadTask task, [_Links? links]) async {
     final mediaFile = File(task.localPath);
     if (!mediaFile.existsSync()) {
       shared.logW('MediaUploadQueue: Local file does not exist for task ${task.id}. Removing from queue.');
@@ -1329,36 +1396,58 @@ class MediaUploadQueue {
 
     final storage = _storageFor(task.bucket);
     final bytes = await mediaFile.readAsBytes();
+    // A link from [_linksFor], while fresh.
+    shared.MediaUploadLink? linkOf(String path) =>
+        links != null && DateTime.now().difference(links.at) < _linkLife
+        ? links.links['${task.bucket}/$path']
+        : null;
 
-    shared.logI('MediaUploadQueue: Uploading media for task ${task.id}...');
-    final storedPath = await storage.uploadBinary(
-      task.remotePath,
-      bytes,
-      fileOptions: shared.MediaFileOptions(
-        contentType: task.contentType,
-        cacheControl: '9000000',
-      ),
-    );
-    final mediaUrl = storage.getPublicUrl(storedPath);
-
-    String? firstFrameUrl;
-    if (task.firstFrameLocalPath != null && task.firstFrameRemotePath != null) {
-      final firstFrameFile = File(task.firstFrameLocalPath!);
-      if (firstFrameFile.existsSync()) {
-        shared.logI('MediaUploadQueue: Uploading first frame for task ${task.id}...');
-        final firstFrameBytes = await firstFrameFile.readAsBytes();
-        final storedFramePath = await storage.uploadBinary(
-          task.firstFrameRemotePath!,
-          firstFrameBytes,
-          fileOptions: const shared.MediaFileOptions(
-            contentType: 'image/jpeg',
-            cacheControl: '9000000',
-          ),
-        );
-        firstFrameUrl = storage.getPublicUrl(storedFramePath);
-      }
+    // The file, its video's first frame and its thumbnail go up together.
+    Future<String> uploadMedia() async {
+      shared.logI('MediaUploadQueue: Uploading media for task ${task.id}...');
+      final storedPath = await storage.uploadBinary(
+        task.remotePath,
+        bytes,
+        fileOptions: shared.MediaFileOptions(
+          contentType: task.contentType,
+          cacheControl: '9000000',
+        ),
+        link: linkOf(task.remotePath),
+      );
+      return storage.getPublicUrl(storedPath);
     }
-    final thumbUrl = await _uploadThumbnail(storage, task);
+
+    Future<String?> uploadFirstFrame() async {
+      final local = task.firstFrameLocalPath;
+      final remote = task.firstFrameRemotePath;
+      if (local == null || remote == null) return null;
+      final firstFrameFile = File(local);
+      if (!firstFrameFile.existsSync()) return null;
+      shared.logI('MediaUploadQueue: Uploading first frame for task ${task.id}...');
+      final storedFramePath = await storage.uploadBinary(
+        remote,
+        await firstFrameFile.readAsBytes(),
+        fileOptions: const shared.MediaFileOptions(
+          contentType: 'image/jpeg',
+          cacheControl: '9000000',
+        ),
+        link: linkOf(remote),
+      );
+      return storage.getPublicUrl(storedFramePath);
+    }
+
+    final uploaded = await Future.wait<String?>([
+      uploadMedia(),
+      uploadFirstFrame(),
+      _uploadThumbnail(
+        storage,
+        task,
+        task.thumbRemotePath == null ? null : linkOf(task.thumbRemotePath!),
+      ),
+    ]);
+    final mediaUrl = uploaded[0]!;
+    final firstFrameUrl = uploaded[1];
+    final thumbUrl = uploaded[2];
 
     // Point the queued story or post (or, for a post an older version already
     // created, its database row) at the uploaded file.
@@ -1393,8 +1482,9 @@ class MediaUploadQueue {
   /// in the grids.
   Future<String?> _uploadThumbnail(
     shared.MediaBucket storage,
-    PendingUploadTask task,
-  ) async {
+    PendingUploadTask task, [
+    shared.MediaUploadLink? link,
+  ]) async {
     final localPath = task.thumbLocalPath;
     final remotePath = task.thumbRemotePath;
     if (localPath == null || remotePath == null) return null;
@@ -1408,6 +1498,7 @@ class MediaUploadQueue {
           contentType: 'image/jpeg',
           cacheControl: '9000000',
         ),
+        link: link,
       );
       return storage.getPublicUrl(storedPath);
     } catch (e) {
@@ -1589,3 +1680,7 @@ class MediaUploadQueue {
     await _prefs.setStringList(_storageKey, list);
   }
 }
+
+/// Write links asked for in one call ([MediaUploadQueue._linksFor]): by
+/// `bucket/path`, and when they were handed out.
+typedef _Links = ({Map<String, shared.MediaUploadLink> links, DateTime at});

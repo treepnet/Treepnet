@@ -36,6 +36,10 @@ class MediaStorage {
   static const _uploadLinkUrl =
       'https://api.treepnet.com/auth/media/upload-url';
 
+  /// Hands out write links for several objects at once (auth-service).
+  static const _uploadLinksUrl =
+      'https://api.treepnet.com/auth/media/upload-urls';
+
   /// The signed-in user's Firebase ID token, refreshed first when
   /// [forceRefresh]. Set by the app at start-up; uploads fail without it.
   Future<String?> Function({bool forceRefresh})? idToken;
@@ -55,7 +59,49 @@ class MediaStorage {
   /// as the object-name prefix inside the single OCI bucket.
   MediaBucket from(String bucket) =>
       MediaBucket(prefix: bucket, storage: this, dio: _dio);
+
+  /// Write links for several [files] in one call (at most 25), in the same
+  /// order, each to pass to [MediaBucket.uploadBinary] as its `link`. One link
+  /// per call, a 10-photo post was ~20 round trips to the backend, each
+  /// waiting for the one before, ahead of the uploads themselves. Throws when
+  /// the backend refuses any of them; the caller then asks one by one.
+  Future<List<MediaUploadLink>> uploadLinks(
+    List<({String bucket, String path, String contentType})> files,
+  ) async {
+    final idToken = this.idToken;
+    if (idToken == null) throw StateError('MediaStorage.idToken is not set');
+    final token = await idToken(forceRefresh: false);
+    if (token == null) throw StateError('Not signed in');
+    final response = await _dio.post<Map<String, dynamic>>(
+      _uploadLinksUrl,
+      data: {
+        'files': [
+          for (final f in files)
+            {'bucket': f.bucket, 'path': f.path, 'contentType': f.contentType},
+        ],
+      },
+      options: Options(
+        headers: <String, dynamic>{'Authorization': 'Bearer $token'},
+        validateStatus: (status) => status != null,
+        sendTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+      ),
+    );
+    final links = response.data?['links'];
+    if (response.statusCode != 200 ||
+        links is! List ||
+        links.length != files.length) {
+      throw Exception('Upload links refused (${response.statusCode})');
+    }
+    return [
+      for (final link in links.cast<Map<String, dynamic>>())
+        (url: link['uploadUrl'] as String, path: link['path'] as String),
+    ];
+  }
 }
+
+/// A write link for one object and the path it stores the object at.
+typedef MediaUploadLink = ({String url, String path});
 
 /// {@template media_bucket}
 /// A handle to one logical media "bucket" (object-name prefix) inside the single
@@ -137,13 +183,17 @@ class MediaBucket {
   /// the user's folder). Throws on a refused link or a non-2xx upload, or
   /// when it takes longer than [_uploadTimeout] (the request is cancelled, so
   /// the connection is freed).
+  ///
+  /// [link]: one already handed out for [path] ([MediaStorage.uploadLinks]),
+  /// so this doesn't ask for its own.
   Future<String> uploadBinary(
     String path,
     Uint8List bytes, {
     MediaFileOptions fileOptions = const MediaFileOptions(),
+    MediaUploadLink? link,
   }) async {
     final contentType = fileOptions.contentType ?? 'image/jpeg';
-    final link = await _uploadLink(path, contentType);
+    final target = link ?? await _uploadLink(path, contentType);
     final cancel = CancelToken();
     final deadline = Timer(
       _uploadTimeout(bytes.length),
@@ -152,7 +202,7 @@ class MediaBucket {
     final Response<dynamic> response;
     try {
       response = await _dio.put<dynamic>(
-        link.url,
+        target.url,
         // A Stream<List<int>> body bypasses dio's request transformer so the
         // raw bytes are sent verbatim (required for binary uploads).
         data: Stream<List<int>>.fromIterable([bytes]),
@@ -177,7 +227,7 @@ class MediaBucket {
         'OCI media upload failed (${response.statusCode}) for $prefix/$path',
       );
     }
-    return link.path;
+    return target.path;
   }
 
   /// Returns the public (anonymous-read) URL for the object at [path].

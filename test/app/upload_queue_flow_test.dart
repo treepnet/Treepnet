@@ -12,7 +12,8 @@ import 'package:mocktail/mocktail.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:powersync/powersync.dart' show PowerSyncDatabase, SyncStatus;
-import 'package:shared/shared.dart' show MediaBucket, MediaFileOptions;
+import 'package:shared/shared.dart'
+    show MediaBucket, MediaFileOptions, MediaUploadLink;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:treepnet/app/services/media_upload_queue.dart';
 
@@ -43,16 +44,31 @@ class _Bucket extends Fake implements MediaBucket {
   /// Remote paths whose upload waits for this to complete.
   final held = <String, Completer<void>>{};
 
+  /// The link each upload came with (null: it asked for its own).
+  final linkUsed = <String, MediaUploadLink?>{};
+
+  /// Uploads going at the same moment, now and at most.
+  int inFlight = 0;
+  int mostAtOnce = 0;
+
   @override
   Future<String> uploadBinary(
     String path,
     Uint8List bytes, {
     MediaFileOptions fileOptions = const MediaFileOptions(),
+    MediaUploadLink? link,
   }) async {
-    await held[path]?.future;
-    if (failing.contains(path)) throw Exception('upload failed: $path');
-    uploaded.add(path);
-    return path;
+    linkUsed[path] = link;
+    inFlight++;
+    mostAtOnce = inFlight > mostAtOnce ? inFlight : mostAtOnce;
+    try {
+      await held[path]?.future;
+      if (failing.contains(path)) throw Exception('upload failed: $path');
+      uploaded.add(path);
+      return path;
+    } finally {
+      inFlight--;
+    }
   }
 
   @override
@@ -89,6 +105,11 @@ void main() {
   late Directory root;
   late _MockDb db;
   late _Bucket bucket;
+
+  /// The link calls made, each with the files it asked for; null makes the
+  /// call fail (the backend refusing).
+  late List<List<String>> linkCalls;
+  bool linksRefused = false;
   late MediaUploadQueue queue;
   final created = <PendingPost>[];
   final createdStories = <String>[];
@@ -98,6 +119,8 @@ void main() {
     PathProviderPlatform.instance = _Paths(root.path);
     created.clear();
     createdStories.clear();
+    linkCalls = [];
+    linksRefused = false;
   });
 
   tearDown(() {
@@ -158,6 +181,14 @@ void main() {
             db: db,
             sharedPreferences: await SharedPreferences.getInstance(),
             storageFor: (_) => bucket,
+            linksOf: (files) async {
+              linkCalls.add([for (final f in files) '${f.bucket}/${f.path}']);
+              if (linksRefused) throw Exception('refused');
+              return [
+                for (final f in files)
+                  (url: 'https://link.test/${f.path}', path: f.path),
+              ];
+            },
           )
           ..attachUser(() => _me)
           ..attachPostCreator((post) async {
@@ -184,7 +215,8 @@ void main() {
       await open(posts: [_post('p1', files: 2)], tasks: [first, second]);
       await run();
 
-      expect(bucket.uploaded, ['p1/image_0', 'p1/image_1']);
+      // Uploaded together, in any order; the post keeps its photos' order.
+      expect(bucket.uploaded, unorderedEquals(['p1/image_0', 'p1/image_1']));
       expect(created.single.postId, 'p1');
       expect(
         [for (final m in created.single.media) m['url']],
@@ -309,5 +341,53 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 100));
     await run();
     expect(createdStories, ['s1', 's2']);
+  });
+
+  test('files go up three at a time', () async {
+    final tasks = [for (var i = 0; i < 5; i++) task('p1', i)];
+    await open(posts: [_post('p1', files: 5)], tasks: tasks);
+    final release = Completer<void>();
+    for (var i = 0; i < 5; i++) {
+      bucket.held['p1/image_$i'] = release;
+    }
+    queue.triggerProcessing();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(bucket.inFlight, 3, reason: 'they went one at a time');
+
+    release.complete();
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    await run();
+    expect(bucket.mostAtOnce, 3);
+    expect(created.single.media, hasLength(5));
+  });
+
+  test(
+    "a post's links come in one call, and each upload uses its own",
+    () async {
+      await open(
+        posts: [_post('p1', files: 2)],
+        tasks: [task('p1', 0), task('p1', 1)],
+      );
+      await run();
+
+      expect(linkCalls, [
+        ['posts/p1/image_0', 'posts/p1/image_1'],
+      ]);
+      expect(
+        bucket.linkUsed['p1/image_1']?.url,
+        'https://link.test/p1/image_1',
+      );
+      expect(created.single.postId, 'p1');
+    },
+  );
+
+  test('links refused in one call: each upload asks for its own', () async {
+    await open(posts: [_post('p1')], tasks: [task('p1', 0)]);
+    linksRefused = true;
+    await run();
+
+    expect(bucket.linkUsed.containsKey('p1/image_0'), isTrue);
+    expect(bucket.linkUsed['p1/image_0'], isNull);
+    expect(created.single.postId, 'p1');
   });
 }
