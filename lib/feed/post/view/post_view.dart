@@ -105,14 +105,15 @@ class _PostLargeViewState extends State<PostLargeView> {
   @override
   void initState() {
     super.initState();
-    context.read<PostBloc>()
-      ..add(
-        PostStatsSubscriptionRequested(
-          ownerId: widget.block.author.id,
-          currentUserId: context.read<AppBloc>().state.user.id,
-        ),
-      )
-      ..add(const PostLikersInFollowingsFetchRequested());
+    context.read<PostBloc>()..add(
+      PostStatsSubscriptionRequested(
+        ownerId: widget.block.author.id,
+        currentUserId: context.read<AppBloc>().state.user.id,
+      ),
+    );
+    // No "liked by … you follow" request any more: the card never showed it,
+    // and each card asked the server again whenever it scrolled back into
+    // view (a third of all API calls).
   }
 
   @override
@@ -128,9 +129,7 @@ class _PostLargeViewState extends State<PostLargeView> {
     final commentsCount = context.select(
       (PostBloc bloc) => bloc.state.commentsCount,
     );
-    final authorTier = context.select(
-      (PostBloc bloc) => bloc.state.authorTier,
-    );
+    final authorTier = context.select((PostBloc bloc) => bloc.state.authorTier);
     final authorPlaces = context.select(
       (PostBloc bloc) => bloc.state.authorPlaces,
     );
@@ -152,7 +151,6 @@ class _PostLargeViewState extends State<PostLargeView> {
       withInViewNotifier: widget.withInViewNotifier,
       likesCountBuilder: (onUserTap) =>
           PostLikesCount(block: widget.block, onUserTap: onUserTap),
-      likersInFollowingsBuilder: PostLikersInFollowings.new,
       authorBadge: TravelTierBadge.tier(authorTier),
       authorSubtitle: _AuthorLocationCount(count: authorPlaces),
       postAuthorAvatarBuilder: (context, author, onAvatarTap) {
@@ -194,9 +192,7 @@ class _PostLargeViewState extends State<PostLargeView> {
                   ),
                 );
                 openSnackbar(
-                  SnackbarMessage.success(
-                    title: context.l10n.postArchivedText,
-                  ),
+                  SnackbarMessage.success(title: context.l10n.postArchivedText),
                 );
               },
             )

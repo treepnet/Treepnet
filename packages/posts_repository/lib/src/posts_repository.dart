@@ -255,17 +255,6 @@ class PostsRepository implements PostsBaseRepository {
     offset: offset,
   );
 
-  @override
-  Future<List<User>> getPostLikersInFollowings({
-    required String postId,
-    int limit = 3,
-    int offset = 0,
-  }) => _databaseClient.getPostLikersInFollowings(
-    postId: postId,
-    limit: limit,
-    offset: offset,
-  );
-
   /// Returns a list of recommended posts.
   static final recommendedPosts = <PostLargeBlock>[];
 }

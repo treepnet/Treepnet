@@ -12,7 +12,6 @@ class PostState extends Equatable {
     required this.isLiked,
     required this.isOwner,
     this.isBookmarked = false,
-    this.likersInFollowings,
     this.isFollowed,
     this.authorTier = 0,
     this.authorPlaces = 0,
@@ -34,7 +33,6 @@ class PostState extends Equatable {
   final PostStatus status;
   final int likes;
   final List<User> likers;
-  final List<User>? likersInFollowings;
   final int commentsCount;
   final bool isLiked;
   final bool isOwner;
@@ -55,7 +53,6 @@ class PostState extends Equatable {
     likes,
     isLiked,
     likers,
-    likersInFollowings,
     commentsCount,
     isOwner,
     isBookmarked,
@@ -68,7 +65,6 @@ class PostState extends Equatable {
     PostStatus? status,
     int? likes,
     List<User>? likers,
-    List<User>? likersInFollowings,
     int? commentsCount,
     bool? isLiked,
     bool? isOwner,
@@ -81,7 +77,6 @@ class PostState extends Equatable {
       status: status ?? this.status,
       likes: likes ?? this.likes,
       likers: likers ?? this.likers,
-      likersInFollowings: likersInFollowings ?? this.likersInFollowings,
       commentsCount: commentsCount ?? this.commentsCount,
       isLiked: isLiked ?? this.isLiked,
       isOwner: isOwner ?? this.isOwner,

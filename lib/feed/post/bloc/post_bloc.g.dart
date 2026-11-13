@@ -34,12 +34,6 @@ PostState _$PostStateFromJson(Map<String, dynamic> json) => $checkedCreate(
         'is_bookmarked',
         (v) => v as bool? ?? false,
       ),
-      likersInFollowings: $checkedConvert(
-        'likers_in_followings',
-        (v) => (v as List<dynamic>?)
-            ?.map((e) => User.fromJson(e as Map<String, dynamic>))
-            .toList(),
-      ),
       isFollowed: $checkedConvert('is_followed', (v) => v as bool?),
       authorTier: $checkedConvert(
         'author_tier',
@@ -57,7 +51,6 @@ PostState _$PostStateFromJson(Map<String, dynamic> json) => $checkedCreate(
     'isLiked': 'is_liked',
     'isOwner': 'is_owner',
     'isBookmarked': 'is_bookmarked',
-    'likersInFollowings': 'likers_in_followings',
     'isFollowed': 'is_followed',
     'authorTier': 'author_tier',
     'authorPlaces': 'author_places',
@@ -68,9 +61,6 @@ Map<String, dynamic> _$PostStateToJson(PostState instance) => <String, dynamic>{
   'status': _$PostStatusEnumMap[instance.status]!,
   'likes': instance.likes,
   'likers': instance.likers.map((e) => e.toJson()).toList(),
-  'likers_in_followings': ?instance.likersInFollowings
-      ?.map((e) => e.toJson())
-      .toList(),
   'comments_count': instance.commentsCount,
   'is_liked': instance.isLiked,
   'is_owner': instance.isOwner,

@@ -20,7 +20,6 @@ class PostFooter extends StatelessWidget {
     required this.onCommentsTap,
     required this.onPostShareTap,
     super.key,
-    this.likersInFollowingsBuilder,
     this.likesCountBuilder,
   });
 
@@ -37,7 +36,6 @@ class PostFooter extends StatelessWidget {
   final ValueSetter<bool> onCommentsTap;
   final OnPostShareTap onPostShareTap;
   final LikesCountBuilder? likesCountBuilder;
-  final LikersInFollowingsBuilder? likersInFollowingsBuilder;
 
   @override
   Widget build(BuildContext context) {

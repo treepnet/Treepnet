@@ -81,7 +81,9 @@ class _PostLikersPageState extends State<PostLikersPage> {
               return Center(
                 child: Text(
                   context.l10n.noLikesYetText,
-                  style: context.textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
+                  style: context.textTheme.bodyLarge?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               );
             }
@@ -95,11 +97,8 @@ class _PostLikersPageState extends State<PostLikersPage> {
               child: ListView.separated(
                 padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                 itemCount: users.length + (_likers.loadingMore ? 1 : 0),
-                separatorBuilder: (_, __) => Divider(
-                  height: 1,
-                  indent: 76,
-                  color: AppColors.divider,
-                ),
+                separatorBuilder: (_, __) =>
+                    Divider(height: 1, indent: 76, color: AppColors.divider),
                 itemBuilder: (context, i) => i == users.length
                     ? const Padding(
                         padding: EdgeInsets.all(AppSpacing.md),
@@ -151,7 +150,9 @@ class _LikerTile extends StatelessWidget {
       ),
       subtitle: Text(
         user.displayFullName,
-        style: context.textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+        style: context.textTheme.bodyMedium?.copyWith(
+          color: AppColors.textSecondary,
+        ),
       ),
     );
   }

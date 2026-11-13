@@ -18,8 +18,6 @@ typedef AvatarBuilder =
 
 typedef LikesCountBuilder = Widget Function(ValueSetter<String> onUserTap);
 
-typedef LikersInFollowingsBuilder = Widget Function();
-
 typedef OnPostShareTap = void Function(String postId, PostAuthor author);
 
 typedef VideoPlayerBuilder =
@@ -56,7 +54,6 @@ class PostLarge extends StatefulWidget {
     this.postIndex,
     this.likesCountBuilder,
     super.key,
-    this.likersInFollowingsBuilder,
   });
 
   final PostBlock block;
@@ -89,7 +86,6 @@ class PostLarge extends StatefulWidget {
   final int? postIndex;
   final bool withInViewNotifier;
   final LikesCountBuilder? likesCountBuilder;
-  final LikersInFollowingsBuilder? likersInFollowingsBuilder;
 
   @override
   State<PostLarge> createState() => _PostLargeState();
@@ -192,7 +188,6 @@ class _PostLargeState extends State<PostLarge> {
           onCommentsTap: widget.onCommentsTap,
           onPostShareTap: widget.onPostShareTap,
           likesCountBuilder: widget.likesCountBuilder,
-          likersInFollowingsBuilder: widget.likersInFollowingsBuilder,
         ),
       ],
     );

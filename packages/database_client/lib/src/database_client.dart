@@ -317,14 +317,6 @@ abstract class PostsBaseRepository {
     int offset = 0,
   });
 
-  /// Fetches the profiles of users who liked the post, identified by [postId]
-  /// and who are in followings of the user identified by current user `id`.
-  Future<List<User>> getPostLikersInFollowings({
-    required String postId,
-    int limit = 3,
-    int offset = 0,
-  });
-
   /// Likes or unlikes the post (or, with `post: false`, the comment) [id].
   /// [liked] sets the outcome (a double tap only ever likes); null flips it.
   Future<void> like({
@@ -3758,36 +3750,14 @@ WHERE user_id = ?1 AND story_id = ?2 AND region_iso = ?3
         .map(User.fromJson)
         .toList(growable: false);
   }
-
-  /// "Liked by …" asked for by each card on screen, sent as one request.
-  final _likersInFollowings = _Batcher<List<User>>(
-    const Duration(milliseconds: 80),
-  );
-
-  @override
-  Future<List<User>> getPostLikersInFollowings({
-    required String postId,
-    int limit = 3,
-    int offset = 0,
-  }) => _likersInFollowings.get(postId, (postIds) async {
-    final rows = await _powerSyncRepository.postgrest().rpc<List<dynamic>>(
-      'post_likers_in_followings',
-      params: {'p_posts': postIds, 'p_per_post': limit},
-    );
-    final byPost = <String, List<User>>{for (final id in postIds) id: []};
-    for (final row in rows.cast<Map<String, dynamic>>()) {
-      byPost[row['post_id'] as String]?.add(User.fromJson(row));
-    }
-    return byPost;
-  });
 }
 
 /// A person's card from the server ([PowerSyncDatabaseClient._cards]).
 typedef _Card = ({User user, int? tier, String? tierExpiresAt});
 
 /// Gathers the keys asked for within [_window] into one call of the loader
-/// passed with them (e.g. the "liked by" line of every card a feed page
-/// builds), and hands each caller its own answer.
+/// passed with them (e.g. the profile cards a list builds at once), and
+/// hands each caller its own answer.
 class _Batcher<T> {
   _Batcher(this._window);
 

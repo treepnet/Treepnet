@@ -238,8 +238,7 @@ class _SharPostState extends State<SharePostView> with SafeSetStateMixin {
                     final foundUsers = <User>[
                       ...existedUsers,
                       ...users.where(
-                        (user) =>
-                            !existedUsers.any((e) => e.id == user.id),
+                        (user) => !existedUsers.any((e) => e.id == user.id),
                       ),
                     ];
                     _foundUsers.value = {...foundUsers};

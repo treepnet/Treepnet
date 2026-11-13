@@ -28,9 +28,6 @@ class PostBloc extends Bloc<PostEvent, PostState> {
     on<PostLikeRequested>(_onPostLikeRequested);
     on<PostAuthorFollowRequested>(_onPostAuthorFollowRequested);
     on<PostDeleteRequested>(_onPostDeleteRequested);
-    on<PostLikersInFollowingsFetchRequested>(
-      _onPostLikersInFollowingsFetchRequested,
-    );
   }
 
   static const _usersLimit = 100;
@@ -164,19 +161,4 @@ class PostBloc extends Bloc<PostEvent, PostState> {
       emit(state.copyWith(status: PostStatus.failure));
     }
   }
-
-  Future<void> _onPostLikersInFollowingsFetchRequested(
-    PostLikersInFollowingsFetchRequested event,
-    Emitter<PostState> emit,
-  ) async {
-    try {
-      final likersInFollowings = await _postsRepository
-          .getPostLikersInFollowings(postId: id);
-      emit(state.copyWith(likersInFollowings: likersInFollowings));
-    } catch (error, stackTrace) {
-      addError(error, stackTrace);
-      emit(state.copyWith(status: PostStatus.failure));
-    }
-  }
-
 }

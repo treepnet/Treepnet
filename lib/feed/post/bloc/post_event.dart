@@ -27,10 +27,6 @@ final class PostUpdateRequested extends PostEvent {
   final ValueSetter<PostBlock>? onPostUpdated;
 }
 
-final class PostLikersInFollowingsFetchRequested extends PostEvent {
-  const PostLikersInFollowingsFetchRequested();
-}
-
 final class PostLikersPageRequested extends PostEvent {
   const PostLikersPageRequested({this.page = 0});
 
@@ -57,4 +53,3 @@ final class PostAuthorFollowRequested extends PostEvent {
 final class PostDeleteRequested extends PostEvent {
   const PostDeleteRequested();
 }
-

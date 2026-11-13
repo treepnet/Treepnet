@@ -176,9 +176,7 @@ extension AppendPageExtension on List<InstaBlock> {
 /// ```dart
 /// Post post = ...;
 ///
-/// PostLargeBlock largeBlock = post.toPostLargeBlock(
-///   likersInFollowings: likers,
-/// );
+/// PostLargeBlock largeBlock = post.toPostLargeBlock;
 /// PostSmallBlock smallBlock = post.toPostSmallBlock;
 /// PostReelBlock reelBlock = post.toPostReelBlock;
 /// ```
