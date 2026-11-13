@@ -8,6 +8,7 @@ import 'package:stories_repository/stories_repository.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/stories/stories.dart';
+import 'package:treepnet/stories/story_date.dart';
 
 /// {@template story_archive_page}
 /// Every story the author has posted, newest first — including the ones still
@@ -122,10 +123,8 @@ class StoryArchivePage extends StatelessWidget {
     );
   }
 
-  static String _shortDate(DateTime? at) {
-    if (at == null) return '';
-    return '${at.day}.${at.month.toString().padLeft(2, '0')}.${at.year}';
-  }
+  static String _shortDate(DateTime? at) =>
+      at == null ? '' : storyShortDate(at);
 }
 
 class _EmptyArchive extends StatelessWidget {

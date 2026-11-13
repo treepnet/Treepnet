@@ -15,6 +15,7 @@ import 'package:treepnet/map/geo_regions.dart';
 import 'package:treepnet/stories/stories.dart';
 import 'package:treepnet/user_profile/user_profile.dart';
 import 'package:treepnet/user_profile/widgets/user_profile_create_post.dart';
+import 'package:treepnet/stories/story_date.dart';
 
 /// Where [LocationPostsPage] was opened from: a single pin, or a whole region.
 enum LocationPostsScope {
@@ -620,8 +621,6 @@ class _StoryTile extends StatelessWidget {
   /// you want. On a place's grid it is noise over the picture.
   final bool showDate;
 
-  static String _shortDate(DateTime at) =>
-      '${at.day}.${at.month.toString().padLeft(2, '0')}.${at.year}';
 
   @override
   Widget build(BuildContext context) {
@@ -648,7 +647,7 @@ class _StoryTile extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.xs),
                 child: Text(
-                  _shortDate(story.createdAt),
+                  storyShortDate(story.createdAt),
                   style: const TextStyle(
                     color: AppColors.white,
                     fontSize: 11,

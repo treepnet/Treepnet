@@ -9,6 +9,7 @@ import 'package:treepnet/app/app.dart';
 import 'package:treepnet/app/view/text_limit.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/stories/stories.dart';
+import 'package:treepnet/stories/story_date.dart';
 
 /// The circular highlight covers under a profile's bio.
 ///
@@ -207,8 +208,6 @@ class _CreateHighlightSheetState extends State<_CreateHighlightSheet> {
     if (mounted) setState(() => _stories = all);
   }
 
-  static String _shortDate(DateTime at) =>
-      '${at.day}.${at.month.toString().padLeft(2, '0')}.${at.year}';
 
   Future<void> _save() async {
     final all = _stories ?? const <Story>[];
@@ -341,7 +340,7 @@ class _CreateHighlightSheetState extends State<_CreateHighlightSheet> {
                             child: Padding(
                               padding: const EdgeInsets.all(4),
                               child: Text(
-                                _shortDate(story.createdAt),
+                                storyShortDate(story.createdAt),
                                 style: context.labelSmall?.copyWith(
                                   color: AppColors.white,
                                   fontSize: 9,
