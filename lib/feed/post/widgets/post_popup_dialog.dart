@@ -21,7 +21,7 @@ class PostPopupDialog extends StatelessWidget {
     required this.likeButtonKey,
     required this.commentOrViewProfileButtonKey,
     required this.sharePostKey,
-    required this.optionsKey,
+    required this.saveKey,
     required this.showComments,
     super.key,
   });
@@ -35,7 +35,7 @@ class PostPopupDialog extends StatelessWidget {
   final GlobalKey likeButtonKey;
   final GlobalKey commentOrViewProfileButtonKey;
   final GlobalKey sharePostKey;
-  final GlobalKey optionsKey;
+  final GlobalKey saveKey;
   final bool showComments;
 
   @override
@@ -74,7 +74,7 @@ class PostPopupDialog extends StatelessWidget {
                         commentOrViewProfileButtonKey,
                     showComments: showComments,
                     sharePostKey: sharePostKey,
-                    optionsKey: optionsKey,
+                    saveKey: saveKey,
                   ),
                 ],
               ),
@@ -187,7 +187,7 @@ class PopupDialogFooter extends StatelessWidget {
     required this.commentOrViewProfileButtonKey,
     required this.showComments,
     required this.sharePostKey,
-    required this.optionsKey,
+    required this.saveKey,
     super.key,
   });
 
@@ -195,7 +195,7 @@ class PopupDialogFooter extends StatelessWidget {
   final GlobalKey<State<StatefulWidget>> commentOrViewProfileButtonKey;
   final bool showComments;
   final GlobalKey<State<StatefulWidget>> sharePostKey;
-  final GlobalKey<State<StatefulWidget>> optionsKey;
+  final GlobalKey<State<StatefulWidget>> saveKey;
 
   @override
   Widget build(BuildContext context) {
@@ -213,20 +213,25 @@ class PopupDialogFooter extends StatelessWidget {
               builder: (context, state) {
                 final isLiked = state.isLiked;
 
-                // Same accent as the feed's like button, so a liked post reads
-                // identically everywhere.
-                return Icon(
-                  isLiked ? Icons.favorite : Icons.favorite_border,
-                  color: isLiked ? AppColors.pink : null,
-                  size: 28,
-                );
+                // The card's heart (LikeButton): filled pink once liked.
+                return (isLiked
+                        ? Assets.icons.heartFilled
+                        : Assets.icons.heartLined)
+                    .svg(
+                      width: 28,
+                      height: 28,
+                      colorFilter: ColorFilter.mode(
+                        isLiked ? AppColors.pink : context.adaptiveColor,
+                        BlendMode.srcIn,
+                      ),
+                    );
               },
             ),
           ),
           SizedBox(
             key: commentOrViewProfileButtonKey,
             child: showComments
-                ? Assets.icons.chatCircle.svg(
+                ? Assets.icons.commentLined.svg(
                     height: 28,
                     colorFilter: ColorFilter.mode(
                       context.adaptiveColor,
@@ -243,11 +248,31 @@ class PopupDialogFooter extends StatelessWidget {
           ),
           SizedBox(
             key: sharePostKey,
-            child: const Icon(Icons.near_me_outlined, size: 28),
+            child: Assets.icons.shareLined.svg(
+              height: 28,
+              colorFilter: ColorFilter.mode(
+                context.adaptiveColor,
+                BlendMode.srcIn,
+              ),
+            ),
           ),
+          // Save, where an Options target sat that did nothing.
           SizedBox(
-            key: optionsKey,
-            child: const Icon(Icons.more_vert, size: 28),
+            key: saveKey,
+            child: BlocBuilder<PostBloc, PostState>(
+              buildWhen: (a, b) => a.isBookmarked != b.isBookmarked,
+              builder: (context, state) =>
+                  (state.isBookmarked
+                          ? Assets.icons.savedFilled
+                          : Assets.icons.savedLined)
+                      .svg(
+                        height: 28,
+                        colorFilter: ColorFilter.mode(
+                          context.adaptiveColor,
+                          BlendMode.srcIn,
+                        ),
+                      ),
+            ),
           ),
         ],
       ),
@@ -268,16 +293,29 @@ class LikeAnimatedIcon extends StatelessWidget {
         builder: (context, child) => AnimatedOpacity(
           duration: 50.ms,
           opacity: controller.isAnimating ? 1 : 0,
-          child: const Icon(Icons.favorite, color: AppColors.white, size: 100)
-              .animate(autoPlay: false, controller: controller)
-              .scaleXY(
-                end: 1.3,
-                curve: Sprung.custom(damping: 5, stiffness: 85),
-                duration: 350.ms,
-              )
-              .then(delay: 150.ms, curve: Curves.linear)
-              .scaleXY(end: 1 / 1.3, duration: 150.ms)
-              .fadeOut(duration: 150.ms),
+          // The card's double-tap heart (PoppingIconAnimationOverlay).
+          child:
+              ShaderMask(
+                    shaderCallback: (bounds) => const LinearGradient(
+                      colors: [Color(0xFFFF2A54), Color(0xFFFF781E)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ).createShader(bounds),
+                    child: const Icon(
+                      Icons.favorite,
+                      color: Colors.white,
+                      size: 100,
+                    ),
+                  )
+                  .animate(autoPlay: false, controller: controller)
+                  .scaleXY(
+                    end: 1.3,
+                    curve: Sprung.custom(damping: 5, stiffness: 85),
+                    duration: 350.ms,
+                  )
+                  .then(delay: 150.ms, curve: Curves.linear)
+                  .scaleXY(end: 1 / 1.3, duration: 150.ms)
+                  .fadeOut(duration: 150.ms),
         ),
       ),
     );

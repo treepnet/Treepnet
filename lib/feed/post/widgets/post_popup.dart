@@ -132,7 +132,7 @@ class _PostPopupState extends State<PopupModal>
   final _likeButtonKey = GlobalKey();
   final _commentOrViewProfileButtonKey = GlobalKey();
   final _sharePostKey = GlobalKey();
-  final _optionsKey = GlobalKey();
+  final _saveKey = GlobalKey();
 
   OverlayEntry? _popupDialog;
   OverlayEntry? _popupEmptyDialog;
@@ -141,7 +141,7 @@ class _PostPopupState extends State<PopupModal>
   final _likeVisibility = ValueNotifier(false);
   final _commentOrViewProfileVisibility = ValueNotifier(false);
   final _sharePostVisibility = ValueNotifier(false);
-  final _optionsVisibility = ValueNotifier(false);
+  final _saveVisibility = ValueNotifier(false);
 
   final _messagePositionLeft = ValueNotifier<double>(0);
   final _messageText = ValueNotifier('');
@@ -172,11 +172,24 @@ class _PostPopupState extends State<PopupModal>
     if (status == AnimationStatus.dismissed) {
       _popupDialog?.remove();
       _popupEmptyDialog?.remove();
-      if (_commentOrViewProfileVisibility.value) {
-        await showCommentsOrViewProfile();
-      }
-      if (_sharePostVisibility.value) await sharePost();
+      final comments = _commentOrViewProfileVisibility.value;
+      final share = _sharePostVisibility.value;
+      _clearChoice();
+      if (comments) await showCommentsOrViewProfile();
+      if (share) await sharePost();
     }
+  }
+
+  /// No button chosen. The choice was cleared only when the finger moved off
+  /// every button, and on iOS a finger held still sends no moves: the next
+  /// peek of a tile, released in place, repeated the last action (a like
+  /// toggled again, Share or the profile opened again).
+  void _clearChoice() {
+    _likeVisibility.value = false;
+    _commentOrViewProfileVisibility.value = false;
+    _sharePostVisibility.value = false;
+    _saveVisibility.value = false;
+    _messageVisibility.value = false;
   }
 
   @override
@@ -189,7 +202,7 @@ class _PostPopupState extends State<PopupModal>
     _likeVisibility.dispose();
     _commentOrViewProfileVisibility.dispose();
     _sharePostVisibility.dispose();
-    _optionsVisibility.dispose();
+    _saveVisibility.dispose();
     _isLiked.dispose();
     _isLikedSubscription?.cancel();
     super.dispose();
@@ -244,7 +257,7 @@ class _PostPopupState extends State<PopupModal>
     final likePosition = _getOffset(_likeButtonKey);
     final commentPosition = _getOffset(_commentOrViewProfileButtonKey);
     final sharePosition = _getOffset(_sharePostKey);
-    final optionsPosition = _getOffset(_optionsKey);
+    final savePosition = _getOffset(_saveKey);
 
     bool isInside(PositionDimension dimension) =>
         details.globalPosition.dy > dimension.positionTop &&
@@ -274,11 +287,14 @@ class _PostPopupState extends State<PopupModal>
           sharePosition.positionLeft - sharePosition.positionCenter - 12;
       _sharePostVisibility.value = true;
       _messageVisibility.value = true;
-    } else if (isInside(optionsPosition)) {
-      _messageText.value = l10n.optionsText;
+    } else if (isInside(savePosition)) {
+      final saved = context.read<PostBloc>().state.isBookmarked;
+      _messageText.value = saved ? l10n.removeFromSavedText : l10n.saveText;
       _messagePositionLeft.value =
-          optionsPosition.positionLeft - optionsPosition.positionCenter - 15;
-      _optionsVisibility.value = true;
+          savePosition.positionLeft -
+          savePosition.positionCenter -
+          (saved ? 60 : 22);
+      _saveVisibility.value = true;
       _messageVisibility.value = true;
     } else {
       _messageText.value = '';
@@ -286,7 +302,7 @@ class _PostPopupState extends State<PopupModal>
       _likeVisibility.value = false;
       _commentOrViewProfileVisibility.value = false;
       _sharePostVisibility.value = false;
-      _optionsVisibility.value = false;
+      _saveVisibility.value = false;
       _messageVisibility.value = false;
     }
 
@@ -295,6 +311,7 @@ class _PostPopupState extends State<PopupModal>
   }
 
   void onLongPress(PostBloc bloc) {
+    _clearChoice();
     if (!_statsRequested) {
       _statsRequested = true;
       bloc.add(
@@ -315,8 +332,13 @@ class _PostPopupState extends State<PopupModal>
     required bool isLiked,
     required BuildContext context,
   }) async {
+    if (_saveVisibility.value) {
+      context.read<PostBloc>().add(const PostBookmarkRequested());
+    }
     if (_likeVisibility.value) {
-      context.read<PostBloc>().add(const PostLikeRequested());
+      // What the button showed, not a flip: a flip of a stale state could
+      // undo a like.
+      context.read<PostBloc>().add(PostLikeRequested(liked: !isLiked));
       if (!isLiked) {
         _animateLike();
         await Future<void>.delayed(550.ms);
@@ -387,7 +409,7 @@ class _PostPopupState extends State<PopupModal>
         likeButtonKey: _likeButtonKey,
         commentOrViewProfileButtonKey: _commentOrViewProfileButtonKey,
         sharePostKey: _sharePostKey,
-        optionsKey: _optionsKey,
+        saveKey: _saveKey,
         showComments: widget.showComments,
       ),
     ),
