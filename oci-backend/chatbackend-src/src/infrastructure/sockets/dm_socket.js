@@ -226,6 +226,35 @@ async function broadcastPresence(io, userId, online) {
     }
 }
 
+/**
+ * Shu xabarga qilingan javoblardagi iqtibos ([quote]) ni asl xabarga moslaydi:
+ * o'chirilganda bo'sh, tahrirlanganda yangi matn. Iqtibos javob yozilgan
+ * paytdagi matn nusxasi edi, shuning uchun o'chirilgan xabar matni javoblarda
+ * ko'rinib qolardi. Ochiq chatlar yangilangan javoblarni darhol oladi.
+ */
+async function refreshQuotes(io, conversationId, messageId, quote, participants) {
+    const replies = await prisma.directMessage.findMany({
+        where: { conversationId, replyToId: String(messageId) },
+        select: { id: true },
+        take: 500,
+    });
+    if (replies.length === 0) return;
+    const ids = replies.map((r) => r.id);
+    await prisma.directMessage.updateMany({
+        where: { id: { in: ids } },
+        data: { replyToContent: quote },
+    });
+    const updated = await prisma.directMessage.findMany({
+        where: { id: { in: ids }, isDeleted: false },
+    });
+    for (const reply of updated) {
+        const dto = toMessageDto(reply);
+        for (const participantId of participants) {
+            io.to(userRoom(participantId)).emit('dm.messageEdited', dto);
+        }
+    }
+}
+
 function register(io, socket) {
     // Faqat autentifikatsiyadan o'tgan mijoz socketlari uchun.
     // `authReady` hali tugamagan bo'lishi mumkin - shuning uchun kutamiz.
@@ -513,6 +542,11 @@ function register(io, socket) {
 
             const participants = await participantsOf(message.conversationId, socket.userId);
             if (!participants) return ack?.({ status: 'error', error: 'Not a participant' });
+            // Bloklangan juftlikda tarixni qayta yozib bo'lmaydi (o'chirish
+            // mumkin: o'z xabarini olib tashlash hech kimga zarar emas).
+            if (await blockedInConversation(socket, participants)) {
+                return ack?.({ status: 'error', error: 'Blocked', code: 'BLOCKED' });
+            }
 
             const updated = await prisma.directMessage.update({
                 where: { id: messageId },
@@ -524,6 +558,7 @@ function register(io, socket) {
                 io.to(userRoom(participantId)).emit('dm.messageEdited', dto);
             }
             ack?.({ status: 'ok', message: dto });
+            await refreshQuotes(io, message.conversationId, messageId, content.slice(0, 500), participants);
         } catch (error) {
             console.error('[DM] dm.edit error:', error);
             ack?.({ status: 'error', error: 'server error' });
@@ -558,6 +593,7 @@ function register(io, socket) {
                 io.to(userRoom(participantId)).emit('dm.messageDeleted', dto);
             }
             ack?.({ status: 'ok', message: dto });
+            await refreshQuotes(io, message.conversationId, messageId, '', participants);
         } catch (error) {
             console.error('[DM] dm.delete error:', error);
             ack?.({ status: 'error', error: 'server error' });

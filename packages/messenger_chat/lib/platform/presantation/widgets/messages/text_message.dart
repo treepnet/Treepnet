@@ -22,7 +22,10 @@ class _TextMessageState extends State<_TextMessage> {
 
   /// Only explicit http(s) links. The old pattern took any word with a dot —
   /// "file.txt", "3.14" — and fetched https://file.txt.
-  static final _urlPattern = RegExp(r'https?://[^\s<>"]+', caseSensitive: false);
+  static final _urlPattern = RegExp(
+    r'https?://[^\s<>"]+',
+    caseSensitive: false,
+  );
 
   /// Links whose preview couldn't be fetched this session, so they aren't
   /// asked for again each time the bubble scrolls back into view.
@@ -448,17 +451,27 @@ class _QuotedReply extends StatelessWidget {
                   author,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: base.copyWith(fontWeight: FontWeight.w700, fontSize: 12),
+                  style: base.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
                 ),
               Text(
-                // Shared post/story sentinels → a friendly label, via the app
-                // hook (was showing the raw `treepnet:share:...` text).
-                _ChatRuntime.instance.sharedReplyPreview?.call(reply.content) ??
-                    reply.content,
+                // The quoted message was deleted: the server empties its
+                // quote, and the empty line said nothing. Shared post/story
+                // sentinels → a friendly label, via the app hook (was showing
+                // the raw `treepnet:share:...` text).
+                reply.content.isEmpty
+                    ? _AppTexts.messageDeleted
+                    : _ChatRuntime.instance.sharedReplyPreview?.call(
+                            reply.content,
+                          ) ??
+                          reply.content,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: base.copyWith(
                   fontSize: 12,
+                  fontStyle: reply.content.isEmpty ? FontStyle.italic : null,
                   color: (base.color ?? Colors.white).withValues(alpha: 0.85),
                 ),
               ),
