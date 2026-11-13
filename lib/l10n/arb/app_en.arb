@@ -717,6 +717,10 @@
     "placeholders": { "error": { "type": "String" } }
   },
   "couldNotLoadText": "Couldn't load",
+  "discardPhotoTitleText": "Discard photo?",
+  "discardPhotoText": "Discard",
+  "photoLimitText": "You can pick up to {count} photos",
+  "@photoLimitText": { "placeholders": { "count": { "type": "int" } } },
   "retryText": "Retry",
   "couldNotLoadMorePostsText": "Couldn't load more posts",
   "@couldNotLoadMorePostsText": {

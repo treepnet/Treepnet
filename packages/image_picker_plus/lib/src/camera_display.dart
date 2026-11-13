@@ -353,19 +353,19 @@ class CustomCameraDisplayState extends State<CustomCameraDisplay> {
               builder: (dialogContext) => AlertDialog(
                 backgroundColor: widget.appTheme.surfaceColor,
                 title: Text(
-                  'Discard photo?',
+                  widget.tabsNames.discardPhotoTitleText,
                   style: TextStyle(color: widget.appTheme.onSurfaceColor),
                 ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.of(dialogContext).pop(false),
-                    child: const Text('Cancel'),
+                    child: Text(widget.tabsNames.cancelText),
                   ),
                   TextButton(
                     onPressed: () => Navigator.of(dialogContext).pop(true),
-                    child: const Text(
-                      'Discard',
-                      style: TextStyle(color: Colors.red),
+                    child: Text(
+                      widget.tabsNames.discardPhotoText,
+                      style: const TextStyle(color: Colors.red),
                     ),
                   ),
                 ],

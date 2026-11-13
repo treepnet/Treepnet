@@ -18,6 +18,7 @@ class GalleryDisplaySettings {
     this.cropImage = false,
     this.maximumSelection = 10,
     this.pickAvatar = false,
+    this.gridBottomPadding = 0,
   });
   final AppTheme? appTheme;
   final TabsTexts? tabsTexts;
@@ -27,4 +28,9 @@ class GalleryDisplaySettings {
   final AsyncValueSetter<SelectedImagesDetails>? callbackFunction;
   final bool cropImage;
   final bool pickAvatar;
+
+  /// Room under the grid for a bar the host floats over it (the Post/Story
+  /// row): without it the last (oldest) row sat under the bar and couldn't be
+  /// picked. The device's bottom inset is added to it.
+  final double gridBottomPadding;
 }

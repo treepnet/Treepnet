@@ -19,6 +19,9 @@ class TabsTexts {
     this.noCameraFoundText = 'No camera found!',
     this.newPostText = 'New post',
     this.newAvatarImageText = 'New avatar image',
+    this.discardPhotoTitleText = 'Discard photo?',
+    this.discardPhotoText = 'Discard',
+    this.cancelText = 'Cancel',
   });
   final String videoText;
   final String photoText;
@@ -50,6 +53,11 @@ class TabsTexts {
   final String newPostText;
   final String newAvatarImageText;
 
+  /// The camera's "throw this shot away?" dialog (was English-only).
+  final String discardPhotoTitleText;
+  final String discardPhotoText;
+  final String cancelText;
+
   /// These texts with some replaced, e.g. the app's translated set with
   /// another title. (The story gallery built a fresh TabsTexts with only its
   /// title, so every other text there was the English default.)
@@ -72,6 +80,9 @@ class TabsTexts {
     String? noCameraFoundText,
     String? newPostText,
     String? newAvatarImageText,
+    String? discardPhotoTitleText,
+    String? discardPhotoText,
+    String? cancelText,
   }) {
     return TabsTexts(
       videoText: videoText ?? this.videoText,
@@ -92,6 +103,10 @@ class TabsTexts {
       noCameraFoundText: noCameraFoundText ?? this.noCameraFoundText,
       newPostText: newPostText ?? this.newPostText,
       newAvatarImageText: newAvatarImageText ?? this.newAvatarImageText,
+      discardPhotoTitleText:
+          discardPhotoTitleText ?? this.discardPhotoTitleText,
+      discardPhotoText: discardPhotoText ?? this.discardPhotoText,
+      cancelText: cancelText ?? this.cancelText,
     );
   }
 }

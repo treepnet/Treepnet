@@ -1232,6 +1232,17 @@ class AppLocalizationsRu extends AppLocalizations {
   String get couldNotLoadText => 'Не удалось загрузить';
 
   @override
+  String get discardPhotoTitleText => 'Удалить снимок?';
+
+  @override
+  String get discardPhotoText => 'Удалить';
+
+  @override
+  String photoLimitText(int count) {
+    return 'Можно выбрать не больше $count фото';
+  }
+
+  @override
   String get retryText => 'Повторить';
 
   @override

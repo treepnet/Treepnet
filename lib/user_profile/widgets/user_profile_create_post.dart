@@ -64,6 +64,10 @@ class UserProfileCreatePost extends StatelessWidget {
           pickerSource: PickerSource.image,
           multiSelection: true,
           wantKeepAlive: wantKeepAlive,
+          // The Post/Story bar floats over the grid's bottom (its 52 plus
+          // the gap under it): the oldest row needs that much room to be
+          // picked.
+          gridBottomPadding: 52 + AppSpacing.md,
           onMediaPicked: (details) => context.pushNamed(
             AppRoutes.publishPost.name,
             extra: CreatePostProps(details: details, pickVideo: pickVideo),

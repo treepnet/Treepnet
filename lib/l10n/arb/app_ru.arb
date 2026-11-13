@@ -656,6 +656,9 @@
     "placeholders": { "error": { "type": "String" } }
   },
   "couldNotLoadText": "Не удалось загрузить",
+  "discardPhotoTitleText": "Удалить снимок?",
+  "discardPhotoText": "Удалить",
+  "photoLimitText": "Можно выбрать не больше {count} фото",
   "retryText": "Повторить",
   "couldNotLoadMorePostsText": "Не удалось загрузить посты",
   "messageNotSentText": "Сообщение не отправлено",

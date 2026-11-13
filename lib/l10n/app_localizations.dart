@@ -2037,6 +2037,24 @@ abstract class AppLocalizations {
   /// **'Couldn\'t load'**
   String get couldNotLoadText;
 
+  /// No description provided for @discardPhotoTitleText.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard photo?'**
+  String get discardPhotoTitleText;
+
+  /// No description provided for @discardPhotoText.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get discardPhotoText;
+
+  /// No description provided for @photoLimitText.
+  ///
+  /// In en, this message translates to:
+  /// **'You can pick up to {count} photos'**
+  String photoLimitText(int count);
+
   /// No description provided for @retryText.
   ///
   /// In en, this message translates to:

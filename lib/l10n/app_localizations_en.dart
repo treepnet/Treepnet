@@ -1213,6 +1213,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get couldNotLoadText => 'Couldn\'t load';
 
   @override
+  String get discardPhotoTitleText => 'Discard photo?';
+
+  @override
+  String get discardPhotoText => 'Discard';
+
+  @override
+  String photoLimitText(int count) {
+    return 'You can pick up to $count photos';
+  }
+
+  @override
   String get retryText => 'Retry';
 
   @override

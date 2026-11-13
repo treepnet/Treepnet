@@ -43,6 +43,12 @@ void initUtilities(BuildContext context, Locale locale) {
       noCameraFoundText: l10n.noCameraFoundText,
       newPostText: l10n.newPostText,
       newAvatarImageText: l10n.newAvatarImageText,
+      discardPhotoTitleText: l10n.discardPhotoTitleText,
+      discardPhotoText: l10n.discardPhotoText,
+      cancelText: l10n.cancelText,
+      // A post takes at most 10 photos (pickImagesAndVideos, the picker's
+      // default); said when an 11th is tapped.
+      limitingText: l10n.photoLimitText(10),
     ),
   );
   BlockSettings().init(

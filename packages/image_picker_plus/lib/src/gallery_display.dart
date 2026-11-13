@@ -350,6 +350,7 @@ class CustomImagePickerState extends State<CustomImagePicker>
       filterOption: widget.filterOption,
       onBackButtonTap: widget.onBackButtonTap,
       pickAvatar: settings.pickAvatar,
+      gridBottomPadding: settings.gridBottomPadding,
       wantKeepAlive: widget.wantKeepAlive,
       // A camera tile replaces the separate Gallery/Photo tab: the camera lives
       // in the grid, so the gallery is the only page the user sees.

@@ -148,6 +148,7 @@ class PickImage {
     VoidCallback? onBackButtonTap,
     bool wantKeepAlive = true,
     ValueChanged<bool>? onCameraTabChanged,
+    double gridBottomPadding = 0,
   }) => CustomImagePicker(
     onCameraTabChanged: onCameraTabChanged,
     key: key,
@@ -157,6 +158,7 @@ class PickImage {
       tabsTexts: _tabsTexts,
       appTheme: _appTheme(context),
       callbackFunction: (details) async => onMediaPicked.call(details),
+      gridBottomPadding: gridBottomPadding,
     ),
     wantKeepAlive: wantKeepAlive,
     multiSelection: multiSelection,

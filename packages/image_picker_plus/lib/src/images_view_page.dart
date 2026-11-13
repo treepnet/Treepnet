@@ -34,6 +34,7 @@ class ImagesViewPage extends StatefulWidget {
     this.callbackFunction,
     this.onBackButtonTap,
     this.pickAvatar = false,
+    this.gridBottomPadding = 0,
     this.showCameraTile = false,
     this.onCameraTap,
   });
@@ -53,6 +54,10 @@ class ImagesViewPage extends StatefulWidget {
   final int maximumSelection;
   final AsyncValueSetter<SelectedImagesDetails>? callbackFunction;
   final bool pickAvatar;
+
+  /// Room under the grid for the host's floating bar (plus the device's
+  /// bottom inset): see GalleryDisplaySettings.gridBottomPadding.
+  final double gridBottomPadding;
 
   /// To avoid lag when you interacting with image when it expanded
   final AppTheme appTheme;
@@ -861,6 +866,13 @@ class _ImagesViewPageState extends State<ImagesViewPage>
     }
   }
 
+  EdgeInsets? _gridPadding(BuildContext context) => widget.gridBottomPadding > 0
+      ? EdgeInsets.only(
+          bottom:
+              widget.gridBottomPadding + MediaQuery.paddingOf(context).bottom,
+        )
+      : null;
+
   Widget normalGridView(
     List<FutureBuilder<Uint8List?>> mediaListValue,
     int currentPageValue,
@@ -880,6 +892,7 @@ class _ImagesViewPageState extends State<ImagesViewPage>
           horizontal: widget.gridDelegate.crossAxisSpacing,
         ),
         child: GridView.builder(
+          padding: _gridPadding(context),
           gridDelegate: widget.gridDelegate,
           itemBuilder: (context, index) {
             if (widget.showCameraTile) {
@@ -1026,6 +1039,22 @@ class _ImagesViewPageState extends State<ImagesViewPage>
       selected.add(image);
       indexOfSelectedMedia.value = [...indexOfSelectedMedia.value, index];
       widget.multiSelectedMedia.value = selected;
+    } else {
+      // At the limit a tap did nothing at all; it now says why.
+      final messenger = ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar();
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.tabsTexts.limitingText ??
+                'You can pick up to ${widget.maximumSelection} photos.',
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      // Handled: the preview stays on the picked photos, not on one that
+      // wasn't added.
+      return true;
     }
     selectedMedia.value = image;
     return false;
@@ -1135,6 +1164,7 @@ class _ImagesViewPageState extends State<ImagesViewPage>
                                       widget.gridDelegate.crossAxisSpacing,
                                 ),
                                 child: GridView.builder(
+                                  padding: _gridPadding(context),
                                   gridDelegate: widget.gridDelegate,
                                   controller: scrollController,
                                   itemBuilder: (context, index) {
