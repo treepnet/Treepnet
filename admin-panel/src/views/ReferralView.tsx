@@ -3,25 +3,24 @@ import { Gift, UserPlus, Users } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useDashboard } from '../context/DataContext';
 import { BarRow, Card, Empty, PageHeader, StatCard, Td, Th } from '../components/ui';
-import { fmtNum, pct } from '../lib/format';
+import { fmtDate, fmtNum, pct } from '../lib/format';
 
-const TIER_CLS: Record<string, string> = {
-  Bronze: 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300',
-  Silver: 'bg-zinc-200 text-zinc-700 dark:bg-white/[0.08] dark:text-zinc-300',
-  Gold: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/15 dark:text-yellow-300',
-  Platinum: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-500/15 dark:text-cyan-300',
-};
-const TIER_BAR: Record<string, string> = {
-  Bronze: 'bg-amber-600', Silver: 'bg-zinc-400', Gold: 'bg-yellow-500', Platinum: 'bg-cyan-500',
+// The app's badge colours, level 1-5 (lib/settings/view/referral_badge.dart).
+const BADGE_COLOUR: Record<number, string> = {
+  1: '#5BB8E8',
+  2: '#1E7FE0',
+  3: '#A020C7',
+  4: '#ED2A93',
+  5: '#E01B24',
 };
 
 export const ReferralView: React.FC = () => {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const d = useDashboard();
   const r = d.referrals;
   const [tab, setTab] = useState<'period' | 'all'>('period');
   const rows = tab === 'period' ? r.leaderboardPeriod : r.leaderboardAllTime;
-  const tierTotal = Object.values(r.tiers).reduce((s, v) => s + v, 0);
+  const colourTotal = r.colourTiers.reduce((s, c) => s + c.users, 0);
 
   return (
     <div className="space-y-5">
@@ -71,7 +70,7 @@ export const ReferralView: React.FC = () => {
                     <Th>{t.users.colUser}</Th>
                     <Th right>{t.referral.colInvited}</Th>
                     <Th right>{t.referral.colActive}</Th>
-                    <Th>{t.referral.colTier}</Th>
+                    <Th>{t.referral.colPremium}</Th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-100 dark:divide-white/[0.04]">
@@ -81,7 +80,25 @@ export const ReferralView: React.FC = () => {
                       <Td className="font-medium text-zinc-800 dark:text-zinc-200">@{x.username}</Td>
                       <Td right>{x.invited}</Td>
                       <Td right>{x.active} <span className="text-zinc-400">({x.activePct}%)</span></Td>
-                      <Td><span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${TIER_CLS[x.tier]}`}>{x.tier}</span></Td>
+                      <Td>
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                          {x.colourTier > 0 && (
+                            <span
+                              className="inline-block h-2.5 w-2.5 rounded-full"
+                              style={{ background: BADGE_COLOUR[x.colourTier] }}
+                              title={`${t.referral.colourLevel} ${x.colourTier}`}
+                            />
+                          )}
+                          <span className="text-zinc-700 dark:text-zinc-300">
+                            {x.premiumMonths} {t.referral.months}
+                          </span>
+                          {x.premiumUntil && (
+                            <span className="text-zinc-400">
+                              · {lang === 'uz' ? `${fmtDate(x.premiumUntil, lang)} ${t.referral.until}` : `${t.referral.until} ${fmtDate(x.premiumUntil, lang)}`}
+                            </span>
+                          )}
+                        </span>
+                      </Td>
                     </tr>
                   ))}
                 </tbody>
@@ -89,17 +106,39 @@ export const ReferralView: React.FC = () => {
             </div>
           )}
         </Card>
-        <Card title={t.referral.tiers} scope="allTime" subtitle={t.referral.tierHint}>
-          {tierTotal === 0 ? (
-            <Empty />
-          ) : (
-            <div className="space-y-3">
-              {(['Bronze', 'Silver', 'Gold', 'Platinum'] as const).map((k) => (
-                <BarRow key={k} label={k} count={r.tiers[k]} pct={pct(r.tiers[k], tierTotal)} color={TIER_BAR[k]} />
+        <div className="space-y-4">
+          <Card title={t.referral.premium} scope="allTime" subtitle={t.referral.premiumHint}>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              {[
+                [t.referral.premiumEarned, r.premium.earned],
+                [t.referral.premiumMonths, r.premium.months],
+                [t.referral.premiumActive, r.premium.activeNow],
+              ].map(([label, value]) => (
+                <div key={String(label)} className="rounded-lg bg-zinc-50 px-2 py-3 dark:bg-white/[0.04]">
+                  <div className="text-lg font-semibold tabular-nums text-zinc-900 dark:text-white">{fmtNum(Number(value))}</div>
+                  <div className="mt-0.5 text-[11px] leading-tight text-zinc-500">{label}</div>
+                </div>
               ))}
             </div>
-          )}
-        </Card>
+          </Card>
+          <Card title={t.referral.colours} scope="now" subtitle={t.referral.coloursHint}>
+            {colourTotal === 0 ? (
+              <Empty />
+            ) : (
+              <div className="space-y-3">
+                {r.colourTiers.map((c) => (
+                  <BarRow
+                    key={c.tier}
+                    label={`${t.referral.colourLevel} ${c.tier} (${fmtNum(c.showing)})`}
+                    count={c.users}
+                    pct={pct(c.users, colourTotal)}
+                    fill={BADGE_COLOUR[c.tier]}
+                  />
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
       </div>
     </div>
   );

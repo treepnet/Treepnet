@@ -127,8 +127,8 @@ export const StatCard: React.FC<{
   );
 };
 
-export const BarRow: React.FC<{ label: string; count: number; pct: number; color?: string; right?: string }> = ({
-  label, count, pct, color = 'bg-emerald-500', right,
+export const BarRow: React.FC<{ label: string; count: number; pct: number; color?: string; fill?: string; right?: string }> = ({
+  label, count, pct, color = 'bg-emerald-500', fill, right,
 }) => (
   <div className="space-y-1">
     <div className="flex items-baseline justify-between gap-3 text-xs">
@@ -138,7 +138,10 @@ export const BarRow: React.FC<{ label: string; count: number; pct: number; color
       </span>
     </div>
     <div className="h-1.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-white/[0.06]">
-      <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+      <div
+        className={`h-full rounded-full ${fill ? '' : color}`}
+        style={{ width: `${Math.min(100, Math.max(0, pct))}%`, ...(fill ? { background: fill } : {}) }}
+      />
     </div>
   </div>
 );

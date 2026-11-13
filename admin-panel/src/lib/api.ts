@@ -84,8 +84,6 @@ export interface DashboardData {
     birthYears: { key: string; count: number; pct: number }[];
   };
   content: {
-    storiesPhoto: number;
-    storiesVideo: number;
     geoTaggedPct: number;
     topPosts: { id: string; username: string; createdAt: string; place: string | null; likes: number; comments: number; saves: number }[];
     topCreators: { username: string; posts: number; likes: number }[];
@@ -99,7 +97,10 @@ export interface DashboardData {
     leaderboardPeriod: ReferralRow[];
     leaderboardAllTime: ReferralRow[];
     inviters: number;
-    tiers: Record<'Bronze' | 'Silver' | 'Gold' | 'Platinum', number>;
+    /** Inviters with at least one premium month earned, months earned in all, premium running now. */
+    premium: { earned: number; months: number; activeNow: number };
+    /** Users per badge colour 1-5; `showing`: of them, with premium running (the badge is visible). */
+    colourTiers: { tier: number; users: number; showing: number }[];
   };
   geography: {
     countries: { country: string; posts: number; authors: number; pct: number }[];
@@ -116,7 +117,12 @@ export interface ReferralRow {
   invited: number;
   active: number;
   activePct: number;
-  tier: 'Bronze' | 'Silver' | 'Gold' | 'Platinum';
+  /** A premium month per 5 invites, all time. */
+  premiumMonths: number;
+  /** When the running premium ends; null when none is running. */
+  premiumUntil: string | null;
+  /** Badge colour 1-5 (0: nothing on the map yet). */
+  colourTier: number;
 }
 
 export interface UserRow {

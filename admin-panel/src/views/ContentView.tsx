@@ -3,15 +3,14 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 import { Image as ImageIcon, MapPin, Users, Zap } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useDashboard } from '../context/DataContext';
-import { BarRow, Card, Empty, PageHeader, StatCard, Td, Th, useChartColors } from '../components/ui';
-import { fmtDate, fmtDay, fmtNum, pct } from '../lib/format';
+import { Card, Empty, PageHeader, StatCard, Td, Th, useChartColors } from '../components/ui';
+import { fmtDate, fmtDay, fmtNum } from '../lib/format';
 
 export const ContentView: React.FC = () => {
   const { t, lang } = useLanguage();
   const d = useDashboard();
   const c = useChartColors();
   const tt = d.totals;
-  const storiesInPeriod = d.content.storiesPhoto + d.content.storiesVideo;
   const rows = d.series.map((r) => ({ ...r, label: fmtDay(r.date, lang) }));
 
   return (
@@ -36,7 +35,7 @@ export const ContentView: React.FC = () => {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card title={t.content.chart} scope="period" className="lg:col-span-2">
+        <Card title={t.content.chart} scope="period" className="lg:col-span-3">
           {tt.post.value + tt.story.value === 0 ? (
             <Empty />
           ) : (
@@ -52,16 +51,6 @@ export const ContentView: React.FC = () => {
                   <Bar dataKey="stories" name={t.kpi.stories} fill={c.amber} radius={[3, 3, 0, 0]} maxBarSize={18} />
                 </BarChart>
               </ResponsiveContainer>
-            </div>
-          )}
-        </Card>
-        <Card title={t.content.storyFormat} scope="period">
-          {storiesInPeriod === 0 ? (
-            <Empty />
-          ) : (
-            <div className="space-y-3">
-              <BarRow label={t.content.photo} count={d.content.storiesPhoto} pct={pct(d.content.storiesPhoto, storiesInPeriod)} color="bg-amber-500" />
-              <BarRow label={t.content.video} count={d.content.storiesVideo} pct={pct(d.content.storiesVideo, storiesInPeriod)} color="bg-rose-500" />
             </div>
           )}
         </Card>

@@ -1,21 +1,21 @@
-# Treepnet-admin-panel
+# Treepnet admin panel
 
-Treepnet Admin Panel — High-performance, minimalist analytics dashboard designed for internal telemetry, user growth tracking, DAU/WAU/MAU activity, and infrastructure health monitoring.
+The internal analytics dashboard (admin.130-61-138-104.sslip.io, behind HTTP
+basic auth). It reads only `analytics-api` (oci-backend/functions/analytics-api),
+which reads PII-free `analytics.*` views as the read-only `analytics_ro` role.
 
-## Features
-- **Minimalist Linear & Vercel Design**: Clean typography, high data-ink ratio, custom dark/light themes.
-- **Multi-Language Support**: Full English (EN) and Russian (RU) localization with instant switching.
-- **Analytics Modules**:
-  - **Overview (KPIs)**: Total users, DAU, WAU, MAU, stickiness ratio, reactions, top content.
-  - **Growth & Signups**: Registration flow, age distribution, profile completeness, PII-safe users table.
-  - **Activity**: 45s heartbeat tracking, hourly activity curves, dormancy analysis.
-  - **Content**: Post & Story statistics, format ratios, reaction leaderboard.
-  - **Engagement**: Comments, reply ratios, follow graph, influencer rankings.
-  - **Referral System**: Tiers (Bronze to Platinum), conversion tracking, leaderboard.
-  - **Chat & Messaging**: Volume trends, format distribution (text, photo, voice, video).
-  - **Geography**: Regional analytics, international travel trends, top traveler rankings.
-  - **Security & System**: Push notification queue health, DB connection pooling, rate limit status.
-- **Interactive Controls**: Date range filtering (Today, 7D, 30D, 90D, All), CSV report export.
+## Pages
+- **Overview**: users, DAU/WAU/MAU, stickiness, posts, reactions, recent sign-ups.
+- **Users**: sign-ups, profile completeness, birth years, a searchable users table with CSV.
+- **Activity**: who is online (live), hourly activity, dormancy.
+- **Content**: posts and stories per day, geo-tagged share, top posts and creators.
+- **Engagement**: comments and replies, follows, push delivery, most liked.
+- **Referrals**: invites per period, the leaderboard, premium earned (a month
+  per 5 invites, and when it ends) and the badge colours (1-5) users have.
+- **Geography**: countries and regions posted from, map marks, top travellers.
+
+Uzbek first, with Russian and English; light and dark themes; periods from
+today to all time, or a calendar day or range.
 
 ## Tech Stack
 - **Framework**: React 18 + Vite + TypeScript

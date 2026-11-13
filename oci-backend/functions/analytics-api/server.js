@@ -313,13 +313,6 @@ async function audience() {
 }
 
 async function content(p) {
-  const s = await one(
-    `select
-       count(*) filter (where content_type in ('image','photo')) photo,
-       count(*) filter (where content_type = 'video') video
-     from analytics.stories where created_at >= $1 and created_at < $2`,
-    [p.fromTs, p.toTs]
-  );
   const geo = await one(
     `select count(*) filter (where has_location) geo, count(*) total
      from analytics.posts where created_at >= $1 and created_at < $2`,
@@ -350,8 +343,6 @@ async function content(p) {
     [p.fromTs, p.toTs]
   );
   return {
-    storiesPhoto: n(s.photo),
-    storiesVideo: n(s.video),
     geoTaggedPct: pct(n(geo.geo), n(geo.total)),
     topPosts: topPosts.map((r) => ({
       id: r.id,
@@ -393,44 +384,70 @@ async function engagement(p) {
   };
 }
 
-const tierOf = (invited) => (invited >= 51 ? 'Platinum' : invited >= 21 ? 'Gold' : invited >= 6 ? 'Silver' : 'Bronze');
+// What an inviter really gets (refresh_referral_tier): a premium month for
+// every 5 invites, and while it runs, a badge whose colour 1-5 comes from how
+// densely they map. The panel showed Bronze-Platinum ranks the app never had.
+const INVITES_PER_MONTH = 5;
 
 async function referrals(p) {
   const period = await q(
     `select u.username, count(*) invited,
-            count(*) filter (where iu.last_seen_at >= now() - interval '30 days') active
+            count(*) filter (where iu.last_seen_at >= now() - interval '30 days') active,
+            coalesce(rc.invited_count, 0) invited_all, u.referral_tier, u.referral_tier_expires_at
      from analytics.referrals r
      join analytics.users u on u.id = r.referrer_id
+     left join analytics.referral_counts rc on rc.user_id = r.referrer_id
      left join analytics.users iu on iu.id = r.invited_id
      where r.created_at >= $1 and r.created_at < $2
-     group by u.username order by invited desc limit 10`,
+     group by u.username, rc.invited_count, u.referral_tier, u.referral_tier_expires_at
+     order by invited desc limit 10`,
     [p.fromTs, p.toTs]
   );
   const allTime = await q(
-    `select rc.username, rc.invited_count invited,
+    `select rc.username, rc.invited_count invited, rc.invited_count invited_all,
+            u.referral_tier, u.referral_tier_expires_at,
             (select count(*) from analytics.referrals r join analytics.users iu on iu.id = r.invited_id
               where r.referrer_id = rc.user_id and iu.last_seen_at >= now() - interval '30 days') active
-     from analytics.referral_counts rc order by rc.invited_count desc limit 10`
+     from analytics.referral_counts rc join analytics.users u on u.id = rc.user_id
+     order by rc.invited_count desc limit 10`
   );
-  const tiers = await one(
-    `select
-       count(*) filter (where invited_count between 1 and 5) bronze,
-       count(*) filter (where invited_count between 6 and 20) silver,
-       count(*) filter (where invited_count between 21 and 50) gold,
-       count(*) filter (where invited_count > 50) platinum,
-       count(*) inviters
-     from analytics.referral_counts`
+  const premium = await one(
+    `select count(*) inviters,
+            count(*) filter (where rc.invited_count >= ${INVITES_PER_MONTH}) earned,
+            coalesce(sum(rc.invited_count / ${INVITES_PER_MONTH}), 0) months,
+            (select count(*) from analytics.users where referral_tier_expires_at > now()) active
+     from analytics.referral_counts rc`
+  );
+  const colours = await q(
+    `select referral_tier tier, count(*) users,
+            count(*) filter (where referral_tier_expires_at > now()) showing
+     from analytics.users where referral_tier between 1 and 5 group by 1 order by 1`
   );
   const row = (r) => {
     const invited = n(r.invited);
     const active = n(r.active);
-    return { username: r.username, invited, active, activePct: pct(active, invited), tier: tierOf(invited) };
+    const until = r.referral_tier_expires_at && new Date(r.referral_tier_expires_at) > new Date()
+      ? iso(r.referral_tier_expires_at)
+      : null;
+    return {
+      username: r.username,
+      invited,
+      active,
+      activePct: pct(active, invited),
+      premiumMonths: Math.floor(n(r.invited_all) / INVITES_PER_MONTH),
+      premiumUntil: until,
+      colourTier: n(r.referral_tier),
+    };
   };
   return {
     leaderboardPeriod: period.map(row),
     leaderboardAllTime: allTime.map(row),
-    inviters: n(tiers.inviters),
-    tiers: { Bronze: n(tiers.bronze), Silver: n(tiers.silver), Gold: n(tiers.gold), Platinum: n(tiers.platinum) },
+    inviters: n(premium.inviters),
+    premium: { earned: n(premium.earned), months: n(premium.months), activeNow: n(premium.active) },
+    colourTiers: [1, 2, 3, 4, 5].map((tier) => {
+      const c = colours.find((x) => n(x.tier) === tier);
+      return { tier, users: c ? n(c.users) : 0, showing: c ? n(c.showing) : 0 };
+    }),
   };
 }
 
