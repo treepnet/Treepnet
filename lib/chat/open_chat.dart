@@ -180,6 +180,13 @@ Future<ShareOutcome> shareTextToUsers(
   // Read up front: the sheet (and its context) may go away while this runs.
   final me = context.read<AppBloc>().state.user;
   final repo = context.read<UserRepository>();
+  // One message per person, however they got into the list twice: they used
+  // to receive it twice, and "sent to 2 of 2" counted them twice.
+  final seen = <String>{};
+  receivers = [
+    for (final receiver in receivers)
+      if (seen.add(receiver.id)) receiver,
+  ];
   final pending = [...receivers];
   var sent = 0;
   Future<void> worker() async {

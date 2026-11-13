@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
-import 'package:treepnet/feed/post/post.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/user_profile/user_profile.dart';
 import 'package:go_router/go_router.dart';
@@ -47,25 +46,14 @@ class SharePost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(
-          create: (context) =>
-              UserProfileBloc(
-                  userRepository: context.read<UserRepository>(),
-                  postsRepository: context.read<PostsRepository>(),
-                )
-                ..add(const UserProfileFetchFollowersRequested())
-                ..add(const UserProfileFetchFollowingsRequested()),
-        ),
-        BlocProvider(
-          create: (context) => PostBloc(
-            postId: block.id,
-            postsRepository: context.read<PostsRepository>(),
-            userRepository: context.read<UserRepository>(),
-          ),
-        ),
-      ],
+    return BlocProvider(
+      create: (context) =>
+          UserProfileBloc(
+              userRepository: context.read<UserRepository>(),
+              postsRepository: context.read<PostsRepository>(),
+            )
+            ..add(const UserProfileFetchFollowersRequested())
+            ..add(const UserProfileFetchFollowingsRequested()),
       child: SharePostView(
         block: block,
         scrollController: scrollController,
@@ -95,7 +83,10 @@ class _SharPostState extends State<SharePostView> with SafeSetStateMixin {
   late TextEditingController _searchController;
   late FocusNode _focusNode;
 
-  final _selectedUsers = ValueNotifier(<User>{});
+  /// Picked people, by id. A Set<User> compared whole users: someone picked
+  /// in the list came back from search as a slightly different User, showed
+  /// as unpicked and could be added again (the post sent twice).
+  final _selectedUsers = ValueNotifier(<String, User>{});
   final _foundUsers = ValueNotifier(<User>{});
 
   @override
@@ -136,7 +127,7 @@ class _SharPostState extends State<SharePostView> with SafeSetStateMixin {
   }
 
   Future<void> _send() async {
-    final selected = _selectedUsers.value.toList();
+    final selected = _selectedUsers.value.values.toList();
     if (selected.isEmpty) return;
     final l10n = context.l10n;
 
@@ -172,7 +163,7 @@ class _SharPostState extends State<SharePostView> with SafeSetStateMixin {
       (UserProfileBloc bloc) => bloc.state.followings,
     );
 
-    final followersAndFollowings = {...followers, ...followings};
+    final followersAndFollowings = _byId([...followers, ...followings]);
     // Flat dark page colour — `customReversedAdaptiveColor` swaps its
     // arguments and was returning white here.
     const backgroundColor = AppColors.background;
@@ -241,9 +232,9 @@ class _SharPostState extends State<SharePostView> with SafeSetStateMixin {
                         (user) => !existedUsers.any((e) => e.id == user.id),
                       ),
                     ];
-                    _foundUsers.value = {...foundUsers};
+                    _foundUsers.value = _byId(foundUsers).toSet();
                   } else {
-                    _foundUsers.value = {...users};
+                    _foundUsers.value = _byId(users).toSet();
                   }
                 },
               ),
@@ -254,19 +245,17 @@ class _SharPostState extends State<SharePostView> with SafeSetStateMixin {
                 builder: (context, _) {
                   final list = _foundUsers.value.isNotEmpty
                       ? _foundUsers.value.toList()
-                      : {
-                          ..._selectedUsers.value,
+                      : _byId([
+                          ..._selectedUsers.value.values,
                           ...followersAndFollowings,
-                        }.toList();
+                        ]);
                   return _ShareUserList(
                     users: list,
-                    selectedUsers: _selectedUsers.value,
+                    selectedIds: _selectedUsers.value.keys.toSet(),
                     scrollController: widget.scrollController,
                     onToggle: (user) => safeSetState(() {
-                      if (_selectedUsers.value.contains(user)) {
-                        _selectedUsers.value.remove(user);
-                      } else {
-                        _selectedUsers.value.add(user);
+                      if (_selectedUsers.value.remove(user.id) == null) {
+                        _selectedUsers.value[user.id] = user;
                       }
                     }),
                   );
@@ -341,7 +330,10 @@ class _ShareStoryState extends State<ShareStoryView> with SafeSetStateMixin {
   late TextEditingController _searchController;
   late FocusNode _focusNode;
 
-  final _selectedUsers = ValueNotifier(<User>{});
+  /// Picked people, by id. A Set<User> compared whole users: someone picked
+  /// in the list came back from search as a slightly different User, showed
+  /// as unpicked and could be added again (the post sent twice).
+  final _selectedUsers = ValueNotifier(<String, User>{});
   final _foundUsers = ValueNotifier(<User>{});
 
   String get _storyLink => 'https://treepnet.com/story/${widget.storyId}';
@@ -382,7 +374,7 @@ class _ShareStoryState extends State<ShareStoryView> with SafeSetStateMixin {
   }
 
   Future<void> _send() async {
-    final selected = _selectedUsers.value.toList();
+    final selected = _selectedUsers.value.values.toList();
     if (selected.isEmpty) return;
     final l10n = context.l10n;
 
@@ -418,7 +410,7 @@ class _ShareStoryState extends State<ShareStoryView> with SafeSetStateMixin {
       (UserProfileBloc bloc) => bloc.state.followings,
     );
 
-    final followersAndFollowings = {...followers, ...followings};
+    final followersAndFollowings = _byId([...followers, ...followings]);
     const backgroundColor = AppColors.background;
 
     return Theme(
@@ -481,9 +473,9 @@ class _ShareStoryState extends State<ShareStoryView> with SafeSetStateMixin {
                         (user) => !existedUsers.any((e) => e.id == user.id),
                       ),
                     ];
-                    _foundUsers.value = {...foundUsers};
+                    _foundUsers.value = _byId(foundUsers).toSet();
                   } else {
-                    _foundUsers.value = {...users};
+                    _foundUsers.value = _byId(users).toSet();
                   }
                 },
               ),
@@ -494,19 +486,17 @@ class _ShareStoryState extends State<ShareStoryView> with SafeSetStateMixin {
                 builder: (context, _) {
                   final list = _foundUsers.value.isNotEmpty
                       ? _foundUsers.value.toList()
-                      : {
-                          ..._selectedUsers.value,
+                      : _byId([
+                          ..._selectedUsers.value.values,
                           ...followersAndFollowings,
-                        }.toList();
+                        ]);
                   return _ShareUserList(
                     users: list,
-                    selectedUsers: _selectedUsers.value,
+                    selectedIds: _selectedUsers.value.keys.toSet(),
                     scrollController: widget.scrollController,
                     onToggle: (user) => safeSetState(() {
-                      if (_selectedUsers.value.contains(user)) {
-                        _selectedUsers.value.remove(user);
-                      } else {
-                        _selectedUsers.value.add(user);
+                      if (_selectedUsers.value.remove(user.id) == null) {
+                        _selectedUsers.value[user.id] = user;
                       }
                     }),
                   );
@@ -598,13 +588,13 @@ class _WhiteButton extends StatelessWidget {
 class _ShareUserList extends StatelessWidget {
   const _ShareUserList({
     required this.users,
-    required this.selectedUsers,
+    required this.selectedIds,
     required this.scrollController,
     required this.onToggle,
   });
 
   final List<User> users;
-  final Set<User> selectedUsers;
+  final Set<String> selectedIds;
   final ScrollController scrollController;
   final ValueSetter<User> onToggle;
 
@@ -621,7 +611,7 @@ class _ShareUserList extends StatelessWidget {
       ),
       itemBuilder: (context, index) {
         final user = users[index];
-        final selected = selectedUsers.contains(user);
+        final selected = selectedIds.contains(user.id);
         return Tappable.faded(
           onTap: () => onToggle(user),
           child: Padding(
@@ -785,4 +775,13 @@ class _UserSearchFieldState extends State<UserSearchField> {
       },
     );
   }
+}
+
+/// [users] without repeats of one person (by id), first kept, in order.
+List<User> _byId(Iterable<User> users) {
+  final seen = <String>{};
+  return [
+    for (final user in users)
+      if (seen.add(user.id)) user,
+  ];
 }
