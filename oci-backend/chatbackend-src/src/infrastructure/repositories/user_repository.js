@@ -13,6 +13,13 @@ class UserRepository {
         return prisma.user.findUnique({ where: { id } });
     }
 
+    findByUuid(uuid, projectId) {
+        return prisma.user.findUnique({
+            where: { uuid_projectId: { uuid, projectId } },
+            select: { id: true },
+        });
+    }
+
     upsertUser(uuid, projectId, userData) {
         return prisma.user.upsert({
             where: { uuid_projectId: { uuid, projectId } },

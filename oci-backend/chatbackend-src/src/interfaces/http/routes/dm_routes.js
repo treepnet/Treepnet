@@ -199,29 +199,69 @@ router.post('/conversations', checkUser, userLimiter, async (req, res, next) => 
             return res.status(400).json({ error: 'peerId or peerUuid is required' });
         }
 
+        if (peerId && !Number.isSafeInteger(Number(peerId))) {
+            return res.status(400).json({ error: 'peerId must be a number' });
+        }
+
         let peer = peerId
             ? await prisma.user.findFirst({
                 where: { id: Number(peerId), projectId: req.projectId },
             })
             : await prisma.user.findUnique({
-                where: { uuid_projectId: { uuid: peerUuid, projectId: req.projectId } },
+                where: { uuid_projectId: { uuid: String(peerUuid), projectId: req.projectId } },
             });
+        if (!peer && peerId) return res.status(404).json({ error: 'Peer not found' });
+        const peerAccount = peer?.uuid || String(peerUuid);
 
         // The peer's name/avatar come from their profile, never from the
         // caller: `peerName` / `peerAvatar` are ignored, or anyone could label
         // someone else in pushes and chat lists (profiles.js).
-        const card = await profileCard(peer?.uuid || peerUuid);
+        //
+        // No such account (an id that isn't a user's, or a deleted one): no
+        // chat, and no row for it. For someone without a row yet the profile
+        // is asked of the database, not the cache (auth_user.js).
+        const card = await profileCard(peerAccount, { fresh: !peer });
+        if (card === null) return res.status(404).json({ error: 'Peer not found' });
+        if (peerAccount === req.user.uuid) {
+            return res.status(400).json({ error: 'Cannot open a chat with yourself' });
+        }
+        // Ikkalasidan biri ikkinchisini bloklagan bo'lsa - suhbat ochilmaydi.
+        if (await isBlockedBetween(req.user.uuid, peerAccount)) {
+            return res.status(403).json({ error: 'Blocked', code: 'BLOCKED' });
+        }
+
+        // Ikkalasi ham ishtirok etadigan mavjud suhbatni qidiramiz (chatni hali
+        // ochmagan odamda u yo'q).
+        const existing = peer
+            ? await prisma.conversation.findFirst({
+                where: {
+                    projectId: req.projectId,
+                    AND: [
+                        { participants: { some: { userId: req.user.id } } },
+                        { participants: { some: { userId: peer.id } } },
+                    ],
+                },
+            })
+            : null;
+
+        if (!existing && !allowNewChat(req.user.id)) {
+            return res.status(429).json({
+                error: 'Too many new chats, try again later',
+                code: 'TOO_MANY_NEW_CHATS',
+            });
+        }
 
         // Cold-start: in a social app you can message anyone from their profile,
         // even a user who has never opened chat (so has no row yet). Create a
         // stub keyed by their stable app uuid; device fields are placeholders
-        // that their own first connection overwrites.
-        if (!peer && peerUuid) {
+        // that their own first connection overwrites. Only now - after the
+        // block and the new-chat limit - so a refused request leaves nothing.
+        if (!peer) {
             peer = await prisma.user.upsert({
-                where: { uuid_projectId: { uuid: peerUuid, projectId: req.projectId } },
+                where: { uuid_projectId: { uuid: peerAccount, projectId: req.projectId } },
                 update: {},
                 create: {
-                    uuid: peerUuid,
+                    uuid: peerAccount,
                     projectId: req.projectId,
                     name: card?.name ?? null,
                     avatar: card?.avatar ?? null,
@@ -232,39 +272,12 @@ router.post('/conversations', checkUser, userLimiter, async (req, res, next) => 
                     lang: 'uz',
                 },
             });
-        }
-        if (!peer) return res.status(404).json({ error: 'Peer not found' });
-        if (peer.id === req.user.id) {
-            return res.status(400).json({ error: 'Cannot open a chat with yourself' });
-        }
-        // An older row may still carry a name a caller wrote: put the
-        // profile's back.
-        if (card && (peer.name !== card.name || peer.avatar !== card.avatar)) {
+        } else if (card && (peer.name !== card.name || peer.avatar !== card.avatar)) {
+            // An older row may still carry a name a caller wrote: put the
+            // profile's back.
             peer = await prisma.user.update({
                 where: { id: peer.id },
                 data: { name: card.name, avatar: card.avatar },
-            });
-        }
-        // Ikkalasidan biri ikkinchisini bloklagan bo'lsa - suhbat ochilmaydi.
-        if (await isBlockedBetween(req.user.uuid, peer.uuid)) {
-            return res.status(403).json({ error: 'Blocked', code: 'BLOCKED' });
-        }
-
-        // Ikkalasi ham ishtirok etadigan mavjud suhbatni qidiramiz.
-        const existing = await prisma.conversation.findFirst({
-            where: {
-                projectId: req.projectId,
-                AND: [
-                    { participants: { some: { userId: req.user.id } } },
-                    { participants: { some: { userId: peer.id } } },
-                ],
-            },
-        });
-
-        if (!existing && !allowNewChat(req.user.id)) {
-            return res.status(429).json({
-                error: 'Too many new chats, try again later',
-                code: 'TOO_MANY_NEW_CHATS',
             });
         }
 

@@ -65,7 +65,16 @@ class AuthUserUseCase {
             }
         }
 
-        const card = await profileCard(uuid);
+        // Yangi yozuv faqat hozir akkaunti bor odamga, va bu keshdan emas,
+        // bazadan so'raladi: o'chirilgan akkaunt keshda yana 10 daqiqa turadi,
+        // shu orada boshqa telefonda ochiq qolgan ilova (tokeni 1 soatgacha
+        // amal qiladi) o'chirish olib tashlagan yozuvni qaytarib qo'yardi.
+        // Bazani so'rab bo'lmasa (`undefined`), avvalgidek o'tkaziladi.
+        const isNew = !(await userRepository.findByUuid(uuid, project.id));
+        const card = await profileCard(uuid, { fresh: isNew });
+        if (isNew && card === null) {
+            throw { status: 403, code: 'NO_ACCOUNT', message: 'No TreepNet account for this sign-in' };
+        }
         if (card) {
             userData.name = card.name;
             userData.avatar = card.avatar;

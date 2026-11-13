@@ -17,18 +17,27 @@ const { db } = require('./blocks');
  * (resolve_identity.js), endi yaratilgan profil uzoq kutib qolmasin.
  */
 const TTL_MS = 10 * 60 * 1000;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FAILED_TTL_MS = 60 * 1000;
 const NOT_FOUND_TTL_MS = 30 * 1000;
 const cache = new Map(); // uuid -> { card, expiresAt }
 
 /**
+ * `fresh`: keshga qaramay bazadan so'raladi - yangi foydalanuvchi yozuvi
+ * yaratishdan oldin (auth_user.js, dm_routes.js): o'chirilgan akkaunt keshda
+ * yana 10 daqiqa turadi.
+ *
+ * UUID bo'lmagan qiymat - profil emas (`null`): bazaga yuborilsa, xato
+ * berib "so'rab bo'lmadi" bo'lib qolardi.
+ *
  * @returns {Promise<{name: string|null, avatar: string|null}|null|undefined>}
  *   `null` - bunday profil yo'q, `undefined` - so'rab bo'lmadi.
  */
-async function profileCard(uuid) {
+async function profileCard(uuid, { fresh = false } = {}) {
     if (!db || !uuid) return undefined;
+    if (!UUID_RE.test(String(uuid))) return null;
     const hit = cache.get(uuid);
-    if (hit && hit.expiresAt > Date.now()) return hit.card;
+    if (!fresh && hit && hit.expiresAt > Date.now()) return hit.card;
     let card;
     let ttl = TTL_MS;
     try {
