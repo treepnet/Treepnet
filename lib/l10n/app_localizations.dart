@@ -2031,6 +2031,12 @@ abstract class AppLocalizations {
   /// **'Delete failed: {error}'**
   String deleteFailedText(String error);
 
+  /// No description provided for @couldNotLoadText.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load'**
+  String get couldNotLoadText;
+
   /// No description provided for @retryText.
   ///
   /// In en, this message translates to:

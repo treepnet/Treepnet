@@ -4,6 +4,7 @@ library;
 export 'package:database_client/database_client.dart'
     show
         CommentStats,
+        PostLoadFailed,
         PostOrder,
         PostRemoval,
         PostStats,

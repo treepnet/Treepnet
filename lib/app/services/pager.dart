@@ -55,6 +55,14 @@ class Pager<T> extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// After a failed first page: shows loading again and asks once more.
+  Future<void> retry() {
+    loading = true;
+    error = null;
+    notifyListeners();
+    return refresh();
+  }
+
   /// The next page, unless one is on its way or there is no more.
   Future<void> loadMore() async {
     if (loading || loadingMore || !hasMore) return;

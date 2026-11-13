@@ -305,9 +305,26 @@ class PostsPageIncomplete implements Exception {
   String toString() => 'PostsPageIncomplete(${posts.length} local): $cause';
 }
 
+/// A post that couldn't be read (offline, a server error) — not the same as
+/// one that doesn't exist or can't be seen, for which [PostsBaseRepository
+/// .getPostBy] returns null. It used to return null for both, so a post that
+/// failed to load read "No post found", with no way to try again.
+class PostLoadFailed implements Exception {
+  /// A post whose read failed with [cause].
+  const PostLoadFailed(this.cause);
+
+  /// Why it failed.
+  final Object cause;
+
+  @override
+  String toString() => 'PostLoadFailed: $cause';
+}
+
 /// Abstract base class for a posts repository.
 abstract class PostsBaseRepository {
   /// Reads the associated post from the database by the [id].
+  /// Null when it doesn't exist or the user may not see it; throws
+  /// [PostLoadFailed] when it couldn't be read.
   Future<Post?> getPostBy({required String id});
 
   /// Fetches the profiles of users who liked post, found by [postId].
@@ -2164,12 +2181,13 @@ WHERE posts.id = ? AND ${_visibleAuthorSql('posts.user_id')}
     if (row == null) {
       // Not on the phone (someone the user doesn't follow): the server's,
       // if they may see it.
+      final List<Post> posts;
       try {
-        final posts = await _serverPosts('post_by_id', {'p_id': id});
-        return posts.isEmpty ? null : posts.first;
-      } catch (_) {
-        return null;
+        posts = await _serverPosts('post_by_id', {'p_id': id});
+      } catch (error) {
+        throw PostLoadFailed(error);
       }
+      return posts.isEmpty ? null : posts.first;
     }
     final json = Map<String, dynamic>.from(row);
     final postMedia = _decodeMedia(json['media'] as String);

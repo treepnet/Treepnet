@@ -67,7 +67,8 @@ class _SharedPostCardState extends State<_SharedPostCard> {
           : first?.url;
 
       return _CardShell(
-        onTap: post == null ? null : _open,
+        // Couldn't read it here (offline): the post page can try again.
+        onTap: post == null && !snapshot.hasError ? null : _open,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,

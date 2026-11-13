@@ -65,4 +65,30 @@ void main() {
     expect(pager.items, ['z', 'a', 'b']);
     expect(pager.hasMore, isTrue);
   });
+
+  test(
+    'a first page that failed: retry shows loading, then the list',
+    () async {
+      var fail = true;
+      final pager = Pager<String>(
+        fetch: (offset, limit) async {
+          if (fail) throw Exception('offline');
+          return ['a', 'b'];
+        },
+        idOf: (s) => s,
+        pageSize: 3,
+      );
+      await pager.refresh();
+      expect(pager.error, isNotNull, reason: 'shown as "Couldn\'t load"');
+      expect(pager.items, isEmpty);
+
+      fail = false;
+      final retried = pager.retry();
+      expect(pager.loading, isTrue, reason: 'a spinner while it asks again');
+      expect(pager.error, isNull);
+      await retried;
+      expect(pager.loading, isFalse);
+      expect(pager.items, ['a', 'b']);
+    },
+  );
 }

@@ -77,6 +77,11 @@ class _PostLikersPageState extends State<PostLikersPage> {
               return const Center(child: AppCircularProgress(AppColors.blue));
             }
             final users = _likers.items;
+            // Not loaded (offline, a server error): said so, with a retry.
+            // It read "No likes yet" on a post that has likes.
+            if (users.isEmpty && _likers.error != null) {
+              return LoadFailed(onRetry: _likers.retry);
+            }
             if (users.isEmpty) {
               return Center(
                 child: Text(

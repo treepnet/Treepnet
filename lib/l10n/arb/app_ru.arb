@@ -655,6 +655,7 @@
   "@deleteFailedText": {
     "placeholders": { "error": { "type": "String" } }
   },
+  "couldNotLoadText": "Не удалось загрузить",
   "retryText": "Повторить",
   "couldNotLoadMorePostsText": "Не удалось загрузить посты",
   "messageNotSentText": "Сообщение не отправлено",

@@ -1229,6 +1229,9 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
+  String get couldNotLoadText => 'Не удалось загрузить';
+
+  @override
   String get retryText => 'Повторить';
 
   @override

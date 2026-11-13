@@ -716,6 +716,7 @@
   "@deleteFailedText": {
     "placeholders": { "error": { "type": "String" } }
   },
+  "couldNotLoadText": "Couldn't load",
   "retryText": "Retry",
   "couldNotLoadMorePostsText": "Couldn't load more posts",
   "@couldNotLoadMorePostsText": {

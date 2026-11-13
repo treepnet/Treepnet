@@ -1210,6 +1210,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get couldNotLoadText => 'Couldn\'t load';
+
+  @override
   String get retryText => 'Retry';
 
   @override
