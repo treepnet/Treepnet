@@ -43,12 +43,18 @@ const schema = Schema([
   // token or last-seen (they synced to every phone); the server sends them
   // only to their owner, as this table (sync rule `user_own_profile`). `id` is
   // the profile id. Writes still go to `profiles`.
+  //
+  // onboarded_at and notifications_seen_at move here too (when the user last
+  // opened their notifications is an activity signal): read from either until
+  // the server's sync config sends them only here.
   Table('my_profile', [
     Column.text('email'),
     Column.text('birthday'),
     Column.text('gender'),
     Column.text('push_token'),
     Column.text('last_seen_at'),
+    Column.text('onboarded_at'),
+    Column.text('notifications_seen_at'),
   ]),
   Table(
     'referrals',

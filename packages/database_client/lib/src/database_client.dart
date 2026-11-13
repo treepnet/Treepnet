@@ -830,7 +830,10 @@ SELECT blocker_id FROM blocked_users WHERE blocked_id = ?1''',
 SELECT
   p.id, p.full_name, p.username, p.avatar_url, p.referral_tier,
   p.referral_tier_expires_at, p.bio, p.is_private, p.telegram, p.website,
-  p.instagram, p.onboarded_at, p.notifications_seen_at,
+  p.instagram,
+  COALESCE(p.onboarded_at, mp.onboarded_at) AS onboarded_at,
+  COALESCE(p.notifications_seen_at, mp.notifications_seen_at)
+    AS notifications_seen_at,
   COALESCE(p.email, mp.email) AS email,
   COALESCE(p.birthday, mp.birthday) AS birthday,
   COALESCE(p.gender, mp.gender) AS gender,
@@ -1464,7 +1467,11 @@ FROM notifications n
   LEFT JOIN profiles pr ON pr.id = n.actor_id
   -- The watermark lives on the profile, so this join puts `profiles` in the
   -- watched set too and the badge clears itself the moment it is bumped.
+  -- Synced, it comes in `my_profile` (only the owner gets it); a value still
+  -- in `profiles` is this device's own, not synced back yet, or one from
+  -- before the server sent it there.
   LEFT JOIN profiles me ON me.id = ?1
+  LEFT JOIN my_profile my ON my.id = ?1
 WHERE n.recipient_id = ?1
   AND (n.type NOT IN ('follow', 'follow_request') OR s.id IS NOT NULL)
   AND NOT EXISTS (
@@ -1473,9 +1480,11 @@ WHERE n.recipient_id = ?1
        OR (vis_b.blocker_id = n.actor_id AND vis_b.blocked_id = ?1)
   )
   ${count ? '''
-  AND (me.notifications_seen_at IS NULL
+  AND (COALESCE(me.notifications_seen_at, my.notifications_seen_at) IS NULL
        OR julianday(substr(n.created_at, 1, 19))
-          > julianday(substr(me.notifications_seen_at, 1, 19)))''' : '''
+          > julianday(substr(
+              COALESCE(me.notifications_seen_at, my.notifications_seen_at),
+              1, 19)))''' : '''
 ORDER BY n.created_at DESC
 LIMIT 80'''}
 ''';
@@ -1515,6 +1524,9 @@ LIMIT 80'''}
           .watch(_notificationsSql(count: true), parameters: [userId])
           .map((rows) => (rows.first['c'] as int?) ?? 0);
 
+  /// The server puts its own clock's time in (migration 014): this phone's
+  /// may be off, and the notifications it is compared with carry the
+  /// server's.
   @override
   Future<void> markNotificationsSeen({required String userId}) =>
       _powerSyncRepository.db().execute(
