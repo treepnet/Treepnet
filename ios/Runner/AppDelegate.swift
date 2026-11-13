@@ -9,6 +9,26 @@ import Flutter
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
 
+    // The notifications list's "turn on notifications" row: straight to this
+    // app's notification settings.
+    if let registrar = self.registrar(forPlugin: "TreepnetSettings") {
+      let settings = FlutterMethodChannel(
+        name: "treepnet/settings",
+        binaryMessenger: registrar.messenger()
+      )
+      settings.setMethodCallHandler { call, result in
+        guard call.method == "openNotificationSettings" else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        guard let url = URL(string: UIApplication.openNotificationSettingsURLString) else {
+          result(false)
+          return
+        }
+        UIApplication.shared.open(url) { opened in result(opened) }
+      }
+    }
+
     // Referral deferred attribution: read the invite URL the web landing copied
     // to the clipboard on the App Store tap. `detectValues(for: [.probableWebURL])`
     // (iOS 16+) returns a clipboard URL WITHOUT the "Allow Paste?" prompt — unlike

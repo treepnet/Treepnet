@@ -7,6 +7,7 @@ import 'package:shared/shared.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/notifications/notification_rows.dart';
+import 'package:treepnet/notifications/push/push_notifications.dart';
 import 'package:treepnet/notifications/view/notifications_page.dart';
 import 'package:user_repository/user_repository.dart';
 
@@ -149,6 +150,30 @@ void main() {
       );
       expect(comment.maxLines, 2);
       expect(comment.overflow, TextOverflow.ellipsis);
+    });
+
+    testWidgets(
+      'notifications off: the list starts with the way to turn them on, '
+      'gone once allowed',
+      (tester) async {
+        addTearDown(() => PushNotifications.allowedForTest = null);
+        PushNotifications.allowedForTest = false;
+        await tester.pumpWidget(page());
+        await tester.pump();
+        expect(find.text('Turn on notifications'), findsOneWidget);
+        expect(find.text('anna'), findsOneWidget, reason: 'the list stays');
+
+        PushNotifications.allowedForTest = true;
+        await tester.pump();
+        expect(find.text('Turn on notifications'), findsNothing);
+      },
+    );
+
+    testWidgets('not known yet: nothing is offered', (tester) async {
+      PushNotifications.allowedForTest = null;
+      await tester.pumpWidget(page());
+      await tester.pump();
+      expect(find.text('Turn on notifications'), findsNothing);
     });
 
     testWidgets('a rebuild keeps the list: the query is made once', (

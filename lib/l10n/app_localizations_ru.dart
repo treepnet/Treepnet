@@ -1619,6 +1619,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get notifCommentLikedText => 'Понравился ваш комментарий.';
 
   @override
+  String get notificationsOffTitleText => 'Включите уведомления';
+
+  @override
+  String get notificationsOffText =>
+      'Разрешите их в настройках, чтобы узнавать о лайках, комментариях и сообщениях.';
+
+  @override
   String notifLikedOthersText(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

@@ -1596,6 +1596,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notifCommentLikedText => 'Liked your comment.';
 
   @override
+  String get notificationsOffTitleText => 'Turn on notifications';
+
+  @override
+  String get notificationsOffText =>
+      'Allow them in Settings to hear about likes, comments and messages.';
+
+  @override
   String notifLikedOthersText(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

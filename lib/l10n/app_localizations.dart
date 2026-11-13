@@ -2721,6 +2721,18 @@ abstract class AppLocalizations {
   /// **'Liked your comment.'**
   String get notifCommentLikedText;
 
+  /// No description provided for @notificationsOffTitleText.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on notifications'**
+  String get notificationsOffTitleText;
+
+  /// No description provided for @notificationsOffText.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow them in Settings to hear about likes, comments and messages.'**
+  String get notificationsOffText;
+
   /// No description provided for @notifLikedOthersText.
   ///
   /// In en, this message translates to:

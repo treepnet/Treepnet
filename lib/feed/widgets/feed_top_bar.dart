@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared/shared.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/l10n/l10n.dart';
+import 'package:treepnet/notifications/push/push_notifications.dart';
 import 'package:treepnet/notifications/view/notifications_page.dart';
 import 'package:user_repository/user_repository.dart';
 
@@ -162,18 +163,23 @@ class _BellIconState extends State<_BellIcon> {
       colorFilter: ColorFilter.mode(context.adaptiveColor, BlendMode.srcIn),
     );
 
-    return StreamBuilder<int>(
-      stream: _unread,
-      builder: (context, snapshot) {
-        final count = snapshot.data ?? 0;
-        return Badge.count(
-          count: count,
-          isLabelVisible: count > 0,
-          backgroundColor: AppColors.white,
-          textColor: AppColors.black,
-          child: icon,
-        );
-      },
+    // Notifications turned off on the phone count as one: the list then
+    // starts with the way to turn them on, and the 1 goes once they are.
+    return ValueListenableBuilder<bool?>(
+      valueListenable: PushNotifications.allowed,
+      builder: (context, allowed, _) => StreamBuilder<int>(
+        stream: _unread,
+        builder: (context, snapshot) {
+          final count = (snapshot.data ?? 0) + (allowed == false ? 1 : 0);
+          return Badge.count(
+            count: count,
+            isLabelVisible: count > 0,
+            backgroundColor: AppColors.white,
+            textColor: AppColors.black,
+            child: icon,
+          );
+        },
+      ),
     );
   }
 }

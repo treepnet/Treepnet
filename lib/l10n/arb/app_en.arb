@@ -851,6 +851,8 @@
   "@notifRepliedContentText": { "placeholders": { "text": { "type": "String" } } },
   "notifFollowAcceptedText": "Accepted your follow request.",
   "notifCommentLikedText": "Liked your comment.",
+  "notificationsOffTitleText": "Turn on notifications",
+  "notificationsOffText": "Allow them in Settings to hear about likes, comments and messages.",
   "notifLikedOthersText": "{count, plural, =1{And 1 other person liked your post.} other{And {count} others liked your post.}}",
   "@notifLikedOthersText": { "placeholders": { "count": { "type": "int" } } },
   "notifMessageText": "Sent you a message.",

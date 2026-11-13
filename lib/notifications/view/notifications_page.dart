@@ -11,6 +11,7 @@ import 'package:treepnet/app/app.dart';
 import 'package:treepnet/chat/chat.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/notifications/notification_rows.dart';
+import 'package:treepnet/notifications/push/push_notifications.dart';
 import 'package:treepnet/user_profile/widgets/confirm_unfollow.dart';
 import 'package:treepnet/user_profile/widgets/follow_state_builder.dart';
 import 'package:user_repository/user_repository.dart';
@@ -64,33 +65,123 @@ class _NotificationsPageState extends State<NotificationsPage> {
             ),
           ),
         ),
-        body: StreamBuilder<List<NotificationRow>>(
-          stream: _rows,
-          builder: (context, snapshot) {
-            final rows = snapshot.data;
-            if (rows == null) {
-              return const Center(
-                child: SizedBox(
-                  height: 22,
-                  width: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              );
-            }
-            if (rows.isEmpty) return const _EmptyNotifications();
-            return ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-              itemCount: rows.length,
-              separatorBuilder: (_, __) => Divider(
-                height: 1,
-                indent: 70,
-                color: Colors.white.withValues(alpha: 0.05),
+        body: Column(
+          children: [
+            const _TurnOnNotifications(),
+            Expanded(
+              child: StreamBuilder<List<NotificationRow>>(
+                stream: _rows,
+                builder: (context, snapshot) {
+                  final rows = snapshot.data;
+                  if (rows == null) {
+                    return const Center(
+                      child: SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    );
+                  }
+                  if (rows.isEmpty) return const _EmptyNotifications();
+                  return ListView.separated(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.sm,
+                    ),
+                    itemCount: rows.length,
+                    separatorBuilder: (_, __) => Divider(
+                      height: 1,
+                      indent: 70,
+                      color: Colors.white.withValues(alpha: 0.05),
+                    ),
+                    itemBuilder: (context, i) =>
+                        _NotificationTile(row: rows[i]),
+                  );
+                },
               ),
-              itemBuilder: (context, i) => _NotificationTile(row: rows[i]),
-            );
-          },
+            ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+/// First in the list while the phone doesn't let the app show notifications
+/// (the user said no to the prompt, or turned them off later): one tap to the
+/// app's notification settings. Gone once they are allowed — read again each
+/// time the app comes back to the front.
+class _TurnOnNotifications extends StatelessWidget {
+  const _TurnOnNotifications();
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool?>(
+      valueListenable: PushNotifications.allowed,
+      builder: (context, allowed, _) {
+        if (allowed ?? true) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.sm,
+            AppSpacing.lg,
+            0,
+          ),
+          child: Tappable.faded(
+            onTap: () => unawaited(PushNotifications.openSettings()),
+            child: Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.1),
+                    ),
+                    child: const Icon(
+                      Icons.notifications_off_outlined,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                  const Gap.h(AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          context.l10n.notificationsOffTitleText,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Gap.v(2),
+                        Text(
+                          context.l10n.notificationsOffText,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Gap.h(AppSpacing.sm),
+                  const Icon(Icons.chevron_right, color: Colors.white54),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

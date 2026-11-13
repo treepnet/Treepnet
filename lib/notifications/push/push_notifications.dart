@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:user_repository/user_repository.dart';
@@ -97,9 +98,15 @@ class PushNotifications {
           ?.createNotificationChannel(_channel);
       _localReady = true;
       // Seen once the app is in front: clear the tray now and on each return.
+      // On each return the permission is read again too: it may have been
+      // turned on (or off) in the phone's settings meanwhile.
       unawaited(clearDelivered());
+      unawaited(refreshPermission());
       _lifecycle ??= AppLifecycleListener(
-        onResume: () => unawaited(clearDelivered()),
+        onResume: () {
+          unawaited(clearDelivered());
+          unawaited(refreshPermission());
+        },
       );
       final texts = _channelTexts;
       if (texts != null) {
@@ -137,6 +144,57 @@ class PushNotifications {
 
   static AppLifecycleListener? _lifecycle;
 
+  /// Whether the phone lets this app show notifications: false when the user
+  /// said no to the prompt or turned them off in the phone's settings, null
+  /// until known. While false the bell carries a 1 and the notifications list
+  /// starts with the way to the settings.
+  static ValueListenable<bool?> get allowed => _allowed;
+  static final _allowed = ValueNotifier<bool?>(null);
+
+  /// [allowed]'s value, set by a test.
+  @visibleForTesting
+  static bool? get allowedForTest => _allowed.value;
+  @visibleForTesting
+  static set allowedForTest(bool? value) => _allowed.value = value;
+
+  /// Reads the phone's notification permission into [allowed].
+  static Future<void> refreshPermission() async {
+    if (!_localReady) return;
+    try {
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        final options = await _local
+            .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin
+            >()
+            ?.checkPermissions();
+        if (options != null) {
+          _allowed.value = options.isEnabled || options.isProvisionalEnabled;
+        }
+      } else if (defaultTargetPlatform == TargetPlatform.android) {
+        final enabled = await _local
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >()
+            ?.areNotificationsEnabled();
+        if (enabled != null) _allowed.value = enabled;
+      }
+    } catch (_) {
+      // Unknown stays as it was: no 1 on the bell for a failed read.
+    }
+  }
+
+  static const _settings = MethodChannel('treepnet/settings');
+
+  /// Opens this app's notification settings on the phone (MainActivity.kt,
+  /// AppDelegate.swift). Coming back reads the permission again.
+  static Future<void> openSettings() async {
+    try {
+      await _settings.invokeMethod<bool>('openNotificationSettings');
+    } catch (_) {
+      // No settings screen to open: nothing else to do.
+    }
+  }
+
   /// Removes this app's notifications from the tray: when the app comes to
   /// the front (what they said is in the app now; they stayed until swiped
   /// away, a read chat's too) and on sign-out (the next account signed in
@@ -159,6 +217,7 @@ class PushNotifications {
       // so it works even without FCM — the OS can then display notifications
       // (incl. `simctl push` on the simulator) on any build.
       await _requestOsPermission();
+      await refreshPermission();
 
       // [initialize] runs unawaited at start-up: a sign-in right after launch
       // used to find FCM not ready yet and skip the token for the whole run.
