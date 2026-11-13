@@ -56,34 +56,6 @@ class Logger {
     }
 
     /**
-     * Socket.io kiruvchi xabarlarni log qilish
-     */
-    static socketIn(socketId, event, data) {
-        const timestamp = new Date().toLocaleTimeString();
-        console.log(
-            `${colors.dim}[${timestamp}]${colors.reset} ` +
-            `${colors.fg.blue}[WS IN]${colors.reset} ` +
-            `${colors.fg.yellow}[${socketId}]${colors.reset} ` +
-            `${colors.bright}${event}${colors.reset}:`,
-            JSON.stringify(data, null, 2)
-        );
-    }
-
-    /**
-     * Socket.io chiquvchi xabarlarni log qilish
-     */
-    static socketOut(target, event, data) {
-        const timestamp = new Date().toLocaleTimeString();
-        console.log(
-            `${colors.dim}[${timestamp}]${colors.reset} ` +
-            `${colors.fg.green}[WS OUT]${colors.reset} ` +
-            `${colors.fg.cyan}[${target}]${colors.reset} ` +
-            `${colors.bright}${event}${colors.reset}:`,
-            JSON.stringify(data, null, 2)
-        );
-    }
-
-    /**
      * Umumiy ma'lumotlar uchun
      */
     static info(tag, message) {

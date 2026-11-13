@@ -7,3 +7,10 @@ uploads
 .env.production
 *.log
 README.md
+# macOS copies and hand-made backups never belong in the image.
+._*
+**/._*
+*.bak*
+**/*.bak*
+.bak-*
+deploy.sh

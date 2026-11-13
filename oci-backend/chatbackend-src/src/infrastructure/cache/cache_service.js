@@ -7,8 +7,8 @@
  * yashirilgan). Bitta jarayon uchun shu yetarli: blocks.js va profiles.js ham
  * shunday ishlaydi.
  *
- * Interfeys o'zgarmadi (async get/set/del/delByPattern), shuning uchun
- * chaqiruvchilar tegilmaydi.
+ * Interfeys o'zgarmadi (async get/set), shuning uchun chaqiruvchilar
+ * tegilmaydi.
  */
 const MAX_ENTRIES = 5000;
 
@@ -36,25 +36,6 @@ class CacheService {
         // Eng eskisi (birinchi qo'yilgani) chiqariladi.
         while (this.entries.size > MAX_ENTRIES) {
             this.entries.delete(this.entries.keys().next().value);
-        }
-    }
-
-    /**
-     * Bitta yoki bir nechta kalitni o'chiradi.
-     *
-     * Sozlama o'zgarganda keshni tozalash uchun kerak - aks holda eski qiymat
-     * TTL tugaguncha (1 soatgacha) ishlatilib turadi.
-     */
-    async del(...keys) {
-        for (const key of keys.flat()) this.entries.delete(key);
-    }
-
-    /** Namunaga mos kalitlarni o'chiradi (`*` - istalgan belgilar). */
-    async delByPattern(pattern) {
-        const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
-        const re = new RegExp(`^${escaped.replace(/\*/g, '.*')}$`);
-        for (const key of [...this.entries.keys()]) {
-            if (re.test(key)) this.entries.delete(key);
         }
     }
 }

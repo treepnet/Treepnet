@@ -249,9 +249,9 @@ services:
 
   # Self-hosted 1:1 messenger backend (Node + Socket.IO + Prisma). Its own `chat`
   # database on the same Postgres. Behind Caddy at chat.treepnet.com (WebSocket).
-  # Code lives in a separate repo, placed at ./chatbackend on the server
-  # (gitignored here). The app sends its Firebase ID token; the backend takes the
-  # user from it (chatbackend-patches/firebase-token-auth.patch). Tokenless
+  # Code: oci-backend/chatbackend-src, put at ./chatbackend on the server by its
+  # deploy.sh. The app sends its Firebase ID token; the backend takes the
+  # user from it (src/application/use-cases/resolve_identity.js). Tokenless
   # x-uuid requests (app 1.0.7 and older) are refused since 2026-11-11, when
   # 1.0.8 was live: CHAT_AUTH_REQUIRED="true".
   chatbackend:
@@ -280,13 +280,13 @@ services:
       BLOCKS_DATABASE_URL: postgresql://chat_blocks_ro:${CHAT_BLOCKS_RO_PASS}@postgres:5432/${POSTGRES_DB}
       CORS_ORIGIN: "*"
       PORT: "3000"
-      UPLOAD_DIR: uploads
       # FCM push: reuse the stack's existing service account (Firebase project
       # treepnet-1fa8d, shared with pushworker).
       FCM_SERVICE_ACCOUNT: /app/fcm-service-account.json
       CHAT_AUTH_REQUIRED: "true"
+    # Chat is text only: no uploads folder (the chat_uploads volume is empty;
+    # the delete-account worker and the backup still name it, harmlessly).
     volumes:
-      - chat_uploads:/app/uploads
       - ./functions/fcm-service-account.json:/app/fcm-service-account.json:ro
     networks:
       - treepnet

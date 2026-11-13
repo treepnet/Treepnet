@@ -137,11 +137,13 @@ service-account JSON, `postgrest/jwks.json`) come from the nightly backup.
 
 ### Chat backend
 
-`chatbackend-src/` is a snapshot of the code that runs (2026-10-31), with every
-patch in `chatbackend-patches/` already applied (the upstream
-`messenger-chat-backend` repo may not have them). To deploy it, copy the folder to
-`~/treepnet/chatbackend/` (its `.env` comes from the backup) and run
-`docker compose up -d --build chatbackend`. Two files contain a literal NUL
+`chatbackend-src/` is the code that runs (the upstream `messenger-chat-backend`
+repo lacks our changes; the old `chatbackend-patches/` were folded in and
+removed). Deploy with `chatbackend-src/deploy.sh`: it sends the files git
+tracks, builds the image, runs `npm test` in it and only then makes
+`~/treepnet/chatbackend/` exactly that folder and restarts chat
+(`~/chat-deploys.log` records each one). Schema changes go first, by hand:
+`chatbackend-src/prisma/manual/README.md`. Two files contain a literal NUL
 inside a regex and one has CRLF line endings: edit them byte-safely, check with
 `docker run --rm -v "$PWD":/app -w /app node:20-slim node --check <file>`, and
 copy any change back here.

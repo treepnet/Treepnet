@@ -14,7 +14,6 @@ const requiredEnv = (name) => {
 
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
-const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
 
 const DATABASE_URL = requiredEnv('DATABASE_URL');
 const CORS_ORIGIN = requiredEnv('CORS_ORIGIN');
@@ -23,6 +22,5 @@ module.exports = {
     PORT,
     DATABASE_URL,
     NODE_ENV,
-    UPLOAD_DIR,
     CORS_ORIGIN,
 };

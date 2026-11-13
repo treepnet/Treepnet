@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
+    "test": "node --test test/*.test.js",
     "db:push": "prisma db push",
     "db:generate": "prisma generate"
   },
@@ -22,7 +23,6 @@
     "express-rate-limit": "^8.3.0",
     "firebase-admin": "^13.0.2",
     "helmet": "^8.1.0",
-    "redis": "^5.11.0",
     "socket.io": "^4.8.3"
   }
 }

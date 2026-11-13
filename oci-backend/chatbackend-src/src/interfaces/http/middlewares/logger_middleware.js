@@ -13,7 +13,9 @@ const loggerMiddleware = (req, res, next) => {
         const duration = Date.now() - start;
         const status = res.statusCode;
 
-        // Logger utilitini chaqiramiz
+        // A passing health check (Docker's, every 30 s, and the monitors')
+        // is not logged: it was most of the log. A failing one is.
+        if (status === 200 && url.startsWith('/health')) return;
         Logger.http(method, url, status, duration);
     });
 

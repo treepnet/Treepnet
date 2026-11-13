@@ -27,7 +27,7 @@ class SocketManager {
 
         this.io.on('connection', (socket) => this.handleConnection(socket));
 
-        Logger.info?.('SocketManager ishga tushdi');
+        Logger.info('SocketManager', 'ishga tushdi');
         return this.io;
     }
 
@@ -96,11 +96,6 @@ class SocketManager {
             ipAddress:
                 headers['x-forwarded-for']?.split(',')[0] || undefined,
         };
-    }
-
-    /** Belgilangan xonaga hodisa yuboradi. */
-    toRoom(room, event, data) {
-        this.io?.to(room).emit(event, data);
     }
 }
 

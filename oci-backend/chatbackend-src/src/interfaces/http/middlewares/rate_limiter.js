@@ -33,9 +33,4 @@ const userLimiter = rateLimit({
     }
 });
 
-const socketLimiter = (socket, next) => {
-    // Simple socket-level rate limiting can be implemented here if needed
-    next();
-};
-
-module.exports = { apiLimiter, userLimiter, socketLimiter };
+module.exports = { apiLimiter, userLimiter };
