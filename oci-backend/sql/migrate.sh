@@ -5,7 +5,9 @@
 # has. Run it on the server, from ~/treepnet/sql:
 #
 #   ./migrate.sh                    apply what is new
-#   ./migrate.sh --dry-run          run what is new, then roll it all back
+#   ./migrate.sh --dry-run          run what is new, all in one transaction,
+#                                   then roll it all back (so a file may use
+#                                   what an earlier pending one makes)
 #   ./migrate.sh --status           list what is applied and what is pending
 #   ./migrate.sh --mark-applied F   record F as applied without running it
 #                                   (000_baseline.sql on production: it IS
@@ -15,6 +17,14 @@
 # COMMIT of its own (this wraps it). Once applied, a file is never edited —
 # a changed one stops the run; fix things in a new file instead. PostgREST
 # reloads its schema by itself after it (001_postgrest_auto_reload.sql).
+#
+# What can't run inside a transaction (CREATE INDEX CONCURRENTLY on a big
+# table, ALTER SYSTEM): put `-- migrate: no-transaction` on a line of its own.
+# Such a file runs statement by statement and is recorded once it got
+# through; one that fails half way is not recorded, so write it to be safe to
+# run again (IF NOT EXISTS). --dry-run can't roll it back, so it skips it.
+#
+# Changes written but not to be applied yet wait in migrations-pending/.
 #
 # PG_CONTAINER, PG_DB and PG_USER override the defaults below.
 set -euo pipefail
@@ -94,14 +104,51 @@ done
 [ "$mode" = status ] && exit 0
 [ ${#pending[@]} -eq 0 ] && { echo "nothing to apply"; exit 0; }
 
-for file in "${pending[@]}"; do
-  version=$(basename "$file" .sql)
+no_transaction() {
+  grep -qiE '^--[[:space:]]*migrate:[[:space:]]*no-transaction[[:space:]]*$' "$1"
+}
+
+record() {
+  echo "insert into public.schema_migrations (version, checksum) values ('$1', '$(checksum "$2")');"
+}
+
+if [ "$mode" = dry ]; then
+  # All of them in one transaction, in order, then rolled back.
   {
     echo 'begin;'
-    cat "$file"
-    echo
-    echo "insert into public.schema_migrations (version, checksum) values ('$version', '$(checksum "$file")');"
-    if [ "$mode" = dry ]; then echo 'rollback;'; else echo 'commit;'; fi
+    for file in "${pending[@]}"; do
+      no_transaction "$file" && continue
+      version=$(basename "$file" .sql)
+      cat "$file"
+      echo
+      record "$version" "$file"
+    done
+    echo 'rollback;'
   } | run_psql
-  if [ "$mode" = dry ]; then echo "ran and rolled back $version"; else echo "applied $version"; fi
+  for file in "${pending[@]}"; do
+    version=$(basename "$file" .sql)
+    if no_transaction "$file"; then
+      echo "skipped $version (no-transaction: can't be rolled back)"
+    else
+      echo "ran and rolled back $version"
+    fi
+  done
+  exit 0
+fi
+
+for file in "${pending[@]}"; do
+  version=$(basename "$file" .sql)
+  if no_transaction "$file"; then
+    run_psql < "$file"
+    record "$version" "$file" | run_psql
+  else
+    {
+      echo 'begin;'
+      cat "$file"
+      echo
+      record "$version" "$file"
+      echo 'commit;'
+    } | run_psql
+  fi
+  echo "applied $version"
 done
