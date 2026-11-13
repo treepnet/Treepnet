@@ -3,8 +3,6 @@ import 'dart:async';
 import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/map/map.dart';
@@ -160,6 +158,7 @@ class _VisitedRegionsPageState extends State<VisitedRegionsPage> {
               child: GlobeView(
                 visitedCounts: counts,
                 tapAnyRegion: true,
+                viewerId: context.read<AppBloc>().state.user.id,
                 focusBounds: _focus,
                 focusToken: _focusToken,
                 borderRadius: AppSpacing.md,

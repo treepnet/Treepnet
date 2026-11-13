@@ -11,11 +11,9 @@ import 'package:treepnet/app/app.dart';
 import 'package:treepnet/feed/feed.dart' show FeedBloc, FeedRefreshRequested;
 import 'package:treepnet/feed/post/post.dart';
 import 'package:treepnet/l10n/l10n.dart';
-import 'package:treepnet/map/location_picker_map.dart';
 import 'package:treepnet/monitoring/crash_reporter.dart';
 import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:treepnet/settings/view/settings_page.dart';
-import 'package:treepnet/stories/stories.dart';
 import 'package:treepnet/user_profile/user_profile.dart';
 import 'package:treepnet/user_profile/widgets/story_highlights_row.dart';
 import 'package:go_router/go_router.dart';
@@ -787,62 +785,6 @@ class LogoutModalOption extends StatelessWidget {
         ),
         leading: const Icon(Icons.logout, color: AppColors.red),
       ),
-    );
-  }
-}
-
-class UserProfileAddMediaButton extends StatelessWidget {
-  const UserProfileAddMediaButton({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final user = context.select((AppBloc bloc) => bloc.state.user);
-
-    return Tappable.faded(
-      onTap: () => context
-          .showListOptionsModal(
-            title: l10n.createText,
-            options: createMediaModalOptions(
-              context: context,
-              reelLabel: l10n.reelText,
-              postLabel: l10n.postText,
-              storyLabel: l10n.storyText,
-              enableStory: true,
-              goTo: (route, {extra}) => context.pushNamed(route, extra: extra),
-              onStoryCreated: (path) async {
-                // Optional location: pin the story to a place (like a post).
-                // Cancelling the picker leaves the story unpinned.
-                final picked = await showLocationPicker(context);
-                if (!context.mounted) return;
-                context.read<CreateStoriesBloc>().add(
-                  CreateStoriesStoryCreateRequested(
-                    author: user,
-                    contentType: StoryContentType.image,
-                    filePath: path,
-                    locationName: picked?.region.name,
-                    locationLat: picked?.lat,
-                    locationLng: picked?.lng,
-                    onError: (_, _) {
-                      openSnackbar(
-                        SnackbarMessage.error(
-                          title: l10n.somethingWentWrongText,
-                          description: l10n.failedToCreateStoryText,
-                        ),
-                      );
-                    },
-                  ),
-                );
-                context.pop();
-              },
-            ),
-          )
-          .then((option) {
-            if (option == null) return;
-            void onTap() => option.onTap(context);
-            onTap.call();
-          }),
-      child: const Icon(Icons.add_box_outlined, size: AppSize.iconSizeMedium),
     );
   }
 }

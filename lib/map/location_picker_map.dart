@@ -9,10 +9,10 @@ import 'package:posts_repository/posts_repository.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:treepnet/map/geo_point.dart';
 import 'package:treepnet/map/geo_regions.dart';
 import 'package:treepnet/map/globe_view.dart';
-import 'package:treepnet/map/map_base_layers.dart';
+import 'package:treepnet/map/map_style.dart';
 import 'package:treepnet/map/region_search.dart';
 
 /// The outcome of the map location picker: the resolved [region] plus the exact
@@ -66,7 +66,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   final _placeController = TextEditingController();
   final _searchController = TextEditingController();
 
-  static const _ocean = MapBaseLayers.oceanColor;
+  static const _ocean = MapColors.oceanColor;
 
   /// The existing pin whose name was copied into the field, if any.
   ({double lat, double lng})? _autoFilledAt;
@@ -173,7 +173,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   void _goTo(GeoRegion region) {
     FocusScope.of(context).unfocus();
     // Keep what was picked visible in the box — clearing it made the screen
-    // look like the search had been thrown away. displayName so a province
+    // look like the search had been thrown away. localizedDisplayName so a province
     // shows as "Tashkent Region", matching the dropdown and the map.
     _searchController.text = region.localizedDisplayName(
       Localizations.localeOf(context).languageCode,
@@ -580,7 +580,7 @@ class _SearchResults extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        // displayName, not name: a province that shares a city's
+                        // localizedDisplayName, not name: a province that shares a city's
                         // name reads "Tashkent Region" so the two entries are
                         // told apart, exactly as the map labels them.
                         region.localizedDisplayName(

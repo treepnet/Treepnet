@@ -16,15 +16,15 @@ void main() {
     expect(city, isNotNull, reason: 'Tashkent City missing from the index');
     expect(region!.name, 'Tashkent');
     expect(city!.name, 'Tashkent');
-    expect(region.displayName, 'Tashkent Region');
-    expect(city.displayName, 'Tashkent');
+    expect(region.sharesNameWithCity, isTrue, reason: 'it gets "Region"');
+    expect(city.sharesNameWithCity, isFalse, reason: 'the city keeps its name');
   });
 
   test('same-sized neighbours sharing a name are left alone', () {
     final a = GeoRegions.instance.regionByIso('RU-ALT');
     final b = GeoRegions.instance.regionByIso('RU-AL');
-    expect(a?.displayName, 'Altai Republic');
-    expect(b?.displayName, 'Altai Republic');
+    expect(a?.sharesNameWithCity, isFalse);
+    expect(b?.sharesNameWithCity, isFalse);
   });
 
   test('every region code is one region, listed once', () {

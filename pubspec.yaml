@@ -17,8 +17,6 @@ dependencies:
   android_play_install_referrer: ^0.4.0
   app_ui:
     path: packages/app_ui
-  flutter_map: ^7.0.2
-  latlong2: ^0.9.1
   bloc: ^9.1.0
   cached_network_image: ^3.4.1
   # Story camera. Deliberately its own dependency: the story viewfinder is a

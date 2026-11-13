@@ -9,22 +9,36 @@ import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter_map/flutter_map.dart' show LatLngBounds;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:treepnet/map/geo_regions.dart';
-import 'package:treepnet/map/map_base_layers.dart';
-import 'package:treepnet/map/travel_map.dart';
+import 'package:treepnet/map/geo_point.dart';
+import 'package:treepnet/map/map_style.dart';
 import 'package:treepnet/map/world_levels.dart';
 
 /// The travel map drawn as a rotatable 3D globe.
 ///
+/// What a tap on the map landed on.
+///
+/// [region] is always present — a pin only exists inside one. [point] is set
+/// only when the tap actually hit a pin, which is what lets the caller show
+/// "posts from this spot" rather than the whole region.
+class TravelMapTarget {
+  const TravelMapTarget({required this.region, this.point});
+
+  /// The region under the tap.
+  final GeoRegion region;
+
+  /// The pin that was hit, if any.
+  final ({double lat, double lng, String? name})? point;
+}
+
 /// Orthographic projection, painted by hand: every ring is converted once to
 /// unit vectors on the sphere, so a frame is a couple of dot products per point
 /// — no trig. The far side of a filled ring is walked around the rim, which
 /// keeps it closed. Each layer is decimated to a few levels of detail, picked
 /// by the on-screen scale, and rings outside the visible cap are culled.
 ///
-/// The name and border thresholds mirror [TravelMap], so the globe shows the
+/// The name and border thresholds mirror the old flat map, so the globe shows the
 /// same things at the same scale: province borders, then country and province
 /// names. On the travel map a region's pins merge into one until zoomed in.
 ///
@@ -32,7 +46,7 @@ import 'package:treepnet/map/world_levels.dart';
 /// scrolls the page underneath.
 ///
 /// One globe stands in for each flat map — the profile map and onboarding
-/// ([TravelMap], [GlobeLook.travelMap]) and the post location picker
+/// (the old flat map, [GlobeLook.travelMap]) and the post location picker
 /// ([GlobeLook.picker]) — and copies the rules of the one it replaces.
 class GlobeView extends StatefulWidget {
   const GlobeView({
@@ -45,6 +59,7 @@ class GlobeView extends StatefulWidget {
     this.focusBounds,
     this.focusToken = 0,
     this.focusMaxZoom = 6,
+    this.viewerId,
     this.initialCenter,
     this.initialZoom = 3,
     this.controller,
@@ -55,7 +70,7 @@ class GlobeView extends StatefulWidget {
     super.key,
   });
 
-  /// ISO 3166-2 region code -> post count (same input as [TravelMap]).
+  /// ISO 3166-2 region code -> post count (same input as the old flat map).
   final Map<String, int> visitedCounts;
 
   /// Post / story pins.
@@ -65,22 +80,27 @@ class GlobeView extends StatefulWidget {
   final GlobeLook look;
 
   /// [GlobeLook.travelMap]: called for a tap on a pin — or on any region when
-  /// [tapAnyRegion] (onboarding), as on [TravelMap].
+  /// [tapAnyRegion] (onboarding), as on the old flat map.
   final ValueSetter<TravelMapTarget>? onTargetTap;
 
-  /// Report taps on any region, visited or not ([TravelMap.tapAnyRegion]).
+  /// Report taps on any region, visited or not (the old flat map's `tapAnyRegion`).
   final bool tapAnyRegion;
 
   /// [GlobeLook.picker]: called for a tap on one of the pins.
   final ValueSetter<({double lat, double lng, String? name})>? onPinTap;
 
   /// Where to look: applied on first load and whenever [focusToken] changes
-  /// ([TravelMap.focusBounds]).
+  /// (the old flat map's `focusBounds`).
   final LatLngBounds? focusBounds;
   final int focusToken;
 
   /// Ceiling for a [focusBounds] fit, as a flat-map zoom level.
   final double focusMaxZoom;
+
+  /// The signed-in account. The pins it opened (dimmed) are remembered for
+  /// it alone: on a shared phone, what one account opened isn't "seen" for
+  /// the next.
+  final String? viewerId;
 
   /// The opening centre and flat-map zoom level, when not [focusBounds].
   /// Without either, the globe opens whole, over the user's travels.
@@ -96,7 +116,7 @@ class GlobeView extends StatefulWidget {
   /// kept-alive tab's ticker isn't muted), draining the battery.
   final bool faceTravels;
 
-  /// The +, − and "my location" buttons ([TravelMap] has them; the picker
+  /// The +, − and "my location" buttons (the old flat map has them; the picker
   /// draws its own).
   final bool showButtons;
 
@@ -114,7 +134,7 @@ class GlobeView extends StatefulWidget {
 /// Which flat map a [GlobeView] stands in for. They draw pins and names a
 /// little differently, and the globe copies whichever one it replaces.
 enum GlobeLook {
-  /// [TravelMap]: the profile map and onboarding. 26 px pins that dim once
+  /// the old flat map: the profile map and onboarding. 26 px pins that dim once
   /// opened, names drawn over the pins.
   travelMap,
 
@@ -184,7 +204,7 @@ const double _pinNamesZoom = 32;
 bool _atZoom(double zoom, double level) => zoom >= level * 0.999;
 
 // Where each flat map's pin marker puts the icon and the name relative to the
-// pin's point. TravelMap: a 96×62 marker centred on it, 24 px bottom padding,
+// pin's point. The old flat map: a 96×62 marker centred on it, 24 px bottom padding,
 // 26 px icon over the name — icon top 31 px above, name top 5 px above. The
 // picker: 96×58, 22 px padding, 22 px icon — 29 and 7 px above.
 const double _pinIconTop = 31;
@@ -302,7 +322,7 @@ class _GlobeViewState extends State<GlobeView>
       }
       widget.controller?._view = this;
     }
-    // A new focus request flies there ([TravelMap.focusToken]).
+    // A new focus request flies there (the old flat map's `focusToken`).
     final focus = widget.focusBounds;
     if (focus != null &&
         widget.focusToken != oldWidget.focusToken &&
@@ -382,7 +402,7 @@ class _GlobeViewState extends State<GlobeView>
   }
 
   /// The view that frames [bounds] with a 16 px margin, no closer than
-  /// [GlobeView.focusMaxZoom] — [TravelMap]'s fit.
+  /// [GlobeView.focusMaxZoom] — the old flat map's fit.
   ({double lon, double lat, double zoom}) _fit(LatLngBounds bounds) {
     final lat = (bounds.north + bounds.south) / 2;
     final lng = (bounds.east + bounds.west) / 2;
@@ -841,7 +861,7 @@ class _GlobeViewState extends State<GlobeView>
       return;
     }
 
-    // [TravelMap]'s rule: a pin wins; otherwise only onboarding
+    // the old flat map's rule: a pin wins; otherwise only onboarding
     // ([GlobeView.tapAnyRegion]) reports the region under the tap. On the
     // profile a bare tap on a province — even a visited one — does nothing;
     // its whole-region feed is reached from inside a pin's page.
@@ -867,7 +887,7 @@ class _GlobeViewState extends State<GlobeView>
     // and the pin goes white again.
     final current = scene.pinCounts[hit.key] ?? 1;
     if (_seenCounts[hit.key] != current) {
-      _seenCounts[hit.key] = current;
+      _rememberSeen(hit.key, current);
       _legacySeen.remove(hit.key);
       if (mounted) setState(() {});
       unawaited(_persistSeenCounts());
@@ -876,13 +896,21 @@ class _GlobeViewState extends State<GlobeView>
 
   // --- pin seen-state -------------------------------------------------------------
   //
-  // The flat map's store and rules (TravelMap._seenCounts and friends), on the
-  // same SharedPreferences keys — so a pin opened on either map is dimmed on
-  // both. A pin stays white while it holds more posts + stories than when it
-  // was last opened, and dims once opened.
+  // The old flat map's store and rules. A pin stays white while it holds more
+  // posts + stories than when it was last opened, and dims once opened.
 
   static const _seenStoreKey = 'treepnet_seen_map_pins'; // legacy List<String>
+
+  /// The phone-wide store of before; the store is now per account
+  /// ([_ownSeenKey]).
   static const _seenCountsKey = 'treepnet_seen_map_counts'; // JSON {key: count}
+
+  /// How many opened pins are remembered (the flat map's cap, lost in the
+  /// move to the globe: the store grew without end).
+  static const _maxSeenPins = 2000;
+
+  /// [GlobeView.viewerId]'s own store.
+  String get _ownSeenKey => '$_seenCountsKey:${widget.viewerId ?? ''}';
 
   final _seenCounts = <String, int>{};
 
@@ -896,22 +924,45 @@ class _GlobeViewState extends State<GlobeView>
   Future<void> _loadSeenPoints() async {
     final prefs = await SharedPreferences.getInstance();
     final legacy = prefs.getStringList(_seenStoreKey);
-    final raw = prefs.getString(_seenCountsKey);
+    final own = _ownSeenKey;
+    var raw = prefs.getString(own);
+    // The phone-wide store of before: the first account to open the map
+    // takes it over, and it goes.
+    final shared = prefs.getString(_seenCountsKey);
+    if (shared != null && widget.viewerId != null) {
+      if (raw == null) {
+        raw = shared;
+        await prefs.setString(own, shared);
+      }
+      await prefs.remove(_seenCountsKey);
+    }
     if (!mounted) return;
     setState(() {
       if (legacy != null) _legacySeen.addAll(legacy);
       if (raw != null && raw.isNotEmpty) {
         (json.decode(raw) as Map<String, dynamic>).forEach(
-          (k, v) => _seenCounts[k] = (v as num).toInt(),
+          (k, v) => _rememberSeen(k, (v as num).toInt()),
         );
       }
       _seededScene = null; // re-seed against the state that just arrived
     });
   }
 
+  /// Remembers that pin [key] was opened holding [count]. The last opened
+  /// goes last; past [_maxSeenPins] the longest-unopened drop off (they show
+  /// as unseen again).
+  void _rememberSeen(String key, int count) {
+    _seenCounts
+      ..remove(key)
+      ..[key] = count;
+    while (_seenCounts.length > _maxSeenPins) {
+      _seenCounts.remove(_seenCounts.keys.first);
+    }
+  }
+
   Future<void> _persistSeenCounts() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_seenCountsKey, json.encode(_seenCounts));
+    await prefs.setString(_ownSeenKey, json.encode(_seenCounts));
   }
 
   bool _isPinSeen(_GlobeScene scene, String key) {
@@ -927,7 +978,7 @@ class _GlobeViewState extends State<GlobeView>
     var changed = false;
     for (final k in scene.pinCounts.keys.toList()) {
       if (_legacySeen.remove(k) && !_seenCounts.containsKey(k)) {
-        _seenCounts[k] = scene.pinCounts[k]!;
+        _rememberSeen(k, scene.pinCounts[k]!);
         changed = true;
       }
     }
@@ -963,7 +1014,7 @@ class _GlobeViewState extends State<GlobeView>
       Localizations.localeOf(context).languageCode,
       DefaultTextStyle.of(context).style.fontFamily,
     );
-    // Only [TravelMap] dims opened pins; the picker's pins never change colour.
+    // Only the old flat map dims opened pins; the picker's pins never change colour.
     var seen = const <String>{};
     if (widget.look == GlobeLook.travelMap) {
       if (!identical(_seededScene, scene)) {
@@ -1113,7 +1164,7 @@ class _PinGroup {
   );
 }
 
-/// The flat map's pin key (`TravelMap._pointKey`) — also the seen-state key,
+/// The old flat map's pin key — also the seen-state key,
 /// so both maps read and write the same entries.
 String _pinKey(double lat, double lng) => '$lat,$lng';
 
@@ -1194,7 +1245,7 @@ class _GlobeScene {
       // share a single pin here. As there, a tap opens the first point at the
       // spot, the label shown is the last one's, and the count (posts +
       // stories) drives the seen state. The picker prints the stored name
-      // as-is; [TravelMap] localizes a name that is just the region's.
+      // as-is; the old flat map localizes a name that is just the region's.
       final String label;
       if (look == GlobeLook.picker) {
         label = (p.name?.trim().isNotEmpty ?? false) ? p.name! : '';
@@ -1560,7 +1611,7 @@ class _GlobePainter extends CustomPainter {
         radius: 1.1,
         colors: [
           Color(0xFF3E464E),
-          MapBaseLayers.oceanColor,
+          MapColors.oceanColor,
           Color(0xFF181B1E),
         ],
         stops: [0, 0.55, 1],
@@ -1732,13 +1783,13 @@ class _GlobePainter extends CustomPainter {
       // shows and full-strength borders would crowd it.
       final b = ((ppd - 3) / (_flatMinPpd - 3)).clamp(0.0, 1.0);
       canvas
-        ..drawPath(land, Paint()..color = MapBaseLayers.landColor)
+        ..drawPath(land, Paint()..color = MapColors.landColor)
         ..drawPath(
           borders,
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 0.6 + 0.5 * b
-            ..color = MapBaseLayers.countryBorderColor.withValues(
+            ..color = MapColors.countryBorderColor.withValues(
               alpha: 0.55 + 0.45 * b,
             ),
         );
@@ -1759,7 +1810,7 @@ class _GlobePainter extends CustomPainter {
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 0.6
-            ..color = MapBaseLayers.provinceBorderColor.withValues(
+            ..color = MapColors.provinceBorderColor.withValues(
               alpha: 0.25 * t,
             ),
         );
@@ -1789,7 +1840,7 @@ class _GlobePainter extends CustomPainter {
         );
     }
 
-    // Pins and names, in the replaced map's layer order — [TravelMap] puts
+    // Pins and names, in the replaced map's layer order — the old flat map puts
     // its names over its pins, the picker its pins over its names. Every pin,
     // place name, country and province name is drawn, overlapping or not,
     // exactly as there.
@@ -1896,7 +1947,7 @@ class _GlobePainter extends CustomPainter {
         if (w < 42) continue;
         if (project(name.at) < 0.4 || !onScreen(0)) continue;
         final region = name.region;
-        // TravelMap: a pin named after its province would print the same
+        // As on the old flat map: a pin named after its province would print the same
         // word twice, so that province gets the suffix too. The picker
         // always prints the display name (matching its search).
         final clashesWithPin =

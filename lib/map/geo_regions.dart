@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart' show rootBundle;
 
 /// A single administrative region (ISO 3166-2), e.g. Istanbul (`TR-34`).
@@ -54,11 +55,6 @@ class GeoRegion {
   /// already disambiguates on its own (e.g. «Московская область»). Set in
   /// [GeoRegions._markNameClashes].
   bool ruSameAsCity = false;
-
-  /// What to print on the map. Disambiguated only where it has to be, so the
-  /// city keeps the bare name and the province around it says "Region".
-  /// English/source form — kept for callers not yet localized.
-  String get displayName => sharesNameWithCity ? '$name Region' : name;
 
   /// Plain localized name (no disambiguation): `ru → en → name`.
   String localizedName(String lang) => lang == 'ru'
@@ -383,7 +379,8 @@ class GeoRegions {
   /// a light ~288-ring landmass, far cheaper to paint than every province.
   final List<List<Offset>> _countryRings = [];
 
-  /// The light country-outline base rings for the travel map.
+  /// The country rings as loaded (the tests check them against the sources).
+  @visibleForTesting
   List<List<Offset>> get countryRings => _countryRings;
 
   /// The map file as loaded, kept so the globe can build its levels of
@@ -414,71 +411,6 @@ class GeoRegions {
   /// Country labels (name + anchor + span) for the zoom-dependent map labels.
   final List<CountryLabel> _countryLabels = [];
   List<CountryLabel> get countryLabels => _countryLabels;
-
-  // --- Projected-geometry cache (screen-space paths for crisp vector zoom) ---
-  final Map<String, Path> _projPaths = {};
-  final Map<String, Rect> _projBounds = {};
-  final List<(Path, Rect)> _projCountry = [];
-  double _projKey = -1;
-
-  /// Province paths projected into the current canvas space (by [iso]).
-  Map<String, Path> get projPaths => _projPaths;
-
-  /// Screen-space bounding boxes of [projPaths] (by [iso]).
-  Map<String, Rect> get projBounds => _projBounds;
-
-  /// Country outline paths (path + bounds) projected into canvas space.
-  List<(Path, Rect)> get projCountry => _projCountry;
-
-  /// Projects every province + country ring into the canvas space defined by
-  /// the given fit (rebuilds only when that fit changes). Lets the painter blit
-  /// crisp vector paths at any zoom without re-projecting each frame.
-  void ensureProjected(double offX, double offY, double drawW, double drawH) {
-    if (_projKey == drawW && _projPaths.isNotEmpty) return;
-    _projKey = drawW;
-    _projPaths.clear();
-    _projBounds.clear();
-    _projCountry.clear();
-
-    Offset pr(Offset ll) => Offset(
-      offX + (ll.dx + 180) / 360 * drawW,
-      offY + (90 - ll.dy) / 180 * drawH,
-    );
-
-    void build(Path path, List<Offset> ring) {
-      if (ring.isEmpty) return;
-      final f = pr(ring.first);
-      path.moveTo(f.dx, f.dy);
-      var prevLng = ring.first.dx;
-      for (var i = 1; i < ring.length; i++) {
-        final lng = ring[i].dx;
-        final p = pr(ring[i]);
-        // A >180° longitude jump means the ring crosses the antimeridian; a
-        // straight line would streak across the whole map, so lift the pen.
-        if ((lng - prevLng).abs() > 180) {
-          path.moveTo(p.dx, p.dy);
-        } else {
-          path.lineTo(p.dx, p.dy);
-        }
-        prevLng = lng;
-      }
-      if ((ring.last.dx - ring.first.dx).abs() <= 180) path.close();
-    }
-
-    for (final region in _byIso.values) {
-      final path = Path()..fillType = PathFillType.evenOdd;
-      for (final ring in region.rings) {
-        build(path, ring);
-      }
-      _projPaths[region.iso] = path;
-      _projBounds[region.iso] = path.getBounds();
-    }
-    for (final ring in _countryRings) {
-      final path = Path();
-      build(path, ring);
-      _projCountry.add((path, path.getBounds()));
-    }
-  }
 
   /// Whether the data has finished loading.
   bool get isLoaded => _loaded;
@@ -518,97 +450,6 @@ class GeoRegions {
       }
     }
     return inside;
-  }
-
-  /// Reference canvas the base map is recorded in (equirectangular 2:1).
-  static const baseWidth = 3000.0;
-  static const baseHeight = 1500.0;
-
-  Picture? _basePicture;
-  Image? _baseImage;
-
-  /// The rasterized base map, or null until [buildBaseImage] completes.
-  Image? get baseImageOrNull => _baseImage;
-
-  /// Rasterizes the base [Picture] into a cached [Image] once. Painting a
-  /// prebuilt image (a single GPU blit) keeps manual pan/zoom smooth — far
-  /// cheaper than re-rasterizing ~8000 province/country paths every frame.
-  Future<Image> buildBaseImage() async {
-    if (_baseImage != null) return _baseImage!;
-    _baseImage = await basePicture().toImage(
-      baseWidth.toInt(),
-      baseHeight.toInt(),
-    );
-    return _baseImage!;
-  }
-
-  /// A cached vector [Picture] of the whole world drawn once: every admin-1
-  /// province filled near-black with thin white borders, plus admin-0 country
-  /// outlines. Rendered as a single [Picture] so the ~4000+ polygons are built
-  /// once and then cheaply blitted (and stay crisp when zoomed).
-  Picture basePicture() {
-    if (_basePicture != null) return _basePicture!;
-    final recorder = PictureRecorder();
-    final canvas = Canvas(recorder);
-
-    Offset proj(Offset ll) => Offset(
-      (ll.dx + 180) / 360 * baseWidth,
-      (90 - ll.dy) / 180 * baseHeight,
-    );
-
-    final landPaint = Paint()..color = const Color(0xFF0B0D0F);
-    // Province (internal) borders: thin & dim.
-    final provinceBorder = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.25
-      ..strokeJoin = StrokeJoin.round
-      ..color = const Color(0x59FFFFFF);
-    // Country (international) borders: thicker & bright.
-    final countryBorder = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.7
-      ..strokeJoin = StrokeJoin.round
-      ..color = const Color(0xFFFFFFFF);
-
-    void addRings(Path path, List<List<Offset>> rings) {
-      for (final ring in rings) {
-        if (ring.isEmpty) continue;
-        final f = proj(ring.first);
-        path.moveTo(f.dx, f.dy);
-        var prevLng = ring.first.dx;
-        for (var i = 1; i < ring.length; i++) {
-          final lng = ring[i].dx;
-          final p = proj(ring[i]);
-          // Break the line across an antimeridian (>180° longitude) jump so it
-          // doesn't streak all the way across the map.
-          if ((lng - prevLng).abs() > 180) {
-            path.moveTo(p.dx, p.dy);
-          } else {
-            path.lineTo(p.dx, p.dy);
-          }
-          prevLng = lng;
-        }
-        if ((ring.last.dx - ring.first.dx).abs() <= 180) path.close();
-      }
-    }
-
-    // 1) Fill + thin province borders, each province on its own so the 10m
-    // borders stay crisp (even-odd cuts out enclaves; no winding artifacts).
-    for (final region in _byIso.values) {
-      final path = Path()..fillType = PathFillType.evenOdd;
-      addRings(path, region.rings);
-      canvas
-        ..drawPath(path, landPaint)
-        ..drawPath(path, provinceBorder);
-    }
-
-    // 2) Bright, thicker country outlines on top (distinct from provinces).
-    final countryPath = Path();
-    addRings(countryPath, _countryRings);
-    canvas.drawPath(countryPath, countryBorder);
-
-    _basePicture = recorder.endRecording();
-    return _basePicture!;
   }
 
   /// Loads the bundled map data exactly once.
@@ -908,7 +749,7 @@ class GeoRegions {
       );
       if (!onLand) center = (biggest ?? mainland.first).centroidLngLat;
 
-      // Antarctica's polygons aren't drawn (see MapBaseLayers), so it must not
+      // Antarctica isn't drawn on the maps, so it must not
       // get a label floating over empty ocean either.
       if (center.dy < -58) continue;
       _countryLabels.add(

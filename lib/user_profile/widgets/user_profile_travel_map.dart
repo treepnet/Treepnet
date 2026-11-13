@@ -5,6 +5,7 @@ import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:posts_repository/posts_repository.dart';
+import 'package:treepnet/app/app.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/map/map.dart';
 
@@ -180,6 +181,7 @@ class _UserProfileTravelMapState extends State<UserProfileTravelMap>
     return GlobeView(
       visitedCounts: _visited,
       points: _points,
+      viewerId: context.read<AppBloc>().state.user.id,
       faceTravels: true,
       padding: EdgeInsets.only(
         top: math.max(0, _overlap - UserProfileTravelMap._inset),
