@@ -205,18 +205,25 @@ async function runOnce() {
           SET status='pending'
         WHERE status='sending' AND claimed_at < now() - interval '2 minutes'`,
     );
+    // Each recipient's token and language come with the claim: they were
+    // asked for once per push.
     const claimed = await client.query(
-      `UPDATE public.push_outbox o
-          SET status = 'sending', attempts = attempts + 1, claimed_at = now()
-        WHERE o.id IN (
-          SELECT id FROM public.push_outbox
-           WHERE status = 'pending'
-             AND (next_attempt_at IS NULL OR next_attempt_at <= now())
-           ORDER BY created_at
-           LIMIT $1
-           FOR UPDATE SKIP LOCKED
-        )
-      RETURNING o.id, o.recipient_id, o.title, o.body, o.data, o.attempts`,
+      `WITH claimed AS (
+         UPDATE public.push_outbox o
+            SET status = 'sending', attempts = attempts + 1, claimed_at = now()
+          WHERE o.id IN (
+            SELECT id FROM public.push_outbox
+             WHERE status = 'pending'
+               AND (next_attempt_at IS NULL OR next_attempt_at <= now())
+             ORDER BY created_at
+             LIMIT $1
+             FOR UPDATE SKIP LOCKED
+          )
+        RETURNING o.id, o.recipient_id, o.title, o.body, o.data, o.attempts
+       )
+       SELECT c.*, p.push_token, p.lang
+         FROM claimed c
+         LEFT JOIN public.profiles p ON p.id = c.recipient_id`,
       [BATCH],
     );
     rows = claimed.rows;
@@ -239,12 +246,16 @@ async function runOnce() {
 
 async function sendRow(row, accessToken, projectId) {
   try {
-    const tok = await pool.query(
-      'SELECT push_token, lang FROM public.profiles WHERE id = $1',
-      [row.recipient_id],
-    );
-    const pushToken = tok.rows[0]?.push_token;
-    row.lang = tok.rows[0]?.lang;
+    // Claimed rows carry the token and language (runOnce); others look them up.
+    if (!('push_token' in row)) {
+      const tok = await pool.query(
+        'SELECT push_token, lang FROM public.profiles WHERE id = $1',
+        [row.recipient_id],
+      );
+      row.push_token = tok.rows[0]?.push_token ?? null;
+      row.lang = tok.rows[0]?.lang;
+    }
+    const pushToken = row.push_token;
     if (!pushToken) {
       await pool.query(
         `UPDATE public.push_outbox SET status='failed', last_error='no token' WHERE id=$1`,
