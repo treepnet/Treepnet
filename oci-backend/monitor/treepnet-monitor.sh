@@ -185,6 +185,16 @@ push_failures() {
   [ -n "$row" ] && echo "$row"
 }
 
+# PowerSync stops ALL of a connection's sync past max_buckets_per_connection
+# (3000, powersync/service.yaml): one bucket per person the user follows, plus
+# open profiles and posts. Follows are capped at 2000 (migration 021); this
+# says when anyone gets near, from the buckets each checkpoint logs.
+sync_buckets() {
+  local max
+  max=$(docker logs --since 10m treepnet-powersync 2>&1 | grep -o '"buckets":[0-9]*' | cut -d: -f2 | sort -n | tail -1)
+  [ -n "$max" ] && [ "$max" -gt 1500 ] && echo "a sync connection has $max buckets (PowerSync stops all its sync past 3000)"
+}
+
 # Account deletions finish in the background (functions/delete-account/
 # cleanup.js). A job still there after a day is failing, or waiting on
 # something like a lost bucket permission (waiting doesn't count as an
@@ -270,6 +280,7 @@ check health health
 restarts
 check endpoints endpoints
 check replication replication
+check sync_buckets sync_buckets
 check jwks jwks
 check push_queue push_queue
 check push_failures push_failures
