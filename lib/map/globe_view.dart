@@ -61,7 +61,7 @@ class GlobeView extends StatefulWidget {
     this.focusMaxZoom = 6,
     this.viewerId,
     this.initialCenter,
-    this.initialZoom = 3,
+    this.initialZoom,
     this.controller,
     this.faceTravels = false,
     this.showButtons = true,
@@ -103,9 +103,10 @@ class GlobeView extends StatefulWidget {
   final String? viewerId;
 
   /// The opening centre and flat-map zoom level, when not [focusBounds].
-  /// Without either, the globe opens whole, over the user's travels.
+  /// Without a centre, the globe opens over the user's travels; without a
+  /// zoom, whole.
   final ({double lat, double lng})? initialCenter;
-  final double initialZoom;
+  final double? initialZoom;
 
   /// Reads where the globe is looking and moves it (the location picker).
   final GlobeController? controller;
@@ -385,10 +386,11 @@ class _GlobeViewState extends State<GlobeView>
     if (focus != null) {
       _initialView = _fit(focus);
     } else if (center != null) {
+      final zoom = widget.initialZoom;
       _initialView = (
         lon: center.lng,
         lat: center.lat,
-        zoom: _clampZoom(_zoomForFlat(widget.initialZoom)),
+        zoom: zoom == null ? _cam.zoom : _clampZoom(_zoomForFlat(zoom)),
       );
     } else {
       _initialView = (lon: _cam.lon, lat: _cam.lat, zoom: _cam.zoom);

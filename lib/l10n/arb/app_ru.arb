@@ -809,6 +809,7 @@
   "searchCountryText": "Поиск страны...",
   "searchRegionText": "Поиск региона...",
   "nameLocationErrorText": "Назовите место, чтобы продолжить",
+  "moveOntoLandText": "Переместите метку на сушу",
   "networkProblemText": "Проблема с сетью — проверьте подключение и попробуйте снова.",
   "postedText": "Опубликовано",
   "postingText": "Публикуется…",

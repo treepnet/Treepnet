@@ -220,7 +220,12 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   /// over your own travels like the profile globe, and reports its centre
   /// right away; Central Europe only until then.
   double _zoom = 3;
-  LatLng _center = const LatLng(50, 10);
+  /// Where the picker opens: central Europe, on land. The globe used to open
+  /// on 0°, 0° (its default), in the sea off Africa, so the first thing it
+  /// said was "Move the pin onto land".
+  static const _start = LatLng(50, 10);
+
+  LatLng _center = _start;
   GeoRegion? _detected;
 
   /// Where the region was last re-detected (see [_onGlobeMoved]).
@@ -257,12 +262,14 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   }
 
   void _detect() {
-    _safeSetState(() {
-      _detected = GeoRegions.instance.regionAt(
-        _center.longitude,
-        _center.latitude,
-      );
-    });
+    final region = GeoRegions.instance.regionAt(
+      _center.longitude,
+      _center.latitude,
+    );
+    // Only a new region redraws the page: every step of a drag rebuilt it
+    // all (app bar, fields, globe) while the region stayed the same.
+    if (region == _detected) return;
+    _safeSetState(() => _detected = region);
   }
 
   /// `_center`/`_zoom` are read on confirm, so keep them current on every
@@ -414,6 +421,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
               Positioned.fill(
                 child: GlobeView(
                   look: GlobeLook.picker,
+                  initialCenter: (lat: _start.latitude, lng: _start.longitude),
                   visitedCounts: _myCounts,
                   points: _myPoints,
                   controller: _globeController,
@@ -508,11 +516,41 @@ class _PlaceNameField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final region = this.region;
     final has = region != null;
+    final lang = Localizations.localeOf(context).languageCode;
+    final String where;
+    if (region == null) {
+      where = context.l10n.moveOntoLandText;
+    } else {
+      final name = region.localizedDisplayName(lang);
+      final country = region.localizedCountryName(lang);
+      where = name == country ? name : '$name, $country';
+    }
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Where the post will be filed. It wasn't shown: a spot could be
+        // named and saved without seeing its region (the province names only
+        // appear zoomed in), and over the sea the field just went grey.
+        Container(
+          margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.black.withValues(alpha: 0.55),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(
+            where,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: context.labelLarge?.copyWith(color: AppColors.white),
+          ),
+        ),
         TextField(
           controller: controller,
           enabled: has,

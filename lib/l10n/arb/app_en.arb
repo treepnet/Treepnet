@@ -875,6 +875,7 @@
   "searchCountryText": "Search country...",
   "searchRegionText": "Search region...",
   "nameLocationErrorText": "Name this location to continue",
+  "moveOntoLandText": "Move the pin onto land",
   "networkProblemText": "Network problem — check your connection and try again.",
   "postedText": "Posted",
   "postingText": "Posting…",

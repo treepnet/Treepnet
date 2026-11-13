@@ -2847,6 +2847,12 @@ abstract class AppLocalizations {
   /// **'Name this location to continue'**
   String get nameLocationErrorText;
 
+  /// No description provided for @moveOntoLandText.
+  ///
+  /// In en, this message translates to:
+  /// **'Move the pin onto land'**
+  String get moveOntoLandText;
+
   /// No description provided for @networkProblemText.
   ///
   /// In en, this message translates to:

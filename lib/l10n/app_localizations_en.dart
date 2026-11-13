@@ -1673,6 +1673,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nameLocationErrorText => 'Name this location to continue';
 
   @override
+  String get moveOntoLandText => 'Move the pin onto land';
+
+  @override
   String get networkProblemText =>
       'Network problem — check your connection and try again.';
 

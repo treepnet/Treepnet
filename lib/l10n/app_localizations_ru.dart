@@ -1700,6 +1700,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get nameLocationErrorText => 'Назовите место, чтобы продолжить';
 
   @override
+  String get moveOntoLandText => 'Переместите метку на сушу';
+
+  @override
   String get networkProblemText =>
       'Проблема с сетью — проверьте подключение и попробуйте снова.';
 
