@@ -292,6 +292,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cancelFollowingText => 'Unfollow';
 
   @override
+  String unfollowPrivateTitle(String username) {
+    return 'Unfollow $username?';
+  }
+
+  @override
+  String get unfollowPrivateText =>
+      'This account is private. To see its posts again, you\'ll have to send a follow request.';
+
+  @override
   String get haveSeenAllRecentPosts => 'You\'re all caught up';
 
   @override

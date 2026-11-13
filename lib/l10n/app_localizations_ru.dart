@@ -289,6 +289,15 @@ class AppLocalizationsRu extends AppLocalizations {
   String get cancelFollowingText => 'Отменить подписку';
 
   @override
+  String unfollowPrivateTitle(String username) {
+    return 'Отписаться от $username?';
+  }
+
+  @override
+  String get unfollowPrivateText =>
+      'Это закрытый аккаунт. Чтобы снова видеть его публикации, нужно будет отправить запрос на подписку.';
+
+  @override
   String get haveSeenAllRecentPosts => 'Вы посмотрели все обновления';
 
   @override

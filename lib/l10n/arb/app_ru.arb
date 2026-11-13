@@ -190,6 +190,8 @@
     "description": "Текст показанный на промо банере на странице автора"
   },
   "cancelFollowingText": "Отменить подписку",
+  "unfollowPrivateTitle": "Отписаться от {username}?",
+  "unfollowPrivateText": "Это закрытый аккаунт. Чтобы снова видеть его публикации, нужно будет отправить запрос на подписку.",
   "@cancelFollowingText": {
     "description": "Текст об отмене подписки"
   },

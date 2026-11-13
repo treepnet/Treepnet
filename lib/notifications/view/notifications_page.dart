@@ -10,6 +10,7 @@ import 'package:shared/shared.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/chat/chat.dart';
 import 'package:treepnet/l10n/l10n.dart';
+import 'package:treepnet/user_profile/widgets/confirm_unfollow.dart';
 import 'package:treepnet/user_profile/widgets/follow_state_builder.dart';
 import 'package:user_repository/user_repository.dart';
 
@@ -173,7 +174,10 @@ class _NotificationTile extends StatelessWidget {
   Widget? _trailing(BuildContext context) {
     switch (item.type) {
       case NotificationType.follow:
-        return _FollowBackButton(actorId: item.actorId);
+        return _FollowBackButton(
+          actorId: item.actorId,
+          username: item.actorUsername,
+        );
       case NotificationType.followRequest:
         return _FollowRequestButtons(requesterId: item.actorId);
       case NotificationType.like:
@@ -219,9 +223,10 @@ class _NotificationTile extends StatelessWidget {
 
 /// The white "Follow" / grey "Following" pill on a follow notification.
 class _FollowBackButton extends StatelessWidget {
-  const _FollowBackButton({required this.actorId});
+  const _FollowBackButton({required this.actorId, required this.username});
 
   final String actorId;
+  final String username;
 
   @override
   Widget build(BuildContext context) {
@@ -236,9 +241,20 @@ class _FollowBackButton extends StatelessWidget {
         final following = relation == FollowRelation.following ||
             relation == FollowRelation.requested;
         return Tappable.scaled(
-          onTap: () => following
-              ? repo.unfollow(unfollowId: actorId, unfollowerId: me)
-              : repo.follow(followToId: actorId, followerId: me),
+          // Following asks first (it unfollowed on one tap); Requested
+          // withdraws the request; Follow follows.
+          onTap: () => switch (relation) {
+            FollowRelation.following => confirmUnfollow(
+              context,
+              username: username,
+              isPrivate: false,
+              onUnfollow: () =>
+                  repo.unfollow(unfollowId: actorId, unfollowerId: me),
+            ),
+            FollowRelation.requested =>
+              repo.unfollow(unfollowId: actorId, unfollowerId: me),
+            _ => repo.follow(followToId: actorId, followerId: me),
+          },
           child: Container(
             width: 110,
             height: 36,

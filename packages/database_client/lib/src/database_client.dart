@@ -85,8 +85,9 @@ abstract class UserBaseRepository {
     required bool isPrivate,
   });
 
-  /// Follows to the user by provided [followToId]. [followerId] is the id
-  /// of currently authenticated user.
+  /// Follows the user [followToId] ([followerId] is the signed-in user): a
+  /// request (pending) for a private account. Already following or asked:
+  /// nothing. It never unfollows — that is [unfollow].
   Future<void> follow({
     required String followToId,
     String? followerId,
@@ -2455,6 +2456,13 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
     if (me == null) return;
     if (followToId == me) return;
     final follower = followerId ?? me;
+    // A private account is followed by REQUEST: the row lands as 'pending'
+    // and only unlocks content once the owner accepts it; a public one
+    // outright ('accepted'). Unknown (offline, never seen): a request — the
+    // server sets the real one either way (subscriptions_enforce). Taking an
+    // unknown account for public showed "Following" and counted it, until the
+    // server's 'pending' came back.
+    final private = await _isPrivate(followToId);
     // Check and write in one transaction: two quick taps both saw "not
     // following" and inserted twice — the server had no unique pair, so the
     // follower count went up by two.
@@ -2464,33 +2472,33 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
         'WHERE subscriber_id = ? AND subscribed_to_id = ?',
         [follower, followToId],
       );
-      if (exists == null) {
-        // A private account is followed by REQUEST: the row lands as
-        // 'pending' and only unlocks content once the owner accepts it. A
-        // public account is followed outright ('accepted').
-        final profile = await tx.getOptional(
-          'SELECT is_private FROM profiles WHERE id = ?',
-          [followToId],
-        );
-        final private = profile?['is_private'];
-        final targetPrivate = private == 1 || private == true;
-        await tx.execute(
-          '''
+      // Already following, or asked: nothing to do. This used to delete it —
+      // follow was a toggle, so a quick double tap followed and unfollowed
+      // (the "started following you" push still went out), and the second
+      // tap of a double tap on a private account withdrew the request.
+      if (exists != null) return;
+      await tx.execute(
+        '''
           INSERT INTO subscriptions(id, subscriber_id, subscribed_to_id, status)
             VALUES(uuid(), ?, ?, ?)
       ''',
-          [follower, followToId, targetPrivate ? 'pending' : 'accepted'],
-        );
-        return;
-      }
-      // Already following OR a request is pending — tapping again cancels
-      // either (a plain delete works for both, so a request is withdrawn).
-      await tx.execute(
-        'DELETE FROM subscriptions '
-        'WHERE subscriber_id = ? AND subscribed_to_id = ?',
-        [follower, followToId],
+        [follower, followToId, private == false ? 'accepted' : 'pending'],
       );
     });
+  }
+
+  /// Whether [userId]'s account is private: from their profile on the phone,
+  /// else their card from the server; null when neither is to be had.
+  Future<bool?> _isPrivate(String userId) async {
+    final row = await _powerSyncRepository.db().getOptional(
+      'SELECT is_private FROM profiles WHERE id = ?',
+      [userId],
+    );
+    if (row != null) {
+      final private = row['is_private'];
+      return private == 1 || private == true;
+    }
+    return (await _cards([userId]))[userId]?.user.isPrivate;
   }
 
   @override

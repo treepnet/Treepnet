@@ -531,6 +531,18 @@ abstract class AppLocalizations {
   /// **'Unfollow'**
   String get cancelFollowingText;
 
+  /// No description provided for @unfollowPrivateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Unfollow {username}?'**
+  String unfollowPrivateTitle(String username);
+
+  /// No description provided for @unfollowPrivateText.
+  ///
+  /// In en, this message translates to:
+  /// **'This account is private. To see its posts again, you\'ll have to send a follow request.'**
+  String get unfollowPrivateText;
+
   /// Header text shown in divider block when user have seen all recent posts
   ///
   /// In en, this message translates to:

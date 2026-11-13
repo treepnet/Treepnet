@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:app_ui/app_ui.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -48,9 +50,11 @@ class _UserProfileListTileState extends State<UserProfileListTile> {
     );
   }
 
-  void _follow(BuildContext context) => context.read<UserProfileBloc>().add(
-    UserProfileFollowUserRequested(userId: widget.user.id),
-  );
+  /// What the person's follow button does, by what it shows: Follow follows,
+  /// Requested withdraws the request, Following asks first (it unfollowed on
+  /// one tap here, while the profile page asked).
+  void _onFollowButton(BuildContext context, FollowRelation relation) =>
+      onFollowButton(context, user: widget.user, relation: relation);
 
   @override
   Widget build(BuildContext context) {
@@ -130,11 +134,9 @@ class _UserProfileListTileState extends State<UserProfileListTile> {
                           follower: widget.follower,
                           isMine: isMine,
                           isMe: isMe,
-                          onTap: () => widget.follower
-                              ? !isMine
-                                    ? _follow(context)
-                                    : _removeFollower(context)
-                              : _follow(context),
+                          onTap: () => _removeFollower(context),
+                          onFollowTap: (relation) =>
+                              _onFollowButton(context, relation),
                         ),
                       if (isMine && widget.follower) ...[
                         const Gap.h(AppSpacing.md),
@@ -164,6 +166,7 @@ class UserActionButton extends StatelessWidget {
     required this.isMine,
     required this.follower,
     required this.onTap,
+    required this.onFollowTap,
     super.key,
   });
 
@@ -171,7 +174,12 @@ class UserActionButton extends StatelessWidget {
   final bool isMe;
   final bool isMine;
   final bool follower;
+
+  /// Remove (one of the user's own followers).
   final VoidCallback? onTap;
+
+  /// The follow button, with what it showed.
+  final ValueChanged<FollowRelation> onFollowTap;
 
   @override
   Widget build(BuildContext context) {
@@ -200,7 +208,7 @@ class UserActionButton extends StatelessWidget {
         // once you do — or once you've asked (tapping withdraws the request).
         final grey = relation != FollowRelation.none;
         return UserProfileButton(
-          onTap: onTap,
+          onTap: () => onFollowTap(relation),
           label: switch (relation) {
             FollowRelation.following => l10n.followingUser,
             FollowRelation.requested => l10n.requestedText,
@@ -272,9 +280,8 @@ class FollowTextButton extends StatelessWidget {
                       color: followed ? AppColors.white : AppColors.blue,
                     ),
                     recognizer: TapGestureRecognizer()
-                      ..onTap = () => context.read<UserProfileBloc>().add(
-                        UserProfileFollowUserRequested(userId: user.id),
-                      ),
+                      ..onTap = () =>
+                          onFollowButton(context, user: user, relation: relation),
                   ),
                 ],
               ),
@@ -283,5 +290,33 @@ class FollowTextButton extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+/// A follow button's tap in a list, by what it showed: Follow follows,
+/// Requested withdraws the request, Following asks first (see
+/// [confirmUnfollow]).
+void onFollowButton(
+  BuildContext context, {
+  required User user,
+  required FollowRelation relation,
+}) {
+  final bloc = context.read<UserProfileBloc>();
+  void send({required bool follow}) =>
+      bloc.add(UserProfileFollowUserRequested(userId: user.id, follow: follow));
+  switch (relation) {
+    case FollowRelation.none:
+      send(follow: true);
+    case FollowRelation.requested:
+      send(follow: false);
+    case FollowRelation.following:
+      unawaited(
+        confirmUnfollow(
+          context,
+          username: user.displayUsername,
+          isPrivate: user.isPrivate,
+          onUnfollow: () => send(follow: false),
+        ),
+      );
   }
 }

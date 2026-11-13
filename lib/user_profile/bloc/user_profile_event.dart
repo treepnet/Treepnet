@@ -90,10 +90,14 @@ final class UserProfileFollowersSubscriptionRequested extends UserProfileEvent {
   final int? limit;
 }
 
+/// Follow ([follow], a request for a private account) or unfollow / withdraw
+/// the request (not [follow]) — what the tapped button showed it would do.
+/// It used to be one toggle, decided from the database at the time.
 final class UserProfileFollowUserRequested extends UserProfileEvent {
-  const UserProfileFollowUserRequested({this.userId});
+  const UserProfileFollowUserRequested({this.userId, this.follow = true});
 
   final String? userId;
+  final bool follow;
 }
 
 final class UserProfileRemoveFollowerRequested extends UserProfileEvent {

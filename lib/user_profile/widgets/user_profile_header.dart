@@ -265,26 +265,21 @@ class UserProfileFollowUserButton extends StatelessWidget {
           textStyle: context.labelLarge?.copyWith(
             color: grey ? AppColors.white : AppColors.black,
           ),
+          // Each state says what it does: Following asks, then unfollows;
+          // Requested withdraws the request; Follow follows (or asks, for a
+          // private account) and never undoes anything.
           onTap: isFollowing
-              ? () async {
-                  void callback(ModalOption option) =>
-                      option.onTap.call(context);
-
-                  final option = await context.showListOptionsModal(
-                    title: user.username,
-                    options: followerModalOptions(
-                      unfollowLabel: context.l10n.cancelFollowingText,
-                      onUnfollowTap: () =>
-                          bloc.add(const UserProfileFollowUserRequested()),
-                    ),
-                  );
-                  if (option == null) return;
-                  callback.call(option);
-                }
-              // `none` follows (request or immediate); `pending` toggles the
-              // request off — both go through the same event, which the DB
-              // layer resolves by inserting or deleting the subscription row.
-              : () => bloc.add(const UserProfileFollowUserRequested()),
+              ? () => confirmUnfollow(
+                  context,
+                  username: user.displayUsername,
+                  isPrivate: user.isPrivate,
+                  onUnfollow: () => bloc.add(
+                    const UserProfileFollowUserRequested(follow: false),
+                  ),
+                )
+              : () => bloc.add(
+                  UserProfileFollowUserRequested(follow: !isPending),
+                ),
         );
       },
     );

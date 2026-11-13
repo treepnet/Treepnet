@@ -220,6 +220,15 @@
     "description": "Text shown in a floating action promo in user profile when was navigated from sponsored post"
   },
   "cancelFollowingText": "Unfollow",
+  "unfollowPrivateTitle": "Unfollow {username}?",
+  "@unfollowPrivateTitle": {
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "unfollowPrivateText": "This account is private. To see its posts again, you'll have to send a follow request.",
   "@cancelFollowingText": {
     "description": "Text shown in modal bottom sheet to cancel current following to user"
   },

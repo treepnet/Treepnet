@@ -58,7 +58,7 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
       _onFollowersSubscriptionRequested,
       transformer: restartable(),
     );
-    on<UserProfileFollowUserRequested>(_onFollowUser);
+    on<UserProfileFollowUserRequested>(_onFollowUser, transformer: sequential());
     on<UserProfileRemoveFollowerRequested>(
       _onUserProfileRemoveFollowerRequested,
     );
@@ -270,12 +270,28 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
     );
   }
 
+  /// When each person's follow button last did something. A second tap
+  /// within [_followCooldown] is the rest of a double tap, not a change of
+  /// mind: the button has already turned into "Requested" / "Following" by
+  /// then, and the tap undid the follow.
+  final _followedAt = <String, DateTime>{};
+  static const _followCooldown = Duration(milliseconds: 600);
+
   Future<void> _onFollowUser(
     UserProfileFollowUserRequested event,
     Emitter<UserProfileState> emit,
   ) async {
+    final userId = event.userId ?? _userId;
+    final now = DateTime.now();
+    final last = _followedAt[userId];
+    if (last != null && now.difference(last) < _followCooldown) return;
+    _followedAt[userId] = now;
     try {
-      await _userRepository.follow(followToId: event.userId ?? _userId);
+      if (event.follow) {
+        await _userRepository.follow(followToId: userId);
+      } else {
+        await _userRepository.unfollow(unfollowId: userId);
+      }
     } catch (error, stackTrace) {
       addError(error, stackTrace);
     }
