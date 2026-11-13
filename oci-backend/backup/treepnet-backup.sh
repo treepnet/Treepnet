@@ -9,6 +9,13 @@
 # backups but can neither list, read nor delete them. The last 7 nights also
 # stay in ~/backups.
 #
+# The bucket keeps each archive 30 days without letting anyone (this upload
+# link included) delete or overwrite it (retention rule keep-30-days, not
+# locked), and deletes it after 35 (lifecycle delete-after-35-days): a deleted
+# account's data is gone from the backups within 35 days, as the privacy
+# policy says. Anything else left in ~/backups (one-off copies taken before a
+# change, kept encrypted) goes after 30 days.
+#
 # Restoring: see README.md here; treepnet-backup-check.sh does it weekly into
 # scratch databases to prove the archives are good.
 #
@@ -19,6 +26,7 @@ umask 077
 
 backups=/home/ubuntu/backups
 keep_days=7
+keep_other_days=30
 pass_file=/home/ubuntu/.backup-passphrase
 par_url=$(cat /home/ubuntu/.backup-par-url) # ends in /o/
 ts=$(date -u +%Y%m%d-%H%M%S)
@@ -36,7 +44,9 @@ sudo docker exec treepnet-postgres pg_dumpall -U "$pg_user" --globals-only >"$wo
 # Some of these files are root's; tar runs as root but writes through our
 # redirect, so the archive parts stay readable by this script.
 sudo tar -C /var/lib/docker/volumes/treepnet_chat_uploads/_data -czf - . >"$work/chat_uploads.tar.gz"
-sudo tar -C /home/ubuntu -czf - treepnet >"$work/server-config.tar.gz"
+# Not *.dump: a database copy left in the folder (the 2026-08 migration
+# dump was) would ride along in every archive, deleted accounts included.
+sudo tar -C /home/ubuntu --exclude='*.dump' -czf - treepnet >"$work/server-config.tar.gz"
 
 archive="$backups/treepnet-$ts.tar.enc"
 tar -C "$work" -cf - . |
@@ -46,4 +56,6 @@ curl -fsS --retry 3 --retry-delay 10 -X PUT --data-binary "@$archive" \
   "${par_url}${ts:0:8}/treepnet-$ts.tar.enc"
 
 find "$backups" -maxdepth 1 -name 'treepnet-*.tar.enc' -mtime +"$keep_days" -delete
+find "$backups" -maxdepth 1 -type f ! -name 'treepnet-*.tar.enc' \
+  -mtime +"$keep_other_days" -delete
 log "ok $(basename "$archive") $(du -h "$archive" | cut -f1)"
