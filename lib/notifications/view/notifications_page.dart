@@ -10,22 +10,41 @@ import 'package:shared/shared.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/chat/chat.dart';
 import 'package:treepnet/l10n/l10n.dart';
+import 'package:treepnet/notifications/notification_rows.dart';
 import 'package:treepnet/user_profile/widgets/confirm_unfollow.dart';
 import 'package:treepnet/user_profile/widgets/follow_state_builder.dart';
 import 'package:user_repository/user_repository.dart';
 
 /// {@template notifications_page}
 /// The activity feed, opened from the bell in the feed app bar: real likes,
-/// comments and new followers on the current user, newest first.
+/// comments and new followers on the current user, newest first. A post's
+/// likes of one day share a row.
 /// {@endtemplate}
-class NotificationsPage extends StatelessWidget {
+class NotificationsPage extends StatefulWidget {
   /// {@macro notifications_page}
   const NotificationsPage({super.key});
 
   @override
+  State<NotificationsPage> createState() => _NotificationsPageState();
+}
+
+class _NotificationsPageState extends State<NotificationsPage> {
+  /// Made once: a stream made in build was dropped and made again on every
+  /// rebuild (a theme or language change), and the spinner flashed while the
+  /// query ran anew.
+  late final Stream<List<NotificationRow>> _rows;
+
+  @override
+  void initState() {
+    super.initState();
+    _rows = context
+        .read<UserRepository>()
+        .notificationsOf(userId: context.read<AppBloc>().state.user.id)
+        .map(notificationRows);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final userId = context.read<AppBloc>().state.user.id;
-    final repo = context.read<UserRepository>();
     return TreepNetAmbientBackground(
       child: AppScaffold(
         backgroundColor: Colors.transparent,
@@ -45,11 +64,11 @@ class NotificationsPage extends StatelessWidget {
             ),
           ),
         ),
-        body: StreamBuilder<List<NotificationItem>>(
-          stream: repo.notificationsOf(userId: userId),
+        body: StreamBuilder<List<NotificationRow>>(
+          stream: _rows,
           builder: (context, snapshot) {
-            final items = snapshot.data;
-            if (items == null) {
+            final rows = snapshot.data;
+            if (rows == null) {
               return const Center(
                 child: SizedBox(
                   height: 22,
@@ -58,16 +77,16 @@ class NotificationsPage extends StatelessWidget {
                 ),
               );
             }
-            if (items.isEmpty) return const _EmptyNotifications();
+            if (rows.isEmpty) return const _EmptyNotifications();
             return ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-              itemCount: items.length,
+              itemCount: rows.length,
               separatorBuilder: (_, __) => Divider(
                 height: 1,
                 indent: 70,
                 color: Colors.white.withValues(alpha: 0.05),
               ),
-              itemBuilder: (context, i) => _NotificationTile(item: items[i]),
+              itemBuilder: (context, i) => _NotificationTile(row: rows[i]),
             );
           },
         ),
@@ -77,9 +96,11 @@ class NotificationsPage extends StatelessWidget {
 }
 
 class _NotificationTile extends StatelessWidget {
-  const _NotificationTile({required this.item});
+  const _NotificationTile({required this.row});
 
-  final NotificationItem item;
+  final NotificationRow row;
+
+  NotificationItem get item => row.item;
 
   void _onTap(BuildContext context) {
     if (item.actorId.isEmpty) return;
@@ -152,20 +173,21 @@ class _NotificationTile extends StatelessWidget {
           // had never earned one. The live badge shows nothing when there is
           // nothing to show.
           TravelTierBadge(userId: item.actorId),
+          // Up here, where a long comment below can't push it out of sight.
+          Text(
+            ' ${_ago(context, item.createdAt)}',
+            maxLines: 1,
+            style: const TextStyle(color: Colors.white38, fontSize: 12),
+          ),
         ],
       ),
+      // At most two lines: a long comment made a row as tall as the comment.
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 2),
-        child: Text.rich(
-          TextSpan(
-            children: [
-              TextSpan(text: _action(item)),
-              TextSpan(
-                text: ' ${_ago(context, item.createdAt)}',
-                style: const TextStyle(color: Colors.white38),
-              ),
-            ],
-          ),
+        child: Text(
+          _action(row),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
           style: const TextStyle(color: Colors.white70, fontSize: 12),
         ),
       ),
@@ -193,11 +215,14 @@ class _NotificationTile extends StatelessWidget {
     }
   }
 
-  String _action(NotificationItem n) {
+  String _action(NotificationRow row) {
+    final n = row.item;
     final l10n = l10nGlobal;
     switch (n.type) {
       case NotificationType.like:
-        return l10n.notifLikedText;
+        return row.others > 0
+            ? l10n.notifLikedOthersText(row.others)
+            : l10n.notifLikedText;
       case NotificationType.comment:
         final text = (n.content ?? '').trim();
         return text.isEmpty

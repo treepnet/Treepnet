@@ -787,6 +787,7 @@
   "@notifRepliedContentText": { "placeholders": { "text": { "type": "String" } } },
   "notifFollowAcceptedText": "Принял(а) ваш запрос на подписку.",
   "notifCommentLikedText": "Понравился ваш комментарий.",
+  "notifLikedOthersText": "{count, plural, one{И ещё {count} человеку понравилась ваша публикация.} few{И ещё {count} людям понравилась ваша публикация.} many{И ещё {count} людям понравилась ваша публикация.} other{И ещё {count} человека понравилась ваша публикация.}}",
   "notifMessageText": "Отправил(а) вам сообщение.",
   "notifMessageContentText": "Отправил(а): {text}.",
   "@notifMessageContentText": { "placeholders": { "text": { "type": "String" } } },

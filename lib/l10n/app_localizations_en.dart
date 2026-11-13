@@ -1596,6 +1596,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notifCommentLikedText => 'Liked your comment.';
 
   @override
+  String notifLikedOthersText(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'And $count others liked your post.',
+      one: 'And 1 other person liked your post.',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get notifMessageText => 'Sent you a message.';
 
   @override

@@ -2721,6 +2721,12 @@ abstract class AppLocalizations {
   /// **'Liked your comment.'**
   String get notifCommentLikedText;
 
+  /// No description provided for @notifLikedOthersText.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{And 1 other person liked your post.} other{And {count} others liked your post.}}'**
+  String notifLikedOthersText(int count);
+
   /// No description provided for @notifMessageText.
   ///
   /// In en, this message translates to:

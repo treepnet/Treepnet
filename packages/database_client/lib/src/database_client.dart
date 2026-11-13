@@ -1477,7 +1477,7 @@ WHERE n.recipient_id = ?1
               COALESCE(me.notifications_seen_at, my.notifications_seen_at),
               1, 19)))''' : '''
 ORDER BY n.created_at DESC
-LIMIT 80'''}
+LIMIT 150'''}
 ''';
 
   @override
