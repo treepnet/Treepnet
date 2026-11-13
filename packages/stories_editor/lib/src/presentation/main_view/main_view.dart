@@ -138,7 +138,6 @@ class _MainViewState extends State<MainView> with SafeSetStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final ScreenUtil screenUtil = ScreenUtil();
     return WillPopScope(
       onWillPop: _popScope,
       child: Material(
@@ -180,8 +179,7 @@ class _MainViewState extends State<MainView> with SafeSetStateMixin {
                               alignment: Alignment.topCenter,
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(25),
-                                child: SizedBox(
-                                  width: screenUtil.screenWidth,
+                                child: _StoryFrame(
                                   child: RepaintBoundary(
                                     key: contentKey,
                                     child: AnimatedContainer(
@@ -405,5 +403,31 @@ class _MainViewState extends State<MainView> with SafeSetStateMixin {
 
     /// set vibrate
     HapticFeedback.lightImpact();
+  }
+}
+
+/// The story's frame: always 9:16, as wide as the screen unless that is too
+/// tall for the room under the toolbar, then narrower (a short phone shows a
+/// thin black band each side). It used to take whatever height was left, so a
+/// story's shape was the poster's phone's: one made on a tall phone lost its
+/// bottom on a shorter one, where people put the place and time.
+class _StoryFrame extends StatelessWidget {
+  const _StoryFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        var width = box.maxWidth;
+        var height = width * 16 / 9;
+        if (height > box.maxHeight) {
+          height = box.maxHeight;
+          width = height * 9 / 16;
+        }
+        return SizedBox(width: width, height: height, child: child);
+      },
+    );
   }
 }

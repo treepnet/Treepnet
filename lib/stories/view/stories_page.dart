@@ -65,6 +65,10 @@ const double _timerHeight = 2;
 /// Empty space the design wants between the timer and the top of the picture.
 const double _storyTopGap = 3;
 
+/// Whether a story of this width / height was made in the editor's 9:16 frame
+/// (its export is 1080 x 1920, give or take a pixel of rounding).
+bool _isStoryFrame(double aspect) => (aspect - 9 / 16).abs() < 0.01;
+
 class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
   final StoryController _controller = StoryController();
 
@@ -432,20 +436,28 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
                   //
                   // Top-aligned to the editor proportions: the story fills the
                   // width and starts at the top, so there is never a black bar
-                  // above it. Anything taller than the screen is cropped from
-                  // the bottom; anything shorter leaves the footer's dark area
-                  // below. Falls back to filling the frame until the aspect is
-                  // known (and for videos, which do not decode as images).
+                  // above it. A 9:16 story (the editor's frame since 1.0.9) is
+                  // shown whole: narrower, with thin bands each side, where
+                  // the full width would run past the bottom. Older shapes
+                  // keep the full width: taller than the screen is cropped
+                  // from the bottom, shorter leaves the footer's dark area
+                  // below. Falls back to filling the frame until the aspect
+                  // is known.
                   child: LayoutBuilder(
                       builder: (context, constraints) => ValueListenableBuilder<double?>(
                         valueListenable: _storyAspect,
                         builder: (context, aspect, _) {
-                          final w = constraints.maxWidth;
                           // Room for the timer plus a 3px gap above the picture.
                           // Added to the box height so the image keeps its full
                           // height and is NOT cropped — the shift eats into the
                           // footer's space below instead.
                           const topReserve = _timerHeight + _storyTopGap;
+                          var w = constraints.maxWidth;
+                          if (aspect != null && _isStoryFrame(aspect)) {
+                            final fits =
+                                (constraints.maxHeight - topReserve) * aspect;
+                            if (fits < w) w = fits;
+                          }
                           final h =
                               (aspect == null
                                   ? constraints.maxHeight
