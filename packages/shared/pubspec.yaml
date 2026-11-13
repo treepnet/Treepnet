@@ -34,7 +34,11 @@ dependencies:
   meta: any
   mime: ^2.0.0
   ogp_data_extract: ^0.2.2
-  powersync: ^1.16.1
+  # 1.16.x only: 1.17+ (powersync_core 1.7+) uses @Deprecated.subclass,
+  # which Dart 3.9 (Flutter 3.35.7) can't compile, and analyze doesn't show
+  # it. 1.16 is also what the Rust sync client (Sync Streams) is opt-in on.
+  # Move with the Flutter SDK, not alone.
+  powersync: '>=1.16.1 <1.17.0'
   stream_transform: ^2.1.0
   user_repository:
     path: ../user_repository

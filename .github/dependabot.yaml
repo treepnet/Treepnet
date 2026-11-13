@@ -57,6 +57,12 @@ updates:
     directory: "/packages/powersync_repository"
     schedule:
       interval: "daily"
+    # powersync 1.17+ doesn't compile on the Flutter SDK in use (Dart 3.9);
+    # upgrade it together with Flutter (packages/*/pubspec.yaml).
+    ignore:
+      - dependency-name: "powersync"
+      - dependency-name: "powersync_core"
+      - dependency-name: "powersync_flutter_libs"
   - package-ecosystem: "pub"
     directory: "/packages/search_repository"
     schedule:
@@ -65,6 +71,12 @@ updates:
     directory: "/packages/shared"
     schedule:
       interval: "daily"
+    # powersync 1.17+ doesn't compile on the Flutter SDK in use (Dart 3.9);
+    # upgrade it together with Flutter (packages/*/pubspec.yaml).
+    ignore:
+      - dependency-name: "powersync"
+      - dependency-name: "powersync_core"
+      - dependency-name: "powersync_flutter_libs"
   - package-ecosystem: "pub"
     directory: "/packages/stories_repository"
     schedule:
