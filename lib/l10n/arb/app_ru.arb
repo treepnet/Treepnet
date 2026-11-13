@@ -837,5 +837,6 @@
   "openSettingsText": "Открыть настройки",
   "noNotificationsHintText": "Здесь появятся лайки, комментарии и новые подписчики.",
   "notificationChannelDescriptionText": "Лайки, комментарии, подписки и сообщения",
+  "countriesCountText": "{count, plural, one{{count} страна} few{{count} страны} many{{count} стран} other{{count} страны}}",
   "regionsCountText": "{count, plural, one{{count} регион} few{{count} региона} many{{count} регионов} other{{count} региона}}"
 }

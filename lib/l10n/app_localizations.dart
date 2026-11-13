@@ -3021,6 +3021,12 @@ abstract class AppLocalizations {
   /// **'Likes, comments, follows and messages'**
   String get notificationChannelDescriptionText;
 
+  /// No description provided for @countriesCountText.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 country} other{{count} countries}}'**
+  String countriesCountText(int count);
+
   /// No description provided for @regionsCountText.
   ///
   /// In en, this message translates to:

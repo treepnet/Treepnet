@@ -1793,6 +1793,19 @@ class AppLocalizationsRu extends AppLocalizations {
       'Лайки, комментарии, подписки и сообщения';
 
   @override
+  String countriesCountText(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count страны',
+      many: '$count стран',
+      few: '$count страны',
+      one: '$count страна',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String regionsCountText(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

@@ -1766,6 +1766,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Likes, comments, follows and messages';
 
   @override
+  String countriesCountText(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count countries',
+      one: '1 country',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String regionsCountText(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

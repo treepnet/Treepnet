@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:posts_repository/posts_repository.dart';
+import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/map/map.dart';
 
 /// Profile tab showing the user's "travel map": every ISO 3166-2 region they
@@ -159,36 +161,98 @@ class _UserProfileTravelMapState extends State<UserProfileTravelMap>
     return Padding(
       padding: const EdgeInsets.all(UserProfileTravelMap._inset),
       // Fills whatever the tab gives it, header collapsed or not.
-      child: GlobeView(
-        visitedCounts: _visited,
-        points: _points,
-        faceTravels: true,
-        padding: EdgeInsets.only(
-          top: math.max(0, _overlap - UserProfileTravelMap._inset),
+      child: Stack(
+        children: [
+          Positioned.fill(child: _globe(context)),
+          Positioned(
+            top:
+                math.max(0, _overlap - UserProfileTravelMap._inset) +
+                AppSpacing.sm,
+            left: AppSpacing.sm,
+            child: _TravelCount(visited: _visited),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _globe(BuildContext context) {
+    return GlobeView(
+      visitedCounts: _visited,
+      points: _points,
+      faceTravels: true,
+      padding: EdgeInsets.only(
+        top: math.max(0, _overlap - UserProfileTravelMap._inset),
+      ),
+      onTargetTap: (target) => LocationPostsPage.push(
+        context,
+        userId: widget.userId,
+        regionIso: target.region.iso,
+        // Localized to the app language (matches the map labels).
+        regionName: target.region.localizedDisplayName(
+          Localizations.localeOf(context).languageCode,
         ),
-        onTargetTap: (target) => LocationPostsPage.push(
-          context,
-          userId: widget.userId,
-          regionIso: target.region.iso,
-          // Localized to the app language (matches the map labels).
-          regionName: target.region.localizedDisplayName(
-            Localizations.localeOf(context).languageCode,
+        // The name the author gave this spot — the heading of the
+        // page, since "Magic city bogi" is what they remember,
+        // not the province it happens to fall in. User content —
+        // never translated.
+        placeName: target.point?.name,
+        countryName: target.region.localizedCountryName(
+          Localizations.localeOf(context).languageCode,
+        ),
+        scope: target.point == null
+            ? LocationPostsScope.region
+            : LocationPostsScope.point,
+        lat: target.point?.lat,
+        lng: target.point?.lng,
+      ),
+    );
+  }
+}
+
+/// "5 countries · 12 regions" over the globe: how much someone has travelled,
+/// which the map alone didn't say. The regions are those the globe colours;
+/// their countries are counted once each. Nothing until there is one.
+class _TravelCount extends StatelessWidget {
+  const _TravelCount({required this.visited});
+
+  final Map<String, int> visited;
+
+  @override
+  Widget build(BuildContext context) {
+    if (visited.isEmpty) return const SizedBox.shrink();
+    final (:countries, :regions) = travelCounts(visited);
+    final l10n = context.l10n;
+    return IgnorePointer(
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.xs,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.black.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          '${l10n.countriesCountText(countries)} · '
+          '${l10n.regionsCountText(regions)}',
+          style: context.labelLarge?.copyWith(
+            color: AppColors.white,
+            fontWeight: AppFontWeight.semiBold,
           ),
-          // The name the author gave this spot — the heading of the
-          // page, since "Magic city bogi" is what they remember,
-          // not the province it happens to fall in. User content —
-          // never translated.
-          placeName: target.point?.name,
-          countryName: target.region.localizedCountryName(
-            Localizations.localeOf(context).languageCode,
-          ),
-          scope: target.point == null
-              ? LocationPostsScope.region
-              : LocationPostsScope.point,
-          lat: target.point?.lat,
-          lng: target.point?.lng,
         ),
       ),
     );
   }
 }
+
+/// How many countries and regions [visited] (the regions the travel globe
+/// colours, by ISO 3166-2 code) covers; each country counted once.
+@visibleForTesting
+({int countries, int regions}) travelCounts(Map<String, int> visited) => (
+  countries: {
+    for (final iso in visited.keys)
+      GeoRegions.instance.regionByIso(iso)?.countryCode ?? iso.split('-').first,
+  }.length,
+  regions: visited.length,
+);

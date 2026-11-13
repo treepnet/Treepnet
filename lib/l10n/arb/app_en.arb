@@ -939,6 +939,14 @@
   "openSettingsText": "Open Settings",
   "noNotificationsHintText": "Likes, comments and new followers will show up here.",
   "notificationChannelDescriptionText": "Likes, comments, follows and messages",
+  "countriesCountText": "{count, plural, =1{1 country} other{{count} countries}}",
+  "@countriesCountText": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "regionsCountText": "{count, plural, =1{1 region} other{{count} regions}}",
   "@regionsCountText": {
     "placeholders": {
