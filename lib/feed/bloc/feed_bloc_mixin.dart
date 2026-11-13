@@ -162,7 +162,10 @@ final class FeedPageUpdate extends PageUpdate {
 /// - `PostsRepository` class for fetching posts and post likers
 /// {@endtemplate}
 mixin FeedBlocMixin on Bloc<FeedEvent, FeedState> {
-  int get feedPageLimit => 7;
+  /// Posts per feed page. It was 7: a fast scroll met the spinner every 7
+  /// posts, each page past the people you follow a round trip to Frankfurt.
+  /// The next page is asked for 3 posts before the end (feed_page.dart).
+  int get feedPageLimit => 15;
   int get reelsPageLimit => 7;
 
   PostsRepository get postsRepository;

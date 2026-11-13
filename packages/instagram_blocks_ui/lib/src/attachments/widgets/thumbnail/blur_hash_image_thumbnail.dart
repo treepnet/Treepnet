@@ -72,7 +72,10 @@ class _BlurHashImageThumbnailState extends State<BlurHashImageThumbnail> {
           : CachedNetworkImageProvider(
               widget.url,
               cacheManager: postImageCacheManager,
-              cacheKey: widget.id == null ? widget.url : '${widget.id}/${widget.url}',
+              // The URL alone: a file never changes under its URL. Keyed by
+              // id as well, the feed card (media id) and the post's preview
+              // (post id) each downloaded and stored the same photo.
+              cacheKey: widget.url,
             ),
       // No size given: the placeholder fills the same box the image will, so
       // nothing jumps when it swaps in.

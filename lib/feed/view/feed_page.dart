@@ -17,6 +17,8 @@ import 'package:treepnet/app/services/media_upload_queue.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/stories/stories.dart';
 import 'package:inview_notifier_list/inview_notifier_list.dart';
+import 'package:instagram_blocks_ui/instagram_blocks_ui.dart'
+    show postImageCacheManager;
 import 'package:shared/shared.dart';
 import 'package:sliver_tools/sliver_tools.dart';
 import 'package:stories_repository/stories_repository.dart';
@@ -654,8 +656,44 @@ class _FeedPageListViewState extends State<FeedPageListView> {
 
   void _updateBlocks() {
     for (var i = 0; i < blocks.length; i++) {
-      if (blocks[i].toJson()['id'] == null) continue;
-      _listItemsMap[blocks[i].toJson()['id'] as String] = i;
+      // The id straight from the post: it serialised every block to JSON,
+      // twice, on each change of the list, to read it.
+      final block = blocks[i];
+      if (block is PostBlock) _listItemsMap[block.id] = i;
+    }
+  }
+
+  /// The list length the next page was last asked for at, so it's asked once.
+  int? _pageAskedAt;
+
+  /// Asks for the next page while 3 posts are still left, instead of when the
+  /// spinner at the end shows (a fast scroll met it every page).
+  void _askEarly(BuildContext context, int index) {
+    if (!widget.hasMore || widget.failed) return;
+    if (index < blocks.length - 3 || _pageAskedAt == blocks.length) return;
+    _pageAskedAt = blocks.length;
+    context.read<FeedBloc>().add(const FeedPageRequested());
+  }
+
+  /// Photos already fetched ahead.
+  final _prefetched = <String>{};
+
+  /// Fetches the first photo of the next 3 posts into the image cache (the
+  /// file only, not decoded), so it's there when the card scrolls in: on a
+  /// mobile connection a ~200 KB photo from Frankfurt showed up late.
+  void _prefetchAfter(int index) {
+    for (var i = index + 1; i <= index + 3 && i < blocks.length; i++) {
+      final block = blocks[i];
+      if (block is! PostBlock || block.firstMedia is! ImageMedia) continue;
+      final url = block.firstMedia!.url;
+      if (url.isEmpty || url.startsWith('file://') || !_prefetched.add(url)) {
+        continue;
+      }
+      unawaited(
+        postImageCacheManager
+            .getSingleFile(url, key: url)
+            .then<void>((_) {}, onError: (Object _) => _prefetched.remove(url)),
+      );
     }
   }
 
@@ -695,6 +733,8 @@ class _FeedPageListViewState extends State<FeedPageListView> {
           );
         }
         final block = blocks[index];
+        _askEarly(context, index);
+        _prefetchAfter(index);
         return _buildBlock(
           context: context,
           index: index,
