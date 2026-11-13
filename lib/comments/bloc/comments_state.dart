@@ -1,6 +1,10 @@
 part of 'comments_bloc.dart';
 
-enum CommentsStatus { initial, populated, error }
+/// [initial]: the post's comments haven't arrived yet (the phone keeps them
+/// only while, and for a while after, they are open). [populated]: they have.
+/// [unavailable]: they didn't come in time — offline, or a very slow network;
+/// they still show once they do.
+enum CommentsStatus { initial, populated, unavailable, error }
 
 @JsonSerializable()
 class CommentsState extends Equatable {

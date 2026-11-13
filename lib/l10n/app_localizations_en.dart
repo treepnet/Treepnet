@@ -158,6 +158,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noCommentsText => 'No comments';
 
   @override
+  String get commentsWhenOnlineText => 'Comments will load once you\'re online';
+
+  @override
   String seeAllComments(int count) {
     return 'View all $count comments';
   }

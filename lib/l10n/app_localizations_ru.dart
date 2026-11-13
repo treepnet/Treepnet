@@ -152,6 +152,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get noCommentsText => 'Нет комментариев';
 
   @override
+  String get commentsWhenOnlineText =>
+      'Комментарии загрузятся, когда появится интернет';
+
+  @override
   String seeAllComments(int count) {
     return 'Смотреть все коментарии ($count)';
   }

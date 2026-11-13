@@ -54,6 +54,7 @@
   "commentText": "Комментарий",
   "commentsText": "Комментарии",
   "noCommentsText": "Нет комментариев",
+  "commentsWhenOnlineText": "Комментарии загрузятся, когда появится интернет",
   "seeAllComments": "Смотреть все коментарии ({count})",
   "@seeAllComments": {
     "description": "Текст который показывает кол-во коментариев под данным постом",

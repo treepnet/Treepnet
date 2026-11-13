@@ -34,5 +34,6 @@ Map<String, dynamic> _$CommentsStateToJson(CommentsState instance) =>
 const _$CommentsStatusEnumMap = {
   CommentsStatus.initial: 'initial',
   CommentsStatus.populated: 'populated',
+  CommentsStatus.unavailable: 'unavailable',
   CommentsStatus.error: 'error',
 };

@@ -92,6 +92,7 @@
   "commentText": "Comment",
   "commentsText": "Comments",
   "noCommentsText": "No comments",
+  "commentsWhenOnlineText": "Comments will load once you're online",
   "seeAllComments": "View all {count} comments",
   "@seeAllComments": {
     "description": "Text shown under the post caption",

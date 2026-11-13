@@ -345,6 +345,12 @@ abstract class AppLocalizations {
   /// **'No comments'**
   String get noCommentsText;
 
+  /// No description provided for @commentsWhenOnlineText.
+  ///
+  /// In en, this message translates to:
+  /// **'Comments will load once you\'re online'**
+  String get commentsWhenOnlineText;
+
   /// Text shown under the post caption
   ///
   /// In en, this message translates to:

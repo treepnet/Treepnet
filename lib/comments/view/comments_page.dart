@@ -156,6 +156,7 @@ class CommentsListView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final comments = context.select((CommentsBloc bloc) => bloc.state.comments);
+    final status = context.select((CommentsBloc bloc) => bloc.state.status);
 
     return CustomScrollView(
       controller: scrollController,
@@ -169,12 +170,25 @@ class CommentsListView extends StatelessWidget {
               return CommentView(comment: comment, post: post);
             },
           )
+        // Not "No comments" while they are still on their way.
+        else if (status == CommentsStatus.initial)
+          SliverFillRemaining(
+            child: Center(
+              child: AppCircularProgress(context.colorScheme.primary),
+            ),
+          )
         else
           SliverFillRemaining(
             child: Center(
-              child: Text(
-                context.l10n.noCommentsText,
-                style: context.headlineSmall,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xlg),
+                child: Text(
+                  status == CommentsStatus.unavailable
+                      ? context.l10n.commentsWhenOnlineText
+                      : context.l10n.noCommentsText,
+                  style: context.headlineSmall,
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
           ),

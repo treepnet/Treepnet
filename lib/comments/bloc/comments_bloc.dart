@@ -39,14 +39,34 @@ class CommentsBloc extends Bloc<CommentsEvent, CommentsState> {
     return super.close();
   }
 
+  /// How long the comments may take to arrive before the page says they will
+  /// come once the phone is online.
+  static const arrivalWait = Duration(seconds: 10);
+
   Future<void> _onCommentsSubscriptionRequested(
     CommentsSubscriptionRequested event,
     Emitter<CommentsState> emit,
   ) async {
-    await emit.forEach(
-      _postsRepository.commentsOf(postId: id),
-      onData: (comments) => state.copyWith(comments: comments),
-    );
+    await Future.wait([
+      emit.forEach(
+        _postsRepository.commentsOf(postId: id),
+        onData: (comments) => state.copyWith(comments: comments),
+      ),
+      // Whether they have arrived. The list is empty until they do, and the
+      // page said "No comments" meanwhile, under a post showing "12
+      // comments" — for good when offline.
+      emit.forEach<CommentsStatus>(
+        Stream.fromFutures([
+          _scope.synced.then((_) => CommentsStatus.populated),
+          Future.delayed(arrivalWait, () => CommentsStatus.unavailable),
+        ]),
+        onData: (status) =>
+            status == CommentsStatus.unavailable &&
+                state.status == CommentsStatus.populated
+            ? state
+            : state.copyWith(status: status),
+      ),
+    ]);
   }
 
   Future<void> _onCommentsCommentCreateRequested(
