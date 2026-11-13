@@ -18,8 +18,43 @@ const BATCH = 50;
 const CONCURRENCY = 10;
 const MAX_ATTEMPTS = 5;
 const INTERVAL_MS = 15000;
-// A failed send is tried again no sooner than this.
-const RETRY_GAP = '15 seconds';
+// After the 1st, 2nd, 3rd and 4th failed send, the next try waits this many
+// seconds (or longer, if FCM's Retry-After says so): ~36 minutes in all. It
+// was a flat 15 s, so a short FCM outage (429 / 503) dropped those pushes for
+// good within about a minute.
+const BACKOFF_S = [15, 60, 300, 1800];
+
+function backoffSeconds(attempts, retryAfter) {
+  const step = BACKOFF_S[Math.min(Math.max(attempts, 1), BACKOFF_S.length) - 1];
+  return Math.max(step, retryAfter || 0);
+}
+
+// Retry-After as seconds (a number, or an HTTP date); 0 when absent or odd.
+function retryAfterSeconds(header) {
+  if (!header) return 0;
+  const n = Number(header);
+  if (Number.isFinite(n)) return Math.max(0, Math.min(n, 3600));
+  const at = Date.parse(header);
+  return Number.isFinite(at) ? Math.max(0, Math.min((at - Date.now()) / 1000, 3600)) : 0;
+}
+
+// What a failed FCM answer means. A dead token (the app was removed, or the
+// token belongs to another Firebase project) is cleared and not tried again;
+// a malformed message won't go through either; anything else — FCM busy or
+// down, or the Apple / Firebase credentials (THIRD_PARTY_AUTH_ERROR, which the
+// monitor reports) — is tried again later. Token-level errors were retried and
+// the token kept.
+function classify(httpStatus, code, message) {
+  const deadToken =
+    httpStatus === 404 ||
+    code === 'UNREGISTERED' ||
+    code === 'NOT_FOUND' ||
+    code === 'SENDER_ID_MISMATCH' ||
+    (code === 'INVALID_ARGUMENT' && /registration token/i.test(message || ''));
+  if (deadToken) return { deadToken: true, retry: false };
+  if (code === 'INVALID_ARGUMENT') return { deadToken: false, retry: false };
+  return { deadToken: false, retry: true };
+}
 
 // An idle client's connection dropping (Postgres restarting) must not take
 // the worker down; the pool reconnects on its next query.
@@ -120,10 +155,19 @@ async function sendOne(accessToken, projectId, token, row) {
   if (res.ok) return { ok: true };
   let err = {};
   try { err = await res.json(); } catch (_) {}
-  const status = err?.error?.details?.[0]?.errorCode || err?.error?.status || '';
-  const unregistered =
-    res.status === 404 || status === 'UNREGISTERED' || status === 'NOT_FOUND';
-  return { ok: false, unregistered, error: JSON.stringify(err).slice(0, 400) };
+  const details = Array.isArray(err?.error?.details) ? err.error.details : [];
+  const code =
+    details.map((d) => d && d.errorCode).find(Boolean) ||
+    err?.error?.status ||
+    String(res.status);
+  const message = err?.error?.message || '';
+  return {
+    ok: false,
+    ...classify(res.status, code, message),
+    retryAfter: retryAfterSeconds(res.headers.get('retry-after')),
+    // "CODE: message", so the monitor can tell the kinds apart.
+    error: `${code}: ${message}`.slice(0, 400),
+  };
 }
 
 async function runOnce() {
@@ -147,7 +191,7 @@ async function runOnce() {
         WHERE o.id IN (
           SELECT id FROM public.push_outbox
            WHERE status = 'pending'
-             AND (claimed_at IS NULL OR claimed_at < now() - interval '${RETRY_GAP}')
+             AND (next_attempt_at IS NULL OR next_attempt_at <= now())
            ORDER BY created_at
            LIMIT $1
            FOR UPDATE SKIP LOCKED
@@ -194,28 +238,34 @@ async function sendRow(row, accessToken, projectId) {
         `UPDATE public.push_outbox SET status='sent', sent_at=now() WHERE id=$1`,
         [row.id],
       );
-    } else {
-      if (result.unregistered) {
-        await pool.query(
-          'UPDATE public.profiles SET push_token=NULL WHERE id=$1',
-          [row.recipient_id],
-        );
-      }
-      const dead = result.unregistered || row.attempts >= MAX_ATTEMPTS;
+      return;
+    }
+    if (result.deadToken) {
+      // Only if it is still that token: the app may have registered a new
+      // one meanwhile, which must not be wiped.
       await pool.query(
-        `UPDATE public.push_outbox SET status=$2, last_error=$3 WHERE id=$1`,
-        [row.id, dead ? 'failed' : 'pending', result.error],
+        'UPDATE public.profiles SET push_token=NULL WHERE id=$1 AND push_token=$2',
+        [row.recipient_id, pushToken],
       );
     }
+    await failed(row, result.error, result.retry, result.retryAfter);
   } catch (e) {
-    await pool.query(
-      `UPDATE public.push_outbox
-          SET status = CASE WHEN attempts >= $2 THEN 'failed' ELSE 'pending' END,
-              last_error = $3
-        WHERE id = $1`,
-      [row.id, MAX_ATTEMPTS, String(e).slice(0, 400)],
-    );
+    await failed(row, String(e).slice(0, 400), true, 0);
   }
+}
+
+// Marks a send that didn't go through: tried again later (backing off), or
+// failed for good once it can't succeed or has had MAX_ATTEMPTS.
+async function failed(row, error, retry, retryAfter) {
+  const again = retry && row.attempts < MAX_ATTEMPTS;
+  await pool.query(
+    `UPDATE public.push_outbox
+        SET status = $2, last_error = $3,
+            next_attempt_at = CASE WHEN $2 = 'pending'
+              THEN now() + make_interval(secs => $4) END
+      WHERE id = $1`,
+    [row.id, again ? 'pending' : 'failed', error, backoffSeconds(row.attempts, retryAfter)],
+  );
 }
 
 // Touched after every pass that reached the database; the container's
@@ -300,9 +350,13 @@ async function prune() {
   }
 }
 
-console.log('push worker started');
-listen();
-drain();
-setInterval(drain, INTERVAL_MS);
-prune();
-setInterval(prune, 6 * 60 * 60 * 1000);
+module.exports = { classify, backoffSeconds, retryAfterSeconds, sendRow };
+
+if (require.main === module) {
+  console.log('push worker started');
+  listen();
+  drain();
+  setInterval(drain, INTERVAL_MS);
+  prune();
+  setInterval(prune, 6 * 60 * 60 * 1000);
+}

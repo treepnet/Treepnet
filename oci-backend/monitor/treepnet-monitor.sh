@@ -175,6 +175,16 @@ push_queue() {
   [ -n "$row" ] && echo "push queue stuck: $row"
 }
 
+# Pushes that don't go through for a reason other than "no device". A bad
+# Apple or Firebase key (THIRD_PARTY_AUTH_ERROR, SENDER_ID_MISMATCH) stops
+# every iOS (or every) push and showed nowhere: one is enough. Otherwise 5
+# failures in an hour, or under 80 % of 10+ getting through.
+push_failures() {
+  local row
+  row=$(sql "with h as (select status, last_error from push_outbox where created_at > now() - interval '1 hour' and coalesce(last_error, '') <> 'no token'), c as (select count(*) filter (where last_error like '%THIRD_PARTY_AUTH_ERROR%' or last_error like '%SENDER_ID_MISMATCH%') auth, count(*) filter (where status = 'failed') failed, count(*) filter (where status = 'sent') sent from h) select case when auth > 0 then 'push: ' || auth || ' failing on the Apple/Firebase key: ' || (select left(last_error, 120) from h where last_error like '%THIRD_PARTY_AUTH_ERROR%' or last_error like '%SENDER_ID_MISMATCH%' limit 1) else 'push: ' || failed || ' failed, ' || sent || ' sent in the last hour' end from c where auth > 0 or failed >= 5 or (failed + sent >= 10 and sent * 100 < (failed + sent) * 80)")
+  [ -n "$row" ] && echo "$row"
+}
+
 # Account deletions finish in the background (functions/delete-account/
 # cleanup.js). A job still there after a day is failing, or waiting on
 # something like a lost bucket permission (waiting doesn't count as an
@@ -262,6 +272,7 @@ check endpoints endpoints
 check replication replication
 check jwks jwks
 check push_queue push_queue
+check push_failures push_failures
 check deletions deletions
 check media_queue media_queue
 check backups backups

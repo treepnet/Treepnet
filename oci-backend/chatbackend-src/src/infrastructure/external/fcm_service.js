@@ -9,6 +9,28 @@ const { getFirebaseApp } = require('./firebase_app');
 let initialized = false;
 let enabled = false;
 
+/**
+ * Bir soatlik hisob: nechta push yetdi va qaysi xatolar bilan qaytdi. Har bir
+ * yuborish o'z qatorida bor edi, lekin umumiy holat (masalan Apple kaliti
+ * eskirib, iOS pushlarining hammasi qaytayotgani) hech qayerda ko'rinmasdi.
+ * Soatda bir marta, bo'lsa, logga yoziladi ([Auth] hisobidek).
+ */
+const hourly = { sent: 0, failed: new Map(), errors: 0 };
+setInterval(() => {
+    const failed = [...hourly.failed.values()].reduce((a, b) => a + b, 0);
+    if (hourly.sent || failed || hourly.errors) {
+        const codes = [...hourly.failed].map(([code, n]) => `${code} ×${n}`).join(', ');
+        console.log(
+            `[FCM] oxirgi soatda: ${hourly.sent} ta yetdi, ${failed} ta xato` +
+            (codes ? ` (${codes})` : '') +
+            (hourly.errors ? `; ${hourly.errors} marta FCM'ga yuborib bo'lmadi` : ''),
+        );
+    }
+    hourly.sent = 0;
+    hourly.failed.clear();
+    hourly.errors = 0;
+}, 60 * 60 * 1000).unref();
+
 function init() {
     if (initialized) return enabled;
     initialized = true;
@@ -47,15 +69,19 @@ async function sendToUser(userId, { title, body, data }) {
 
     try {
         const res = await admin.messaging().sendEachForMulticast(message);
+        hourly.sent += res.successCount;
         const stale = [];
         const failures = [];
         res.responses.forEach((r, i) => {
             if (!r.success) {
                 const code = r.error?.code || '';
                 failures.push(code || 'unknown');
+                hourly.failed.set(code || 'unknown', (hourly.failed.get(code || 'unknown') || 0) + 1);
+                // Boshqa Firebase loyihasining tokeni ham o'lik.
                 if (
                     code.includes('registration-token-not-registered') ||
-                    code.includes('invalid-argument')
+                    code.includes('invalid-argument') ||
+                    code.includes('mismatched-credential')
                 ) {
                     stale.push(tokens[i]);
                 }
@@ -71,6 +97,7 @@ async function sendToUser(userId, { title, body, data }) {
             await prisma.deviceToken.deleteMany({ where: { token: { in: stale } } });
         }
     } catch (e) {
+        hourly.errors += 1;
         console.error('[FCM] send xatosi:', e.message);
     }
 }
