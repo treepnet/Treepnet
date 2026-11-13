@@ -42,6 +42,25 @@ const pool = new Pool({
   ssl: false, // internal docker network
   max: 5,
 });
+// An idle connection dropped by a Postgres restart: without a listener the
+// pool's 'error' event ended the whole process.
+pool.on('error', (e) => console.error('auth-service db pool error:', e.message));
+
+// Asks the database (a second at most): it said "ok" with Postgres down.
+async function healthy() {
+  let timer;
+  try {
+    await Promise.race([
+      pool.query('select 1'),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), 1000); }),
+    ]);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
 const CODE_TTL_MIN = parseInt(process.env.CODE_TTL_MIN || '15', 10);
@@ -753,7 +772,10 @@ const server = http.createServer((req, res) => {
     return res.end();
   }
   const path = (req.url || '').split('?')[0].replace(/\/$/, '');
-  if (req.method === 'GET' && path === '/health') return send(res, 200, { ok: true });
+  if (req.method === 'GET' && path === '/health') {
+    healthy().then((ok) => send(res, ok ? 200 : 503, { ok }));
+    return;
+  }
   const handler = req.method === 'POST' ? ROUTES[path] : null;
   if (!handler) return fail(res, 404, 'Not found.');
 
@@ -779,3 +801,18 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => console.log(`auth-service on :${PORT}`));
+
+// A stop (a deploy): no new requests, the ones under way finish (a code email
+// being sent), then the database is let go. It was killed after Docker's 10 s
+// wait, mid-request. Eight seconds at most.
+let stopping = false;
+function shutdown(signal) {
+  if (stopping) return;
+  stopping = true;
+  console.log(`auth-service: ${signal}, stopping`);
+  setTimeout(() => process.exit(0), 8000).unref();
+  server.close(() => pool.end().finally(() => process.exit(0)));
+  server.closeIdleConnections?.();
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

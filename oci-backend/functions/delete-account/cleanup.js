@@ -35,6 +35,8 @@ function createCleanup({ pool, admin, storage: storageClient = null }) {
   const chatPool = process.env.CHAT_PG_CONNECTION_STRING
     ? new Pool({ connectionString: process.env.CHAT_PG_CONNECTION_STRING, ssl: false, max: 2 })
     : null;
+  // A Postgres restart drops idle connections; unheard, that ended the process.
+  chatPool?.on('error', (e) => console.error('[cleanup] chat db pool error:', e.message));
 
   async function deleteFirebaseUser(uid) {
     try {
@@ -348,12 +350,20 @@ function createCleanup({ pool, admin, storage: storageClient = null }) {
     }
   }
 
+  let timers = [];
   function start() {
-    setTimeout(runOnce, 5 * 1000).unref();
-    setInterval(runOnce, POLL_MS).unref();
+    timers = [setTimeout(runOnce, 5 * 1000), setInterval(runOnce, POLL_MS)];
+    timers.forEach((t) => t.unref());
   }
 
-  return { start, runOnce, deleteChatUser, chatPool, listMedia, mediaUrl, nameInUse, processJob };
+  /** No more passes; resolves once the one under way (if any) is done. */
+  async function stop() {
+    timers.forEach((t) => clearTimeout(t));
+    timers = [];
+    while (running) await new Promise((r) => setTimeout(r, 100)); // eslint-disable-line no-await-in-loop
+  }
+
+  return { start, stop, runOnce, deleteChatUser, chatPool, listMedia, mediaUrl, nameInUse, processJob };
 }
 
 module.exports = { createCleanup };

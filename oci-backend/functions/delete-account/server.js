@@ -40,6 +40,25 @@ const pool = new Pool({
   ssl: false, // internal docker network
   max: 3,
 });
+// An idle connection dropped by a Postgres restart: without a listener the
+// pool's 'error' event ended the whole process, the cleanup worker with it.
+pool.on('error', (e) => console.error('delete-account db pool error:', e.message));
+
+// Asks the database (a second at most): it said "ok" with Postgres down.
+async function healthy() {
+  let timer;
+  try {
+    await Promise.race([
+      pool.query('select 1'),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), 1000); }),
+    ]);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 // Comma-separated: the page is served on both treepnet.com and www.treepnet.com.
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGIN || '*')
@@ -198,6 +217,7 @@ async function requestCode(res, body) {
     }
     return send(res, 200, { ok: true });
   } catch (e) {
+    failed('request-code', e);
     return send(res, 500, { error: 'Something went wrong. Please try again.' });
   }
 }
@@ -256,8 +276,18 @@ async function confirm(res, body) {
     await pool.query('select delete_account_by_id($1)', [user.id]);
     return send(res, 200, { ok: true });
   } catch (e) {
+    failed('confirm', e);
     return send(res, 500, { error: 'Something went wrong. Please try again.' });
   }
+}
+
+// A web deletion that broke (Google Play requires this page) answered 500 and
+// left no trace. Logged, and sent to the error bot: the error only, no email
+// or code.
+function failed(step, e) {
+  const message = String(e && e.message ? e.message : e).slice(0, 300);
+  console.error(`delete-account ${step} failed:`, message);
+  alertErrorBot(`web account deletion (${step}) failed: ${message}`);
 }
 
 const server = http.createServer((req, res) => {
@@ -281,10 +311,32 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
-  if (req.method === 'GET' && path === '/health') return send(res, 200, { ok: true });
+  if (req.method === 'GET' && path === '/health') {
+    healthy().then((ok) => send(res, ok ? 200 : 503, { ok }));
+    return;
+  }
   send(res, 404, { error: 'Not found.' });
 });
 
 server.listen(PORT, () => console.log(`delete-account server on :${PORT}`));
 
-createCleanup({ pool, admin }).start();
+const cleanup = createCleanup({ pool, admin });
+cleanup.start();
+
+// A stop (a deploy): no new requests, the ones under way and the cleanup
+// worker's current pass finish, then the databases are let go. It was killed
+// after Docker's 10 s wait. Eight seconds at most.
+let stopping = false;
+function shutdown(signal) {
+  if (stopping) return;
+  stopping = true;
+  console.log(`delete-account: ${signal}, stopping`);
+  setTimeout(() => process.exit(0), 8000).unref();
+  const httpClosed = new Promise((resolve) => server.close(() => resolve()));
+  server.closeIdleConnections?.();
+  Promise.all([httpClosed, cleanup.stop()])
+    .then(() => Promise.allSettled([pool.end(), cleanup.chatPool?.end()]))
+    .finally(() => process.exit(0));
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
