@@ -6,6 +6,7 @@ import 'package:posts_repository/posts_repository.dart';
 import 'package:shared/shared.dart';
 import 'package:stories_repository/stories_repository.dart';
 import 'package:treepnet/app/app.dart';
+import 'package:treepnet/app/view/text_limit.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/map/geo_regions.dart';
 import 'package:treepnet/map/location_picker_map.dart';
@@ -216,6 +217,8 @@ class _PinStorySheetState extends State<PinStorySheet> {
                 controller: controller,
                 autofocus: true,
                 textAlign: TextAlign.center,
+                maxLength: kHighlightNameMaxLength,
+                buildCounter: noCounter,
                 style: const TextStyle(color: AppColors.white),
                 decoration: InputDecoration(
                   hintText: context.l10n.highlightNameText,

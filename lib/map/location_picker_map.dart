@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:app_ui/app_ui.dart';
 import 'package:treepnet/app/app.dart';
+import 'package:treepnet/app/view/text_limit.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:posts_repository/posts_repository.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -522,6 +523,8 @@ class _PlaceNameField extends StatelessWidget {
         TextField(
           controller: controller,
           enabled: has,
+          maxLength: kPlaceNameMaxLength,
+          buildCounter: noCounter,
           style: const TextStyle(color: AppColors.white),
           decoration: InputDecoration(
             hintText: context.l10n.nameOfLocationText,

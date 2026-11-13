@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared/shared.dart';
 import 'package:stories_repository/stories_repository.dart';
 import 'package:treepnet/app/app.dart';
+import 'package:treepnet/app/view/text_limit.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/stories/stories.dart';
 
@@ -252,6 +253,8 @@ class _CreateHighlightSheetState extends State<_CreateHighlightSheet> {
                 textController: _name,
                 filled: true,
                 hintText: context.l10n.highlightNameHint,
+                maxLength: kHighlightNameMaxLength,
+                buildCounter: noCounter,
                 border: outlinedBorder(borderRadius: 12),
               ),
             ),
