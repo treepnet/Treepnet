@@ -23,8 +23,15 @@
         var a = m && e.target.closest && e.target.closest('a[href^="https://apps.apple.com/"]');
         if (!a) return;
         e.preventDefault();
-        var handle = m[1];
-        try { handle = decodeURIComponent(handle); } catch (_) {}
+        var handle = null;
+        try { handle = decodeURIComponent(m[1]).trim().toLowerCase(); } catch (_) {}
+        // Only a username or an account id (as worker.js): a cut or mangled
+        // link still goes to the store, just without an invite.
+        if (!handle || !(/^[a-z0-9_.]{1,30}$/.test(handle) ||
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(handle))) {
+          location.href = a.href;
+          return;
+        }
         var code = 'https://treepnet.com/invite/' + handle;
         try {
           // Synchronous copy: the only reliable way to copy and navigate

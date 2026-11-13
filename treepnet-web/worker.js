@@ -15,8 +15,25 @@
 const ANDROID_PKG = 'com.treepnet.application';
 
 function androidPlayUrl(handle) {
-  const ref = encodeURIComponent('treepnet_invite=' + handle);
-  return `https://play.google.com/store/apps/details?id=${ANDROID_PKG}&referrer=${ref}`;
+  const base = `https://play.google.com/store/apps/details?id=${ANDROID_PKG}`;
+  if (!handle) return base;
+  return `${base}&referrer=${encodeURIComponent('treepnet_invite=' + handle)}`;
+}
+
+// The invite handle in a link, or null for one that isn't a username (or an
+// account id). Links get cut or mangled when pasted in messengers: a broken
+// %-escape threw here and answered 500 instead of the store page. Lowercased:
+// usernames are, and the server looks them up exactly.
+const USERNAME = /^[a-z0-9_.]{1,30}$/;
+const ACCOUNT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+function inviteHandle(raw) {
+  let handle;
+  try {
+    handle = decodeURIComponent(raw).trim().toLowerCase();
+  } catch {
+    return null;
+  }
+  return USERNAME.test(handle) || ACCOUNT_ID.test(handle) ? handle : null;
 }
 
 export default {
@@ -36,10 +53,11 @@ export default {
     // /invite/<handle> (optional trailing slash), handle = a single segment.
     const match = url.pathname.match(/^\/invite\/([^/]+)\/?$/);
     if (match) {
-      const handle = decodeURIComponent(match[1]);
+      const handle = inviteHandle(match[1]);
       const ua = request.headers.get('user-agent') || '';
       if (/android/i.test(ua)) {
-        // Android: straight to Play with the install referrer. Never cache.
+        // Android: straight to Play with the install referrer (none for a
+        // broken link: still the store page). Never cache.
         return new Response(null, {
           status: 302,
           headers: {
@@ -50,6 +68,9 @@ export default {
       }
       // iOS / desktop: serve the marketing site at this same URL so the page
       // can read <handle> and copy it on the App Store tap (clipboard deferral).
+      // A broken link gets the home page as it is: the static-asset layer
+      // answers such a path with a redirect, or a 400 when it has a query.
+      if (!handle) return env.ASSETS.fetch(new Request(new URL('/', url), request));
       return env.ASSETS.fetch(request);
     }
 
