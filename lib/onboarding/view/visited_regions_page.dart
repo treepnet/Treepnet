@@ -222,14 +222,7 @@ class _RegionSearchState extends State<_RegionSearch> {
       setState(() => _results = const []);
       return;
     }
-    final matches = <GeoRegion>[];
-    for (final region in GeoRegions.instance.allRegions) {
-      if (regionMatchesSearch(region, query)) {
-        matches.add(region);
-        if (matches.length >= _maxResults) break;
-      }
-    }
-    setState(() => _results = matches);
+    setState(() => _results = searchRegions(query, limit: _maxResults));
   }
 
   void _pick(GeoRegion region) {

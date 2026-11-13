@@ -160,15 +160,8 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
       return;
     }
     // Any word of the region's or its country's name, in English, Russian or
-    // Uzbek, whatever the app language (see region_search.dart).
-    final matches = <GeoRegion>[];
-    for (final region in GeoRegions.instance.allRegions) {
-      if (regionMatchesSearch(region, query)) {
-        matches.add(region);
-        if (matches.length >= _maxSuggestions) break;
-      }
-    }
-    _suggestions.value = matches;
+    // Uzbek, whatever the app language, best first (see region_search.dart).
+    _suggestions.value = searchRegions(query, limit: _maxSuggestions);
   }
 
   /// Flies to a searched place. The camera lands *inside* the region but off
