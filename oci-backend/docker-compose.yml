@@ -135,6 +135,10 @@ services:
       # token has none, and PostgREST runs a token without one as this role
       # (switching it to `anon` refused every signed-in write on 2026-10-31).
       PGRST_DB_ANON_ROLE: authenticated
+      # A request without a token, though, is refused except GET /profiles,
+      # which then runs as `anon` (id and username only: the sign-up
+      # "username taken?" check). sql/migrations/018_api_requires_sign_in.sql
+      PGRST_DB_PRE_REQUEST: public.api_require_sign_in
       # No public listing of every table and function.
       PGRST_OPENAPI_MODE: disabled
       # At most this many rows per request (the app reads 50 at a time).
