@@ -24,6 +24,9 @@ const INTERVAL_MS = 15000;
 // good within about a minute.
 const BACKOFF_S = [15, 60, 300, 1800];
 
+// How long FCM / APNs keep trying to deliver a push to a phone that's away.
+const SOCIAL_TTL_S = 2 * 24 * 3600;
+
 function backoffSeconds(attempts, retryAfter) {
   const step = BACKOFF_S[Math.min(Math.max(attempts, 1), BACKOFF_S.length) - 1];
   return Math.max(step, retryAfter || 0);
@@ -112,8 +115,43 @@ function groupKey(row) {
   return null;
 }
 
-async function sendOne(accessToken, projectId, token, row) {
+// The FCM v1 message for one outbox [row] to the device [token].
+function buildMessage(token, row) {
   const group = groupKey(row);
+  return {
+    token,
+    notification: {
+      title: row.title || 'Treepnet',
+      body: localizedBody(row, row.lang),
+    },
+    data: Object.fromEntries(
+      Object.entries(row.data || {}).map(([k, v]) => [k, String(v)]),
+    ),
+    // A like, comment or follow is news for 2 days: a phone offline
+    // longer doesn't get a week's old pushes when it comes back (FCM
+    // keeps them 4 weeks unless told).
+    android: {
+      priority: 'high',
+      ttl: `${SOCIAL_TTL_S}s`,
+      notification: { sound: 'default', ...(group && { tag: group }) },
+    },
+    // iOS: force immediate delivery. Without apns-priority 10 APNs may
+    // batch/throttle the push and deliver it up to ~an hour late.
+    apns: {
+      headers: {
+        'apns-priority': '10',
+        'apns-push-type': 'alert',
+        'apns-expiration': String(Math.floor(Date.now() / 1000) + SOCIAL_TTL_S),
+        ...(group && { 'apns-collapse-id': group }),
+      },
+      payload: {
+        aps: { sound: 'default' },
+      },
+    },
+  };
+}
+
+async function sendOne(accessToken, projectId, token, row) {
   const res = await fetch(
     `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
     {
@@ -122,34 +160,7 @@ async function sendOne(accessToken, projectId, token, row) {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        message: {
-          token,
-          notification: {
-            title: row.title || 'Treepnet',
-            body: localizedBody(row, row.lang),
-          },
-          data: Object.fromEntries(
-            Object.entries(row.data || {}).map(([k, v]) => [k, String(v)]),
-          ),
-          android: {
-            priority: 'high',
-            notification: { sound: 'default', ...(group && { tag: group }) },
-          },
-          // iOS: force immediate delivery. Without apns-priority 10 APNs may
-          // batch/throttle the push and deliver it up to ~an hour late.
-          apns: {
-            headers: {
-              'apns-priority': '10',
-              'apns-push-type': 'alert',
-              ...(group && { 'apns-collapse-id': group }),
-            },
-            payload: {
-              aps: { sound: 'default' },
-            },
-          },
-        },
-      }),
+      body: JSON.stringify({ message: buildMessage(token, row) }),
     },
   );
   if (res.ok) return { ok: true };
@@ -350,7 +361,9 @@ async function prune() {
   }
 }
 
-module.exports = { classify, backoffSeconds, retryAfterSeconds, sendRow };
+module.exports = {
+  classify, backoffSeconds, retryAfterSeconds, sendRow, buildMessage, fcmAccessToken,
+};
 
 if (require.main === module) {
   console.log('push worker started');

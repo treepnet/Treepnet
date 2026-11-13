@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:user_repository/user_repository.dart';
 
@@ -95,6 +96,11 @@ class PushNotifications {
           >()
           ?.createNotificationChannel(_channel);
       _localReady = true;
+      // Seen once the app is in front: clear the tray now and on each return.
+      unawaited(clearDelivered());
+      _lifecycle ??= AppLifecycleListener(
+        onResume: () => unawaited(clearDelivered()),
+      );
       final texts = _channelTexts;
       if (texts != null) {
         await localizeChannel(name: texts.name, description: texts.description);
@@ -126,6 +132,21 @@ class PushNotifications {
           print('PushNotifications: FCM disabled (no Firebase config): $error');
         }
       }
+    }
+  }
+
+  static AppLifecycleListener? _lifecycle;
+
+  /// Removes this app's notifications from the tray: when the app comes to
+  /// the front (what they said is in the app now; they stayed until swiped
+  /// away, a read chat's too) and on sign-out (the next account signed in
+  /// here could tap the last one's).
+  static Future<void> clearDelivered() async {
+    if (!_localReady) return;
+    try {
+      await _local.cancelAll();
+    } catch (_) {
+      // Best effort: a tray that stays full is no reason to fail.
     }
   }
 

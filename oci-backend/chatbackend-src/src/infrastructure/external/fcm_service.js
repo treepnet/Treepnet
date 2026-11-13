@@ -54,16 +54,31 @@ async function sendToUser(userId, { title, body, data }) {
         return;
     }
 
+    // Bitta suhbatning pushlari birga turadi: Android'da yangisi oldingisining
+    // o'rnini egallaydi (tag), iOS'da bir guruhga yig'iladi (thread-id).
+    // Har bir xabar alohida qatorda turardi. Boshqa suhbatlarniki bir-birini
+    // yashirmaydi. 7 kundan eski xabar pushi endi yetkazilmaydi (FCM aks holda
+    // 4 hafta saqlaydi va uzoq oflayn bo'lgan telefonga eski pushlar keladi).
+    const thread = data && data.conversationId ? `dm-${data.conversationId}` : null;
+    const ttlSeconds = 7 * 24 * 3600;
     const message = {
         tokens,
         notification: { title, body },
         data: data || {},
-        android: { priority: 'high', notification: { sound: 'default' } },
+        android: {
+            priority: 'high',
+            ttl: ttlSeconds * 1000,
+            notification: { sound: 'default', ...(thread && { tag: thread }) },
+        },
         // iOS: darhol yetkazish. apns-priority 10 bo'lmasa APNs pushni
         // to'plab, bir soatgacha kechiktirishi mumkin (push-worker bilan bir xil).
         apns: {
-            headers: { 'apns-priority': '10', 'apns-push-type': 'alert' },
-            payload: { aps: { sound: 'default' } },
+            headers: {
+                'apns-priority': '10',
+                'apns-push-type': 'alert',
+                'apns-expiration': String(Math.floor(Date.now() / 1000) + ttlSeconds),
+            },
+            payload: { aps: { sound: 'default', ...(thread && { threadId: thread }) } },
         },
     };
 

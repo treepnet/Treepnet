@@ -29,6 +29,8 @@ Future<void> tearDownUserSession(UserRepository userRepository) async {
       () => PushNotifications.disableForUser(userRepository),
     ),
   ]).timeout(_networkLimit, onTimeout: () => const []);
+  // Their notifications leave the tray: the next account could tap them.
+  await _safely('notifications', PushNotifications.clearDelivered);
   // stop() closes the app-side socket; wipeSession() clears the plugin's
   // runtime identity and secure storage, so the previous user's messages
   // can't cross into the next user's threads.
