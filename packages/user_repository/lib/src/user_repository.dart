@@ -284,13 +284,8 @@ class UserRepository implements UserBaseRepository {
   Stream<Map<String, User>> profilesOf({required List<String> ids}) =>
       _databaseClient.profilesOf(ids: ids);
 
-  /// Presence heartbeat for [userId] (stamps `last_seen_at` = now).
-  Future<void> updatePresence({required String userId}) =>
-      _databaseClient.updatePresence(userId: userId);
-
-  /// Realtime `last_seen_at` of [userId].
-  Stream<DateTime?> lastSeenOf({required String userId}) =>
-      _databaseClient.lastSeenOf(userId: userId);
+  /// The signed-in user is here now (see [DatabaseClient.touchPresence]).
+  Future<void> touchPresence() => _databaseClient.touchPresence();
 
   /// Profiles [userId] has saved (bookmarked), newest first.
   Stream<List<User>> savedProfilesOf({required String userId}) =>

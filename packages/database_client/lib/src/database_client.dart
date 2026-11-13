@@ -264,12 +264,9 @@ abstract class UserBaseRepository {
   /// `unknown` (no such user).
   Future<String> redeemReferral({required String handle});
 
-  /// Presence heartbeat: stamps `profiles.last_seen_at` for [userId] = now.
-  Future<void> updatePresence({required String userId});
-
-  /// Realtime `last_seen_at` of [userId] (null if never seen). Drives the
-  /// online / "last seen …" line in the chat header.
-  Stream<DateTime?> lastSeenOf({required String userId});
+  /// The signed-in user is here now (the app's foreground beat): one call to
+  /// the server, nothing on the phone. Quiet when it can't get through.
+  Future<void> touchPresence();
 }
 
 /// The order of a list of posts ([PostsBaseRepository.getPage]).
@@ -849,29 +846,20 @@ WHERE p.id = ?''',
         (event) => event.isEmpty ? User.anonymous : User.fromJson(event.first),
       );
 
+  /// It was `UPDATE profiles SET last_seen_at` through the sync database:
+  /// nearly every live query reads `profiles`, so each beat re-ran them all,
+  /// twice (again when the server's copy came back), and offline each beat
+  /// queued ahead of the user's own changes. The server (touch_presence,
+  /// migration 019) keeps the time and the minute for the admin figures.
   @override
-  Future<void> updatePresence({required String userId}) async {
-    // UTC, like what syncs back (the server stamps its own now() anyway, see
-    // track_presence): a local time without a zone read as UTC up there.
-    await _powerSyncRepository.db().execute(
-      'UPDATE profiles SET last_seen_at = ? WHERE id = ?',
-      [DateTime.timestamp().toIso8601String(), userId],
-    );
+  Future<void> touchPresence() async {
+    if (currentUserId == null) return;
+    try {
+      await _powerSyncRepository.postgrest().rpc<void>('touch_presence');
+    } catch (_) {
+      // Offline or the server busy: this beat is skipped; the next one counts.
+    }
   }
-
-  @override
-  Stream<DateTime?> lastSeenOf({required String userId}) => _powerSyncRepository
-      .db()
-      .watch(
-        'SELECT last_seen_at FROM profiles WHERE id = ?',
-        parameters: [userId],
-      )
-      .map((event) {
-        if (event.isEmpty) return null;
-        final raw = event.first['last_seen_at'] as String?;
-        if (raw == null || raw.isEmpty) return null;
-        return DateTime.tryParse(raw);
-      });
 
   @override
   Future<Post?> createPost({
