@@ -54,6 +54,15 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> with FeedBlocMixin {
 
   final PostsRepository _postsRepository;
 
+  /// Bumped by every refresh. A refresh and a next page ran at once: a page
+  /// asked for before the refresh landed after it and was added to the fresh
+  /// first page with its old number (posts 1-7, then page N: everything in
+  /// between skipped until the next refresh). A page or recommended posts
+  /// that land after a refresh began are dropped, and none is asked for while
+  /// one runs (the loader asks again once the list is back).
+  int _generation = 0;
+  bool _refreshing = false;
+
   Future<void> _onFeedPageRequested(
     FeedPageRequested event,
     Emitter<FeedState> emit,
@@ -62,15 +71,18 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> with FeedBlocMixin {
     // pages" check, so a feed read to its end (by the last account, too)
     // never reloaded until a manual refresh.
     if (event.page == 0) return add(const FeedRefreshRequested());
+    if (_refreshing) return;
     if (!state.feed.feedPage.hasMore) {
       return add(const FeedRecommendedPostsPageRequested());
     }
+    final generation = _generation;
     emit(state.loading());
     try {
       final currentPage = event.page ?? state.feed.feedPage.page;
       final (:newPage, :hasMore, :blocks) = await fetchFeedPage(
         page: currentPage,
       );
+      if (generation != _generation) return;
 
       // Without the posts already shown: offset pages shift when one is
       // added or synced meanwhile.
@@ -89,6 +101,7 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> with FeedBlocMixin {
       // Not the end of the feed: what the phone had goes on screen, and the
       // list ends in a Retry for the same page.
       addError(incomplete.cause, stackTrace);
+      if (generation != _generation) return;
       final updatedBlocks = state.feed.feedPage.blocks.appendNew(
         incomplete.blocks,
       );
@@ -106,6 +119,7 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> with FeedBlocMixin {
       );
     } catch (error, stackTrace) {
       addError(error, stackTrace);
+      if (generation != _generation) return;
       emit(state.failure());
     }
   }
@@ -167,9 +181,12 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> with FeedBlocMixin {
     FeedRefreshRequested event,
     Emitter<FeedState> emit,
   ) async {
+    final generation = ++_generation;
+    _refreshing = true;
     emit(state.loading());
     try {
       final (:newPage, :hasMore, :blocks) = await fetchFeedPage();
+      if (generation != _generation) return; // a newer refresh is on its way
       final feed = state.feed.copyWith(
         feedPage: FeedPage(
           page: newPage,
@@ -182,6 +199,7 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> with FeedBlocMixin {
       emit(state.populated(feed: feed));
     } on FeedPageIncomplete catch (incomplete, stackTrace) {
       addError(incomplete.cause, stackTrace);
+      if (generation != _generation) return;
       // Posts already on screen stay; an empty feed shows what the phone had,
       // from page 0, so Retry asks for the first page again.
       if (state.feed.feedPage.blocks.isNotEmpty || incomplete.blocks.isEmpty) {
@@ -203,7 +221,10 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> with FeedBlocMixin {
       );
     } catch (error, stackTrace) {
       addError(error, stackTrace);
+      if (generation != _generation) return;
       emit(state.failure());
+    } finally {
+      if (generation == _generation) _refreshing = false;
     }
   }
 
@@ -211,12 +232,15 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> with FeedBlocMixin {
     FeedRecommendedPostsPageRequested event,
     Emitter<FeedState> emit,
   ) async {
+    if (_refreshing) return;
+    final generation = _generation;
     emit(state.loading());
     try {
       final recommendedBlocks = await compute(
         _shuffleRecommendedPosts,
         PostsRepository.recommendedPosts.withNavigateToPostAuthorAction,
       );
+      if (generation != _generation) return;
 
       final updatedBlocks = state.feed.feedPage.blocks.appendNew(
         recommendedBlocks,
