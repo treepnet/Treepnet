@@ -257,7 +257,14 @@ class CrashReporter {
 
   /// Posts one payload. On any network failure the payload is queued so [init]
   /// can retry it later; it never retries in a tight loop.
+  /// Running under `flutter test`: nothing is sent (or queued to send later).
+  /// Tests run the app's real code, which reports what it should — a test of
+  /// a lost file reached the production Telegram as "prod · post-prepare".
+  static final bool _inTest =
+      !kIsWeb && Platform.environment.containsKey('FLUTTER_TEST');
+
   Future<void> _send(Map<String, dynamic> payload) async {
+    if (_inTest) return;
     try {
       await _dio.post<void>(_endpoint, data: payload);
     } catch (_) {
@@ -301,6 +308,7 @@ class CrashReporter {
   /// Sends anything queued while offline. Stops at the first failure so a dead
   /// backend can never cause a retry storm.
   Future<void> _flushQueue() async {
+    if (_inTest) return;
     try {
       final prefs = await SharedPreferences.getInstance();
       final queue = prefs.getStringList(_queueKey) ?? <String>[];
