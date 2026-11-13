@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:stories_editor/src/domain/models/editable_items.dart';
 import 'package:stories_editor/src/domain/providers/notifiers/control_provider.dart';
 import 'package:stories_editor/src/domain/providers/notifiers/draggable_widget_notifier.dart';
+import 'package:stories_editor/src/domain/providers/notifiers/text_editing_notifier.dart';
 import 'package:stories_editor/src/domain/sevices/save_as_image.dart';
 import 'package:stories_editor/src/l10n/stories_editor_localization.dart';
 import 'package:stories_editor/src/presentation/utils/constants/app_enums.dart';
@@ -81,8 +82,8 @@ class _TopToolsState extends State<TopTools> with SafeSetStateMixin {
 
   /// Drops a chip onto the story — white text on a translucent dark pill, the
   /// design's style for time and place.
-  /// The design's chip fill: #191919 at 50%.
-  static const chipBackground = Color(0x80191919);
+  /// The design's chip fill: #191919 at 50%, the same as typed text's.
+  static const chipBackground = storyChipBackground;
 
   void _addChip(
     DraggableWidgetNotifier itemNotifier,

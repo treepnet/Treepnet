@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
 
+/// The design's chip fill (#191919 at 50%), behind typed text and the time
+/// and place stamps alike.
+const storyChipBackground = Color(0x80191919);
+
+/// The size typed text is set in.
+const storyTextSize = 25.0;
+
 class TextEditingNotifier extends ChangeNotifier {
   String _text = '';
   int _textColor = 0;
-  double _textSize = 25.0;
+  double _textSize = storyTextSize;
   int _fontFamilyIndex = 0;
   TextAlign _textAlign = TextAlign.center;
   // Typed text carries the same chip as the time and place stamps.
-  Color _backGroundColor = const Color(0x80191919);
+  Color _backGroundColor = storyChipBackground;
   bool _isFontFamily = true;
 
   PageController _fontFamilyController = PageController(viewportFraction: .125);
@@ -114,14 +121,17 @@ class TextEditingNotifier extends ChangeNotifier {
     }
   }
 
+  /// Back to how the first text starts (also after a text is added or the
+  /// tool cancelled): it used to reset to 20 and no chip, so every text after
+  /// the first came out smaller and bare, with no buttons left to fix it.
   setDefaults() {
     _text = '';
     _textController.text = '';
     _textColor = 0;
-    _textSize = 20.0;
+    _textSize = storyTextSize;
     _fontFamilyIndex = 0;
     _textAlign = TextAlign.center;
-    _backGroundColor = Colors.transparent;
+    _backGroundColor = storyChipBackground;
     _fontFamilyController = PageController(viewportFraction: .125);
     _isFontFamily = true;
   }
