@@ -34,11 +34,22 @@ class StoryItem {
 
   /// The page content
   final Widget view;
+
+  /// An image story's loader, so its decoder can be let go ([dispose]).
+  /// Null for other kinds.
+  final ImageLoader? imageLoader;
+
   StoryItem(
     this.view, {
     required this.duration,
     this.shown = false,
+    this.imageLoader,
   });
+
+  /// Lets go of what the story decoded (its image decoder) once it won't be
+  /// shown again. Without it that native memory waited for the garbage
+  /// collector while someone flipped through many stories.
+  void dispose() => imageLoader?.dispose();
 
   /// Short hand to create text-only page.
   ///
@@ -176,7 +187,9 @@ class StoryItem {
     StoryErrorBuilder? errorBuilder,
     EdgeInsetsGeometry? captionOuterPadding,
     Duration? duration,
+    ValueChanged<Size>? onImageSize,
   }) {
+    final imageLoader = ImageLoader(url, requestHeaders: requestHeaders);
     return StoryItem(
       ClipRRect(
         key: key,
@@ -186,14 +199,14 @@ class StoryItem {
             color: Colors.black,
             child: Stack(
               children: <Widget>[
-                StoryImage.url(
-                  url,
+                StoryImage(
+                  imageLoader,
                   controller: controller,
                   fit: imageFit,
-                  requestHeaders: requestHeaders,
                   loadingWidget: loadingWidget,
                   errorWidget: errorWidget,
                   errorBuilder: errorBuilder,
+                  onSize: onImageSize,
                 ),
                 Container(
                   margin: EdgeInsets.only(bottom: 16),
@@ -217,6 +230,7 @@ class StoryItem {
       ),
       shown: shown,
       duration: duration ?? Duration(seconds: 3),
+      imageLoader: imageLoader,
     );
   }
 
@@ -807,6 +821,8 @@ class PageBar extends StatefulWidget {
 class PageBarState extends State<PageBar> {
   double spacing = 4;
 
+  void _tick() => setState(() {});
+
   @override
   void initState() {
     super.initState();
@@ -814,9 +830,25 @@ class PageBarState extends State<PageBar> {
     int count = widget.pages.length;
     spacing = (count > 15) ? 2 : ((count > 10) ? 3 : 4);
 
-    widget.animation!.addListener(() {
-      setState(() {});
-    });
+    widget.animation!.addListener(_tick);
+  }
+
+  @override
+  void didUpdateWidget(PageBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.animation != widget.animation) {
+      oldWidget.animation?.removeListener(_tick);
+      widget.animation?.addListener(_tick);
+    }
+  }
+
+  /// The bar is rebuilt with a new key on every StoryView rebuild: each one
+  /// left its listener on the story's animation, ticking for nothing until
+  /// the story ended.
+  @override
+  void dispose() {
+    widget.animation?.removeListener(_tick);
+    super.dispose();
   }
 
   @override

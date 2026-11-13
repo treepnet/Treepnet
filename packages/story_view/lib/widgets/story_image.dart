@@ -22,6 +22,9 @@ class ImageLoader {
   /// arriving during that async gap doesn't start a duplicate decode.
   bool _decoding = false;
 
+  /// [dispose]d: nothing more is loaded or kept.
+  bool _disposed = false;
+
   /// How long a load may take before it counts as failed. On a stalled
   /// connection the download never errors — it just never finishes — and the
   /// story sat on a spinner for good.
@@ -54,6 +57,7 @@ class ImageLoader {
   /// Calling it again after a failure is a retry. The download itself carries
   /// on in the cache manager after a timeout, so a retry often finds it done.
   void loadImage(VoidCallback onComplete) {
+    if (_disposed) return;
     if (this.frames != null) {
       this.state = LoadState.success;
       onComplete();
@@ -88,12 +92,17 @@ class ImageLoader {
           // Async read: the sync variant blocked the UI isolate on file I/O
           // right as the story opened.
           final imageBytes = await fileResponse.file.readAsBytes();
-          this.state = LoadState.success;
-          this.frames = await ui.instantiateImageCodec(
+          final codec = await ui.instantiateImageCodec(
             imageBytes,
             targetWidth: _screenWidthPx(),
             allowUpscaling: false,
           );
+          if (_disposed) {
+            codec.dispose();
+            return;
+          }
+          this.state = LoadState.success;
+          this.frames = codec;
         } catch (_) {
           this.state = LoadState.failure;
         } finally {
@@ -117,6 +126,15 @@ class ImageLoader {
     _timeout = null;
     _subscription?.cancel();
     _subscription = null;
+  }
+
+  /// Lets go of the decoder, once its story won't be shown again; a later
+  /// [loadImage] does nothing.
+  void dispose() {
+    _disposed = true;
+    cancel();
+    frames?.dispose();
+    frames = null;
   }
 }
 
@@ -142,6 +160,11 @@ class StoryImage extends StatefulWidget {
   /// Takes precedence over [errorWidget], and can offer a retry.
   final StoryErrorBuilder? errorBuilder;
 
+  /// The decoded image's size, as soon as its first frame is ready (before
+  /// it is drawn), so the page can shape the story to it without decoding it
+  /// a second time.
+  final ValueChanged<Size>? onSize;
+
   StoryImage(
     this.imageLoader, {
     Key? key,
@@ -150,6 +173,7 @@ class StoryImage extends StatefulWidget {
     this.loadingWidget,
     this.errorWidget,
     this.errorBuilder,
+    this.onSize,
   }) : super(key: key ?? UniqueKey());
 
   /// Use this shorthand to fetch images/gifs from the provided [url]
@@ -161,6 +185,7 @@ class StoryImage extends StatefulWidget {
     Widget? loadingWidget,
     Widget? errorWidget,
     StoryErrorBuilder? errorBuilder,
+    ValueChanged<Size>? onSize,
     Key? key,
   }) {
     return StoryImage(
@@ -173,6 +198,7 @@ class StoryImage extends StatefulWidget {
         loadingWidget: loadingWidget,
         errorWidget: errorWidget,
         errorBuilder: errorBuilder,
+        onSize: onSize,
         key: key,
     );
   }
@@ -242,6 +268,10 @@ class StoryImageState extends State<StoryImage> {
     _timer?.cancel();
     _streamSubscription?.cancel();
     widget.imageLoader.cancel();
+    // The decoded picture (a screen-wide bitmap, ~8-14 MB): let go now
+    // rather than whenever the garbage collector gets to it.
+    currentFrame?.dispose();
+    currentFrame = null;
 
     super.dispose();
   }
@@ -262,15 +292,35 @@ class StoryImageState extends State<StoryImage> {
       return;
     }
 
-    final nextFrame = await widget.imageLoader.frames!.getNextFrame();
+    final frames = widget.imageLoader.frames;
+    if (frames == null) return;
+    final ui.FrameInfo nextFrame;
+    try {
+      nextFrame = await frames.getNextFrame();
+    } catch (_) {
+      return; // The decoder was let go meanwhile.
+    }
+    if (!mounted) {
+      nextFrame.image.dispose();
+      return;
+    }
 
+    final previous = this.currentFrame;
     this.currentFrame = nextFrame.image;
+    if (previous == null) {
+      widget.onSize?.call(Size(
+        nextFrame.image.width.toDouble(),
+        nextFrame.image.height.toDouble(),
+      ));
+    }
 
     if (nextFrame.duration > Duration(milliseconds: 0)) {
       this._timer = Timer(nextFrame.duration, forward);
     }
 
     setState(() {});
+    // RawImage holds its own handle (a clone): this one is ours to let go.
+    previous?.dispose();
   }
 
   @override

@@ -1,5 +1,4 @@
 import 'package:app_ui/app_ui.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -80,9 +79,9 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
   /// of being letterboxed with a black bar top and bottom.
   final _storyAspect = ValueNotifier<double?>(null);
 
-  /// Bumped per [_resolveStoryAspect] call so a decode that finishes after the
-  /// viewer has moved on cannot stamp the previous story's shape on this one.
-  int _aspectRequest = 0;
+  /// Each image story's width / height, by story id, as the player decoded
+  /// it ([_onImageSize]): a story shown again takes its shape at once.
+  final _aspects = <String, double>{};
 
   /// The batch currently playing. Starts as `widget.props` but is replaced in
   /// place each time the viewer rolls on to the next profile or highlight, so
@@ -109,39 +108,31 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
 
     _stories.addAll(props.stories);
 
-    _storyItems.value = props.stories.toStoryItems(_controller);
+    _storyItems.value = _itemsOf(props.stories);
     _showOverlay.addListener(_showOverlayListener);
   }
 
-  /// Decodes the story image just enough to learn its shape, so the frame can
-  /// match it. Video stories (or a failed decode) leave the aspect null and the
-  /// frame simply fills, which is the sensible fallback.
-  ///
-  /// Only the shape is needed, so a 360px-wide copy is decoded (from the same
-  /// disk cache the player already filled) rather than the full 1440px image —
-  /// this runs while the open transition is animating. Videos are skipped:
-  /// resolving one as an image downloaded the whole clip just to fail.
-  void _resolveStoryAspect(Story story) {
-    final request = ++_aspectRequest;
-    _storyAspect.value = null;
-    final url = story.contentUrl;
-    if (url.isEmpty || story.contentType != StoryContentType.image) return;
-    final stream = ResizeImage(
-      CachedNetworkImageProvider(url),
-      width: 360,
-    ).resolve(ImageConfiguration.empty);
-    late final ImageStreamListener listener;
-    listener = ImageStreamListener(
-      (info, _) {
-        stream.removeListener(listener);
-        if (mounted && request == _aspectRequest && info.image.height > 0) {
-          _storyAspect.value = info.image.width / info.image.height;
-        }
-        info.dispose();
-      },
-      onError: (_, _) => stream.removeListener(listener),
-    );
-    stream.addListener(listener);
+  List<StoryItem> _itemsOf(List<Story> stories) =>
+      stories.toStoryItems(_controller, onImageSize: _onImageSize);
+
+  /// The player decoded [story]'s image: its shape, for the frame. It comes
+  /// with the first frame, before it is drawn, so the picture appears in the
+  /// right frame. (A second, smaller decode used to find the shape: the
+  /// picture first showed full-height and cropped, then jumped smaller.)
+  void _onImageSize(Story story, Size size) {
+    if (size.height <= 0) return;
+    final aspect = size.width / size.height;
+    _aspects[story.id] = aspect;
+    if (_currentStory.value.id == story.id) _storyAspect.value = aspect;
+  }
+
+  /// [story] is now on screen: its shape if known (shown before, or decoded
+  /// before this callback), else the full frame until [_onImageSize]. Videos
+  /// keep the full frame.
+  void _showAspectOf(Story story) {
+    _storyAspect.value = story.contentType == StoryContentType.image
+        ? _aspects[story.id]
+        : null;
   }
 
   /// Called when the last story of the current batch finishes — which is also
@@ -184,17 +175,23 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
       if (context.canPop()) context.pop();
       return;
     }
+    final previous = _storyItems.value;
     setState(() {
       _props = next;
       _stories
         ..clear()
         ..addAll(next.stories);
-      _storyItems.value = next.stories.toStoryItems(_controller);
+      _storyItems.value = _itemsOf(next.stories);
       _generation++;
     });
     // After the swapped-in StoryView has mounted, not before: it reads the
-    // controller's playback state on the way up, and we left it paused.
+    // controller's playback state on the way up, and we left it paused. The
+    // outgoing profile's stories are gone from the screen by then: their
+    // decoders go too.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final item in previous) {
+        item.dispose();
+      }
       if (mounted) _controller.play();
     });
   }
@@ -354,6 +351,9 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
 
   @override
   void dispose() {
+    for (final item in _storyItems.value) {
+      item.dispose();
+    }
     _controller.dispose();
     _storyItems.dispose();
     _currentStory.dispose();
@@ -478,7 +478,7 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
                                           _currentStory.value = _stories[index];
                                           _createdAt.value =
                                               _stories[index].createdAt;
-                                          _resolveStoryAspect(_stories[index]);
+                                          _showAspectOf(_stories[index]);
                                         });
                                     if (props.onStorySeen != null) {
                                       props.onStorySeen!.call(index, _stories);
@@ -803,7 +803,10 @@ class StoriesAuthorListTile extends StatelessWidget {
 }
 
 extension on List<Story> {
-  List<StoryItem> toStoryItems(StoryController controller) => safeMap(
+  List<StoryItem> toStoryItems(
+    StoryController controller, {
+    void Function(Story story, Size size)? onImageSize,
+  }) => safeMap(
     (story) => switch (story.contentType) {
       StoryContentType.image => StoryItem.inlineImage(
         url: story.contentUrl,
@@ -812,6 +815,9 @@ extension on List<Story> {
         duration: 5.seconds,
         roundedTop: false,
         errorBuilder: (context, retry) => _StoryLoadError(onRetry: retry),
+        onImageSize: onImageSize == null
+            ? null
+            : (size) => onImageSize(story, size),
       ),
       StoryContentType.video => StoryItem.pageVideo(
         story.contentUrl,
