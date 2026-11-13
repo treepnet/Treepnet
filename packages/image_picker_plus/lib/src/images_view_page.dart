@@ -1171,6 +1171,8 @@ class _ImagesViewPageState extends State<ImagesViewPage>
                                   noDuration: noDuration,
                                   clearMultiImages: clearMultiImages,
                                   topPosition: topPosition,
+                                  canExpand:
+                                      widget.cropImage && !widget.pickAvatar,
                                 ),
                               ],
                             ),

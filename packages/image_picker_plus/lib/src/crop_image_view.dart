@@ -21,6 +21,7 @@ class CropImageView extends StatefulWidget {
     required this.withMultiSelection,
     super.key,
     this.topPosition,
+    this.canExpand = false,
   });
   final GlobalKey<CustomCropState> cropKey;
   final ValueNotifier<List<int>> indexOfSelectedImages;
@@ -43,6 +44,12 @@ class CropImageView extends StatefulWidget {
   final ValueNotifier<bool> noDuration;
   final double? topPosition;
   final bool withMultiSelection;
+
+  /// Whether the frame can be switched between square and 4:5 ([expandImage]):
+  /// a post's photos. The feed card takes the photo's shape (4:5 to 1:1), but
+  /// the picker had no way to choose it, so every post came out square and a
+  /// portrait photo lost its top and bottom.
+  final bool canExpand;
 
   @override
   State<CropImageView> createState() => _CropImageViewState();
@@ -118,6 +125,40 @@ class _CropImageViewState extends State<CropImageView> {
               ),
             ),
             if (widget.topPosition != null) ...[
+              if (widget.canExpand)
+                Align(
+                  alignment: Alignment.bottomLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: ValueListenableBuilder<bool>(
+                      valueListenable: widget.expandImage,
+                      builder: (context, expanded, _) => GestureDetector(
+                        onTap: () => widget.expandImage.value = !expanded,
+                        child: Container(
+                          height: 35,
+                          width: 35,
+                          decoration: BoxDecoration(
+                            color: widget.appTheme.shimmerBaseColor
+                                .withValues(alpha: 0.4),
+                            border: Border.all(
+                              color: widget.appTheme.onSurfaceColor,
+                            ),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Icon(
+                              expanded
+                                  ? Icons.close_fullscreen_rounded
+                                  : Icons.open_in_full_rounded,
+                              color: Colors.white,
+                              size: 17,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               if (widget.withMultiSelection)
                 Align(
                   alignment: Alignment.bottomRight,
