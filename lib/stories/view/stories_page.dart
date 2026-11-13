@@ -294,10 +294,7 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
             ),
             ModalOption(
               name: context.l10n.deleteText,
-              actionTitle: context.l10n.deleteStoryText,
-              actionContent: context.l10n.storyDeleteConfirmationText,
-              actionYesText: context.l10n.deleteText,
-              actionNoText: context.l10n.cancelText,
+              nameColor: AppColors.red,
               icon: Assets.icons.trash.svg(
                 height: AppSize.iconSizeMedium,
                 colorFilter: const ColorFilter.mode(
@@ -305,17 +302,10 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
                   BlendMode.srcIn,
                 ),
               ),
-              distractive: true,
-              noAction: (context) {
-                context.pop(false);
-                _controller.play();
-              },
-              onTap: () => context.read<StoriesBloc>().add(
-                StoriesStoryDeleteRequested(
-                  id: story.id,
-                  onStoryDeleted: () => _onStoryDeleted(story),
-                ),
-              ),
+              // Confirmed in _confirmDelete, not through `distractive`: that
+              // confirmation can't tell when it is dismissed (a tap outside,
+              // Back), and the story stayed paused, the next tap skipping it.
+              onTap: () => _confirmDelete(story),
             ),
           ],
         )
@@ -328,7 +318,34 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
         });
   }
 
+  /// Asks before deleting [story]. Unless it is deleted, the story plays on
+  /// however the question is closed: Cancel, a tap outside or Back.
+  Future<void> _confirmDelete(Story story) async {
+    final confirmed = await context.showConfirmationDialog(
+      title: context.l10n.deleteStoryText,
+      content: context.l10n.storyDeleteConfirmationText,
+      noText: context.l10n.cancelText,
+      yesText: context.l10n.deleteText,
+    );
+    if (!mounted) return;
+    if (!(confirmed ?? false)) {
+      _controller.play();
+      return;
+    }
+    context.read<StoriesBloc>().add(
+      StoriesStoryDeleteRequested(
+        id: story.id,
+        onStoryDeleted: () => _onStoryDeleted(story),
+      ),
+    );
+  }
+
+  /// [story] is deleted: the viewer goes on with the story that took its
+  /// place, or the one before it when it was the last. The list is rebuilt
+  /// and the viewer restarted on it, as on a profile swap: previous() on the
+  /// shrinking list ran after the removal and landed two stories back.
   void _onStoryDeleted(Story story) {
+    if (!mounted) return;
     final storyIndex = _stories.indexOf(story);
     if (storyIndex == -1) return;
     if (_storyItems.value.length == 1) {
@@ -337,16 +354,34 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
         ..removeAt(storyIndex);
       _currentStory.value = Story.empty;
       if (context.canPop()) context.pop();
-    } else {
-      _controller.previous();
-      final prevCurrentStoryIndex = _stories.indexOf(_currentStory.value);
-      _stories.removeAt(storyIndex);
-      _storyItems.value.removeAt(storyIndex);
-      final nextStoryIndex = prevCurrentStoryIndex == 0
-          ? 0
-          : prevCurrentStoryIndex - 1;
-      _currentStory.value = _stories.elementAt(nextStoryIndex);
+      return;
     }
+    final remaining = [..._stories]..removeAt(storyIndex);
+    final start = storyIndex < remaining.length
+        ? storyIndex
+        : remaining.length - 1;
+    final items = _itemsOf(remaining);
+    // StoryView starts at the first story not marked shown.
+    for (var i = 0; i < items.length; i++) {
+      items[i].shown = i < start;
+    }
+    final previous = _storyItems.value;
+    _controller.pause();
+    setState(() {
+      _stories
+        ..clear()
+        ..addAll(remaining);
+      _storyItems.value = items;
+      _generation++;
+    });
+    _currentStory.value = remaining[start];
+    // Played once the new StoryView is up (see _onStoriesComplete).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final item in previous) {
+        item.dispose();
+      }
+      if (mounted) _controller.play();
+    });
   }
 
   @override
