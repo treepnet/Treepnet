@@ -61,7 +61,9 @@ streams:
       - SELECT * FROM blocked_users WHERE blocker_id = auth.user_id()
       - SELECT * FROM blocked_users WHERE blocked_id = auth.user_id()
       - SELECT * FROM referrals WHERE referrer_id = auth.user_id()
-      - SELECT * FROM story_views WHERE story_owner_id = auth.user_id()
+      # Views of the user's stories still shown (24 hours, a highlight, the
+      # map); an archived story's are asked for (story_view_count, migration 025).
+      - SELECT * FROM story_views WHERE story_owner_id = auth.user_id() AND story_visibility = 'public'
       - SELECT * FROM stories WHERE user_id = auth.user_id()
       - SELECT * FROM notifications WHERE recipient_id = auth.user_id()
 

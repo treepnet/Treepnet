@@ -237,13 +237,17 @@ const schema = Schema([
       Column.text('location_name'),
       Column.real('location_lat'),
       Column.real('location_lng'),
+      // 'public' while shown (24 hours, a highlight, the map), 'owner' once
+      // archived: such a story's views aren't on the phone (migration 025).
+      Column.text('visibility'),
     ],
     indexes: [
       Index('user', [IndexedColumn('user_id')]),
     ],
   ),
   // Who has viewed each story. One row per (story, viewer). Only the story's
-  // author syncs these (the `me` sync stream).
+  // author syncs these (the `me` sync stream), and only for a story still
+  // shown; an archived story's are asked from the server.
   Table(
     'story_views',
     [

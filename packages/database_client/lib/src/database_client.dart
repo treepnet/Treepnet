@@ -1327,28 +1327,33 @@ ORDER BY s.created_at DESC
   /// profiles where the phone has them, the server's card of the rest (the
   /// phone keeps only the profiles of the people the user follows).
   Stream<List<User>> _people(String idsSql, List<Object?> parameters) =>
-      _powerSyncRepository.db().watch(idsSql, parameters: parameters).asyncMap((
-        rows,
-      ) async {
-        final ids = [for (final row in rows) row['id'] as String];
-        if (ids.isEmpty) return const <User>[];
-        final local = await _powerSyncRepository.db().getAll(
-          'SELECT * FROM profiles '
-          'WHERE id IN (SELECT value FROM json_each(?))',
-          [jsonEncode(ids)],
-        );
-        final byId = {
-          for (final row in local) row['id'] as String: User.fromJson(row),
-        };
-        final cards = await _cards([
-          for (final id in ids)
-            if (!byId.containsKey(id)) id,
-        ]);
-        return [
-          for (final id in ids)
-            if (byId[id] ?? cards[id]?.user case final user?) user,
-        ];
-      });
+      _powerSyncRepository
+          .db()
+          .watch(idsSql, parameters: parameters)
+          .asyncMap(
+            (rows) => _usersOf([for (final row in rows) row['id'] as String]),
+          );
+
+  /// The people [ids] are, in that order: from the phone, or their cards.
+  Future<List<User>> _usersOf(List<String> ids) async {
+    if (ids.isEmpty) return const <User>[];
+    final local = await _powerSyncRepository.db().getAll(
+      'SELECT * FROM profiles '
+      'WHERE id IN (SELECT value FROM json_each(?))',
+      [jsonEncode(ids)],
+    );
+    final byId = {
+      for (final row in local) row['id'] as String: User.fromJson(row),
+    };
+    final cards = await _cards([
+      for (final id in ids)
+        if (!byId.containsKey(id)) id,
+    ]);
+    return [
+      for (final id in ids)
+        if (byId[id] ?? cards[id]?.user case final user?) user,
+    ];
+  }
 
   @override
   Stream<bool> isProfileSaved({
@@ -3326,26 +3331,99 @@ DELETE FROM stories WHERE id = ?
   }
 
   @override
-  Stream<int> storyViewsCountOf({required String storyId}) =>
-      _powerSyncRepository
-          .db()
-          .watch(
-            'SELECT COUNT(*) AS c FROM story_views WHERE story_id = ?',
-            parameters: [storyId],
-          )
-          .map((rows) => (rows.first['c'] as int?) ?? 0);
+  Stream<int> storyViewsCountOf({required String storyId}) => _storyViews(
+    storyId,
+    onPhone: () => _powerSyncRepository
+        .db()
+        .watch(
+          'SELECT COUNT(*) AS c FROM story_views sv '
+          'WHERE sv.story_id = ? AND ${_notBlockedSql('sv.user_id')}',
+          parameters: [storyId],
+        )
+        .map((rows) => (rows.first['c'] as int?) ?? 0),
+    onServer: () async =>
+        ((await _powerSyncRepository.postgrest().rpc<dynamic>(
+                  'story_view_count',
+                  params: {'p_story': storyId},
+                ))
+                as num?)
+            ?.toInt() ??
+        0,
+  );
 
   @override
   Stream<List<User>> storyViewersOf({required String storyId, int? limit}) =>
-      _people(
-        '''
+      _storyViews(
+        storyId,
+        onPhone: () => _people(
+          '''
 SELECT sv.user_id AS id FROM story_views sv
 WHERE sv.story_id = ? AND ${_notBlockedSql('sv.user_id')}
 ORDER BY sv.created_at DESC
 ${limit != null ? 'LIMIT ?' : ''}
 ''',
-        [storyId, if (limit != null) limit],
+          [storyId, if (limit != null) limit],
+        ),
+        onServer: () async {
+          final rows = await _powerSyncRepository.postgrest().rpc<dynamic>(
+            'story_viewer_ids',
+            params: {'p_story': storyId, 'p_limit': limit ?? 1000},
+          );
+          return _usersOf([
+            if (rows is List)
+              for (final row in rows)
+                if (row is Map && row['user_id'] is String)
+                  row['user_id'] as String,
+          ]);
+        },
       );
+
+  /// A story's views: from the phone while they sync there (the story is
+  /// still shown: its 24 hours, a highlight, the map), from the server once it
+  /// is archived (migration 025: its views leave the phone). Follows the story
+  /// moving between the two while watched. Off the network, an archived
+  /// story's are what the phone has.
+  Stream<T> _storyViews<T>(
+    String storyId, {
+    required Stream<T> Function() onPhone,
+    required Future<T> Function() onServer,
+  }) {
+    StreamSubscription<List<Map<String, dynamic>>>? story;
+    StreamSubscription<T>? views;
+    bool? archived;
+    late final StreamController<T> controller;
+    controller = StreamController<T>(
+      onListen: () {
+        story = _powerSyncRepository
+            .db()
+            .watch(
+              'SELECT visibility FROM stories WHERE id = ?',
+              parameters: [storyId],
+            )
+            .listen((rows) {
+              final now =
+                  rows.isNotEmpty && rows.first['visibility'] == 'owner';
+              if (now == archived) return;
+              archived = now;
+              unawaited(views?.cancel());
+              views =
+                  (now
+                          ? Stream.fromFuture(
+                              onServer().catchError(
+                                (Object _) => onPhone().first,
+                              ),
+                            )
+                          : onPhone())
+                      .listen(controller.add, onError: controller.addError);
+            }, onError: controller.addError);
+      },
+      onCancel: () async {
+        await views?.cancel();
+        await story?.cancel();
+      },
+    );
+    return controller.stream;
+  }
 
   @override
   Stream<List<Story>> activeStories() => _powerSyncRepository
