@@ -190,57 +190,61 @@ class _PinStorySheetState extends State<PinStorySheet> {
   }
 
   Future<String?> _highlightNameDialog() {
-    final controller = TextEditingController();
     final cover = widget.story.contentUrl;
     return showDialog<String>(
       context: context,
-      builder: (context) => Dialog(
-        backgroundColor: _sheetBackground,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // The story itself is the highlight cover — shown as an avatar,
-              // top-centre.
-              CircleAvatar(
-                radius: 40,
-                backgroundColor: AppColors.inputSpace,
-                backgroundImage: cover.isNotEmpty
-                    ? CachedNetworkImageProvider(cover)
-                    : null,
-              ),
-              const Gap.v(AppSpacing.lg),
-              // Placeholder and caret both centred, no border.
-              TextField(
-                controller: controller,
-                autofocus: true,
-                textAlign: TextAlign.center,
-                maxLength: kHighlightNameMaxLength,
-                buildCounter: noCounter,
-                style: const TextStyle(color: AppColors.white),
-                decoration: InputDecoration(
-                  hintText: context.l10n.highlightNameText,
-                  hintStyle: const TextStyle(color: AppColors.grey),
+      builder: (context) => _WithTextController(
+        builder: (context, controller) => Dialog(
+          backgroundColor: _sheetBackground,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // The story itself is the highlight cover — shown as an avatar,
+                // top-centre.
+                CircleAvatar(
+                  radius: 40,
+                  backgroundColor: AppColors.inputSpace,
+                  backgroundImage: cover.isNotEmpty
+                      ? CachedNetworkImageProvider(cover)
+                      : null,
                 ),
-                onSubmitted: (v) => Navigator.of(context).pop(v),
-              ),
-              const Gap.v(AppSpacing.lg),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(context.l10n.cancelText),
+                const Gap.v(AppSpacing.lg),
+                // Placeholder and caret both centred, no border.
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  textAlign: TextAlign.center,
+                  maxLength: kHighlightNameMaxLength,
+                  buildCounter: noCounter,
+                  style: const TextStyle(color: AppColors.white),
+                  decoration: InputDecoration(
+                    hintText: context.l10n.highlightNameText,
+                    hintStyle: const TextStyle(color: AppColors.grey),
                   ),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(controller.text),
-                    child: Text(context.l10n.createText),
-                  ),
-                ],
-              ),
-            ],
+                  onSubmitted: (v) => Navigator.of(context).pop(v),
+                ),
+                const Gap.v(AppSpacing.lg),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(context.l10n.cancelText),
+                    ),
+                    TextButton(
+                      onPressed: () =>
+                          Navigator.of(context).pop(controller.text),
+                      child: Text(context.l10n.createText),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -343,7 +347,32 @@ class _PinStorySheetState extends State<PinStorySheet> {
 /// Horizontal list of the user's places. The first slot is either the "Add
 /// location" button or, once a place has been created on the map, that place
 /// (tapping it re-opens the map to edit it).
-class _LocationRow extends StatelessWidget {
+/// Gives [builder] a text controller it disposes when it goes (a dialog's
+/// field: one made in the dialog's caller was never disposed).
+class _WithTextController extends StatefulWidget {
+  const _WithTextController({required this.builder});
+
+  final Widget Function(BuildContext context, TextEditingController controller)
+  builder;
+
+  @override
+  State<_WithTextController> createState() => _WithTextControllerState();
+}
+
+class _WithTextControllerState extends State<_WithTextController> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context, _controller);
+}
+
+class _LocationRow extends StatefulWidget {
   const _LocationRow({
     required this.userId,
     required this.newLocation,
@@ -365,16 +394,40 @@ class _LocationRow extends StatelessWidget {
   final String Function(double lat, double lng) keyOf;
 
   @override
-  Widget build(BuildContext context) {
+  State<_LocationRow> createState() => _LocationRowState();
+}
+
+class _LocationRowState extends State<_LocationRow> {
+  // Opened once. Made in build(), they were closed and run again on every
+  // tap of a tile (the sheet rebuilds to show the choice).
+  late final Stream<List<_Point>> _postPoints;
+  late final Stream<List<_Point>> _storyPoints;
+
+  @override
+  void initState() {
+    super.initState();
     final posts = context.read<PostsRepository>();
+    _postPoints = posts.visitedPointsOf(userId: widget.userId);
+    _storyPoints = posts.storyPointsOf(userId: widget.userId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final newLocation = widget.newLocation;
+    final newLocationName = widget.newLocationName;
+    final selectedKey = widget.selectedKey;
+    final onAddOrEdit = widget.onAddOrEdit;
+    final onRemoveNew = widget.onRemoveNew;
+    final onToggle = widget.onToggle;
+    final keyOf = widget.keyOf;
     // Existing places come from BOTH posts and stories: a spot pinned with only
     // a story (no post yet) lives in the stories table, so listing posts alone
     // hid it. Merge the two streams and dedupe by coordinate below.
     return StreamBuilder<List<_Point>>(
-      stream: posts.visitedPointsOf(userId: userId),
+      stream: _postPoints,
       builder: (context, postSnap) {
         return StreamBuilder<List<_Point>>(
-          stream: posts.storyPointsOf(userId: userId),
+          stream: _storyPoints,
           builder: (context, storySnap) {
             final points = <_Point>[...?postSnap.data, ...?storySnap.data];
             final seen = <String>{};
@@ -427,7 +480,7 @@ class _LocationRow extends StatelessWidget {
 
 /// Horizontal list of the user's highlights plus a "Name" tile that names a new
 /// highlight (created on confirm).
-class _HighlightRow extends StatelessWidget {
+class _HighlightRow extends StatefulWidget {
   const _HighlightRow({
     required this.userId,
     required this.storyCoverUrl,
@@ -452,10 +505,25 @@ class _HighlightRow extends StatelessWidget {
   final ValueChanged<String> onToggle;
 
   @override
+  State<_HighlightRow> createState() => _HighlightRowState();
+}
+
+class _HighlightRowState extends State<_HighlightRow> {
+  /// Opened once, as in [_LocationRowState].
+  late final Stream<List<StoryHighlight>> _highlights = context
+      .read<StoriesRepository>()
+      .storyHighlightsOf(userId: widget.userId);
+
+  @override
   Widget build(BuildContext context) {
-    final stories = context.read<StoriesRepository>();
+    final newName = widget.newName;
+    final storyCoverUrl = widget.storyCoverUrl;
+    final selectedId = widget.selectedId;
+    final onNewOrEdit = widget.onNewOrEdit;
+    final onRemoveNew = widget.onRemoveNew;
+    final onToggle = widget.onToggle;
     return StreamBuilder<List<StoryHighlight>>(
-      stream: stories.storyHighlightsOf(userId: userId),
+      stream: _highlights,
       builder: (context, snap) {
         // Only real highlights that still have stories — mirror the profile
         // row's filter so emptied/deleted highlights don't show here either.
@@ -473,7 +541,7 @@ class _HighlightRow extends StatelessWidget {
             )
           else
             _HighlightTile(
-              name: newName!,
+              name: newName,
               coverUrl: storyCoverUrl,
               selected: true,
               onTap: onNewOrEdit,

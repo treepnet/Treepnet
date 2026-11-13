@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,14 +15,19 @@ import 'package:treepnet/l10n/l10n.dart';
 /// used to silently change the other. The chrome is styled to match it, but
 /// that is a copied look, not shared code.
 ///
-/// Pops with the captured file's path, or `null` if the user backs out.
+/// The picture a story starts from: its file, and whether the camera took it
+/// (then the file is the app's own, to delete once the editor is done with
+/// it) or it was picked from the gallery (the user's, never deleted).
+typedef StoryCapture = ({String path, bool fromCamera});
+
+/// Pops with the picture ([StoryCapture]), or `null` if the user backs out.
 class StoryCameraPage extends StatefulWidget {
   const StoryCameraPage({super.key});
 
   /// Opens the camera above everything else and waits for a picture.
-  static Future<String?> push(BuildContext context) {
-    return Navigator.of(context, rootNavigator: true).push<String>(
-      MaterialPageRoute<String>(
+  static Future<StoryCapture?> push(BuildContext context) {
+    return Navigator.of(context, rootNavigator: true).push<StoryCapture>(
+      MaterialPageRoute<StoryCapture>(
         builder: (_) => const StoryCameraPage(),
         fullscreenDialog: true,
       ),
@@ -221,8 +229,11 @@ class _StoryCameraPageState extends State<StoryCameraPage>
     setState(() => _capturing = true);
     try {
       final shot = await controller.takePicture();
-      if (!mounted) return;
-      Navigator.of(context).pop(shot.path);
+      if (!mounted) {
+        unawaited(File(shot.path).delete().then((_) {}, onError: (_) {}));
+        return;
+      }
+      Navigator.of(context).pop((path: shot.path, fromCamera: true));
     } on CameraException {
       if (!mounted) return;
       setState(() => _capturing = false);
@@ -294,7 +305,9 @@ class _StoryCameraPageState extends State<StoryCameraPage>
       return;
     }
     if (!mounted) return;
-    Navigator.of(context).pop(picked.first.selectedFile.path);
+    Navigator.of(context).pop(
+      (path: picked.first.selectedFile.path, fromCamera: false),
+    );
   }
 
   @override

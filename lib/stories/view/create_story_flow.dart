@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -30,13 +33,38 @@ Future<void> startStoryCreation(BuildContext context, User author) async {
   // Loops so that discarding in the editor returns to the viewfinder rather
   // than dumping the user back where they started.
   while (true) {
-    final capturedPath = await StoryCameraPage.push(context);
-    if (capturedPath == null || !context.mounted) return;
+    final capture = await StoryCameraPage.push(context);
+    if (capture == null) return;
+    if (!context.mounted) {
+      _forget(capture);
+      return;
+    }
 
-    final discarded = await context.pushNamed<Object?>(
+    final Object? discarded;
+    try {
+      discarded = await _edit(context, author, capture.path);
+    } finally {
+      _forget(capture);
+    }
+    if (discarded != true) return;
+  }
+}
+
+/// The camera's original (2-5 MB in the app's temporary folder) is not
+/// needed once the editor is closed, posted or discarded: the editor exports
+/// its own file. It was left there. A gallery photo is the user's: never.
+void _forget(StoryCapture capture) {
+  if (!capture.fromCamera) return;
+  unawaited(File(capture.path).delete().then((_) {}, onError: (_) {}));
+}
+
+/// Opens the editor on [mediaPath]; completes with true when the user
+/// discarded the story (back to the viewfinder).
+Future<Object?> _edit(BuildContext context, User author, String mediaPath) =>
+    context.pushNamed<Object?>(
       AppRoutes.createStories.name,
       extra: CreateStoryProps(
-        initialMediaPath: capturedPath,
+        initialMediaPath: mediaPath,
         onDone: (String path) async {
           // Stories post straight away — no location step (posts still ask).
           if (!context.mounted) return;
@@ -63,6 +91,3 @@ Future<void> startStoryCreation(BuildContext context, User author) async {
         },
       ),
     );
-    if (discarded != true) return;
-  }
-}

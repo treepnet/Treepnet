@@ -71,7 +71,6 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
   late ValueNotifier<List<StoryItem>> _storyItems;
   late ValueNotifier<Story> _currentStory;
   late ValueNotifier<DateTime?> _createdAt;
-  late ValueNotifier<bool> _showOverlay;
   late ValueNotifier<bool> _wasVisible;
 
   /// Width / height of the current story image, or null until it decodes. Drives
@@ -103,13 +102,11 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
     _storyItems = ValueNotifier(<StoryItem>[]);
     _currentStory = ValueNotifier<Story>(Story.empty);
     _createdAt = ValueNotifier<DateTime?>(null);
-    _showOverlay = ValueNotifier<bool>(true);
     _wasVisible = ValueNotifier<bool>(false);
 
     _stories.addAll(props.stories);
 
     _storyItems.value = _itemsOf(props.stories);
-    _showOverlay.addListener(_showOverlayListener);
   }
 
   List<StoryItem> _itemsOf(List<Story> stories) =>
@@ -208,16 +205,6 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
     if (composing) {
       _controller.pause();
     } else {
-      _controller.play();
-    }
-  }
-
-  void _showOverlayListener() {
-    if (_composing) return;
-    if (!_showOverlay.value) {
-      _controller.pause();
-    } else {
-      if (!_wasVisible.value) return;
       _controller.play();
     }
   }
@@ -393,7 +380,7 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
     _storyItems.dispose();
     _currentStory.dispose();
     _createdAt.dispose();
-    _showOverlay.dispose();
+    _wasVisible.dispose();
     _storyAspect.dispose();
     super.dispose();
   }
@@ -592,45 +579,40 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
           bottom: 0,
           child: AnimatedBuilder(
             animation: Listenable.merge([
-              _showOverlay,
               _currentStory,
               _createdAt,
             ]),
             builder: (context, _) {
               final story = _currentStory.value;
               if (story == null) return const SizedBox.shrink();
-              return AnimatedOpacity(
-                opacity: _showOverlay.value ? 1 : 0,
-                duration: 200.ms,
-                child: Padding(
-                  // Lifts the bar clear of the keyboard, which no longer
-                  // resizes the page.
-                  padding: EdgeInsets.only(
-                    bottom: MediaQuery.viewInsetsOf(context).bottom,
-                  ),
-                  child: StoryFooter(
-                    story: story,
+              return Padding(
+                // Lifts the bar clear of the keyboard, which no longer
+                // resizes the page.
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.viewInsetsOf(context).bottom,
+                ),
+                child: StoryFooter(
+                  story: story,
+                  author: props.author,
+                  viewer: user,
+                  onComposing: _setComposing,
+                  onMore: _openStoryMore,
+                  // Owner-only "+": opens the story camera to add another.
+                  // Pause while the camera is up so the current story does not
+                  // run out (and close) underneath it.
+                  onAddStory: () async {
+                    _controller.pause();
+                    await startStoryCreation(context, props.author);
+                    if (mounted) _controller.play();
+                  },
+                  // Author sits at the very bottom, on the same line as the
+                  // controls — profile, name and "time ago" live in the footer
+                  // bar rather than floating up over the picture.
+                  leading: StoriesAuthorListTile(
                     author: props.author,
-                    viewer: user,
-                    onComposing: _setComposing,
-                    onMore: _openStoryMore,
-                    // Owner-only "+": opens the story camera to add another.
-                    // Pause while the camera is up so the current story does not
-                    // run out (and close) underneath it.
-                    onAddStory: () async {
-                      _controller.pause();
-                      await startStoryCreation(context, props.author);
-                      if (mounted) _controller.play();
-                    },
-                    // Author sits at the very bottom, on the same line as the
-                    // controls — profile, name and "time ago" live in the footer
-                    // bar rather than floating up over the picture.
-                    leading: StoriesAuthorListTile(
-                      author: props.author,
-                      createdAt: _createdAt.value,
-                      place: story.locationName,
-                      dense: true,
-                    ),
+                    createdAt: _createdAt.value,
+                    place: story.locationName,
+                    dense: true,
                   ),
                 ),
               );

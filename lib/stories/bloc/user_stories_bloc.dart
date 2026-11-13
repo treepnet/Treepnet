@@ -19,7 +19,12 @@ class UserStoriesBloc extends Bloc<UserStoriesEvent, UserStoriesState> {
   }) : _author = author,
        _storiesRepository = storiesRepository,
        super(const UserStoriesState.initial()) {
-    on<UserStoriesSubscriptionRequested>(_onUserStoriesSubscriptionRequested);
+    on<UserStoriesSubscriptionRequested>(
+      _onUserStoriesSubscriptionRequested,
+      // The handler keeps its subscription open for good: a pull-to-refresh
+      // adding another must replace it, not stack one more on top.
+      transformer: restartable(),
+    );
     on<UserStoriesStorySeenRequested>(_onUserStoriesStorySeenRequested);
     on<UserStoriesStoryDeleteRequested>(_onUserStoriesStoryDeleteRequested);
   }
