@@ -4,7 +4,7 @@ import 'package:app_ui/app_ui.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:powersync_repository/powersync_repository.dart'
-    show PowerSyncRepository, RejectedUpload;
+    show PowerSyncRepository, RejectedUpload, StuckUpload;
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/monitoring/crash_reporter.dart';
@@ -15,6 +15,10 @@ import 'package:treepnet/monitoring/crash_reporter.dart';
 /// a post, comment, like or profile edit just vanished on the next sync and
 /// nobody knew. Each drop is reported to the crash logger (no content; see
 /// [RejectedUpload]) and the user is told it wasn't saved.
+///
+/// Also reported, without a word to the user: an upload queue stuck on one
+/// change ([StuckUpload]; everything after it waits), and a local database
+/// that couldn't be opened and was rebuilt, losing what hadn't been sent.
 class RejectedUploadListener extends StatefulWidget {
   const RejectedUploadListener({super.key});
 
@@ -28,15 +32,25 @@ class _RejectedUploadListenerState extends State<RejectedUploadListener> {
   static const _noticeGap = Duration(seconds: 30);
 
   StreamSubscription<RejectedUpload>? _subscription;
+  StreamSubscription<StuckUpload>? _stuckSubscription;
   DateTime? _lastNotice;
 
   @override
   void initState() {
     super.initState();
-    _subscription = context
-        .read<PowerSyncRepository>()
-        .rejectedUploads
-        .listen(_onRejected);
+    final repository = context.read<PowerSyncRepository>();
+    _subscription = repository.rejectedUploads.listen(_onRejected);
+    _stuckSubscription = repository.stuckUploads.listen(
+      (stuck) => CrashReporter.instance.report(
+        stuck,
+        StackTrace.current,
+        kind: 'sync-stuck',
+      ),
+    );
+    final wipe = repository.databaseWipe;
+    if (wipe != null) {
+      CrashReporter.instance.report(wipe, StackTrace.current, kind: 'db-wipe');
+    }
   }
 
   void _onRejected(RejectedUpload rejected) {
@@ -56,6 +70,7 @@ class _RejectedUploadListenerState extends State<RejectedUploadListener> {
   @override
   void dispose() {
     unawaited(_subscription?.cancel());
+    unawaited(_stuckSubscription?.cancel());
     super.dispose();
   }
 

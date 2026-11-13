@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:env/env.dart';
+import 'package:http/http.dart' as http;
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:postgrest/postgrest.dart';
 import 'package:powersync/powersync.dart';
+import 'package:powersync/sqlite3.dart' as raw_sqlite;
 import 'package:powersync_repository/src/fresh_token_client.dart';
 import 'package:powersync_repository/src/sync_scope.dart';
+import 'package:powersync_repository/src/upload_errors.dart';
 import 'package:shared/shared.dart' as shared;
 import 'package:token_storage/token_storage.dart';
 
@@ -14,21 +17,10 @@ import 'package:token_storage/token_storage.dart';
 /// on provided [Env].
 typedef EnvValue = String Function(Env env);
 
-/// Postgres Response codes that we cannot recover from by retrying.
-final List<RegExp> fatalResponseCodes = [
-  // Class 22 — Data Exception
-  // Examples include data type mismatch.
-  RegExp(r'^22...$'),
-  // Class 23 — Integrity Constraint Violation.
-  // Examples include NOT NULL, FOREIGN KEY and UNIQUE violations.
-  RegExp(r'^23...$'),
-  // INSUFFICIENT PRIVILEGE - typically a row-level security violation
-  RegExp(r'^42501$'),
-];
-
-/// A local change the server refused for good (see [fatalResponseCodes]). It is
-/// dropped — retrying can't make it succeed — so the app is told, to report it
-/// and tell the user. Carries no row content: only where it was and why.
+/// A local change the server refused for good (see [isPermanentUploadError]).
+/// It is dropped — retrying can't make it succeed — so the app is told, to
+/// report it and tell the user. Carries no row content: only where it was and
+/// why.
 class RejectedUpload {
   /// Creates a [RejectedUpload].
   const RejectedUpload({
@@ -61,6 +53,10 @@ class RejectedUpload {
 }
 
 final _rejectedUploads = StreamController<RejectedUpload>.broadcast();
+final _stuckUploads = StreamController<StuckUpload>.broadcast();
+
+/// The upload queue's failures in a row, across reconnects.
+final _uploadAttempts = UploadAttempts();
 
 /// Postgres messages can quote the offending value. Keep identifiers
 /// (constraint, column and type names) and drop anything else in quotes, so a
@@ -87,7 +83,11 @@ final _uploadHttpClient = FreshTokenClient();
 
 class SyncConnector extends PowerSyncBackendConnector {
   /// {@macro sync_connector}
-  SyncConnector(this.db, {required this.env});
+  SyncConnector(this.db, {required this.env, http.Client? uploadClient})
+    : _uploadClient = uploadClient ?? _uploadHttpClient;
+
+  /// What uploads go out through ([_uploadHttpClient]; a test's own).
+  final http.Client _uploadClient;
 
   /// PowerSync main database.
   final PowerSyncDatabase db;
@@ -164,7 +164,7 @@ class SyncConnector extends PowerSyncBackendConnector {
     final rest = PostgrestClient(
       _postgrestUrl,
       headers: {'Authorization': 'Bearer $token'},
-      httpClient: _uploadHttpClient,
+      httpClient: _uploadClient,
     );
     CrudEntry? lastOp;
     try {
@@ -186,10 +186,12 @@ class SyncConnector extends PowerSyncBackendConnector {
       }
 
       // All operations successful.
+      _uploadAttempts.done();
       await transaction.complete();
     } on PostgrestException catch (e) {
-      if (e.code != null &&
-          fatalResponseCodes.any((re) => re.hasMatch(e.code!))) {
+      final attempt = _uploadAttempts.failed(transaction.transactionId);
+      if (isPermanentUploadError(e) ||
+          _uploadAttempts.givesUp(e.code, attempt)) {
         /// Instead of blocking the queue with these errors,
         /// discard the (rest of the) transaction.
         ///
@@ -198,6 +200,7 @@ class SyncConnector extends PowerSyncBackendConnector {
         /// the drop and tells the user, instead of the change silently
         /// vanishing on the next sync.
         shared.logE('Data upload error - discarding $lastOp', error: e);
+        _uploadAttempts.done();
         _rejectedUploads.add(
           RejectedUpload(
             table: lastOp?.table ?? '?',
@@ -212,9 +215,28 @@ class SyncConnector extends PowerSyncBackendConnector {
         /// Error may be retryable - e.g. network error or temporary server
         /// error. Throwing an error here causes this call to be retried after
         /// a delay.
+        _reportIfStuck(lastOp, e.code ?? '?', attempt);
         rethrow;
       }
+    } catch (e) {
+      // Off the network (no connection, the time limit): retried, never
+      // dropped, but a queue stuck this long is worth knowing about.
+      final attempt = _uploadAttempts.failed(transaction.transactionId);
+      _reportIfStuck(lastOp, e.runtimeType.toString(), attempt);
+      rethrow;
     }
+  }
+
+  void _reportIfStuck(CrudEntry? op, String error, int attempt) {
+    if (attempt != _uploadAttempts.stuckAfter) return;
+    _stuckUploads.add(
+      StuckUpload(
+        table: op?.table ?? '?',
+        op: op?.op.name ?? '?',
+        error: error,
+        attempts: attempt,
+      ),
+    );
   }
 }
 
@@ -257,6 +279,15 @@ class PowerSyncRepository {
   /// Local changes the server refused for good and that were dropped — one
   /// event per dropped transaction. See [RejectedUpload].
   Stream<RejectedUpload> get rejectedUploads => _rejectedUploads.stream;
+
+  /// The upload queue failing on the same change for a while (nothing is
+  /// dropped; everything after it waits). See [StuckUpload].
+  Stream<StuckUpload> get stuckUploads => _stuckUploads.stream;
+
+  /// Set when the phone's database couldn't be opened at start and was built
+  /// anew, losing what hadn't been uploaded. See [DatabaseWipe].
+  DatabaseWipe? get databaseWipe => _databaseWipe;
+  DatabaseWipe? _databaseWipe;
 
   /// Keeps [userId]'s profile on the phone while it is open: their card and
   /// counts, and — if the account is public — their posts, stories,
@@ -395,10 +426,33 @@ class PowerSyncRepository {
       } catch (_) {
         // The half-open handle may already be unusable; ignore.
       }
+      // Said nowhere before: the app now reports it, with what is lost.
+      _databaseWipe = DatabaseWipe(
+        error: e.runtimeType.toString(),
+        pendingChanges: _pendingChangesIn(path),
+      );
       await _deleteDatabaseFiles(path);
       db = PowerSyncDatabase(schema: shared.schema, path: path);
       await db.initialize();
       return db;
+    }
+  }
+
+  /// How many changes in the database at [path] haven't been uploaded, if it
+  /// opens at all (read-only, past whatever stopped PowerSync opening it).
+  int? _pendingChangesIn(String path) {
+    try {
+      final db = raw_sqlite.sqlite3.open(
+        path,
+        mode: raw_sqlite.OpenMode.readOnly,
+      );
+      try {
+        return db.select('SELECT count(*) AS n FROM ps_crud').first['n'] as int;
+      } finally {
+        db.dispose();
+      }
+    } catch (_) {
+      return null;
     }
   }
 
