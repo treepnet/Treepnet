@@ -421,8 +421,14 @@ class MediaUploadQueue {
   MediaUploadQueue({
     required PowerSyncDatabase db,
     required SharedPreferences sharedPreferences,
+    shared.MediaBucket Function(String bucket)? storageFor,
   })  : _db = db,
-        _prefs = sharedPreferences;
+        _prefs = sharedPreferences,
+        _storageFor = storageFor ?? shared.MediaStorage.instance.from;
+
+  /// Where the files go: the media bucket's handle for a bucket name
+  /// ([shared.MediaStorage]; a test passes its own).
+  final shared.MediaBucket Function(String bucket) _storageFor;
 
   static const String _storageKey = 'treepnet_pending_uploads_queue';
   static const String _postsKey = 'treepnet_pending_posts';
@@ -1321,7 +1327,7 @@ class MediaUploadQueue {
       return;
     }
 
-    final storage = shared.MediaStorage.instance.from(task.bucket);
+    final storage = _storageFor(task.bucket);
     final bytes = await mediaFile.readAsBytes();
 
     shared.logI('MediaUploadQueue: Uploading media for task ${task.id}...');
