@@ -76,6 +76,15 @@ String _withoutValues(String message) => message.replaceAllMapped(
 // TODO(treepnet): move to env alongside the other endpoints.
 const _postgrestUrl = 'https://api.treepnet.com';
 
+/// The upload queue's connection, shared by every upload: one kept-open
+/// connection, and a call that doesn't answer within
+/// [FreshTokenClient.timeout] fails (the queue retries it later).
+///
+/// Uploads went out through a new client each: a fresh TCP + TLS handshake
+/// for every like, follow and 45-second presence beat, and no time limit, so
+/// one request stuck on a stalled network held every change behind it.
+final _uploadHttpClient = FreshTokenClient();
+
 class SyncConnector extends PowerSyncBackendConnector {
   /// {@macro sync_connector}
   SyncConnector(this.db, {required this.env});
@@ -150,9 +159,12 @@ class SyncConnector extends PowerSyncBackendConnector {
     // violation and the changes would be dropped.
     final token = await AuthSession.instance.idToken();
     if (token == null) throw StateError('No ID token yet');
+    // The client puts the current token on each request; this one stays for
+    // a request sent just after signing out.
     final rest = PostgrestClient(
       _postgrestUrl,
       headers: {'Authorization': 'Bearer $token'},
+      httpClient: _uploadHttpClient,
     );
     CrudEntry? lastOp;
     try {
