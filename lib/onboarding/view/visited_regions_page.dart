@@ -58,14 +58,17 @@ class _VisitedRegionsPageState extends State<VisitedRegionsPage> {
     );
   }
 
-  /// Picking a search result both marks the place and flies the map to it, so
-  /// the two ways of picking always agree.
-  void _toggle(String iso, {bool focus = false}) => setState(() {
+  /// A tap on the globe marks a region, or unmarks a marked one.
+  void _toggle(String iso) => setState(() {
     if (!_selected.remove(iso)) _selected.add(iso);
-    if (focus) {
-      _focus = _boundsOf(iso);
-      _focusToken++;
-    }
+  });
+
+  /// A search result marks the place (never unmarks it: searching a region
+  /// already tapped, to check it, silently took it off) and flies there.
+  void _pickFromSearch(String iso) => setState(() {
+    _selected.add(iso);
+    _focus = _boundsOf(iso);
+    _focusToken++;
   });
 
   Future<void> _finish() async {
@@ -171,7 +174,8 @@ class _VisitedRegionsPageState extends State<VisitedRegionsPage> {
         // Search: type a region or country, tap a result to mark it and fly
         // the map there.
         _RegionSearch(
-          onPicked: (iso) => _toggle(iso, focus: true),
+          selected: _selected,
+          onPicked: _pickFromSearch,
         ),
 
         Padding(
@@ -195,8 +199,10 @@ class _VisitedRegionsPageState extends State<VisitedRegionsPage> {
 /// (see region_search.dart); results are shown in the app's language. They sit
 /// above the field since it lives near the bottom of the screen.
 class _RegionSearch extends StatefulWidget {
-  const _RegionSearch({required this.onPicked});
+  const _RegionSearch({required this.selected, required this.onPicked});
 
+  /// The regions marked already: their results carry a tick.
+  final Set<String> selected;
   final ValueChanged<String> onPicked;
 
   @override
@@ -266,12 +272,25 @@ class _RegionSearchState extends State<_RegionSearch> {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: AppColors.white),
                   ),
-                  trailing: Text(
-                    region.localizedCountryName(lang),
-                    style: const TextStyle(
-                      color: AppColors.grey,
-                      fontSize: 12,
-                    ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        region.localizedCountryName(lang),
+                        style: const TextStyle(
+                          color: AppColors.grey,
+                          fontSize: 12,
+                        ),
+                      ),
+                      if (widget.selected.contains(region.iso)) ...[
+                        const Gap.h(AppSpacing.sm),
+                        const Icon(
+                          Icons.check_rounded,
+                          color: AppColors.white,
+                          size: 18,
+                        ),
+                      ],
+                    ],
                   ),
                 );
               },
