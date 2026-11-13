@@ -749,6 +749,16 @@ class PowerSyncDatabaseClient extends DatabaseClient {
 
   static final _uuidShape = RegExp(r'^[0-9a-fA-F-]{36}$');
 
+  /// Refuses a save or block between ids that aren't people (an empty one:
+  /// a profile not loaded yet). Written anyway, the server refused it after
+  /// the app had already said "Saved" or "Blocked" — a block the user
+  /// believed in that never happened; an undo matched nothing, same message.
+  static void _checkIds(String userId, String otherId) {
+    if (!_uuidShape.hasMatch(userId) || !_uuidShape.hasMatch(otherId)) {
+      throw ArgumentError('Not a user id: "$userId" / "$otherId"');
+    }
+  }
+
   /// SQL that is true when neither the signed-in user nor [userColumn] has
   /// blocked the other — for showing a person at all (search, suggestions,
   /// followers, likers, commenters, notifications).
@@ -1366,6 +1376,7 @@ ORDER BY s.created_at DESC
     required String userId,
     required String profileId,
   }) async {
+    _checkIds(userId, profileId);
     final db = _powerSyncRepository.db();
     // De-dupe by hand: PowerSync's local tables carry no unique index, so an
     // `ON CONFLICT(saver_id, profile_id)` clause has nothing to match and the
@@ -1387,10 +1398,13 @@ ORDER BY s.created_at DESC
   Future<void> unsaveProfile({
     required String userId,
     required String profileId,
-  }) => _powerSyncRepository.db().execute(
-    'DELETE FROM saved_profiles WHERE saver_id = ? AND profile_id = ?',
-    [userId, profileId],
-  );
+  }) async {
+    _checkIds(userId, profileId);
+    await _powerSyncRepository.db().execute(
+      'DELETE FROM saved_profiles WHERE saver_id = ? AND profile_id = ?',
+      [userId, profileId],
+    );
+  }
 
   @override
   Future<void> setVisitedRegions({
@@ -2997,6 +3011,7 @@ ORDER BY c1.created_at ASC
     required String userId,
     required String blockedId,
   }) async {
+    _checkIds(userId, blockedId);
     final exists = await _powerSyncRepository.db().getOptional(
       'SELECT 1 FROM blocked_users WHERE blocker_id = ? AND blocked_id = ?',
       [userId, blockedId],
@@ -3027,10 +3042,13 @@ WHERE (subscriber_id = ?1 AND subscribed_to_id = ?2)
   Future<void> unblockUser({
     required String userId,
     required String blockedId,
-  }) => _powerSyncRepository.db().execute(
-    'DELETE FROM blocked_users WHERE blocker_id = ? AND blocked_id = ?',
-    [userId, blockedId],
-  );
+  }) async {
+    _checkIds(userId, blockedId);
+    await _powerSyncRepository.db().execute(
+      'DELETE FROM blocked_users WHERE blocker_id = ? AND blocked_id = ?',
+      [userId, blockedId],
+    );
+  }
 
   @override
   Stream<bool> isBlocked({

@@ -12,6 +12,7 @@ import 'package:treepnet/feed/feed.dart' show FeedBloc, FeedRefreshRequested;
 import 'package:treepnet/feed/post/post.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/map/location_picker_map.dart';
+import 'package:treepnet/monitoring/crash_reporter.dart';
 import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:treepnet/settings/view/settings_page.dart';
 import 'package:treepnet/stories/stories.dart';
@@ -586,6 +587,24 @@ class UserProfileActions extends StatelessWidget {
     final userRepo = context.read<UserRepository>();
     final link = 'https://treepnet.com/${profileUser.displayUsername}';
     final linkCopiedTitle = context.l10n.profileLinkCopiedText;
+    final notSavedText = context.l10n.changeNotSavedText;
+
+    /// Runs a save or block; if it is refused, says so instead of "Saved" or
+    /// "Blocked" (and reports it: it means a bug).
+    Future<bool> applied(Future<void> Function() change) async {
+      try {
+        await change();
+        return true;
+      } catch (error, stackTrace) {
+        CrashReporter.instance.report(error, stackTrace, kind: 'profile_menu');
+        openSnackbar(
+          SnackbarMessage.error(title: notSavedText),
+          clearIfQueue: true,
+        );
+        return false;
+      }
+    }
+
     final isSaved = await userRepo
         .isProfileSaved(userId: currentUserId, profileId: profileId)
         .first;
@@ -596,33 +615,37 @@ class UserProfileActions extends StatelessWidget {
 
     final option = await context.showListOptionsModal(
       options: [
-        ModalOption(
-          name: context.l10n.copyProfileLinkText,
-          iconData: Icons.link_rounded,
-          onTap: () async {
-            await Clipboard.setData(ClipboardData(text: link));
-            openSnackbar(
-              SnackbarMessage.success(title: linkCopiedTitle),
-              clearIfQueue: true,
-            );
-          },
-        ),
+        // Not before the profile has loaded: its link is made of the
+        // username, and without one it was treepnet.com/Unknown.
+        if (!profileUser.isAnonymous)
+          ModalOption(
+            name: context.l10n.copyProfileLinkText,
+            iconData: Icons.link_rounded,
+            onTap: () async {
+              await Clipboard.setData(ClipboardData(text: link));
+              openSnackbar(
+                SnackbarMessage.success(title: linkCopiedTitle),
+                clearIfQueue: true,
+              );
+            },
+          ),
         // Saved profiles land under Settings → Saved → Profile.
         ModalOption(
           name: isSaved ? context.l10n.unsaveText : context.l10n.saveText,
           iconData: isSaved ? Icons.bookmark : Icons.bookmark_border,
           onTap: () async {
-            if (isSaved) {
-              await userRepo.unsaveProfile(
-                userId: currentUserId,
-                profileId: profileId,
-              );
-            } else {
-              await userRepo.saveProfile(
-                userId: currentUserId,
-                profileId: profileId,
-              );
-            }
+            final done = await applied(
+              () => isSaved
+                  ? userRepo.unsaveProfile(
+                      userId: currentUserId,
+                      profileId: profileId,
+                    )
+                  : userRepo.saveProfile(
+                      userId: currentUserId,
+                      profileId: profileId,
+                    ),
+            );
+            if (!done) return;
             openSnackbar(
               SnackbarMessage.success(
                 title: isSaved
@@ -644,10 +667,13 @@ class UserProfileActions extends StatelessWidget {
             actionYesText: context.l10n.unblockText,
             actionNoText: context.l10n.cancelText,
             onTap: () async {
-              await context.read<UserRepository>().unblockUser(
-                userId: currentUserId,
-                blockedId: profileId,
+              final done = await applied(
+                () => userRepo.unblockUser(
+                  userId: currentUserId,
+                  blockedId: profileId,
+                ),
               );
+              if (!done) return;
               openSnackbar(
                 SnackbarMessage.success(title: context.l10n.unblockedText),
                 clearIfQueue: true,
@@ -667,11 +693,13 @@ class UserProfileActions extends StatelessWidget {
             actionYesText: context.l10n.blockText,
             actionNoText: context.l10n.cancelText,
             onTap: () async {
-              await context.read<UserRepository>().blockUser(
-                userId: currentUserId,
-                blockedId: profileId,
+              final done = await applied(
+                () => userRepo.blockUser(
+                  userId: currentUserId,
+                  blockedId: profileId,
+                ),
               );
-              if (!context.mounted) return;
+              if (!done || !context.mounted) return;
               // Live lists update on their own; these two hold a snapshot.
               context.read<SearchRepository>().clearCache();
               context.read<FeedBloc>().add(const FeedRefreshRequested());

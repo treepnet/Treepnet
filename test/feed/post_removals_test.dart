@@ -87,9 +87,11 @@ void main() {
       when(
         () => db.execute(any(), any()),
       ).thenAnswer((_) async => ResultSet([], null, []));
+      const me = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      const author = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
       final next = client.postRemovals.first;
-      await client.blockUser(userId: 'me', blockedId: 'a');
-      expect(await next, const PostRemoval.author('a'));
+      await client.blockUser(userId: me, blockedId: author);
+      expect(await next, const PostRemoval.author(author));
     });
   });
 
