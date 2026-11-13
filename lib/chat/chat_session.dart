@@ -49,6 +49,12 @@ class ChatSession {
 
   DmApi get api => _api!;
   DmListTransport get listTransport => _listTransport!;
+
+  /// [listTransport], or null while there is none: signed out, or the session
+  /// closing — it goes before [isStarted] turns false. For what a screen
+  /// builds, which can run once more during a logout (the inbox did, and hit
+  /// a null check).
+  DmListTransport? get listTransportIfAny => _listTransport;
   String get myUserId => _myUserId;
   String get myName => _myName;
   bool get isStarted => _api != null;

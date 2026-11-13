@@ -342,9 +342,9 @@ class _TypeListState extends State<_TypeList> {
   Widget build(BuildContext context) {
     // Hide only people we've actually exchanged a message with — a person
     // opened-but-not-messaged stays here until something is written.
-    final existing = ChatSession.instance.isStarted
-        ? ChatSession.instance.listTransport.messagedPeerUuids
-        : const <String>{};
+    final existing =
+        ChatSession.instance.listTransportIfAny?.messagedPeerUuids ??
+        const <String>{};
 
     return FutureBuilder<List<User>>(
       future: _future,
@@ -587,7 +587,7 @@ class _ChatsListState extends State<_ChatsList> {
   bool _matches(ChatConversation c) {
     final query = widget.query;
     if (query.isEmpty) return true;
-    final uuid = ChatSession.instance.listTransport.peerUuidOf(c.id);
+    final uuid = ChatSession.instance.listTransportIfAny?.peerUuidOf(c.id);
     final profile = uuid == null ? null : _profiles[uuid];
     return [
       c.peer.name,
@@ -689,7 +689,7 @@ class _ChatsListState extends State<_ChatsList> {
             // chat backend's).
             .where(
               (c) => !_blocked.contains(
-                ChatSession.instance.listTransport.peerUuidOf(c.id),
+                ChatSession.instance.listTransportIfAny?.peerUuidOf(c.id),
               ),
             )
             .where(_matches)
@@ -733,9 +733,9 @@ class _ChatsListState extends State<_ChatsList> {
             );
           }
           final conversation = conversations[index];
-          final peerUuid = ChatSession.instance.isStarted
-              ? ChatSession.instance.listTransport.peerUuidOf(conversation.id)
-              : null;
+          final peerUuid = ChatSession.instance.listTransportIfAny?.peerUuidOf(
+            conversation.id,
+          );
           return _ConversationTile(
             conversation: conversation,
             peerUuid: peerUuid,
