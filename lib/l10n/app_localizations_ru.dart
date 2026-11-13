@@ -1605,6 +1605,20 @@ class AppLocalizationsRu extends AppLocalizations {
   String get notifFollowRequestText => 'Хочет подписаться на вас.';
 
   @override
+  String get notifRepliedText => 'Ответил(а) на ваш комментарий.';
+
+  @override
+  String notifRepliedContentText(String text) {
+    return 'Ответил(а) на ваш комментарий: $text.';
+  }
+
+  @override
+  String get notifFollowAcceptedText => 'Принял(а) ваш запрос на подписку.';
+
+  @override
+  String get notifCommentLikedText => 'Понравился ваш комментарий.';
+
+  @override
   String get notifMessageText => 'Отправил(а) вам сообщение.';
 
   @override

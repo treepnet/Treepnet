@@ -23,14 +23,14 @@ Future<void> openFromNotification(Map<String, String> data) async {
         peerUuid: peer,
         peerName: id('peerName') ?? id('title') ?? '',
       );
-    case 'like' || 'comment':
+    case 'like' || 'comment' || 'reply' || 'comment_like':
       final post = id('post_id');
       if (post == null) return;
       await context.pushNamed(
         AppRoutes.post.name,
         pathParameters: {'id': post},
       );
-    case 'follow' || 'follow_request':
+    case 'follow' || 'follow_request' || 'follow_accepted':
       final actor = id('actor_id');
       if (actor == null) return;
       await context.pushNamed(

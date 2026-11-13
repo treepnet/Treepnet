@@ -1582,6 +1582,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notifFollowRequestText => 'Wants to follow your profile.';
 
   @override
+  String get notifRepliedText => 'Replied to your comment.';
+
+  @override
+  String notifRepliedContentText(String text) {
+    return 'Replied to your comment: $text.';
+  }
+
+  @override
+  String get notifFollowAcceptedText => 'Accepted your follow request.';
+
+  @override
+  String get notifCommentLikedText => 'Liked your comment.';
+
+  @override
   String get notifMessageText => 'Sent you a message.';
 
   @override

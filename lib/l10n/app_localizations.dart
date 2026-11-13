@@ -2697,6 +2697,30 @@ abstract class AppLocalizations {
   /// **'Wants to follow your profile.'**
   String get notifFollowRequestText;
 
+  /// No description provided for @notifRepliedText.
+  ///
+  /// In en, this message translates to:
+  /// **'Replied to your comment.'**
+  String get notifRepliedText;
+
+  /// No description provided for @notifRepliedContentText.
+  ///
+  /// In en, this message translates to:
+  /// **'Replied to your comment: {text}.'**
+  String notifRepliedContentText(String text);
+
+  /// No description provided for @notifFollowAcceptedText.
+  ///
+  /// In en, this message translates to:
+  /// **'Accepted your follow request.'**
+  String get notifFollowAcceptedText;
+
+  /// No description provided for @notifCommentLikedText.
+  ///
+  /// In en, this message translates to:
+  /// **'Liked your comment.'**
+  String get notifCommentLikedText;
+
   /// No description provided for @notifMessageText.
   ///
   /// In en, this message translates to:

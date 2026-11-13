@@ -88,7 +88,9 @@ class _NotificationTile extends StatelessWidget {
     // used to open the liker's profile.)
     final postId = item.postId;
     if ((item.type == NotificationType.like ||
-            item.type == NotificationType.comment) &&
+            item.type == NotificationType.comment ||
+            item.type == NotificationType.reply ||
+            item.type == NotificationType.commentLike) &&
         postId != null) {
       context.pushNamed(AppRoutes.post.name, pathParameters: {'id': postId});
       return;
@@ -182,8 +184,11 @@ class _NotificationTile extends StatelessWidget {
         return _FollowRequestButtons(requesterId: item.actorId);
       case NotificationType.like:
       case NotificationType.comment:
+      case NotificationType.reply:
+      case NotificationType.commentLike:
         return item.postId == null ? null : _PostThumb(url: item.postThumbUrl);
       case NotificationType.message:
+      case NotificationType.followAccepted:
         return null;
     }
   }
@@ -207,6 +212,15 @@ class _NotificationTile extends StatelessWidget {
         return text.isEmpty
             ? l10n.notifMessageText
             : l10n.notifMessageContentText(text);
+      case NotificationType.reply:
+        final text = (n.content ?? '').trim();
+        return text.isEmpty
+            ? l10n.notifRepliedText
+            : l10n.notifRepliedContentText(text);
+      case NotificationType.followAccepted:
+        return l10n.notifFollowAcceptedText;
+      case NotificationType.commentLike:
+        return l10n.notifCommentLikedText;
     }
   }
 

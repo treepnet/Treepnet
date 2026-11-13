@@ -1462,6 +1462,8 @@ FROM notifications n
   LEFT JOIN profiles me ON me.id = ?1
   LEFT JOIN my_profile my ON my.id = ?1
 WHERE n.recipient_id = ?1
+  -- Only kinds this version can show (the badge counts what the list shows).
+  AND n.type IN (${NotificationItem.knownTypes.map((t) => "'$t'").join(', ')})
   AND (n.type NOT IN ('follow', 'follow_request') OR s.id IS NOT NULL)
   AND NOT EXISTS (
     SELECT 1 FROM blocked_users vis_b
@@ -1485,11 +1487,16 @@ LIMIT 80'''}
           .watch(_notificationsSql(count: false), parameters: [userId])
           .map(
             (result) => result
+                .where(
+                  (row) =>
+                      NotificationItem.typeFromString(row['type'] as String) !=
+                      null,
+                )
                 .map(
                   (row) => NotificationItem(
                     type: NotificationItem.typeFromString(
                       row['type'] as String,
-                    ),
+                    )!,
                     actorId: (row['actor_id'] as String?) ?? '',
                     actorUsername:
                         (row['actor_username'] as String?) ?? 'Someone',

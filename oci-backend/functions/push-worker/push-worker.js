@@ -90,17 +90,24 @@ const BODIES = {
     like: 'нравится ваша публикация',
     follow: 'подписался(-ась) на вас',
     follow_request: 'хочет подписаться на вас',
+    comment_like: 'нравится ваш комментарий',
+    follow_accepted: 'принял(а) ваш запрос на подписку',
   },
 };
-const COMMENT_PREFIX = { en: 'commented: ', ru: 'прокомментировал(а): ' };
+// Kinds whose body is a lead-in and the comment's text.
+const PREFIXES = {
+  comment: { en: 'commented: ', ru: 'прокомментировал(а): ' },
+  reply: { en: 'replied: ', ru: 'ответил(а): ' },
+};
 
 function localizedBody(row, lang) {
   const type = row.data && row.data.type;
   const body = row.body || '';
   const texts = BODIES[lang];
   if (!texts) return body;
-  if (type === 'comment' && body.startsWith(COMMENT_PREFIX.en)) {
-    return COMMENT_PREFIX[lang] + body.slice(COMMENT_PREFIX.en.length);
+  const prefix = PREFIXES[type];
+  if (prefix && prefix[lang] && body.startsWith(prefix.en)) {
+    return prefix[lang] + body.slice(prefix.en.length);
   }
   return texts[type] || body;
 }
@@ -109,9 +116,11 @@ function localizedBody(row, lang) {
 // on it replaces the last instead of piling up in the notification shade.
 function groupKey(row) {
   const d = row.data || {};
-  if (d.post_id && (d.type === 'like' || d.type === 'comment')) {
+  if (d.post_id && (d.type === 'like' || d.type === 'comment' || d.type === 'reply')) {
     return `${d.type}-${d.post_id}`;
   }
+  // Likes on one comment share a slot.
+  if (d.comment_id && d.type === 'comment_like') return `comment_like-${d.comment_id}`;
   return null;
 }
 
@@ -363,6 +372,7 @@ async function prune() {
 
 module.exports = {
   classify, backoffSeconds, retryAfterSeconds, sendRow, buildMessage, fcmAccessToken,
+  localizedBody, groupKey,
 };
 
 if (require.main === module) {

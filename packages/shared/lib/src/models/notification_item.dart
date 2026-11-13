@@ -14,6 +14,15 @@ enum NotificationType {
 
   /// Someone sent the user a direct message.
   message,
+
+  /// Someone replied to the user's comment.
+  reply,
+
+  /// Someone accepted the user's request to follow them.
+  followAccepted,
+
+  /// Someone liked the user's comment.
+  commentLike,
 }
 
 /// A single entry in the Notifications feed: an [actorUsername] who did
@@ -50,18 +59,30 @@ class NotificationItem {
 
   final DateTime? createdAt;
 
-  static NotificationType typeFromString(String value) {
-    switch (value) {
-      case 'comment':
-        return NotificationType.comment;
-      case 'follow':
-        return NotificationType.follow;
-      case 'follow_request':
-        return NotificationType.followRequest;
-      case 'message':
-        return NotificationType.message;
-      default:
-        return NotificationType.like;
-    }
-  }
+  /// The type, or null for one this version doesn't know: such a row is left
+  /// out. Every unknown type used to read as a like, so a kind the server
+  /// adds later would have said "liked your post".
+  static NotificationType? typeFromString(String value) => switch (value) {
+    'like' => NotificationType.like,
+    'comment' => NotificationType.comment,
+    'follow' => NotificationType.follow,
+    'follow_request' => NotificationType.followRequest,
+    'message' => NotificationType.message,
+    'reply' => NotificationType.reply,
+    'follow_accepted' => NotificationType.followAccepted,
+    'comment_like' => NotificationType.commentLike,
+    _ => null,
+  };
+
+  /// The types [typeFromString] knows, as stored.
+  static const knownTypes = [
+    'like',
+    'comment',
+    'follow',
+    'follow_request',
+    'message',
+    'reply',
+    'follow_accepted',
+    'comment_like',
+  ];
 }
