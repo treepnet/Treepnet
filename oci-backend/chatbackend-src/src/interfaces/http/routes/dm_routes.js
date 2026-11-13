@@ -233,15 +233,7 @@ router.post('/conversations', checkUser, userLimiter, async (req, res, next) => 
         // Ikkalasi ham ishtirok etadigan mavjud suhbatni qidiramiz (chatni hali
         // ochmagan odamda u yo'q).
         const existing = peer
-            ? await prisma.conversation.findFirst({
-                where: {
-                    projectId: req.projectId,
-                    AND: [
-                        { participants: { some: { userId: req.user.id } } },
-                        { participants: { some: { userId: peer.id } } },
-                    ],
-                },
-            })
+            ? await findPairConversation(req.projectId, req.user.id, peer.id)
             : null;
 
         if (!existing && !allowNewChat(req.user.id)) {
@@ -281,24 +273,37 @@ router.post('/conversations', checkUser, userLimiter, async (req, res, next) => 
             });
         }
 
-        const conversation = existing
-            ? existing
-            : await prisma.conversation.create({
-                data: {
-                    projectId: req.projectId,
-                    // Bo'sh qolganda ham tartiblash uchun qiymat bo'lishi shart:
-                    // NULL bo'lsa Postgres uni `DESC` da eng tepaga chiqaradi va
-                    // yangi bo'sh suhbat faol suhbatlardan yuqorida qotib qoladi.
-                    lastMessageAt: new Date(),
-                    participants: {
-                        create: [{ userId: req.user.id }, { userId: peer.id }],
+        let conversation = existing;
+        let created = false;
+        if (!conversation) {
+            const pairKey = pairKeyOf(req.user.id, peer.id);
+            try {
+                conversation = await prisma.conversation.create({
+                    data: {
+                        projectId: req.projectId,
+                        pairKey,
+                        // Bo'sh qolganda ham tartiblash uchun qiymat bo'lishi shart:
+                        // NULL bo'lsa Postgres uni `DESC` da eng tepaga chiqaradi va
+                        // yangi bo'sh suhbat faol suhbatlardan yuqorida qotib qoladi.
+                        lastMessageAt: new Date(),
+                        participants: {
+                            create: [{ userId: req.user.id }, { userId: peer.id }],
+                        },
                     },
-                },
-            });
+                });
+                created = true;
+            } catch (err) {
+                // Opened at the same moment elsewhere (the other device, or
+                // the other person): that one, not a second thread.
+                if (err?.code !== 'P2002') throw err;
+                conversation = await prisma.conversation.findUnique({ where: { pairKey } });
+                if (!conversation) throw err;
+            }
+        }
 
         // Yangi suhbat yaratilgan bo'lsa, socket qatlamidagi ishtirokchilar
         // keshi eskirmasligi uchun tozalaymiz.
-        if (!existing) {
+        if (created) {
             require('../../../infrastructure/sockets/dm_socket')
                 .invalidateParticipants(conversation.id);
         }
@@ -392,6 +397,42 @@ router.get('/users', checkUser, userLimiter, async (req, res, next) => {
         next(err);
     }
 });
+
+/** Two people's conversation key: their user ids, smaller first. */
+function pairKeyOf(a, b) {
+    return `${Math.min(a, b)}:${Math.max(a, b)}`;
+}
+
+/**
+ * The pair's conversation: by its key, else (one made before keys, or by an
+ * older server during a deploy) by its two participants, which is then given
+ * its key.
+ */
+async function findPairConversation(projectId, a, b) {
+    const pairKey = pairKeyOf(a, b);
+    const keyed = await prisma.conversation.findUnique({ where: { pairKey } });
+    if (keyed) return keyed;
+    const unkeyed = await prisma.conversation.findFirst({
+        where: {
+            projectId,
+            pairKey: null,
+            AND: [
+                { participants: { some: { userId: a } } },
+                { participants: { some: { userId: b } } },
+            ],
+        },
+    });
+    if (!unkeyed) return null;
+    try {
+        return await prisma.conversation.update({
+            where: { id: unkeyed.id },
+            data: { pairKey },
+        });
+    } catch (err) {
+        if (err?.code !== 'P2002') throw err;
+        return prisma.conversation.findUnique({ where: { pairKey } });
+    }
+}
 
 /**
  * POST /chat/dm/device-token  { token, platform }

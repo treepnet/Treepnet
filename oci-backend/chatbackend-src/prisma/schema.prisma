@@ -65,6 +65,12 @@ model Conversation {
   /// Ro'yxatni tartiblash uchun. Bo'sh suhbatda ham to'ldiriladi - NULL
   /// bo'lsa Postgres uni `DESC` da eng tepaga chiqarib yuboradi.
   lastMessageAt DateTime?
+  /// The two people's user ids, smaller first ("3041:3878"): one
+  /// conversation per pair. It was find-then-create with nothing to stop two
+  /// at once (two devices, or both people opening it), and prod had two
+  /// threads for one pair. Filled for older rows by
+  /// prisma/manual/2026-11-13-pair-key.sql.
+  pairKey       String?   @unique
 
   project      Project                   @relation(fields: [projectId], references: [id])
   participants ConversationParticipant[]
@@ -88,6 +94,9 @@ model ConversationParticipant {
   user         User         @relation(fields: [userId], references: [id])
 
   @@unique([conversationId, userId])
+  // Every per-person query (the list, unread total, who is online, account
+  // deletion) asks by userId alone.
+  @@index([userId])
 }
 
 model DirectMessage {
@@ -118,6 +127,8 @@ model DirectMessage {
   sender       User         @relation(fields: [senderId], references: [id])
 
   @@index([conversationId, date])
+  // Account deletion removes a person's messages by sender.
+  @@index([senderId])
 }
 
 /// Push (FCM) qurilma tokenlari. Bitta foydalanuvchida ko'p qurilma bo'lishi
