@@ -64,11 +64,13 @@ Future<String?> _placeFromDevice(String lang) async {
 }
 
 /// "Region, Country" in [lang]. It used to be the English names whatever the
-/// app's language.
+/// app's language. Just one where they are the same (Baikonur, Somaliland).
 @visibleForTesting
-String storyPlaceLabel(GeoRegion region, String lang) =>
-    '${region.localizedDisplayName(lang)}, '
-    '${region.localizedCountryName(lang)}';
+String storyPlaceLabel(GeoRegion region, String lang) {
+  final name = region.localizedDisplayName(lang);
+  final country = region.localizedCountryName(lang);
+  return name == country ? name : '$name, $country';
+}
 
 /// Reads the photo's GPS tag and maps it to a region, or null when the file has
 /// no coordinates.

@@ -25,4 +25,18 @@ void main() {
       'Tashkent Region, Uzbekistan',
     );
   });
+
+  test('a territory that is its own country is named once', () {
+    final baikonur = GeoRegion(
+      iso: '-99-X05~',
+      name: 'Baikonur',
+      nameEn: 'Baikonur',
+      nameRu: 'Байконур',
+      countryCode: '-1',
+      countryName: 'Baykonur Cosmodrome',
+      countryNameRu: 'Байконур',
+      rings: const [],
+    );
+    expect(storyPlaceLabel(baikonur, 'ru'), 'Байконур');
+  });
 }

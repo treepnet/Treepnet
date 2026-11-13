@@ -533,7 +533,13 @@ class GeoRegions {
       final countryCode = cc;
       final countryName = admin.isEmpty ? countryCode : admin;
       final name = rawName.isEmpty ? iso : rawName;
-      final countryNameRu = (countryNames[countryCode]?['ru'] as String?) ?? '';
+      // Ten special territories (Northern Cyprus, Somaliland, Baikonur...)
+      // share the code "-1": their names are filed by their own name, or all
+      // of them would take one (Dhekelia's).
+      final countryNameRu =
+          (countryNames[countryCode == '-1' ? countryName : countryCode]?['ru']
+              as String?) ??
+          '';
 
       final region = GeoRegion(
         iso: iso,

@@ -37,6 +37,32 @@ def clean(x):
     return (x or "").strip()
 
 
+def clean_ru(x):
+    # Natural Earth's name_ru carries Wikipedia's stress marks (U+0301,
+    # "Сомалиле́нд"); the map would print them.
+    return clean(x).replace("\u0301", "")
+
+
+# Natural Earth misspellings.
+RU_FIXES = {"залив Гуантаномо": "залив Гуантанамо"}
+
+# Natural Earth files ten special territories under the one country code
+# "-1". Keyed by code, all of them were named after one (Dhekelia): the globe
+# printed "ДЕКЕЛИЯ" over Northern Cyprus, Somaliland, Kashmir... They are
+# keyed by their admin name instead (the app does the same for "-1").
+SPECIAL_COUNTRIES = {
+    "Dhekelia Sovereign Base Area": "Декелия",
+    "Somaliland": "Сомалиленд",
+    "US Naval Base Guantanamo Bay": "Гуантанамо",
+    "Northern Cyprus": "Северный Кипр",
+    "Siachen Glacier": "Ледник Сиачен",
+    "Baykonur Cosmodrome": "Байконур",
+    "Akrotiri Sovereign Base Area": "Акротири",
+    "Indian Ocean Territories": "Территории в Индийском океане",
+    "Clipperton Island": "Клиппертон",
+}
+
+
 # 11 Natural-Earth synthetic "X~" placeholder codes that carry no name_ru
 # (some no name at all). Identified by centroid; see the planning sheet.
 # ⚠ marked ones are best-effort identifications worth a human check.
@@ -69,7 +95,7 @@ def main():
         if not iso:
             continue
         reg_en[iso] = clean(p.get("name_en")) or clean(p.get("name"))
-        reg_ru[iso] = clean(p.get("name_ru"))
+        reg_ru[iso] = clean_ru(p.get("name_ru"))
 
     # admin-0 country names by ISO_A2 (Natural Earth sets ISO_A2 to "-99" for
     # a handful — France, Norway, … — so fall back to ISO_A2_EH).
@@ -77,7 +103,7 @@ def main():
     for f in ne0:
         p = f["properties"]
         en = clean(p.get("NAME_EN")) or clean(p.get("NAME"))
-        ru = clean(p.get("NAME_RU"))
+        ru = clean_ru(p.get("NAME_RU"))
         for key in (clean(p.get("ISO_A2")), clean(p.get("ISO_A2_EH"))):
             if key and key != "-99":
                 c_en.setdefault(key, en)
@@ -86,7 +112,6 @@ def main():
     # Codes with no Natural Earth match at all (special / disputed).
     COUNTRY_FILL = {
         "XK": ("Kosovo", "Косово"),
-        "-1": ("Dhekelia Sovereign Base Area", "Декелия"),
     }
     for cc, (en, ru) in COUNTRY_FILL.items():
         c_en.setdefault(cc, en)
@@ -106,6 +131,7 @@ def main():
             fen, fru = FILL[iso]
             en = en or fen
             ru = ru or fru
+        ru = RU_FIXES.get(ru, ru)
         en = en or name          # en never empty (fallback to current)
         if en == "Zürich":       # requested: plain ASCII
             en = "Zurich"
@@ -121,10 +147,16 @@ def main():
     for f in feats:
         p = f["properties"]
         cc = clean(p.get("cc"))
+        admin = clean(p.get("admin"))
+        if cc == "-1":
+            if admin in countries:
+                continue
+            countries[admin] = {"en": admin, "ru": SPECIAL_COUNTRIES.get(admin, "")}
+            continue
         if not cc or cc in countries:
             continue
         countries[cc] = {
-            "en": c_en.get(cc) or clean(p.get("admin")),
+            "en": c_en.get(cc) or admin,
             "ru": c_ru.get(cc) or "",
         }
 

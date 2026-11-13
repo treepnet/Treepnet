@@ -110,4 +110,37 @@ void main() {
     ];
     expect(actual..sort(), expected..sort());
   });
+
+  test('every country has its own Russian name', () {
+    // Ten special territories share one code; keyed by it, all of them were
+    // "Декелия". The only shared names are the two-part countries.
+    final byName = <String, Set<String>>{};
+    for (final country in GeoRegions.instance.countries) {
+      if (country.nameRu.isEmpty) continue;
+      byName.putIfAbsent(country.nameRu, () => {}).add(country.code);
+    }
+    for (final entry in byName.entries) {
+      final countries = GeoRegions.instance.countries
+          .where((c) => c.nameRu == entry.key)
+          .toList();
+      if (countries.length < 2) continue;
+      expect(
+        entry.value,
+        hasLength(1),
+        reason: '${entry.key} names ${countries.map((c) => c.name)}',
+      );
+      expect(entry.value.single, isNot('-1'), reason: entry.key);
+    }
+    final cyprus = GeoRegions.instance.regionByIso('-99-X04~');
+    expect(cyprus?.localizedCountryName('ru'), 'Северный Кипр');
+  });
+
+  test('Russian names carry no stress marks', () {
+    for (final region in GeoRegions.instance.allRegions) {
+      expect(region.nameRu.contains('\u0301'), isFalse, reason: region.iso);
+    }
+    for (final country in GeoRegions.instance.countries) {
+      expect(country.nameRu.contains('\u0301'), isFalse, reason: country.name);
+    }
+  });
 }
