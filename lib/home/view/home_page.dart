@@ -65,7 +65,9 @@ class _HomeViewState extends State<HomeView> {
 
     _pageController = PageController(initialPage: 1)
       ..addListener(() {
-        final page = _pageController.hasClients ? (_pageController.page ?? 1) : 1;
+        final page = _pageController.hasClients
+            ? (_pageController.page ?? 1)
+            : 1;
         final isNearCamera = page < 0.95;
         final settled = page.round();
         if (isNearCamera != _isNearCamera || settled != _currentPage) {
@@ -83,8 +85,18 @@ class _HomeViewState extends State<HomeView> {
     });
   }
 
+  /// The scroll position the "scrolling stopped" listener is on, so it is
+  /// added once. This ran on every scroll frame and added it again each time
+  /// (a ChangeNotifier keeps duplicates), never removed: every open or close
+  /// of New post or Chat left a dozen more copies, all run on each scroll.
+  ScrollPosition? _listenedPosition;
+
   void _onPageScroll() {
-    _pageController.position.isScrollingNotifier.addListener(_isPageScrolling);
+    final position = _pageController.position;
+    if (identical(position, _listenedPosition)) return;
+    _listenedPosition?.isScrollingNotifier.removeListener(_isPageScrolling);
+    _listenedPosition = position
+      ..isScrollingNotifier.addListener(_isPageScrolling);
   }
 
   void _isPageScrolling() {
@@ -122,6 +134,7 @@ class _HomeViewState extends State<HomeView> {
 
   @override
   void dispose() {
+    _listenedPosition?.isScrollingNotifier.removeListener(_isPageScrolling);
     _pageController.dispose();
     super.dispose();
   }
@@ -129,9 +142,8 @@ class _HomeViewState extends State<HomeView> {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (context) => CreateStoriesBloc(
-        mediaUploadQueue: context.read<MediaUploadQueue>(),
-      ),
+      create: (context) =>
+          CreateStoriesBloc(mediaUploadQueue: context.read<MediaUploadQueue>()),
       child: VideoPlayerInheritedWidget(
         videoPlayerState: _videoPlayerState,
         child: ListenableBuilder(
@@ -154,38 +166,41 @@ class _HomeViewState extends State<HomeView> {
                 HomeProvider().animateToPage(1);
               },
               child: PageView.builder(
-              itemCount: 3,
-              controller: _pageController,
-              physics: HomeProvider().enablePageView
-                  ? null
-                  : const NeverScrollableScrollPhysics(),
-              onPageChanged: (page) {
-                if (page != 0 && page != 2 && page == 1) {
-                  customImagePickerKey.currentState?.resetAll();
-                }
-                if (page == 1) {
-                  HomeProvider().togglePageView(enable: false);
-                }
-              },
-              itemBuilder: (context, index) {
-                return switch (index) {
-                  0 => _isNearCamera
-                      ? UserProfileCreatePost(
-                          canPop: false,
-                          imagePickerKey: customImagePickerKey,
-                          onPopInvoked: () => HomeProvider().animateToPage(1),
-                          onBackButtonTap: () => HomeProvider().animateToPage(1),
-                        )
-                      : const Scaffold(body: SizedBox()),
-                  2 => const ChatInboxPage(),
-                  _ => AppScaffold(
-                    body: widget.navigationShell,
-                    bottomNavigationBar: BottomNavBar(
-                      navigationShell: widget.navigationShell,
+                itemCount: 3,
+                controller: _pageController,
+                physics: HomeProvider().enablePageView
+                    ? null
+                    : const NeverScrollableScrollPhysics(),
+                onPageChanged: (page) {
+                  if (page != 0 && page != 2 && page == 1) {
+                    customImagePickerKey.currentState?.resetAll();
+                  }
+                  if (page == 1) {
+                    HomeProvider().togglePageView(enable: false);
+                  }
+                },
+                itemBuilder: (context, index) {
+                  return switch (index) {
+                    0 =>
+                      _isNearCamera
+                          ? UserProfileCreatePost(
+                              canPop: false,
+                              imagePickerKey: customImagePickerKey,
+                              onPopInvoked: () =>
+                                  HomeProvider().animateToPage(1),
+                              onBackButtonTap: () =>
+                                  HomeProvider().animateToPage(1),
+                            )
+                          : const Scaffold(body: SizedBox()),
+                    2 => const ChatInboxPage(),
+                    _ => AppScaffold(
+                      body: widget.navigationShell,
+                      bottomNavigationBar: BottomNavBar(
+                        navigationShell: widget.navigationShell,
+                      ),
                     ),
-                  ),
-                };
-              },
+                  };
+                },
               ),
             );
           },
