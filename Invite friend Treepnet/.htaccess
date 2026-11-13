@@ -1,7 +1,0 @@
-# Serve the app-link association files as JSON with no extension.
-<Files "assetlinks.json">
-    ForceType application/json
-</Files>
-<Files "apple-app-site-association">
-    ForceType application/json
-</Files>
