@@ -13,6 +13,7 @@ const cors = require('cors');
 
 const { PORT, CORS_ORIGIN } = require('./src/infrastructure/config/constants');
 const socketManager = require('./src/infrastructure/sockets/socket_manager');
+const prisma = require('./src/infrastructure/database/prisma');
 const cacheService = require('./src/infrastructure/cache/cache_service');
 const loggerMiddleware = require('./src/interfaces/http/middlewares/logger_middleware');
 const { apiLimiter } = require('./src/interfaces/http/middlewares/rate_limiter');
@@ -47,7 +48,24 @@ socketManager.init(server);
 // Yagona API - messenger (user <-> user)
 app.use('/chat/dm', require('./src/interfaces/http/routes/dm_routes'));
 
-app.get('/health', (req, res) => res.json({ status: 'ok' }));
+// Asks the database (a second at most): it said "ok" with Postgres down, so
+// neither Docker's check nor the monitors saw chat failing.
+app.get('/health', async (req, res) => {
+    let timer;
+    try {
+        await Promise.race([
+            prisma.$queryRaw`SELECT 1`,
+            new Promise((_, reject) => {
+                timer = setTimeout(() => reject(new Error('timeout')), 1000);
+            }),
+        ]);
+        res.json({ status: 'ok' });
+    } catch (e) {
+        res.status(503).json({ status: 'database_unavailable' });
+    } finally {
+        clearTimeout(timer);
+    }
+});
 
 app.use((err, req, res, next) => {
     console.error('[GlobalError]', err.stack);
@@ -63,3 +81,21 @@ app.use((err, req, res, next) => {
 server.listen(PORT, () => {
     console.log(`Messenger backend ${PORT}-portda ishlamoqda`);
 });
+
+// A stop (a deploy): sockets are closed (the app reconnects to the new
+// container), no new connections are taken, the database is let go. Eight
+// seconds at most, inside Docker's ten.
+let stopping = false;
+function shutdown(signal) {
+    if (stopping) return;
+    stopping = true;
+    console.log(`[${signal}] to'xtatilmoqda`);
+    setTimeout(() => process.exit(0), 8000).unref();
+    const io = socketManager.io;
+    new Promise((resolve) => (io ? io.close(() => resolve()) : server.close(() => resolve())))
+        .finally(() => prisma.$disconnect())
+        .finally(() => process.exit(0));
+    server.closeIdleConnections?.();
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

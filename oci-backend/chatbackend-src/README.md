@@ -11,19 +11,20 @@ bu yerda yo'q.
 
 - Node.js 18+
 - PostgreSQL 14+
-- Redis (loyiha va foydalanuvchi keshi uchun; ishlamasa server baribir
-  ishlaydi, shunchaki sekinroq)
 
 ## Ishga tushirish
 
 ```bash
 npm install
 cp .env.example .env.local     # qiymatlarni to'ldiring
-npx prisma db push             # jadvallarni yaratadi
+npx prisma db push             # bo'sh bazada jadvallarni yaratadi
 npm start
 ```
 
-`http://localhost:3000/health` javob bersa — tayyor.
+`http://localhost:3000/health` javob bersa (u bazani ham tekshiradi) — tayyor.
+
+Server ishga tushganda sxemani o'zgartirmaydi. Ishlab turgan bazaga sxema
+o'zgarishi qo'lda qo'yiladi: `prisma/manual/README.md`.
 
 ## Autentifikatsiya
 

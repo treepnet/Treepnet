@@ -19,4 +19,9 @@ USER app
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "npx prisma db push --skip-generate && node index.js"]
+# node itself is PID 1, so a stop's SIGTERM reaches it (index.js closes the
+# sockets and the database); under `sh -c` it never did, and every deploy
+# waited 10 s and killed it. The schema is no longer pushed at boot: a change
+# that `db push` refuses (a new unique index) kept chat from starting. Schema
+# changes are applied by hand first: prisma/manual/README.md.
+CMD ["node", "index.js"]
