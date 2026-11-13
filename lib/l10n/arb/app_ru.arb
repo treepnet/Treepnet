@@ -771,7 +771,7 @@
   "storyUnavailableText": "История недоступна",
   "couldNotOpenChatText": "Не удалось открыть чат",
   "couldNotDeleteChatText": "Не удалось удалить чат",
-  "locationsCountText": "{count, plural, one{{count} Локация} other{{count} Локаций}}",
+  "locationsCountText": "{count, plural, one{{count} локация} few{{count} локации} many{{count} локаций} other{{count} локации}}",
   "@locationsCountText": {
     "placeholders": {
       "count": { "type": "int" }
