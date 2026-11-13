@@ -40,7 +40,8 @@ GlobalKey<NavigatorState> get rootNavigatorKey => _rootNavigatorKey;
 /// build, so we stash the last ones here and reuse them on such a rebuild
 /// instead of force-unwrapping a null `extra` (which crashed with a red "Null
 /// check operator used on a null value" screen). Only one publish page is ever
-/// open, so a single slot is enough.
+/// open, so a single slot is enough. Emptied when that page closes
+/// ([_ForgetPublishProps]): the props hold every picked photo's bytes.
 CreatePostProps? _lastPublishProps;
 
 /// Same `extra`-dropped-on-rebuild story as [_lastPublishProps], for the
@@ -393,7 +394,10 @@ class AppRouter {
 
                           return CustomTransitionPage(
                             key: state.pageKey,
-                            child: CreatePostPage(props: props),
+                            child: _ForgetPublishProps(
+                              props: props,
+                              child: CreatePostPage(props: props),
+                            ),
                             transitionsBuilder:
                                 (
                                   context,
@@ -643,6 +647,33 @@ class AppRouter {
     },
     refreshListenable: GoRouterAppBlocRefreshStream(appBloc.stream),
   );
+}
+
+/// Empties [_lastPublishProps] once the publish page showing [props] is
+/// closed (shared, or left with Back). They hold the bytes of every picked
+/// photo — up to 10, about 1.5–3 MB each — and stayed in memory until the app
+/// restarted. A rebuild of the open page (the reason for the cache) keeps
+/// this widget, so it keeps them.
+class _ForgetPublishProps extends StatefulWidget {
+  const _ForgetPublishProps({required this.props, required this.child});
+
+  final CreatePostProps props;
+  final Widget child;
+
+  @override
+  State<_ForgetPublishProps> createState() => _ForgetPublishPropsState();
+}
+
+class _ForgetPublishPropsState extends State<_ForgetPublishProps> {
+  @override
+  void dispose() {
+    // Only its own: a publish page opened meanwhile keeps its props.
+    if (identical(_lastPublishProps, widget.props)) _lastPublishProps = null;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// {@template go_router_refresh_stream}
