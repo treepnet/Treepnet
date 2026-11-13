@@ -164,9 +164,13 @@ print(" ".join(sorted(k for k in live - have if k)))' "$file" 2>/dev/null)
   else
     rm -f "$STATE_DIR/jwks.missing-since"
   fi
+  # Loaded when PostgREST started, or when refresh-jwks.sh reloaded it
+  # (SIGUSR2, it touches jwks.json.loaded), whichever came last.
   started=$(date -d "$(docker inspect -f '{{.State.StartedAt}}' treepnet-postgrest)" +%s 2>/dev/null || echo 0)
+  loaded=$(stat -c %Y "$file.loaded" 2>/dev/null || echo 0)
+  [ "$loaded" -gt "$started" ] && started=$loaded
   [ "$(stat -c %Y "$file")" -gt $((started + 60)) ] &&
-    echo "PostgREST wasn't restarted after jwks.json changed: it still checks tokens with the old keys"
+    echo "PostgREST didn't load jwks.json after it changed: it still checks tokens with the old keys"
 }
 
 push_queue() {
