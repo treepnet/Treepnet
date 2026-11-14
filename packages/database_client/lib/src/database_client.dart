@@ -2318,35 +2318,14 @@ WHERE NOT EXISTS (
     required int limit,
   }) async {
     if (currentUserId == null) return [];
-    try {
-      return await _serverPosts('saved_posts_page', {
-        'p_limit': limit,
-        'p_offset': offset,
-      });
-    } catch (_) {}
-    final result = await _powerSyncRepository.db().getAll(
-      '''
-SELECT
-  posts.id,
-  posts.created_at,
-  posts.caption,
-  posts.media,
-  posts.updated_at,
-  posts.user_id as user_id,
-  p.avatar_url as avatar_url,
-  p.username as username,
-  p.full_name as full_name
-FROM
-  saved_posts
-  inner join posts on saved_posts.post_id = posts.id
-  left join profiles p on posts.user_id = p.id
-WHERE saved_posts.user_id = ?1 AND ${_visibleAuthorSql('posts.user_id')}
-  AND ${_postReadySql('posts')}
-ORDER BY saved_posts.created_at DESC LIMIT ?2 OFFSET ?3
-    ''',
-      [currentUserId, limit, offset],
-    );
-    return _hydratePosts(result);
+    // From the server only. When it failed, the phone's saved posts stood in
+    // — but the phone holds only the user's own and followed authors' posts,
+    // so everyone else's looked unsaved, or the whole list "Nothing saved".
+    // A failure now reaches the page, which offers Retry.
+    return _serverPosts('saved_posts_page', {
+      'p_limit': limit,
+      'p_offset': offset,
+    });
   }
 
   @override

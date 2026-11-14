@@ -138,9 +138,34 @@ class _SavedPostsPageState extends State<SavedPostsPage> {
           return Center(child: AppCircularProgress(context.colorScheme.primary));
         }
         final posts = _posts.items;
-        if (posts.isEmpty) return const _EmptySaved();
+        // The server didn't answer: say so, rather than "Nothing saved".
+        if (posts.isEmpty && _posts.error != null) {
+          return LoadFailed(onRetry: _posts.retry);
+        }
 
-        final blocks = posts.map((p) => p.toPostSmallBlock).toList();
+        // A post without media would leave a hole in the grid.
+        final blocks = [
+          for (final post in posts)
+            if (post.toPostSmallBlock case final block
+                when block.firstMediaUrl != null)
+              block,
+        ];
+        if (blocks.isEmpty) {
+          // Pull to refresh works here too: it used to be outside the
+          // RefreshIndicator, so an empty list stayed empty.
+          return RefreshIndicator(
+            onRefresh: _posts.refresh,
+            child: LayoutBuilder(
+              builder: (context, box) => SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: box.maxHeight),
+                  child: const _EmptySaved(),
+                ),
+              ),
+            ),
+          );
+        }
         return RefreshIndicator(
           onRefresh: _posts.refresh,
           child: NotificationListener<ScrollNotification>(
@@ -162,9 +187,6 @@ class _SavedPostsPageState extends State<SavedPostsPage> {
             itemCount: blocks.length,
             itemBuilder: (context, index) {
               final block = blocks[index];
-              if (block.firstMediaUrl == null) {
-                return const SizedBox.shrink();
-              }
               return Tappable.faded(
                 onTap: () => context.pushNamed(
                   AppRoutes.post.name,
