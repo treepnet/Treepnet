@@ -10,22 +10,10 @@ void main() {
       test('powersync url is set', () {
         expect(EnvDev.powersyncUrl, isNotEmpty);
       });
-      test('ios client id is set', () {
-        expect(EnvDev.iOSClientId, isNotEmpty);
-      });
-      test('web client id is set', () {
-        expect(EnvDev.webClientId, isNotEmpty);
-      });
     });
     group('Prod', () {
       test('powersync url is set', () {
         expect(EnvProd.powersyncUrl, isNotEmpty);
-      });
-      test('ios client id is set', () {
-        expect(EnvProd.iOSClientId, isNotEmpty);
-      });
-      test('web client id is set', () {
-        expect(EnvProd.webClientId, isNotEmpty);
       });
     });
   });

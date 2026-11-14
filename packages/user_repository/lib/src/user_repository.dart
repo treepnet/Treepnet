@@ -104,33 +104,6 @@ class UserRepository implements UserBaseRepository {
     }
   }
 
-  /// Sign up with the provided [password].
-  Future<void> signUpWithPassword({
-    required String password,
-    required String fullName,
-    required String username,
-    String? avatarUrl,
-    String? email,
-    String? phone,
-    String? pushToken,
-  }) async {
-    try {
-      await _authenticationClient.signUpWithPassword(
-        email: email,
-        phone: phone,
-        password: password,
-        fullName: fullName,
-        username: username,
-        avatarUrl: avatarUrl,
-        pushToken: pushToken,
-      );
-    } on SignUpWithPasswordFailure {
-      rethrow;
-    } catch (error, stackTrace) {
-      Error.throwWithStackTrace(SignUpWithPasswordFailure(error), stackTrace);
-    }
-  }
-
   /// Whether [username] is still free to claim.
   Future<bool> isUsernameAvailable(String username) =>
       _authenticationClient.isUsernameAvailable(username);
@@ -140,13 +113,11 @@ class UserRepository implements UserBaseRepository {
   Future<({String continuationToken, int codeLength})> signUpSendCode({
     required String email,
     required String password,
-    required String fullName,
   }) async {
     try {
       return await _authenticationClient.signUpSendCode(
         email: email,
         password: password,
-        fullName: fullName,
       );
     } on SignUpWithPasswordFailure {
       rethrow;
@@ -183,28 +154,6 @@ class UserRepository implements UserBaseRepository {
     }
   }
 
-  /// Sends a password reset email to the provided [email].
-  /// Optionally allows specifying a [redirectTo] url to redirect
-  /// the user to after resetting their password.
-  Future<void> sendPasswordResetEmail({
-    required String email,
-    String? redirectTo,
-  }) async {
-    try {
-      await _authenticationClient.sendPasswordResetEmail(
-        email: email,
-        redirectTo: redirectTo,
-      );
-    } on SendPasswordResetEmailFailure {
-      rethrow;
-    } catch (error, stackTrace) {
-      Error.throwWithStackTrace(
-        SendPasswordResetEmailFailure(error),
-        stackTrace,
-      );
-    }
-  }
-
   /// Starts a password reset for [usernameOrEmail] and emails a one-time code.
   Future<({String continuationToken, int codeLength})> resetPasswordSendCode({
     required String usernameOrEmail,
@@ -236,27 +185,6 @@ class UserRepository implements UserBaseRepository {
       rethrow;
     } catch (error, stackTrace) {
       Error.throwWithStackTrace(ResetPasswordFailure(error), stackTrace);
-    }
-  }
-
-  /// Resets the password for the user with the given [email]
-  /// using the provided [token]. Updates the password to
-  /// the new [newPassword].
-  Future<void> resetPassword({
-    required String token,
-    required String email,
-    required String newPassword,
-  }) async {
-    try {
-      await _authenticationClient.resetPassword(
-        token: token,
-        email: email,
-        newPassword: newPassword,
-      );
-    } on ResetPasswordFailure {
-      rethrow;
-    } catch (error, stackTrace) {
-      Error.throwWithStackTrace(ResetPasswordFailure, stackTrace);
     }
   }
 
@@ -589,10 +517,6 @@ class UserRepository implements UserBaseRepository {
   @override
   Stream<Set<String>> blockedPeersOf({required String userId}) =>
       _databaseClient.blockedPeersOf(userId: userId);
-
-  @override
-  Future<void> changePassword({required String newPassword}) =>
-      _databaseClient.changePassword(newPassword: newPassword);
 
   @override
   Future<void> updatePrivacy({

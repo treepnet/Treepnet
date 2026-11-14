@@ -14,10 +14,8 @@ import 'package:user_repository/user_repository.dart';
 /// ready-to-send message they can share anywhere.
 ///
 /// The code is their handle, which whoever they invite types into the redeem
-/// dialog. A clickable `https://` invite link needs a domain we own (so it can
-/// serve `assetlinks.json`); until then the code is the thing that actually
-/// works everywhere. `treepnet://invite/<handle>` still opens the app for
-/// people who already have it.
+/// dialog; the invite link (`https://treepnet.com/invite/<handle>`, also as a
+/// QR code) opens the app, or the store, with it filled in.
 /// {@endtemplate}
 class ReferralPage extends StatelessWidget {
   /// {@macro referral_page}

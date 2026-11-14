@@ -481,14 +481,6 @@
       }
     }
   },
-  "networkError": "A network error has occurred.\nCheck your connection and try again.",
-  "@networkError": {
-    "description": "Text displayed when a network error occurs."
-  },
-  "networkErrorButton": "Try Again",
-  "@networkErrorButton": {
-    "description": "Text displayed on the refresh button when a network error occurs."
-  },
   "likedByLabel": "Liked by <username>{userName}</username>{and}<count>{count}</count>",
   "@likedByLabel": {
     "placeholders": {
@@ -757,7 +749,6 @@
   "sendCodeAgainText": "Send the code again",
   "backToLoginText": "Back to login",
   "incorrectCredentialsText": "Wrong username, email or password.",
-  "userNotFoundText": "User with this email not found!",
   "postArchivedText": "Post archived",
   "storiesText": "Stories",
   "successfullyCreatedPostText": "Successfully created post!",
@@ -774,7 +765,6 @@
   "highlightNameText": "Highlight name",
   "addLocationText": "Add location",
   "newHighlightText": "New highlight",
-  "tryToSignUpText": "Try to sign up.",
   "tryAgainLaterText": "Try again later.",
   "internetConnectionErrorText": "Internet connection error!",
   "checkInternetConnectionText": "Check your internet connection and try again.",

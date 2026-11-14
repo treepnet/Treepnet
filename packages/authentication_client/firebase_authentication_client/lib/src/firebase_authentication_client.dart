@@ -224,13 +224,11 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
   Future<({String continuationToken, int codeLength})> signUpSendCode({
     required String email,
     required String password,
-    required String fullName,
   }) async {
     try {
       final res = await _api.post('/signup/send-code', <String, dynamic>{
         'email': email.trim(),
         'password': password,
-        'fullName': fullName,
         // The code email is written in it.
         'lang': AuthServiceApi.language,
       });
@@ -273,23 +271,6 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
     } catch (error, stackTrace) {
       Error.throwWithStackTrace(SignUpWithPasswordFailure(error), stackTrace);
     }
-  }
-
-  /// Kept for the [AuthenticationClient] contract; Treepnet's sign-up is the
-  /// three-step [signUpSendCode] / [signUpVerifyCode] flow instead.
-  @override
-  Future<void> signUpWithPassword({
-    required String password,
-    required String fullName,
-    required String username,
-    String? avatarUrl,
-    String? email,
-    String? phone,
-    String? pushToken,
-  }) async {
-    throw UnsupportedError(
-      'Use signUpSendCode/signUpVerifyCode for the native sign-up flow.',
-    );
   }
 
   // --- Password reset -----------------------------------------------------
@@ -339,22 +320,6 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
       Error.throwWithStackTrace(ResetPasswordFailure(error), stackTrace);
     }
   }
-
-  @override
-  Future<void> sendPasswordResetEmail({
-    required String email,
-    String? redirectTo,
-  }) async => throw const SendPasswordResetEmailFailure(
-    'Use resetPasswordSendCode for the native reset flow.',
-  );
-
-  @override
-  Future<void> resetPassword({
-    required String token,
-    required String email,
-    required String newPassword,
-  }) async =>
-      throw const ResetPasswordFailure('Password reset is not available yet.');
 
   // --- Sign out -----------------------------------------------------------
 

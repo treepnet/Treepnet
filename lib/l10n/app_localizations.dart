@@ -1191,18 +1191,6 @@ abstract class AppLocalizations {
   /// **'{years, plural, =1{1 year ago} other{{years} years ago}}'**
   String yearsAgo(int years);
 
-  /// Text displayed when a network error occurs.
-  ///
-  /// In en, this message translates to:
-  /// **'A network error has occurred.\nCheck your connection and try again.'**
-  String get networkError;
-
-  /// Text displayed on the refresh button when a network error occurs.
-  ///
-  /// In en, this message translates to:
-  /// **'Try Again'**
-  String get networkErrorButton;
-
   /// No description provided for @likedByLabel.
   ///
   /// In en, this message translates to:
@@ -2247,12 +2235,6 @@ abstract class AppLocalizations {
   /// **'Wrong username, email or password.'**
   String get incorrectCredentialsText;
 
-  /// No description provided for @userNotFoundText.
-  ///
-  /// In en, this message translates to:
-  /// **'User with this email not found!'**
-  String get userNotFoundText;
-
   /// No description provided for @postArchivedText.
   ///
   /// In en, this message translates to:
@@ -2348,12 +2330,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'New highlight'**
   String get newHighlightText;
-
-  /// No description provided for @tryToSignUpText.
-  ///
-  /// In en, this message translates to:
-  /// **'Try to sign up.'**
-  String get tryToSignUpText;
 
   /// No description provided for @tryAgainLaterText.
   ///

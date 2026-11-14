@@ -728,13 +728,6 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get networkError =>
-      'Произошла сетевая ошибка.\nПроверьте подключение и повторите попытку.';
-
-  @override
-  String get networkErrorButton => 'Попробуйте ещё раз';
-
-  @override
   String likedByLabel(String userName, String and, String count) {
     return 'Нравится <username>$userName</username>$and<count>$count</count>';
   }
@@ -1342,9 +1335,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Неверное имя пользователя, email или пароль.';
 
   @override
-  String get userNotFoundText => 'Пользователь с таким email не найден!';
-
-  @override
   String get postArchivedText => 'Пост архивирован';
 
   @override
@@ -1391,9 +1381,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get newHighlightText => 'Новая подборка';
-
-  @override
-  String get tryToSignUpText => 'Попробуйте зарегистрироваться.';
 
   @override
   String get tryAgainLaterText => 'Попробуйте позже.';

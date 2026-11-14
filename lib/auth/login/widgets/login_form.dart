@@ -41,10 +41,6 @@ class _LoginFormState extends State<LoginForm> {
               l10n.incorrectCredentialsText,
               null,
             ),
-            LogInSubmissionStatus.userNotFound => (
-              l10n.userNotFoundText,
-              l10n.tryToSignUpText,
-            ),
             LogInSubmissionStatus.networkError => (
               l10n.internetConnectionErrorText,
               l10n.checkInternetConnectionText,

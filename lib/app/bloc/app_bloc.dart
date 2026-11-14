@@ -37,13 +37,9 @@ class AppBloc extends Bloc<AppEvent, AppState> {
 
   void _onUserChanged(AppUserChanged event, Emitter<AppState> emit) {
     final user = event.user;
-    // Push tokens are gone with Firebase: on Android a notification can only
-    // reach a closed app through Google's FCM, and nothing was sending them
-    // anyway. In-app notifications still arrive — they come from the database.
     void authenticate() => emit(AppState.authenticated(user));
 
     switch (state.status) {
-      case AppStatus.onboardingRequired:
       case AppStatus.authenticated:
       case AppStatus.unauthenticated:
         if (user.isAnonymous) {

@@ -12,9 +12,6 @@ enum AppStatus {
   /// The user is not authenticated or the authentication status is unknown.
   /// Show `AuthPage`.
   unauthenticated,
-
-  /// The authentication status is unknown. Show `SplashPage`.
-  onboardingRequired,
 }
 
 class AppState extends Equatable {
@@ -22,9 +19,6 @@ class AppState extends Equatable {
 
   const AppState.authenticated(User user)
     : this(status: AppStatus.authenticated, user: user);
-
-  const AppState.onboardingRequired(User user)
-    : this(status: AppStatus.onboardingRequired, user: user);
 
   const AppState.unauthenticated()
     : this(status: AppStatus.unauthenticated, user: User.anonymous);

@@ -25,10 +25,6 @@ enum LogInSubmissionStatus {
   /// submitted login form with invalid credentials.
   invalidCredentials,
 
-  /// [LogInSubmissionStatus.userNotFound] indicates that user with provided
-  /// credentials was not found in database.
-  userNotFound,
-
   /// [LogInSubmissionStatus.loading] indicates that user has no internet
   /// connection,during network request.
   networkError,
@@ -41,10 +37,8 @@ enum LogInSubmissionStatus {
   bool get isInvalidCredentials =>
       this == LogInSubmissionStatus.invalidCredentials;
   bool get isNetworkError => this == LogInSubmissionStatus.networkError;
-  bool get isUserNotFound => this == LogInSubmissionStatus.userNotFound;
   bool get isError =>
       this == LogInSubmissionStatus.error ||
-      isUserNotFound ||
       isNetworkError ||
       isInvalidCredentials;
 }

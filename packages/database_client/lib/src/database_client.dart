@@ -76,9 +76,6 @@ abstract class UserBaseRepository {
   /// Streams the ids of everyone [userId] blocked or was blocked by.
   Stream<Set<String>> blockedPeersOf({required String userId});
 
-  /// Changes the currently authenticated user's password to [newPassword].
-  Future<void> changePassword({required String newPassword});
-
   /// Sets whether the profile identified by [userId] is [isPrivate].
   Future<void> updatePrivacy({
     required String userId,
@@ -3112,15 +3109,6 @@ SELECT blocker_id FROM blocked_users WHERE blocked_id = ?1''',
     'WHERE blocker_id = ? ORDER BY created_at DESC',
     [userId],
   );
-
-  @override
-  Future<void> changePassword({required String newPassword}) async {
-    // Not in the app: a password is changed with "Forgot password?" on the
-    // sign-in screen.
-    throw UnsupportedError(
-      'Password changes go through "Forgot password?" on the sign-in screen.',
-    );
-  }
 
   @override
   Future<void> updatePrivacy({

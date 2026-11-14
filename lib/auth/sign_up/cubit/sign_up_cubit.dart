@@ -218,11 +218,6 @@ class SignUpCubit extends Cubit<SignupState> {
       final result = await _userRepository.signUpSendCode(
         email: email.value,
         password: state.password.value,
-        // The form no longer asks for a name, so the handle stands in as the
-        // display name rather than an empty string.
-        fullName: state.fullName.value.trim().isEmpty
-            ? state.username.value.trim()
-            : state.fullName.value.trim(),
       );
       if (isClosed) return;
       emit(
@@ -267,9 +262,6 @@ class SignUpCubit extends Cubit<SignupState> {
       final result = await _userRepository.signUpSendCode(
         email: state.email.value.trim(),
         password: state.password.value,
-        fullName: state.fullName.value.trim().isEmpty
-            ? state.username.value.trim()
-            : state.fullName.value.trim(),
       );
       if (isClosed) return;
       emit(

@@ -22,27 +22,13 @@ enum SignUpSubmissionStatus {
   /// submitted signup form and is currently waiting for response from backend.
   success,
 
-  /// [SignUpSubmissionStatus.emailAlreadyRegistered] indicates that email,
-  /// provided by user, is occupied by another one in database.
-  emailAlreadyRegistered,
-
-  /// [SignUpSubmissionStatus.inProgress] indicates that user had no internet
-  /// connection during network request.
-  networkError,
-
   /// [SignUpSubmissionStatus.error] indicates something went wrong when user
   /// tried to sign up.
   error;
 
   bool get isSuccess => this == SignUpSubmissionStatus.success;
   bool get isLoading => this == SignUpSubmissionStatus.inProgress;
-  bool get isEmailRegistered =>
-      this == SignUpSubmissionStatus.emailAlreadyRegistered;
-  bool get isNetworkError => this == SignUpSubmissionStatus.networkError;
-  bool get isError =>
-      this == SignUpSubmissionStatus.error ||
-      isNetworkError ||
-      isEmailRegistered;
+  bool get isError => this == SignUpSubmissionStatus.error;
 }
 
 /// {@template signup_state}

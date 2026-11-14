@@ -120,10 +120,9 @@ class _FeedViewState extends State<FeedView> {
   /// because it is a one-shot query rather than a `watch`, nothing ever asks
   /// again. That is why the feed sat blank until a manual pull-to-refresh.
   ///
-  /// Watches the status stream rather than `waitForFirstSync`: the local
-  /// database is not wiped between accounts, so after a fresh registration on a
-  /// device that had synced before, `hasSynced` was already true and the wait
-  /// returned instantly — long before the new account's own rows arrived.
+  /// Watches the status stream rather than `waitForFirstSync`, which can
+  /// return before this account's own rows have arrived (it only says some
+  /// sync has completed).
   Future<void> _refetchWhenFirstSyncLands() async {
     final db = context.read<PowerSyncRepository>().db();
     DateTime? lastSeen = db.currentStatus.lastSyncedAt;

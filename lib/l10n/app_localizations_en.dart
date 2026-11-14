@@ -715,13 +715,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get networkError =>
-      'A network error has occurred.\nCheck your connection and try again.';
-
-  @override
-  String get networkErrorButton => 'Try Again';
-
-  @override
   String likedByLabel(String userName, String and, String count) {
     return 'Liked by <username>$userName</username>$and<count>$count</count>';
   }
@@ -1321,9 +1314,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get incorrectCredentialsText => 'Wrong username, email or password.';
 
   @override
-  String get userNotFoundText => 'User with this email not found!';
-
-  @override
   String get postArchivedText => 'Post archived';
 
   @override
@@ -1370,9 +1360,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get newHighlightText => 'New highlight';
-
-  @override
-  String get tryToSignUpText => 'Try to sign up.';
 
   @override
   String get tryAgainLaterText => 'Try again later.';

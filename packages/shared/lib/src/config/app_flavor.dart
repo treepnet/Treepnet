@@ -28,15 +28,5 @@ class AppFlavor extends AppEnv {
       Flavor.production => EnvProd.powersyncUrl,
       Flavor.staging => EnvProd.powersyncUrl,
     },
-    Env.iOSClientId => switch (flavor) {
-      Flavor.development => EnvDev.iOSClientId,
-      Flavor.production => EnvProd.iOSClientId,
-      Flavor.staging => EnvProd.iOSClientId,
-    },
-    Env.webClientId => switch (flavor) {
-      Flavor.development => EnvDev.webClientId,
-      Flavor.production => EnvProd.webClientId,
-      Flavor.staging => EnvProd.webClientId,
-    },
   };
 }
