@@ -457,7 +457,16 @@ class GeoRegions {
   /// once loaded made every `FutureBuilder` on it flip back to "waiting" on
   /// each rebuild, tearing down and re-creating its subtree — which reset the
   /// travel map's camera on every tap.
-  Future<void> load() => _loading ??= _load();
+  ///
+  /// A failure isn't kept: the next call tries again. It was handed back for
+  /// the rest of the session, and a post can't be made without a place.
+  Future<void> load() => _loading ??= _load().catchError((
+    Object error,
+    StackTrace stack,
+  ) {
+    _loading = null;
+    Error.throwWithStackTrace(error, stack);
+  });
 
   /// Reading ~400k points and measuring ~4,500 provinces for the country
   /// labels takes a mid-range phone a few seconds of CPU. It used to run on

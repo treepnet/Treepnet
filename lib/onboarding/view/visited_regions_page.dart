@@ -30,8 +30,9 @@ class _VisitedRegionsPageState extends State<VisitedRegionsPage> {
   LatLngBounds? _focus;
   int _focusToken = 0;
 
-  /// Captured once: a future recreated per build would reset the map.
-  late final Future<void> _geoReady = GeoRegions.instance.load();
+  /// Captured once: a future recreated per build would reset the map. Made
+  /// again only by Retry, after a failed load.
+  late Future<void> _geoReady = GeoRegions.instance.load();
   bool _saving = false;
 
   /// The opening view: Central Asia framed, with the surrounding countries
@@ -101,6 +102,13 @@ class _VisitedRegionsPageState extends State<VisitedRegionsPage> {
             builder: (context, snap) {
               if (snap.connectionState != ConnectionState.done) {
                 return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                return LoadFailed(
+                  onRetry: () => setState(
+                    () => _geoReady = GeoRegions.instance.load(),
+                  ),
+                );
               }
               // The first frame needs a camera box too, not just after a tap.
               _focus ??= _centralAsia;

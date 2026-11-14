@@ -213,13 +213,18 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     return fallback;
   }
 
-  late final Future<void> _future = _init();
+  late Future<void> _future = _init();
+
+  /// The map's data failed to load (rare: memory, a file read): the page
+  /// says so and loads again on Retry, instead of a dead tick.
+  void _retry() => setState(() => _future = _init());
 
   /// The picked spot and the scale (as a flat-map zoom level), kept current
   /// on every globe frame — they're read on confirm. The globe opens whole,
   /// over your own travels like the profile globe, and reports its centre
   /// right away; Central Europe only until then.
   double _zoom = 3;
+
   /// Where the picker opens: central Europe, on land. The globe used to open
   /// on 0°, 0° (its default), in the sea off Africa, so the first thing it
   /// said was "Move the pin onto land".
@@ -414,6 +419,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
               ),
             );
           }
+          if (snapshot.hasError) return LoadFailed(onRetry: _retry);
           return Stack(
             children: [
               // Your own travel map on the globe: shaded regions, a pin for
