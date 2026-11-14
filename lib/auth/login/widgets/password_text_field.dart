@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/auth/field_error_l10n.dart';
 import 'package:treepnet/auth/login/cubit/login_cubit.dart';
 import 'package:treepnet/l10n/l10n.dart';
-import 'package:shared/shared.dart';
 
 class PasswordTextField extends StatefulWidget {
   const PasswordTextField({super.key});
@@ -14,7 +13,6 @@ class PasswordTextField extends StatefulWidget {
 }
 
 class _PasswordTextFieldState extends State<PasswordTextField> {
-  final _debouncer = Debouncer();
   final _focusNode = FocusNode();
 
   @override
@@ -30,7 +28,7 @@ class _PasswordTextFieldState extends State<PasswordTextField> {
 
   @override
   void dispose() {
-    _debouncer.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -83,8 +81,9 @@ class _PasswordTextFieldState extends State<PasswordTextField> {
       enabledBorder: inputBorder,
       focusedBorder: focusedInputBorder,
       onFieldSubmitted: (_) => context.read<LoginCubit>().onSubmit(),
-      onChanged: (v) =>
-          _debouncer.run(() => context.read<LoginCubit>().onPasswordChanged(v)),
+      // Straight away, not 150 ms later: "Done" pressed right after the last
+      // key sent the password without it, and it read as a wrong password.
+      onChanged: (v) => context.read<LoginCubit>().onPasswordChanged(v),
       errorText: passwordErrorText(context, passwordError),
       suffixIcon: Tappable.faded(
         backgroundColor: AppColors.transparent,

@@ -1,7 +1,6 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:shared/shared.dart';
 import 'package:treepnet/auth/field_error_l10n.dart';
 import 'package:treepnet/auth/login/cubit/login_cubit.dart';
 import 'package:treepnet/l10n/l10n.dart';
@@ -16,7 +15,6 @@ class UsernameTextField extends StatefulWidget {
 }
 
 class _UsernameTextFieldState extends State<UsernameTextField> {
-  final _debouncer = Debouncer();
   final _focusNode = FocusNode();
 
   @override
@@ -32,7 +30,6 @@ class _UsernameTextFieldState extends State<UsernameTextField> {
 
   @override
   void dispose() {
-    _debouncer.dispose();
     _focusNode.dispose();
     super.dispose();
   }
@@ -87,8 +84,9 @@ class _UsernameTextFieldState extends State<UsernameTextField> {
       ),
       enabledBorder: inputBorder,
       focusedBorder: focusedInputBorder,
-      onChanged: (v) =>
-          _debouncer.run(() => context.read<LoginCubit>().onUsernameChanged(v)),
+      // Straight away, so a quick submit has the whole name (see the
+      // password field).
+      onChanged: (v) => context.read<LoginCubit>().onUsernameChanged(v),
       errorText: signInIdErrorText(context, usernameError),
     );
   }
