@@ -6,6 +6,7 @@ import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
+import 'package:treepnet/app/services/fresh_account.dart';
 import 'package:treepnet/auth/auth.dart';
 import 'package:treepnet/chat/chat.dart';
 import 'package:treepnet/feed/post/post.dart';
@@ -600,6 +601,11 @@ class AppRouter {
       if (appBloc.state.user.needsOnboarding) {
         return onboarding ? null : AppRoutes.onboarding.route;
       }
+      // A brand-new account whose profile hasn't arrived yet: the intro,
+      // which waits for it, rather than a moment of feed first.
+      if (FreshAccount.instance.active && !appBloc.state.user.hasProfile) {
+        return onboarding ? null : AppRoutes.onboarding.route;
+      }
 
       // Done with it (or came back to a stamped profile): let them through.
       if (onboarding) return AppRoutes.feed.route;
@@ -609,7 +615,10 @@ class AppRouter {
 
       return null;
     },
-    refreshListenable: GoRouterAppBlocRefreshStream(appBloc.stream),
+    refreshListenable: Listenable.merge([
+      GoRouterAppBlocRefreshStream(appBloc.stream),
+      FreshAccount.instance,
+    ]),
   );
 }
 

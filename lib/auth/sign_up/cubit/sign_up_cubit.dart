@@ -4,6 +4,7 @@ import 'package:firebase_authentication_client/firebase_authentication_client.da
     show FirebaseAuthenticationClient;
 import 'package:equatable/equatable.dart';
 import 'package:form_fields/form_fields.dart';
+import 'package:treepnet/app/services/fresh_account.dart';
 import 'package:treepnet/auth/auth_error_text.dart';
 import 'package:treepnet/referral/pending_referral.dart';
 import 'package:user_repository/user_repository.dart';
@@ -298,6 +299,9 @@ class SignUpCubit extends Cubit<SignupState> {
     }
 
     emit(state.copyWith(submissionStatus: SignUpSubmissionStatus.inProgress));
+    // Before signing in: the router sends the new account to the intro, not
+    // the feed, from its first look.
+    FreshAccount.instance.start();
     try {
       await _userRepository.signUpVerifyCode(
         continuationToken: token,
@@ -314,6 +318,7 @@ class SignUpCubit extends Cubit<SignupState> {
       if (isClosed) return;
       emit(state.copyWith(submissionStatus: SignUpSubmissionStatus.success));
     } catch (e, stackTrace) {
+      FreshAccount.instance.end();
       // Someone took the username since the first step: back to it, where
       // it can be changed.
       if (authErrorCode(e) == 'username_taken') {

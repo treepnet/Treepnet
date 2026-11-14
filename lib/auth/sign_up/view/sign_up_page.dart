@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/auth/auth_error_text.dart';
+import 'package:treepnet/auth/cubit/auth_cubit.dart';
 import 'package:treepnet/auth/resend_code_button.dart';
 import 'package:treepnet/auth/sign_up/cubit/sign_up_cubit.dart';
 import 'package:treepnet/auth/sign_up/widgets/widgets.dart';
@@ -30,8 +31,30 @@ class SignUpPage extends StatelessWidget {
 class SignUpView extends StatelessWidget {
   const SignUpView({super.key});
 
+  /// System Back: a step back, and from the first step to sign-in. The
+  /// auth page is the root, so it closed the app and lost what was typed.
+  void _back(BuildContext context) {
+    final cubit = context.read<SignUpCubit>();
+    if (cubit.state.submissionStatus.isLoading) return;
+    if (cubit.state.step == SignUpStep.details) {
+      context.read<AuthCubit>().changeAuth(showLogin: true);
+    } else {
+      cubit.backStep();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _back(context);
+      },
+      child: _form(context),
+    );
+  }
+
+  Widget _form(BuildContext context) {
     return TreepNetAmbientBackground(
       child: BlocConsumer<SignUpCubit, SignupState>(
         listenWhen: (p, c) => p.submissionStatus != c.submissionStatus,

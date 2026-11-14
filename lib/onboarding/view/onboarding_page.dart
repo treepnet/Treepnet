@@ -1,4 +1,7 @@
+import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:treepnet/app/app.dart';
 import 'package:treepnet/onboarding/view/visited_regions_page.dart';
 
 /// {@template onboarding_page}
@@ -21,6 +24,21 @@ class OnboardingPage extends StatelessWidget {
   /// {@macro onboarding_page}
   const OnboardingPage({super.key});
 
+  /// Straight after sign-up the profile may still be on its way
+  /// (FreshAccount): wait for it here, since finishing stamps it.
   @override
-  Widget build(BuildContext context) => const VisitedRegionsPage();
+  Widget build(BuildContext context) {
+    final hasProfile = context.select(
+      (AppBloc b) => b.state.user.hasProfile,
+    );
+    if (!hasProfile) {
+      return const TreepNetAmbientBackground(
+        child: AppScaffold(
+          backgroundColor: AppColors.transparent,
+          body: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+    return const VisitedRegionsPage();
+  }
 }
