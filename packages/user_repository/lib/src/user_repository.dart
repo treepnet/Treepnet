@@ -535,6 +535,7 @@ class UserRepository implements UserBaseRepository {
     String? gender,
     String? lang,
     bool clearAvatar = false,
+    bool clearWebsite = false,
   }) =>
       _databaseClient.updateUser(
         fullName: fullName,
@@ -550,6 +551,7 @@ class UserRepository implements UserBaseRepository {
         gender: gender,
         lang: lang,
         clearAvatar: clearAvatar,
+        clearWebsite: clearWebsite,
       );
 
   @override

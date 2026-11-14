@@ -3,10 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/user_profile/widgets/user_profile_edit.dart';
 
-/// The link prefix (`t.me/`, `instagram.com/`, `https://`) is decoration, not
-/// text: you cannot delete it, the cursor never enters it, and — the part that
-/// actually bit — it must not eat into the character budget. `instagram.com/`
-/// alone would have burned 14 of a 16-char field.
+/// The link prefix (`https://`) is decoration, not text: you cannot delete
+/// it, the cursor never enters it, and — the part that actually bit — it must
+/// not eat into the character budget.
 void main() {
   Widget wrap(Widget child) => MaterialApp(
     localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -21,58 +20,56 @@ void main() {
       wrap(
         ProfileInfoInput(
           value: '',
-          label: 'Instagram',
+          label: 'Link',
           readOnly: false,
-          infoType: ProfileEditInfoType.instagram,
-          prefixText: 'instagram.com/',
+          infoType: ProfileEditInfoType.website,
+          prefixText: 'https://',
           textController: controller,
         ),
       ),
     );
     await tester.pump();
 
-    await tester.enterText(find.byType(TextField), 'hikmatcoder');
+    await tester.enterText(find.byType(TextField), 't.me/hikmatcoder');
     await tester.pump();
 
-    // What gets stored is the handle alone.
-    expect(controller.text, 'hikmatcoder');
-    expect(controller.text.contains('instagram.com/'), isFalse);
+    // What gets stored is the address alone.
+    expect(controller.text, 't.me/hikmatcoder');
+    expect(controller.text.contains('https://'), isFalse);
     // And the prefix is on screen next to it.
-    expect(find.text('instagram.com/'), findsOneWidget);
+    expect(find.text('https://'), findsOneWidget);
   });
 
-  testWidgets('the counter measures the handle, not the prefix',
+  testWidgets('the counter measures the address, not the prefix',
       (tester) async {
     final controller = TextEditingController();
     await tester.pumpWidget(
       wrap(
         ProfileInfoInput(
           value: '',
-          label: 'Instagram',
+          label: 'Link',
           readOnly: false,
-          infoType: ProfileEditInfoType.instagram,
-          prefixText: 'instagram.com/',
+          infoType: ProfileEditInfoType.website,
+          prefixText: 'https://',
           textController: controller,
         ),
       ),
     );
     await tester.pump();
 
-    // Instagram allows 30; the prefix must not show up as 14 of them.
-    expect(find.text('0/30'), findsOneWidget);
+    // A link allows 100; the prefix must not show up as 8 of them.
+    expect(find.text('0/100'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), 'abc');
     await tester.pump();
 
-    expect(find.text('3/30'), findsOneWidget);
+    expect(find.text('3/100'), findsOneWidget);
   });
 
   testWidgets('each link field gets the limit its service allows',
       (tester) async {
     // A single 16 for everything used to cut real handles short.
     for (final (type, limit) in const [
-      (ProfileEditInfoType.telegram, '0/32'),
-      (ProfileEditInfoType.instagram, '0/30'),
       (ProfileEditInfoType.website, '0/100'),
       (ProfileEditInfoType.bio, '0/150'),
       (ProfileEditInfoType.fullName, '0/40'),

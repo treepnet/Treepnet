@@ -371,25 +371,8 @@ class _ProfileBioBlock extends StatelessWidget {
             ],
           ],
         ),
-        // Whatever the user actually filled in — the link row used to be
-        // hardcoded to `t.me/<app username>`, so editing it changed nothing
-        // here and looked like the edit had been lost.
-        if (user.telegram != null && user.telegram!.trim().isNotEmpty) ...[
-          const Gap.v(AppSpacing.xs),
-          _LinkRow(
-            icon: Icons.send,
-            label: 't.me/${user.telegram}',
-            url: 'https://t.me/${user.telegram}',
-          ),
-        ],
-        if (user.instagram != null && user.instagram!.trim().isNotEmpty) ...[
-          const Gap.v(AppSpacing.xs),
-          _LinkRow(
-            icon: Icons.camera_alt_outlined,
-            label: 'instagram.com/${user.instagram}',
-            url: 'https://instagram.com/${user.instagram}',
-          ),
-        ],
+        // The one link the profile has (Telegram, Instagram, a site...):
+        // whatever the user filled in.
         if (user.website != null && user.website!.trim().isNotEmpty) ...[
           const Gap.v(AppSpacing.xs),
           _LinkRow(

@@ -48,6 +48,7 @@ abstract class UserBaseRepository {
     String? gender,
     String? lang,
     bool clearAvatar = false,
+    bool clearWebsite = false,
   });
 
   /// Updates the [bio] ("About") text of the profile identified by [userId],
@@ -3001,6 +3002,7 @@ ORDER BY c1.created_at ASC
     String? password,
     String? lang,
     bool clearAvatar = false,
+    bool clearWebsite = false,
   }) async {
     // Writes straight to the `profiles` table (PowerSync uploads the change).
     // The password and sign-in live in the auth service, not here.
@@ -3021,7 +3023,10 @@ ORDER BY c1.created_at ASC
       if (bio != null) 'bio': bio,
       if (birthday != null) 'birthday': birthday,
       if (telegram != null) 'telegram': telegram,
-      if (website != null) 'website': website,
+      if (clearWebsite)
+        'website': null
+      else if (website != null)
+        'website': website,
       if (instagram != null) 'instagram': instagram,
       if (gender != null) 'gender': gender,
       if (lang != null) 'lang': lang,

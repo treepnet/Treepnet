@@ -199,16 +199,17 @@ class _UserProfileEditViewState extends State<UserProfileEditView> {
                   ProfileInfoInput(
                     value: bio ?? '',
                     label: context.l10n.bioText,
-                    description: bio ?? '',
                     infoType: ProfileEditInfoType.bio,
                   ),
                   _EditSectionHeader(context.l10n.linksSectionText),
                   // A single free-form link (Instagram, Telegram, a website —
                   // whatever the user wants). Stored in `website`.
                   ProfileInfoInput(
-                    value: profile.website == null
+                    // A link cleared before this was kept as '': it read
+                    // "https://" here.
+                    value: bareLink(profile.website ?? '').isEmpty
                         ? ''
-                        : 'https://${profile.website}',
+                        : 'https://${bareLink(profile.website!)}',
                     label: context.l10n.linkText,
                     description: 'https://example.com',
                     infoType: ProfileEditInfoType.website,
@@ -272,19 +273,27 @@ class ProfileInfoInput extends StatefulWidget {
 int _maxLengthFor(ProfileEditInfoType? type) => switch (type) {
   ProfileEditInfoType.fullName => 40,
   ProfileEditInfoType.bio => 150,
-  ProfileEditInfoType.telegram => 32,
-  ProfileEditInfoType.instagram => 30,
   ProfileEditInfoType.website => 100,
   _ => 16,
 };
 
 /// The fixed link prefix shown inside the field, if the field is a link.
 String? prefixForInfoType(ProfileEditInfoType? type) => switch (type) {
-  ProfileEditInfoType.telegram => 't.me/',
-  ProfileEditInfoType.instagram => 'instagram.com/',
   ProfileEditInfoType.website => 'https://',
   _ => null,
 };
+
+/// A link as stored: trimmed, without `https://` / `http://` (the field draws
+/// that beside it, and a pasted full address showed as
+/// "https://https://..."). The rest is kept as typed — `www.`, the path, the
+/// query.
+String bareLink(String value) {
+  final v = value.trim();
+  for (final scheme in ['https://', 'http://']) {
+    if (v.toLowerCase().startsWith(scheme)) return v.substring(scheme.length);
+  }
+  return v;
+}
 
 class _ProfileInfoInputState extends State<ProfileInfoInput> {
   late TextEditingController _textController;
@@ -370,9 +379,7 @@ enum ProfileEditInfoType {
   username,
   fullName,
   bio,
-  telegram,
   website,
-  instagram,
   gender;
 
   /// Whether changing this field needs a confirmation prompt.
@@ -448,12 +455,14 @@ class _ProfileInfoEditViewState extends State<ProfileInfoEditView> {
   @override
   void initState() {
     super.initState();
-    // The row hands over a display link (`t.me/x`); the field edits the handle
-    // alone, with the prefix drawn as decoration beside it.
-    final seed = _stripHandle(
-      widget.infoValue ?? '',
-      prefixForInfoType(widget.infoType) ?? '',
-    );
+    // The link row hands over `https://x`; the field edits the address
+    // alone, with the prefix drawn as decoration beside it. Every other field
+    // as it is: the link clean-up ran on all of them, and cut a bio or a name
+    // at its first "/" or "?" (saving it shortened).
+    final value = widget.infoValue ?? '';
+    final seed = widget.infoType == ProfileEditInfoType.website
+        ? bareLink(value)
+        : value;
     _initialValue = ValueNotifier(seed);
     _valueController = TextEditingController(text: seed);
 
@@ -462,9 +471,7 @@ class _ProfileInfoEditViewState extends State<ProfileInfoEditView> {
         ProfileEditInfoType.fullName => context.l10n.nameText.toLowerCase(),
         ProfileEditInfoType.bio => context.l10n.bioText.toLowerCase(),
         ProfileEditInfoType.username => context.l10n.usernameText.toLowerCase(),
-        ProfileEditInfoType.telegram => 'telegram',
         ProfileEditInfoType.website => 'website',
-        ProfileEditInfoType.instagram => 'instagram',
         ProfileEditInfoType.gender => 'gender',
       };
     });
@@ -475,21 +482,6 @@ class _ProfileInfoEditViewState extends State<ProfileInfoEditView> {
     _initialValue.dispose();
     _valueController.dispose();
     super.dispose();
-  }
-
-  /// Stores a handle bare: people paste `t.me/x`, `@x` or a full URL, and all
-  /// of them mean the same account.
-  String _stripHandle(String value, String host) {
-    var v = value.trim();
-    for (final prefix in ['https://', 'http://', 'www.', host, '@']) {
-      if (prefix.isEmpty) continue;
-      if (v.toLowerCase().startsWith(prefix)) v = v.substring(prefix.length);
-    }
-    // A website keeps its path (`example.com/about`); a handle never has one.
-    if (widget.infoType == ProfileEditInfoType.website) {
-      return v.split('?').first;
-    }
-    return v.split('/').first.split('?').first;
   }
 
   /// Handles: lower-case letters, numbers, `.` and `_`, 6–16 chars — the same
@@ -518,14 +510,12 @@ class _ProfileInfoEditViewState extends State<ProfileInfoEditView> {
       case ProfileEditInfoType.bio:
         final id = users.currentUserId;
         if (id != null) await users.updateUserBio(userId: id, bio: value);
-      case ProfileEditInfoType.telegram:
-        await users.updateUser(telegram: _stripHandle(value, 't.me/'));
-      case ProfileEditInfoType.instagram:
-        await users.updateUser(
-          instagram: _stripHandle(value, 'instagram.com/'),
-        );
       case ProfileEditInfoType.website:
-        await users.updateUser(website: value);
+        // Cleared: no link at all (it was kept as '').
+        final link = bareLink(value);
+        await (link.isEmpty
+            ? users.updateUser(clearWebsite: true)
+            : users.updateUser(website: link));
       case ProfileEditInfoType.gender:
         await users.updateUser(gender: value);
       case ProfileEditInfoType.fullName:
