@@ -73,14 +73,18 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
   /// (accepted), and whether the profile has synced at all (the user's own
   /// and their followings' always have; anyone else's comes with [_scope]).
   bool? _blockedByOwner;
+  bool? _blockedByMe;
   bool? _following;
   bool _scopeSynced = false;
 
   ProfileAccess _accessFor(User user) {
     if (isOwner) return ProfileAccess.visible;
     final blocked = _blockedByOwner;
-    if (blocked == null) return ProfileAccess.loading;
-    if (blocked) return ProfileAccess.locked;
+    final blockedByMe = _blockedByMe;
+    if (blocked == null || blockedByMe == null) return ProfileAccess.loading;
+    // Your own block first: it is the one you can undo.
+    if (blockedByMe) return ProfileAccess.blockedByMe;
+    if (blocked) return ProfileAccess.blockedByOwner;
     // No profile yet: still syncing — or, once synced, there is none.
     if (user.isAnonymous) {
       return _scopeSynced ? ProfileAccess.visible : ProfileAccess.loading;
@@ -104,6 +108,16 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
         _userRepository.isBlocked(userId: _userId, otherUserId: me),
         onData: (blocked) {
           _blockedByOwner = blocked;
+          return state.copyWith(access: _accessFor(state.user));
+        },
+      ),
+      // The other way round: a profile you blocked looked like an empty
+      // public account (its posts are hidden from you) with a Follow button
+      // the server refused.
+      emit.forEach<bool>(
+        _userRepository.isBlocked(userId: me, otherUserId: _userId),
+        onData: (blocked) {
+          _blockedByMe = blocked;
           return state.copyWith(access: _accessFor(state.user));
         },
       ),

@@ -17,12 +17,14 @@ void main() {
   late _MockUserRepository users;
   late StreamController<User> profile;
   late StreamController<bool> blocked;
+  late StreamController<bool> blockedByMe;
   late StreamController<bool> following;
 
   setUp(() {
     users = _MockUserRepository();
     profile = StreamController<User>.broadcast();
     blocked = StreamController<bool>.broadcast();
+    blockedByMe = StreamController<bool>.broadcast();
     following = StreamController<bool>.broadcast();
     when(() => users.currentUserId).thenReturn(me);
     when(() => users.profileScope(any())).thenReturn(SyncScope.none());
@@ -31,6 +33,9 @@ void main() {
       () => users.isBlocked(userId: owner, otherUserId: me),
     ).thenAnswer((_) => blocked.stream);
     when(
+      () => users.isBlocked(userId: me, otherUserId: owner),
+    ).thenAnswer((_) => blockedByMe.stream);
+    when(
       () => users.followingStatus(userId: owner),
     ).thenAnswer((_) => following.stream);
   });
@@ -38,16 +43,19 @@ void main() {
   tearDown(() async {
     await profile.close();
     await blocked.close();
+    await blockedByMe.close();
     await following.close();
   });
 
-  Future<UserProfileBloc> open() async {
+  /// The profile, with the viewer not blocking its owner unless [iBlocked].
+  Future<UserProfileBloc> open({bool iBlocked = false}) async {
     final bloc = UserProfileBloc(
       userRepository: users,
       postsRepository: _MockPostsRepository(),
       userId: owner,
     )..add(const UserProfileSubscriptionRequested());
     await pumpEventQueue();
+    blockedByMe.add(iBlocked);
     return bloc;
   }
 
@@ -87,12 +95,22 @@ void main() {
     await bloc.close();
   });
 
-  test('blocked by the owner is locked, even when public', () async {
+  test('blocked by the owner is shut, even when public', () async {
     final bloc = await open();
     profile.add(const User(id: owner));
     following.add(true);
     blocked.add(true);
-    expect(await after(bloc), ProfileAccess.locked);
+    expect(await after(bloc), ProfileAccess.blockedByOwner);
+    await bloc.close();
+  });
+
+  test('a profile the viewer blocked says so, and opens on unblock', () async {
+    final bloc = await open(iBlocked: true);
+    profile.add(const User(id: owner));
+    blocked.add(false);
+    expect(await after(bloc), ProfileAccess.blockedByMe);
+    blockedByMe.add(false);
+    expect(await after(bloc), ProfileAccess.visible);
     await bloc.close();
   });
 

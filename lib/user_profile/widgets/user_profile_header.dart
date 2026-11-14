@@ -33,6 +33,11 @@ class UserProfileHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isOwner = context.select((UserProfileBloc b) => b.isOwner);
+    final blocked = context.select(
+      (UserProfileBloc b) =>
+          b.state.access == ProfileAccess.blockedByMe ||
+          b.state.access == ProfileAccess.blockedByOwner,
+    );
     final user$ = context.select((UserProfileBloc b) => b.state.user);
     final user = sponsoredPost == null
         ? user$
@@ -77,6 +82,10 @@ class UserProfileHeader extends StatelessWidget {
               // itself just shows the bio block (with its Invite friend
               // button — only ever on your own profile).
               _ProfileBioBlock(user: user, isOwner: true)
+            // Blocked either way: Follow and Message would only be refused
+            // (the server forbids both across a block).
+            else if (blocked)
+              _ProfileBioBlock(user: user)
             else
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,

@@ -4,9 +4,12 @@ enum UserProfileStatus { initial, userUpdated, userUpdateFailed }
 
 /// Whether the viewer sees the profile's map and posts: [visible] for its
 /// owner, a public account or an accepted follower; [locked] for a private
-/// account they don't follow, or when its owner blocked them; [loading] until
-/// that is known (rather than flashing the lock).
-enum ProfileAccess { loading, visible, locked }
+/// account they don't follow; [blockedByOwner] when its owner blocked them
+/// (shown as a private account, without Follow / Message: the block isn't
+/// revealed); [blockedByMe] when they blocked its owner (a notice with
+/// Unblock, no Follow / Message); [loading] until that is known (rather than
+/// flashing the lock).
+enum ProfileAccess { loading, visible, locked, blockedByOwner, blockedByMe }
 
 class UserProfileState extends Equatable {
   const UserProfileState._({

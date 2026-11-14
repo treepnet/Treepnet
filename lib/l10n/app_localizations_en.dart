@@ -1524,6 +1524,15 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String youBlockedUserText(String username) {
+    return 'You blocked @$username';
+  }
+
+  @override
+  String get youBlockedUserHintText =>
+      'Unblock them to see their profile, follow and message them.';
+
+  @override
   String get unblockAuthorText => 'Unblock author';
 
   @override

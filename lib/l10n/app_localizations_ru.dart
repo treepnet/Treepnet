@@ -1547,6 +1547,15 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
+  String youBlockedUserText(String username) {
+    return 'Вы заблокировали @$username';
+  }
+
+  @override
+  String get youBlockedUserHintText =>
+      'Разблокируйте, чтобы видеть профиль, подписаться и писать.';
+
+  @override
   String get unblockAuthorText => 'Разблокировать автора';
 
   @override

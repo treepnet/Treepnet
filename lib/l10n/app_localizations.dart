@@ -2613,6 +2613,18 @@ abstract class AppLocalizations {
   /// **'Block @{username}?'**
   String blockUserTitleText(String username);
 
+  /// No description provided for @youBlockedUserText.
+  ///
+  /// In en, this message translates to:
+  /// **'You blocked @{username}'**
+  String youBlockedUserText(String username);
+
+  /// No description provided for @youBlockedUserHintText.
+  ///
+  /// In en, this message translates to:
+  /// **'Unblock them to see their profile, follow and message them.'**
+  String get youBlockedUserHintText;
+
   /// No description provided for @unblockAuthorText.
   ///
   /// In en, this message translates to:

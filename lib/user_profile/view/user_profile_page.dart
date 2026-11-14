@@ -157,11 +157,12 @@ class _UserProfileViewState extends State<UserProfileView>
                                     userId: widget.userId,
                                     sponsoredPost: props.sponsoredPost,
                                   ),
-                                  // On a locked private account the Map/Posts
-                                  // tabs are hidden entirely. While access is
-                                  // still being worked out they stay, as they
-                                  // do for nearly everyone.
-                                  if (access != ProfileAccess.locked)
+                                  // On a locked or blocked profile the
+                                  // Map/Posts tabs are hidden entirely. While
+                                  // access is still being worked out they
+                                  // stay, as they do for nearly everyone.
+                                  if (access == ProfileAccess.visible ||
+                                      access == ProfileAccess.loading)
                                     SliverPersistentHeader(
                                       // Always pinned: the tab bar has to stay on screen so
                                       // that a tab whose content fills the viewport (the
@@ -216,7 +217,10 @@ class _UserProfileViewState extends State<UserProfileView>
                         ];
                       },
                       body: switch (access) {
-                        ProfileAccess.locked => const _PrivateAccountNotice(),
+                        ProfileAccess.locked ||
+                        ProfileAccess.blockedByOwner =>
+                          const _PrivateAccountNotice(),
+                        ProfileAccess.blockedByMe => const _BlockedByMeNotice(),
                         // Not the lock: it would flash for someone who may
                         // see the profile.
                         ProfileAccess.loading => const Center(
@@ -340,6 +344,111 @@ class _PrivateAccountNotice extends StatelessWidget {
       ],
     );
   }
+}
+
+/// A profile the viewer blocked: says so, with Unblock. It looked like an
+/// empty public account (its posts are hidden from the blocker).
+class _BlockedByMeNotice extends StatelessWidget {
+  const _BlockedByMeNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final user = context.select((UserProfileBloc b) => b.state.user);
+    return CustomScrollView(
+      slivers: [
+        SliverOverlapInjector(
+          handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
+        ),
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xlg),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 92,
+                  height: 92,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.glassBackgroundLight,
+                  ),
+                  child: const Icon(
+                    Icons.block,
+                    color: AppColors.textSecondary,
+                    size: 44,
+                  ),
+                ),
+                const Gap.v(AppSpacing.lg),
+                Text(
+                  context.l10n.youBlockedUserText(user.displayUsername),
+                  textAlign: TextAlign.center,
+                  style: context.textTheme.titleLarge?.copyWith(
+                    color: context.colorScheme.onSurface,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Gap.v(AppSpacing.sm),
+                Text(
+                  context.l10n.youBlockedUserHintText,
+                  textAlign: TextAlign.center,
+                  style: context.textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const Gap.v(AppSpacing.lg),
+                OutlinedButton(
+                  onPressed: () => context.confirmAction(
+                    title: context.l10n.unblockUserTitleText(
+                      user.displayUsername,
+                    ),
+                    content: context.l10n.unblockConfirmationText,
+                    noText: context.l10n.cancelText,
+                    yesText: context.l10n.unblockText,
+                    fn: () => unawaited(unblockProfile(context)),
+                  ),
+                  child: Text(context.l10n.unblockText),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Unblocks the profile on screen (its [UserProfileBloc]); the page stays
+/// and opens up as the block goes. Live lists update on their own; search
+/// and the feed hold a snapshot, so they are refreshed (as after a block).
+/// False when the server refused it (it says so).
+Future<bool> unblockProfile(BuildContext context) async {
+  final profileId = context.read<UserProfileBloc>().userId;
+  final currentUserId = context.read<AppBloc>().state.user.id;
+  final search = context.read<SearchRepository>();
+  final feed = context.read<FeedBloc>();
+  final l10n = context.l10n;
+  try {
+    await context.read<UserRepository>().unblockUser(
+      userId: currentUserId,
+      blockedId: profileId,
+    );
+  } catch (error, stackTrace) {
+    CrashReporter.instance.report(error, stackTrace, kind: 'profile_menu');
+    openSnackbar(
+      SnackbarMessage.error(title: l10n.changeNotSavedText),
+      clearIfQueue: true,
+    );
+    return false;
+  }
+  search.clearCache();
+  feed.add(const FeedRefreshRequested());
+  openSnackbar(
+    SnackbarMessage.success(title: l10n.unblockedText),
+    clearIfQueue: true,
+  );
+  return true;
 }
 
 class PostsPage extends StatefulWidget {
@@ -678,20 +787,8 @@ class UserProfileActions extends StatelessWidget {
             actionContent: context.l10n.unblockConfirmationText,
             actionYesText: context.l10n.unblockText,
             actionNoText: context.l10n.cancelText,
-            onTap: () async {
-              final done = await applied(
-                () => userRepo.unblockUser(
-                  userId: currentUserId,
-                  blockedId: profileId,
-                ),
-              );
-              if (!done) return;
-              openSnackbar(
-                SnackbarMessage.success(title: context.l10n.unblockedText),
-                clearIfQueue: true,
-              );
-              if (context.mounted) Navigator.of(context).maybePop();
-            },
+            // The page stays, and opens up: it used to close.
+            onTap: () => unawaited(unblockProfile(context)),
           )
         else
           ModalOption(
