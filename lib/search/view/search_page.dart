@@ -10,14 +10,10 @@ import 'package:shared/shared.dart';
 import 'package:user_repository/user_repository.dart';
 
 class SearchPage extends StatelessWidget {
-  const SearchPage({this.withResult, super.key});
-
-  final bool? withResult;
+  const SearchPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return SearchView(withResult: withResult ?? false);
-  }
+  Widget build(BuildContext context) => const SearchView();
 }
 
 /// How many results a search shows at first, and adds each time the list is
@@ -25,9 +21,7 @@ class SearchPage extends StatelessWidget {
 const _searchPageSize = 20;
 
 class SearchView extends StatefulWidget {
-  const SearchView({required this.withResult, super.key});
-
-  final bool withResult;
+  const SearchView({super.key});
 
   @override
   State<SearchView> createState() => _SearchViewState();
@@ -78,7 +72,6 @@ class _SearchViewState extends State<SearchView> {
 
   @override
   Widget build(BuildContext context) {
-    final withResult = widget.withResult;
     final search = _search;
 
     return AppScaffold(
@@ -123,11 +116,7 @@ class _SearchViewState extends State<SearchView> {
                   itemCount: users.length,
                   itemBuilder: (context, index) {
                     final user = users[index];
-                    return UserListTile(
-                      key: ValueKey(user.id),
-                      user: user,
-                      withResult: withResult,
-                    );
+                    return UserListTile(key: ValueKey(user.id), user: user);
                   },
                 ),
               ],
@@ -158,10 +147,9 @@ class _SearchResults {
 }
 
 class UserListTile extends StatelessWidget {
-  const UserListTile({required this.user, required this.withResult, super.key});
+  const UserListTile({required this.user, super.key});
 
   final User user;
-  final bool withResult;
 
   @override
   Widget build(BuildContext context) {
@@ -182,12 +170,10 @@ class UserListTile extends StatelessWidget {
         ),
       ),
       trailing: const Icon(Icons.keyboard_arrow_right),
-      onTap: () => withResult
-          ? context.pop(user.id)
-          : context.pushNamed(
-              AppRoutes.userProfile.name,
-              pathParameters: {'user_id': user.id},
-            ),
+      onTap: () => context.pushNamed(
+        AppRoutes.userProfile.name,
+        pathParameters: {'user_id': user.id},
+      ),
     );
   }
 }

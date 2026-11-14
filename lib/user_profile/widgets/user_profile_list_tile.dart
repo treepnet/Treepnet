@@ -255,7 +255,7 @@ class UserActionButton extends StatelessWidget {
   }
 }
 
-class FollowTextButton extends StatelessWidget {
+class FollowTextButton extends StatefulWidget {
   const FollowTextButton({
     required this.wasFollowed,
     required this.user,
@@ -266,11 +266,27 @@ class FollowTextButton extends StatelessWidget {
   final User user;
 
   @override
+  State<FollowTextButton> createState() => _FollowTextButtonState();
+}
+
+class _FollowTextButtonState extends State<FollowTextButton> {
+  /// The link's one recognizer, let go with the row: a new one was made on
+  /// every build and never disposed.
+  final _tap = TapGestureRecognizer();
+
+  @override
+  void dispose() {
+    _tap.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final user = widget.user;
 
     return FutureBuilder<bool>(
-      future: wasFollowed,
+      future: widget.wasFollowed,
       builder: (context, snapshot) {
         final wasFollowed = snapshot.data;
         if (wasFollowed == null || wasFollowed) {
@@ -294,7 +310,7 @@ class FollowTextButton extends StatelessWidget {
                     style: context.bodyMedium?.copyWith(
                       color: followed ? AppColors.white : AppColors.blue,
                     ),
-                    recognizer: TapGestureRecognizer()
+                    recognizer: _tap
                       ..onTap = () =>
                           onFollowButton(context, user: user, relation: relation),
                   ),

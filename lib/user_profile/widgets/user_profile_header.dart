@@ -1,6 +1,5 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/chat/chat.dart';
@@ -201,39 +200,6 @@ class UserProfileStatisticsCounts extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class EditProfileButton extends StatelessWidget {
-  const EditProfileButton({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return UserProfileButton(
-      label: context.l10n.editProfileText,
-      onTap: () => context.pushNamed(AppRoutes.editProfile.name),
-    );
-  }
-}
-
-class ShareProfileButton extends StatelessWidget {
-  const ShareProfileButton({super.key});
-
-  Future<void> _share(BuildContext context) async {
-    final user = context.read<UserProfileBloc>().state.user;
-    final link = 'https://treepnet.com/${user.displayUsername}';
-    final title = context.l10n.profileLinkCopiedText;
-    await Clipboard.setData(ClipboardData(text: link));
-    if (!context.mounted) return;
-    openSnackbar(SnackbarMessage.success(title: title), clearIfQueue: true);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return UserProfileButton(
-      label: context.l10n.shareProfileText,
-      onTap: () => _share(context),
     );
   }
 }

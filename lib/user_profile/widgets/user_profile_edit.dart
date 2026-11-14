@@ -404,20 +404,16 @@ class ProfileInfoEditPage extends StatelessWidget {
   final String infoLabel;
   final ProfileEditInfoType infoType;
 
+  // No bloc of its own: it saves through the repository (see _save). The
+  // UserProfileBloc it made was never read.
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => UserProfileBloc(
-        userRepository: context.read<UserRepository>(),
-        postsRepository: context.read<PostsRepository>(),
-      ),
-      child: ProfileInfoEditView(
-        appBarTitle: appBarTitle,
-        infoLabel: infoLabel,
-        infoType: infoType,
-        infoValue: infoValue,
-        description: description,
-      ),
+    return ProfileInfoEditView(
+      appBarTitle: appBarTitle,
+      infoLabel: infoLabel,
+      infoType: infoType,
+      infoValue: infoValue,
+      description: description,
     );
   }
 }

@@ -16,7 +16,7 @@ import 'package:treepnet/stories/story_date.dart';
 /// The owner's "New" tile used to lead the row; it was removed by request, so
 /// nothing currently opens [showCreateHighlightSheet] — that entry point is
 /// coming back somewhere else. The sheet itself is kept for it.
-class StoryHighlightsRow extends StatelessWidget {
+class StoryHighlightsRow extends StatefulWidget {
   const StoryHighlightsRow({required this.userId, required this.isOwner, super.key});
 
   final String userId;
@@ -25,11 +25,29 @@ class StoryHighlightsRow extends StatelessWidget {
   static const _size = 66.0;
 
   @override
-  Widget build(BuildContext context) {
-    final stories = context.read<StoriesRepository>();
+  State<StoryHighlightsRow> createState() => _StoryHighlightsRowState();
+}
 
+class _StoryHighlightsRowState extends State<StoryHighlightsRow> {
+  /// Opened once (again only for another profile): made in build, the query
+  /// was closed and run again on every rebuild of the posts page.
+  late Stream<List<StoryHighlight>> _highlights = _watch();
+
+  Stream<List<StoryHighlight>> _watch() => context
+      .read<StoriesRepository>()
+      .storyHighlightsOf(userId: widget.userId);
+
+  @override
+  void didUpdateWidget(StoryHighlightsRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.userId != widget.userId) _highlights = _watch();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isOwner = widget.isOwner;
     return StreamBuilder<List<StoryHighlight>>(
-      stream: stories.storyHighlightsOf(userId: userId),
+      stream: _highlights,
       builder: (context, snapshot) {
         // Only highlights that still hold at least one story. A highlight whose
         // last story was unpinned keeps its row in the DB but has no items, so

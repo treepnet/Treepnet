@@ -17,29 +17,19 @@ final class UserProfileAccessSubscriptionRequested extends UserProfileEvent {
 final class UserProfileUpdateRequested extends UserProfileEvent {
   const UserProfileUpdateRequested({
     this.fullName,
-    this.email,
     this.username,
     this.avatarUrl,
-    this.pushToken,
-    this.bio,
     this.birthday,
-    this.telegram,
     this.website,
-    this.instagram,
     this.gender,
     this.clearAvatar = false,
   });
 
   final String? fullName;
-  final String? email;
   final String? username;
   final String? avatarUrl;
-  final String? pushToken;
-  final String? bio;
   final String? birthday;
-  final String? telegram;
   final String? website;
-  final String? instagram;
   final String? gender;
 
   /// Takes the photo off the profile. Needed because [avatarUrl] being null

@@ -66,9 +66,8 @@ class UserProfileView extends StatefulWidget {
   State<UserProfileView> createState() => _UserProfileViewState();
 }
 
-class _UserProfileViewState extends State<UserProfileView>
-    with SingleTickerProviderStateMixin {
-  late ScrollController _controller;
+class _UserProfileViewState extends State<UserProfileView> {
+  final _controller = ScrollController();
 
   /// Stable identity for the posts grid across rebuilds.
   final Key _gridKey = UniqueKey();
@@ -76,9 +75,9 @@ class _UserProfileViewState extends State<UserProfileView>
   UserProfileProps get props => widget.props;
 
   @override
-  void initState() {
-    super.initState();
-    _controller = ScrollController();
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
@@ -604,22 +603,6 @@ class PostSmallImage extends StatelessWidget {
   }
 }
 
-class UserProfileMentionedPostsPage extends StatelessWidget {
-  const UserProfileMentionedPostsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomScrollView(
-      slivers: [
-        SliverOverlapInjector(
-          handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
-        ),
-        const EmptyPosts(icon: Icons.person_pin_outlined),
-      ],
-    );
-  }
-}
-
 class UserProfileAppBar extends StatelessWidget {
   const UserProfileAppBar({this.sponsoredPost, super.key});
 
@@ -851,36 +834,6 @@ class UserProfileSettingsButton extends StatelessWidget {
         width: AppSize.iconSizeMedium,
         height: AppSize.iconSizeMedium,
         colorFilter: const ColorFilter.mode(AppColors.white, BlendMode.srcIn),
-      ),
-    );
-  }
-}
-
-class LogoutModalOption extends StatelessWidget {
-  const LogoutModalOption({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Tappable.faded(
-      onTap: () => context.confirmAction(
-        fn: () {
-          // The menu closes; the root navigator's context outlives it for the
-          // "unsaved changes" question.
-          final root = rootNavigatorKey.currentContext;
-          context.pop();
-          if (root != null) unawaited(logOutSafely(root));
-        },
-        title: context.l10n.logOutText,
-        content: context.l10n.logOutConfirmationText,
-        noText: context.l10n.cancelText,
-        yesText: context.l10n.logOutText,
-      ),
-      child: ListTile(
-        title: Text(
-          context.l10n.logOutText,
-          style: context.bodyLarge?.apply(color: AppColors.red),
-        ),
-        leading: const Icon(Icons.logout, color: AppColors.red),
       ),
     );
   }

@@ -155,17 +155,6 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
 
   bool get isOwner => _userId == _userRepository.currentUserId;
 
-  Stream<List<PostBlock>> userPosts({bool small = true, int? limit}) {
-    if (small) {
-      return _postsRepository
-          .postsOf(userId: _userId, limit: limit)
-          .map((posts) => posts.map((e) => e.toPostSmallBlock).toList());
-    }
-    return _postsRepository
-        .postsOf(userId: _userId, limit: limit)
-        .map((posts) => posts.map((e) => e.toPostLargeBlock).toList());
-  }
-
   /// The owner's posts as raw [Post]s (not blocks) — the grid needs these so a
   /// tapped tile scrolls through only this profile's posts, not everyone's.
   ///
@@ -224,23 +213,15 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
     Emitter<UserProfileState> emit,
   ) async {
     try {
-      if (event.bio != null) {
-        await _userRepository.updateUserBio(userId: _userId, bio: event.bio!);
-      } else {
-        await _userRepository.updateUser(
-          email: event.email,
-          username: event.username,
-          avatarUrl: event.avatarUrl,
-          fullName: event.fullName,
-          pushToken: event.pushToken,
-          birthday: event.birthday,
-          telegram: event.telegram,
-          website: event.website,
-          instagram: event.instagram,
-          gender: event.gender,
-          clearAvatar: event.clearAvatar,
-        );
-      }
+      await _userRepository.updateUser(
+        username: event.username,
+        avatarUrl: event.avatarUrl,
+        fullName: event.fullName,
+        birthday: event.birthday,
+        website: event.website,
+        gender: event.gender,
+        clearAvatar: event.clearAvatar,
+      );
       emit(state.copyWith(status: UserProfileStatus.userUpdated));
     } catch (error, stackTrace) {
       addError(error, stackTrace);

@@ -270,14 +270,10 @@ class AppRouter {
                     name: AppRoutes.search.name,
                     path: AppRoutes.search.name,
                     parentNavigatorKey: _rootNavigatorKey,
-                    pageBuilder: (context, state) {
-                      final withResult = state.extra as bool?;
-
-                      return NoTransitionPage(
-                        key: state.pageKey,
-                        child: SearchPage(withResult: withResult),
-                      );
-                    },
+                    pageBuilder: (context, state) => NoTransitionPage(
+                      key: state.pageKey,
+                      child: const SearchPage(),
+                    ),
                   ),
                 ],
               ),
@@ -518,38 +514,6 @@ class AppRouter {
                         },
                       ),
                     ],
-                  ),
-                  GoRoute(
-                    path: AppRoutes.userPosts.name,
-                    name: AppRoutes.userPosts.name,
-                    parentNavigatorKey: _rootNavigatorKey,
-                    pageBuilder: (context, state) {
-                      final userId = state.uri.queryParameters['user_id']!;
-                      final index = (state.uri.queryParameters['index']!).parse
-                          .toInt();
-
-                      return CustomTransitionPage(
-                        key: state.pageKey,
-                        child: BlocProvider(
-                          create: (context) => UserProfileBloc(
-                            userId: userId,
-                            userRepository: context.read<UserRepository>(),
-                            postsRepository: context.read<PostsRepository>(),
-                          ),
-                          child: UserProfilePosts(userId: userId, index: index),
-                        ),
-                        transitionsBuilder:
-                            (context, animation, secondaryAnimation, child) {
-                              return SharedAxisTransition(
-                                animation: animation,
-                                secondaryAnimation: secondaryAnimation,
-                                transitionType:
-                                    SharedAxisTransitionType.horizontal,
-                                child: child,
-                              );
-                            },
-                      );
-                    },
                   ),
                   GoRoute(
                     path: AppRoutes.userStatistics.name,

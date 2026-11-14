@@ -15,7 +15,6 @@ enum AppRoutes {
   publishPost('/publish-post'),
   search('/search'),
   createPost('/create-post'),
-  userPosts('/user-posts'),
   locationPosts('/location-posts'),
   postEdit('/post-edit', path: '/posts/:post_id/edit'),
   post('/post', path: '/posts/:id'),
