@@ -78,32 +78,36 @@ Future<void> bootstrap(
       // first frame; the error hooks above already work without it.
       unawaited(CrashReporter.instance.init(env: appFlavor.flavor.name));
 
-      boot('1 hydrated storage (start)');
-      HydratedBloc.storage = await _settingsStorage();
-      boot('2 hydrated storage (ok)');
-
       final powerSyncRepository = PowerSyncRepository(env: appFlavor.getEnv);
       // Before the database is opened (that creates its file): a fresh
       // install has none ([FreshInstall]).
       final hadDatabase = FreshInstall.databaseExisted(
         await powerSyncRepository.getDatabasePath(),
       );
-      boot('3 powersync.initialize (start)');
-      await powerSyncRepository.initialize();
-      boot('4 powersync.initialize (ok)');
 
-      // Firebase must be up BEFORE the auth client (built in `builder`) touches
-      // FirebaseAuth, and before push. Awaited + bounded so a hang can't freeze
-      // the splash; it no-ops if a flavor has no Firebase config.
-      boot('4b firebase.initializeApp (start)');
-      try {
-        if (Firebase.apps.isEmpty) {
-          await Firebase.initializeApp().timeout(const Duration(seconds: 10));
-        }
-        boot('4b firebase.initializeApp (ok)');
-      } catch (error) {
-        boot('4b firebase.initializeApp SKIPPED: $error');
-      }
+      // Four steps that don't depend on one another, started together: the
+      // splash lasts the longest of them, not their sum (it waited for each in
+      // turn, 100-500 ms apiece on a low-end Android phone).
+      boot('1 startup steps (start, together)');
+      final (settings, _, _, sharedPreferences) = await (
+        _settingsStorage().then((storage) {
+          boot('2 hydrated storage (ok)');
+          return storage;
+        }),
+        powerSyncRepository.initialize().then(
+          (_) => boot('4 powersync.initialize (ok)'),
+        ),
+        // Must be up before the auth client (built in `builder`) touches
+        // FirebaseAuth, and before push — both come after this. Bounded and
+        // never failing, so a hang can't freeze the splash; it no-ops if a
+        // flavor has no Firebase config.
+        _initFirebase(boot),
+        SharedPreferences.getInstance().then((preferences) {
+          boot('8 sharedPreferences (ok)');
+          return preferences;
+        }),
+      ).wait;
+      HydratedBloc.storage = settings;
 
       // Firebase Cloud Messaging (push). Push is NOT needed to render the first
       // screen, so keep it OFF the startup critical path: a slow or hanging
@@ -115,10 +119,6 @@ Future<void> bootstrap(
           (_) => boot('6 push.initialize (ok, background)'),
         ),
       );
-
-      boot('7 sharedPreferences (start)');
-      final sharedPreferences = await SharedPreferences.getInstance();
-      boot('8 sharedPreferences (ok)');
 
       // A fresh install doesn't open a session left by an earlier one (iOS
       // keeps it in the Keychain past an uninstall). Before the session is
@@ -168,6 +168,19 @@ Future<void> bootstrap(
       CrashReporter.instance.report(error, stack, kind: 'zone');
     },
   );
+}
+
+/// Starts Firebase, at most 10 s; never throws (logged when skipped).
+Future<void> _initFirebase(void Function(String stage) boot) async {
+  boot('4b firebase.initializeApp (start)');
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp().timeout(const Duration(seconds: 10));
+    }
+    boot('4b firebase.initializeApp (ok)');
+  } catch (error) {
+    boot('4b firebase.initializeApp SKIPPED: $error');
+  }
 }
 
 /// Where the app keeps its saved settings — the language and the theme, the
