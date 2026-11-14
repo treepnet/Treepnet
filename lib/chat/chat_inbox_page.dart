@@ -463,8 +463,10 @@ class _ChatsListState extends State<_ChatsList> {
 
   /// Re-subscribes only when the set of peers changes.
   void _watchProfiles() {
-    if (!ChatSession.instance.isStarted) return;
-    final transport = ChatSession.instance.listTransport;
+    // IfAny: while signing out the list transport goes before the session
+    // stops (isStarted is still true), and listTransport threw a null check.
+    final transport = ChatSession.instance.listTransportIfAny;
+    if (transport == null) return;
     final ids = <String>{};
     for (final c in _map.values) {
       final uuid = transport.peerUuidOf(c.id);
@@ -515,7 +517,9 @@ class _ChatsListState extends State<_ChatsList> {
       _retryLater();
       return;
     }
-    final transport = ChatSession.instance.listTransport;
+    // Gone already when the session is closing (see _watchProfiles).
+    final transport = ChatSession.instance.listTransportIfAny;
+    if (transport == null) return;
     _sub = transport.events.listen(_onEvent);
     // The chats saved on the phone show at once — offline too — and the
     // network's answer below replaces them.
@@ -559,10 +563,12 @@ class _ChatsListState extends State<_ChatsList> {
   }
 
   Future<void> _loadMore() async {
-    if (_loadingMore || !_hasMore || !ChatSession.instance.isStarted) return;
+    // Gone already when the session is closing (see _watchProfiles).
+    final transport = ChatSession.instance.listTransportIfAny;
+    if (_loadingMore || !_hasMore || transport == null) return;
     setState(() => _loadingMore = true);
     try {
-      final page = await ChatSession.instance.listTransport.loadConversations(
+      final page = await transport.loadConversations(
         page: _nextPage,
         size: _pageSize,
       );
