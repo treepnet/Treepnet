@@ -83,11 +83,23 @@ final class UserProfileFetchFollowingsRequested extends UserProfileEvent {
   final int? limit;
 }
 
+/// The followers list: its first page, then the pages shown again whenever
+/// someone follows or is removed. Again on Retry.
 final class UserProfileFollowersSubscriptionRequested extends UserProfileEvent {
-  const UserProfileFollowersSubscriptionRequested({this.limit});
+  const UserProfileFollowersSubscriptionRequested();
+}
 
-  /// Reactive-window size for scroll pagination; null = all.
-  final int? limit;
+/// The followings list's first page (again on Retry).
+final class UserProfileFollowingsListRequested extends UserProfileEvent {
+  const UserProfileFollowingsListRequested();
+}
+
+/// The next page of the followers ([followers]) or followings list, when it
+/// has been scrolled to its end.
+final class UserProfileFollowListMoreRequested extends UserProfileEvent {
+  const UserProfileFollowListMoreRequested({required this.followers});
+
+  final bool followers;
 }
 
 /// Follow ([follow], a request for a private account) or unfollow / withdraw

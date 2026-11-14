@@ -4,6 +4,7 @@ export 'profile_sync_scope.dart';
 export 'user_profile_button.dart';
 export 'user_profile_create_post.dart';
 export 'user_profile_edit.dart';
+export 'user_profile_follow_list.dart';
 export 'user_profile_followers.dart';
 export 'user_profile_followings.dart';
 export 'user_profile_header.dart';

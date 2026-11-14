@@ -112,6 +112,8 @@
   "followingUser": "Вы подписаны",
   "followersText": "Подписчики",
   "followingsText": "Подписки",
+  "noFollowersText": "Пока нет подписчиков",
+  "noFollowingsText": "Пока нет подписок",
   "followersCountText": "{count, plural, other{Подписчики: {count}}}",
   "@followersCountText": {
     "placeholders": {

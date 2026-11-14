@@ -130,18 +130,21 @@ abstract class UserBaseRepository {
   /// Returns count of followings of the user identified by [userId].
   Stream<int> followingsCountOf({required String userId});
 
-  /// Returns a list of followers of the user identified by [userId].
-  Future<List<User>> getFollowers({String? userId});
+  /// Returns a list of followers of the user identified by [userId]:
+  /// [limit] of them (null: the first 200) from [offset], newest first.
+  Future<List<User>> getFollowers({String? userId, int? limit, int offset = 0});
 
-  /// Returns a list of followings of the user identified by [userId].
-  ///
-  /// [limit] caps how many are fetched (for scroll pagination); null = all.
-  Future<List<User>> getFollowings({String? userId, int? limit});
+  /// Returns a list of followings of the user identified by [userId]:
+  /// [limit] of them (null: the first 200) from [offset], newest first.
+  Future<List<User>> getFollowings({
+    String? userId,
+    int? limit,
+    int offset = 0,
+  });
 
-  /// Broadcasts a list of followers of the user identified by [userId].
-  ///
-  /// [limit] caps the reactive window (for scroll pagination); null = all.
-  Stream<List<User>> followers({required String userId, int? limit});
+  /// Emits when [userId]'s followers may have changed (and once at the
+  /// start): someone followed them, or was removed.
+  Stream<void> followersChanged({required String userId});
 
   /// Looks up into a database a returns users associated with the provided
   /// [query].
@@ -2587,32 +2590,54 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
   );
 
   @override
-  Future<List<User>> getFollowers({String? userId}) =>
-      _followList(userId: userId ?? currentUserId, followers: true);
+  Future<List<User>> getFollowers({
+    String? userId,
+    int? limit,
+    int offset = 0,
+  }) => _followList(
+    userId: userId ?? currentUserId,
+    followers: true,
+    limit: limit,
+    offset: offset,
+  );
+
+  /// The most `follow_list` hands out per call.
+  static const _followListMax = 200;
 
   /// [userId]'s followers ([followers]) or followings, from the server: the
   /// phone keeps the user's own follows but not the people behind them, nor
   /// anyone else's. A private account's lists only show to its followers.
-  /// The user's own list leaves out anyone they unfollowed or removed on the
-  /// phone that the server doesn't know about yet. Offline, the people on
-  /// the phone ([_followListSql]).
+  /// [limit] from [offset] (null: the first 200), asked for 200 at a time —
+  /// the server's most: the lists stopped at 200. The user's own list leaves
+  /// out anyone they unfollowed or removed on the phone that the server
+  /// doesn't know about yet. Offline, the user's own list is the people on
+  /// the phone ([_followListSql]); anyone else's throws (the phone holds only
+  /// part of it, which read as the whole list).
   Future<List<User>> _followList({
     required String? userId,
     required bool followers,
     int? limit,
+    int offset = 0,
   }) async {
     if (userId == null) return const [];
+    final want = limit ?? _followListMax;
     try {
-      final rows = await _powerSyncRepository.postgrest().rpc<List<dynamic>>(
-        'follow_list',
-        params: {
-          'p_user': userId,
-          'p_followers': followers,
-          'p_limit': limit ?? 200,
-          'p_offset': 0,
-        },
-      );
-      final users = rows.cast<Map<String, dynamic>>().map(User.fromJson);
+      final users = <User>[];
+      while (users.length < want) {
+        final left = want - users.length;
+        final ask = left < _followListMax ? left : _followListMax;
+        final rows = await _powerSyncRepository.postgrest().rpc<List<dynamic>>(
+          'follow_list',
+          params: {
+            'p_user': userId,
+            'p_followers': followers,
+            'p_limit': ask,
+            'p_offset': offset + users.length,
+          },
+        );
+        users.addAll(rows.cast<Map<String, dynamic>>().map(User.fromJson));
+        if (rows.length < ask) break;
+      }
       if (userId != currentUserId) return users.toList(growable: false);
       final current = await _powerSyncRepository.db().getAll(
         followers
@@ -2627,9 +2652,10 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
           .where((user) => ids.contains(user.id))
           .toList(growable: false);
     } catch (_) {
+      if (userId != currentUserId) rethrow;
       final rows = await _powerSyncRepository.db().getAll(
-        _followListSql(followers: followers, limited: limit != null),
-        [userId, if (limit != null) limit],
+        _followListSql(followers: followers),
+        [userId, want, offset],
       );
       return rows.safeMap(User.fromJson).toList(growable: false);
     }
@@ -2639,8 +2665,8 @@ ORDER BY archived_posts.created_at DESC LIMIT ?2 OFFSET ?3
   /// profiles, newest follow first — one query. It used to fetch the ids,
   /// then each profile with its own query, in no particular order. A private
   /// account's list only shows to its followers, and blocked people are left
-  /// out of anyone's list. [limited]: `LIMIT ?2`, for scroll pagination.
-  String _followListSql({required bool followers, required bool limited}) {
+  /// out of anyone's list. `LIMIT ?2 OFFSET ?3`, for scroll pagination.
+  String _followListSql({required bool followers}) {
     final person = followers ? 's.subscriber_id' : 's.subscribed_to_id';
     final owner = followers ? 's.subscribed_to_id' : 's.subscriber_id';
     return '''
@@ -2652,7 +2678,7 @@ WHERE $owner = ?1
   AND ${_visibleAuthorSql('?1')}
   AND ${_notBlockedSql(person)}
 ORDER BY s.created_at DESC
-${limited ? 'LIMIT ?2' : ''}''';
+LIMIT ?2 OFFSET ?3''';
   }
 
   @override
@@ -2784,11 +2810,10 @@ ${limited ? 'LIMIT ?2' : ''}''';
     return [...local, for (final card in cards.values) card.user];
   }
 
-  /// The list from the server, fetched again whenever the follower count
-  /// (or, for the user's own list, their follows on the phone) changes.
+  /// Whenever the follower count (or, for the user's own list, their
+  /// followers on the phone) changes.
   @override
-  Stream<List<User>> followers({required String userId, int? limit}) =>
-      // `limit` caps the window; growing it re-subscribes wider.
+  Stream<void> followersChanged({required String userId}) =>
       _powerSyncRepository
           .db()
           .watch(
@@ -2801,19 +2826,19 @@ ${limited ? 'LIMIT ?2' : ''}''';
           // Other profiles' counts change the table too; only these count.
           .map((rows) => '${rows.first['n']}/${rows.first['mine']}')
           .distinct()
-          .asyncMap(
-            (_) => _followList(userId: userId, followers: true, limit: limit),
-          );
+          .map((_) {});
 
   @override
-  Future<List<User>> getFollowings({String? userId, int? limit}) =>
-      // `limit` caps how many are fetched; callers grow it for scroll
-      // pagination. Null = all.
-      _followList(
-        userId: userId ?? currentUserId,
-        followers: false,
-        limit: limit,
-      );
+  Future<List<User>> getFollowings({
+    String? userId,
+    int? limit,
+    int offset = 0,
+  }) => _followList(
+    userId: userId ?? currentUserId,
+    followers: false,
+    limit: limit,
+    offset: offset,
+  );
 
   @override
   Future<bool> isFollowed({

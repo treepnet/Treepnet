@@ -117,6 +117,8 @@
     "description": "Text displaying static Followers text"
   },
   "followingsText": "Following",
+  "noFollowersText": "No followers yet",
+  "noFollowingsText": "Not following anyone yet",
   "@followingsText": {
     "description": "Text displaying static Following text"
   },

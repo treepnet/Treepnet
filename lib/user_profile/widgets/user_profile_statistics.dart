@@ -15,16 +15,18 @@ class UserProfileStatistics extends StatefulWidget {
 
 class _UserProfileStatisticsState extends State<UserProfileStatistics>
     with TickerProviderStateMixin {
-  late TabController _tabController;
+  // Opens on the asked-for tab: it opened on Followers and slid over after
+  // the first frame, loading Followers on the way.
+  late final TabController _tabController = TabController(
+    length: 2,
+    vsync: this,
+    initialIndex: widget.tabIndex.clamp(0, 1),
+  );
 
   @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-
-    WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
-      _tabController.animateTo(widget.tabIndex);
-    });
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   @override

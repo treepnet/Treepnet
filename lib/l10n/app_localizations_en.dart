@@ -181,6 +181,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get followingsText => 'Following';
 
   @override
+  String get noFollowersText => 'No followers yet';
+
+  @override
+  String get noFollowingsText => 'Not following anyone yet';
+
+  @override
   String followersCountText(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

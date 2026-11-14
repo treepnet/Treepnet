@@ -11,6 +11,10 @@ enum UserProfileStatus { initial, userUpdated, userUpdateFailed }
 /// flashing the lock).
 enum ProfileAccess { loading, visible, locked, blockedByOwner, blockedByMe }
 
+/// Where the followers or followings list is: a page on its way ([loading]),
+/// arrived ([done]) or refused ([failed], offered again).
+enum FollowListStatus { loading, done, failed }
+
 class UserProfileState extends Equatable {
   const UserProfileState._({
     required this.status,
@@ -21,6 +25,10 @@ class UserProfileState extends Equatable {
     required this.followingsCount,
     required this.followersCount,
     required this.access,
+    this.followersStatus = FollowListStatus.loading,
+    this.followingsStatus = FollowListStatus.loading,
+    this.followersEnd = false,
+    this.followingsEnd = false,
   });
 
   const UserProfileState.initial({ProfileAccess access = ProfileAccess.loading})
@@ -43,6 +51,12 @@ class UserProfileState extends Equatable {
   final int followingsCount;
   final int followersCount;
   final ProfileAccess access;
+  final FollowListStatus followersStatus;
+  final FollowListStatus followingsStatus;
+
+  /// The whole list is loaded: no more pages.
+  final bool followersEnd;
+  final bool followingsEnd;
 
   @override
   List<Object> get props => [
@@ -54,6 +68,10 @@ class UserProfileState extends Equatable {
     postsCount,
     followingsCount,
     followersCount,
+    followersStatus,
+    followingsStatus,
+    followersEnd,
+    followingsEnd,
   ];
 
   UserProfileState copyWith({
@@ -65,6 +83,10 @@ class UserProfileState extends Equatable {
     int? followingsCount,
     int? followersCount,
     ProfileAccess? access,
+    FollowListStatus? followersStatus,
+    FollowListStatus? followingsStatus,
+    bool? followersEnd,
+    bool? followingsEnd,
   }) {
     return UserProfileState._(
       access: access ?? this.access,
@@ -75,6 +97,10 @@ class UserProfileState extends Equatable {
       postsCount: postsCount ?? this.postsCount,
       followingsCount: followingsCount ?? this.followingsCount,
       followersCount: followersCount ?? this.followersCount,
+      followersStatus: followersStatus ?? this.followersStatus,
+      followingsStatus: followingsStatus ?? this.followingsStatus,
+      followersEnd: followersEnd ?? this.followersEnd,
+      followingsEnd: followingsEnd ?? this.followingsEnd,
     );
   }
 }

@@ -31,10 +31,25 @@ class _UserProfileListTileState extends State<UserProfileListTile> {
   @override
   void initState() {
     super.initState();
+    _checkFollowed();
+  }
+
+  /// Whether the viewer follows this person (the " · Follow" link), asked
+  /// again if the row is handed someone else.
+  void _checkFollowed() {
     if (widget.follower) {
       _isFollowed = context.read<UserRepository>().isFollowed(
         userId: widget.user.id,
       );
+    }
+  }
+
+  @override
+  void didUpdateWidget(UserProfileListTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.user.id != widget.user.id ||
+        oldWidget.follower != widget.follower) {
+      _checkFollowed();
     }
   }
 

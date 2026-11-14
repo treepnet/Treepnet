@@ -387,6 +387,18 @@ abstract class AppLocalizations {
   /// **'Following'**
   String get followingsText;
 
+  /// No description provided for @noFollowersText.
+  ///
+  /// In en, this message translates to:
+  /// **'No followers yet'**
+  String get noFollowersText;
+
+  /// No description provided for @noFollowingsText.
+  ///
+  /// In en, this message translates to:
+  /// **'Not following anyone yet'**
+  String get noFollowingsText;
+
   /// No description provided for @followersCountText.
   ///
   /// In en, this message translates to:

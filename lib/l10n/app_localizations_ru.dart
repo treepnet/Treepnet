@@ -176,6 +176,12 @@ class AppLocalizationsRu extends AppLocalizations {
   String get followingsText => 'Подписки';
 
   @override
+  String get noFollowersText => 'Пока нет подписчиков';
+
+  @override
+  String get noFollowingsText => 'Пока нет подписок';
+
+  @override
   String followersCountText(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

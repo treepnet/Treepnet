@@ -47,15 +47,16 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
     );
     on<UserProfileUpdateRequested>(_onUserProfileUpdateRequested);
     on<UserProfileFetchFollowersRequested>(_onFollowersFetch);
-    // restartable: growing the window re-dispatches with a bigger limit; only
-    // the latest window's result should win (a stale wider/narrower fetch must
-    // not overwrite it).
+    // restartable: only the latest fetch's result should win.
     on<UserProfileFetchFollowingsRequested>(
       _onFollowingsFetch,
       transformer: restartable(),
     );
+    on<UserProfileFollowingsListRequested>(_onFollowingsList);
+    on<UserProfileFollowListMoreRequested>(_onFollowListMore);
     on<UserProfileFollowersSubscriptionRequested>(
       _onFollowersSubscriptionRequested,
+      // Retry starts it again: one watch, not two.
       transformer: restartable(),
     );
     on<UserProfileFollowUserRequested>(_onFollowUser, transformer: sequential());
@@ -274,14 +275,110 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
     }
   }
 
+  /// A page of the followers / followings lists.
+  static const _followPage = 20;
+
+  /// Once at the start, then whenever someone follows or is removed: the
+  /// pages already shown, again (at least the first).
   Future<void> _onFollowersSubscriptionRequested(
     UserProfileFollowersSubscriptionRequested event,
     Emitter<UserProfileState> emit,
   ) async {
-    await emit.forEach(
-      _userRepository.followers(userId: _userId, limit: event.limit),
-      onData: (followers) => state.copyWith(followers: followers),
+    emit(state.copyWith(followersStatus: FollowListStatus.loading));
+    await emit.forEach<UserProfileState>(
+      _userRepository
+          .followersChanged(userId: _userId)
+          .asyncMap(
+            (_) => _followListState(
+              followers: true,
+              offset: 0,
+              count: state.followers.length > _followPage
+                  ? state.followers.length
+                  : _followPage,
+            ),
+          ),
+      onData: (next) => next,
     );
+  }
+
+  Future<void> _onFollowingsList(
+    UserProfileFollowingsListRequested event,
+    Emitter<UserProfileState> emit,
+  ) async {
+    emit(state.copyWith(followingsStatus: FollowListStatus.loading));
+    emit(
+      await _followListState(followers: false, offset: 0, count: _followPage),
+    );
+  }
+
+  /// The next page, added under the ones shown. It used to fetch the whole
+  /// list again, a page longer each time, and stopped at 200.
+  Future<void> _onFollowListMore(
+    UserProfileFollowListMoreRequested event,
+    Emitter<UserProfileState> emit,
+  ) async {
+    final followers = event.followers;
+    final status = followers ? state.followersStatus : state.followingsStatus;
+    final end = followers ? state.followersEnd : state.followingsEnd;
+    if (status == FollowListStatus.loading || end) return;
+    final shown = followers ? state.followers.length : state.followings.length;
+    emit(
+      followers
+          ? state.copyWith(followersStatus: FollowListStatus.loading)
+          : state.copyWith(followingsStatus: FollowListStatus.loading),
+    );
+    emit(
+      await _followListState(
+        followers: followers,
+        offset: shown,
+        count: _followPage,
+      ),
+    );
+  }
+
+  /// The state with [count] people of the list from [offset]: in place of
+  /// it from 0, else added under it. Marked failed (the list kept) when the
+  /// server can't be reached.
+  Future<UserProfileState> _followListState({
+    required bool followers,
+    required int offset,
+    required int count,
+  }) async {
+    try {
+      final page = followers
+          ? await _userRepository.getFollowers(
+              userId: _userId,
+              limit: count,
+              offset: offset,
+            )
+          : await _userRepository.getFollowings(
+              userId: _userId,
+              limit: count,
+              offset: offset,
+            );
+      final shown = followers ? state.followers : state.followings;
+      final ids = {for (final user in shown) user.id};
+      final list = offset == 0
+          ? page
+          : [...shown, ...page.where((user) => !ids.contains(user.id))];
+      final end = page.length < count;
+      return followers
+          ? state.copyWith(
+              followers: list,
+              followersStatus: FollowListStatus.done,
+              followersEnd: end,
+            )
+          : state.copyWith(
+              followings: list,
+              followingsStatus: FollowListStatus.done,
+              followingsEnd: end,
+            );
+    } catch (error, stackTrace) {
+      addError(error, stackTrace);
+      return followers
+          ? state.copyWith(followersStatus: FollowListStatus.failed)
+          : state.copyWith(followingsStatus: FollowListStatus.failed);
+    }
   }
 
   /// When each person's follow button last did something. A second tap
