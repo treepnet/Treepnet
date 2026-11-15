@@ -5,6 +5,7 @@ import 'package:messenger_chat/messenger_chat.dart';
 
 import 'package:treepnet/chat/backend/chat_cache.dart';
 import 'package:treepnet/chat/backend/dm_api.dart';
+import 'package:treepnet/chat/chat_failures.dart';
 import 'package:treepnet/chat/chat_share_ref.dart';
 
 /// Inbox last-message preview text. Renders a share sentinel as a friendly
@@ -103,6 +104,14 @@ class DmChatTransport implements ChatTransport {
 
   @override
   Future<ChatHistoryPage> loadHistory({
+    required int page,
+    required int size,
+  }) => ChatFailures.watch(
+    'history',
+    () => _loadHistory(page: page, size: size),
+  );
+
+  Future<ChatHistoryPage> _loadHistory({
     required int page,
     required int size,
   }) async {
@@ -325,7 +334,8 @@ class DmListTransport implements ChatListTransport {
   /// Reloads the first page of the list. Messages and new conversations that
   /// arrived while the socket was down (or the app was in the background)
   /// only reach the list — and the unread badge — this way. At most once per
-  /// [_refreshGap], and never two at once.
+  /// [_refreshGap] after one that worked (a failed one doesn't hold the next
+  /// back), and never two at once.
   Future<void> refresh() async {
     final last = _lastRefresh;
     if (_refreshing ||
@@ -333,9 +343,9 @@ class DmListTransport implements ChatListTransport {
       return;
     }
     _refreshing = true;
-    _lastRefresh = DateTime.now();
     try {
       final page = await loadConversations(page: 1, size: 30);
+      _lastRefresh = DateTime.now();
       for (final conversation in page.conversations) {
         _events.add(ChatConversationUpserted(conversation));
       }
@@ -473,6 +483,14 @@ class DmListTransport implements ChatListTransport {
 
   @override
   Future<ChatConversationPage> loadConversations({
+    required int page,
+    required int size,
+  }) => ChatFailures.watch(
+    'inbox',
+    () => _loadConversations(page: page, size: size),
+  );
+
+  Future<ChatConversationPage> _loadConversations({
     required int page,
     required int size,
   }) async {

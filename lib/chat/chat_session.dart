@@ -10,6 +10,7 @@ import 'package:treepnet/chat/backend/chat_backend_config.dart';
 import 'package:treepnet/chat/backend/chat_cache.dart';
 import 'package:treepnet/chat/backend/dm_api.dart';
 import 'package:treepnet/chat/backend/dm_transports.dart';
+import 'package:treepnet/chat/chat_failures.dart';
 
 /// A message sent with [ChatSession.sendText] got no answer in time. It is
 /// probably still on its way (socket.io sends it once the connection is
@@ -85,6 +86,14 @@ class ChatSession {
 
   Timer? _retryTimer;
   int _retryAttempt = 0;
+
+  /// Goes up each time the session started again by itself (our chat id
+  /// changed, see [_checkMyUserId]), so an open inbox binds to the new
+  /// connection.
+  final ValueNotifier<int> restarts = ValueNotifier<int>(0);
+
+  /// Restarted for a changed id once already: never loop on it.
+  bool _restartedForId = false;
 
   /// Ensures the backend connection is up for the given user. Idempotent for
   /// the same user; switches connection if the user changed.
@@ -237,20 +246,53 @@ class ChatSession {
 
   /// `/chat/dm/me` for a session started from the saved id: it also brings
   /// our row on the server up to date. A different id (never expected) is
-  /// saved, so the next start uses it.
+  /// saved and the session starts again with it at once: until then it drew
+  /// our own messages on the peer's side.
   Future<void> _checkMyUserId(DmApi api, String myUuid, String savedId) async {
+    final String id;
     try {
       final me = (await api.dio.get<Map<String, dynamic>>('/chat/dm/me')).data;
-      final id = me?['id']?.toString() ?? '';
-      if (id.isEmpty || id == savedId || !startedFor(myUuid)) return;
-      await ChatCache.instance.writeInbox(
-        myUuid,
-        myUserId: id,
-        unread: unreadTotal.value,
-      );
+      id = me?['id']?.toString() ?? '';
     } catch (_) {
       // Offline: the socket's reconnect brings the chat up to date.
+      return;
     }
+    if (id.isEmpty || id == savedId || !startedFor(myUuid)) return;
+    await ChatCache.instance.writeInbox(
+      myUuid,
+      myUserId: id,
+      unread: unreadTotal.value,
+    );
+    ChatFailures.report(
+      'user-id',
+      StateError('our chat id changed since the last start'),
+    );
+    if (_restartedForId || !startedFor(myUuid)) return;
+    _restartedForId = true;
+    await _restart();
+  }
+
+  /// Starts the session again for the same user (the start reads the id
+  /// saved meanwhile), one start at a time like [ensureStarted].
+  Future<void> _restart() async {
+    final wanted = _wanted;
+    if (wanted == null) return;
+    while (_starting != null) {
+      await _starting!.catchError((Object _) {});
+    }
+    if (_wanted?.uuid != wanted.uuid) return;
+    final start = _start(
+      myUuid: wanted.uuid,
+      myName: wanted.name,
+      myAvatarUrl: wanted.avatar,
+    ).whenComplete(() => _starting = null);
+    _starting = start;
+    try {
+      await start;
+    } catch (_) {
+      _scheduleRetry();
+    }
+    restarts.value++;
   }
 
   /// The current Firebase ID token, refreshed first when it is about to expire

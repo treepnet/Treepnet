@@ -587,7 +587,13 @@ class _ChatsListState extends State<_ChatsList> {
         .listen((peers) {
           if (mounted) setState(() => _blocked = peers);
         });
+    ChatSession.instance.restarts.addListener(_onSessionRestarted);
     _bind();
+  }
+
+  /// The session started again by itself: listen to the new connection.
+  void _onSessionRestarted() {
+    if (mounted) unawaited(_bind());
   }
 
   Future<void> _bind() async {
@@ -734,6 +740,7 @@ class _ChatsListState extends State<_ChatsList> {
 
   @override
   void dispose() {
+    ChatSession.instance.restarts.removeListener(_onSessionRestarted);
     _retryTimer?.cancel();
     unawaited(_sub?.cancel());
     unawaited(_blockedSub?.cancel());

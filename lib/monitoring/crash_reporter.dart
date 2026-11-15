@@ -153,6 +153,12 @@ class CrashReporter {
     }
   }
 
+  /// Whether [error] is an expected outcome (offline, a timeout, a gateway
+  /// hiccup) that [report] would drop anyway — for callers that wrap a cause
+  /// in their own error before reporting it.
+  bool isExpectedFailure(Object error) =>
+      _isExpected(error, _truncate(error.toString(), 4000));
+
   /// Whether [error] is an EXPECTED outcome rather than a bug/crash, and so
   /// should not be reported. Kept deliberately narrow: only clearly-expected
   /// cases match, so a genuine bug is never silenced by accident.

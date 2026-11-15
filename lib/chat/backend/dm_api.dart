@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:messenger_chat/messenger_chat.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
+import 'package:treepnet/chat/chat_failures.dart';
 
 /// Shared transport layer for the chat backend: one HTTP client and one socket.
 ///
@@ -129,7 +130,14 @@ class DmApi {
     _refreshTokenOnConnect = true;
     // A few spaced tries (2 s, 4 s, 8 s); after that the next [connect] call —
     // opening the inbox or a thread — tries again.
-    if (_authRetries >= 3) return;
+    if (_authRetries >= 3) {
+      // A fresh token each time and still refused: not an expired token.
+      ChatFailures.report(
+        'auth',
+        StateError('the chat backend refused a fresh token 3 times'),
+      );
+      return;
+    }
     final delay = Duration(seconds: 2 << _authRetries);
     _authRetries++;
     _authRetryTimer?.cancel();
@@ -300,11 +308,7 @@ class DmApi {
     // out once the connection is back (its confirmation then just arrives
     // after the timeout). Nudge the reconnect along.
     if (socket.disconnected) socket.connect();
-    final result = Completer<DmSendResult>();
-    final timeout = Timer(_sendTimeout, () {
-      if (!result.isCompleted) result.complete(const DmSendResult.timedOut());
-    });
-    socket.emitWithAck('dm.send', {
+    return _confirmed(socket, 'dm.send', {
       'conversationId': conversationId,
       'content': content,
       'contentType': contentType,
@@ -316,11 +320,7 @@ class DmApi {
       if (replyToId != null) 'replyToId': replyToId,
       if (replyToContent != null) 'replyToContent': replyToContent,
       if (replyToSenderId != null) 'replyToSenderId': replyToSenderId,
-    }, ack: ([dynamic response]) {
-      timeout.cancel();
-      if (!result.isCompleted) result.complete(DmSendResult.fromAck(response));
     });
-    return result.future;
   }
 
   void typing({
@@ -360,17 +360,44 @@ class DmApi {
       return Future.value(const DmSendResult.timedOut());
     }
     if (socket.disconnected) socket.connect();
+    return _confirmed(socket, event, data);
+  }
+
+  /// Emits [event] and waits up to [_sendTimeout] for the backend's answer.
+  /// A refusal, or no answer although the socket stayed connected the whole
+  /// time, goes to the crash logger: offline is expected, those are not.
+  Future<DmSendResult> _confirmed(
+    io.Socket socket,
+    String event,
+    Map<String, dynamic> data,
+  ) {
+    final wasConnected = socket.connected;
     final result = Completer<DmSendResult>();
     final timeout = Timer(_sendTimeout, () {
-      if (!result.isCompleted) result.complete(const DmSendResult.timedOut());
+      if (result.isCompleted) return;
+      result.complete(const DmSendResult.timedOut());
+      if (wasConnected && socket.connected) {
+        ChatFailures.report(
+          '$event-timeout',
+          StateError(
+            '$event: no answer in ${_sendTimeout.inSeconds} s while connected',
+          ),
+        );
+      }
     });
     socket.emitWithAck(
       event,
       data,
       ack: ([dynamic response]) {
         timeout.cancel();
-        if (!result.isCompleted) {
-          result.complete(DmSendResult.fromAck(response));
+        if (result.isCompleted) return;
+        final answer = DmSendResult.fromAck(response);
+        result.complete(answer);
+        if (!answer.ok && !answer.isExpectedRefusal) {
+          ChatFailures.report(
+            '$event-refused',
+            StateError('$event refused: ${answer.error}'),
+          );
         }
       },
     );
@@ -447,6 +474,11 @@ class DmSendResult {
   final String? error;
   final String? code;
   final bool timedOut;
+
+  /// A refusal the user caused, not a fault: the peer blocked them, or they
+  /// sent too fast.
+  bool get isExpectedRefusal =>
+      code == 'BLOCKED' || error == 'rate limit exceeded';
 
   /// Refused for good — sending it again can't help (a block, or a message
   /// the backend won't take). Anything else (a timeout, rate limit, a server
