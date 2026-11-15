@@ -259,7 +259,7 @@ class PowerSyncRepository {
   late final PowerSyncDatabase _db;
 
   /// Initializes the local database and opens a new instance of the database.
-  Future<void> initialize({bool offlineMode = false}) async {
+  Future<void> initialize() async {
     if (!_isInitialized) {
       await _openDatabase();
       _isInitialized = true;

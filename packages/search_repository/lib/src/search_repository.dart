@@ -43,7 +43,6 @@ class SearchRepository {
     required String query,
     int limit = 8,
     int offset = 0,
-    String? excludeUserIds,
   }) async {
     if (query.trim().isEmpty) return <User>[];
 

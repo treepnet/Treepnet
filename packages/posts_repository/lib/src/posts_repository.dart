@@ -104,18 +104,10 @@ class PostsRepository implements PostsBaseRepository {
     required String userId,
   }) => _databaseClient.storyPointsOf(userId: userId);
 
-  @override
-  Stream<Set<String>> visitedRegionsOf({required String userId}) =>
-      _databaseClient.visitedRegionsOf(userId: userId);
-
   /// Broadcasts a map of ISO 3166-2 region code to the number of posts [userId]
   /// has placed there, used to shade the travel map by density.
   Stream<Map<String, int>> visitedRegionCountsOf({required String userId}) =>
       _databaseClient.visitedRegionCountsOf(userId: userId);
-
-  /// Regions the user explicitly marked as visited (onboarding / profile).
-  Stream<Set<String>> markedRegionsOf({required String userId}) =>
-      _databaseClient.markedRegionsOf(userId: userId);
 
   /// Replaces the user's marked regions.
   Future<void> setVisitedRegions({
@@ -136,10 +128,6 @@ class PostsRepository implements PostsBaseRepository {
     String? userId,
     bool post = true,
   }) => _databaseClient.isLiked(id: id, userId: userId, post: post);
-
-  @override
-  Stream<int> likesOf({required String id, bool post = true}) =>
-      _databaseClient.likesOf(id: id, post: post);
 
   @override
   Future<void> bookmarkPost({required String postId}) =>
@@ -208,10 +196,6 @@ class PostsRepository implements PostsBaseRepository {
     required String id,
     String? caption,
   }) => _databaseClient.updatePost(id: id, caption: caption);
-
-  @override
-  Stream<int> commentsAmountOf({required String postId}) =>
-      _databaseClient.commentsAmountOf(postId: postId);
 
   @override
   Stream<List<Comment>> commentsOf({required String postId}) =>

@@ -253,14 +253,6 @@ class UserRepository implements UserBaseRepository {
   Stream<int> followingsCountOf({required String userId}) =>
       _databaseClient.followingsCountOf(userId: userId);
 
-  @override
-  Stream<int> referralCountOf({required String userId}) =>
-      _databaseClient.referralCountOf(userId: userId);
-
-  @override
-  Stream<int> referralTierOf({required String userId}) =>
-      _databaseClient.referralTierOf(userId: userId);
-
   /// The user's verification badge tier (0-6), earned by inviting people.
   Stream<int> travelTierOf({required String userId}) =>
       _databaseClient.travelTierOf(userId: userId);
@@ -268,10 +260,6 @@ class UserRepository implements UserBaseRepository {
   /// Live badge state — invites, tier, expiry and the next rung.
   Stream<InviteBadgeStatus> inviteBadgeStatusOf({required String userId}) =>
       _databaseClient.inviteBadgeStatusOf(userId: userId);
-
-  @override
-  Stream<Set<String>> markedRegionsOf({required String userId}) =>
-      _databaseClient.markedRegionsOf(userId: userId);
 
   @override
   Stream<List<StoryHighlight>> storyHighlightsOf({required String userId}) =>
@@ -298,30 +286,6 @@ class UserRepository implements UserBaseRepository {
   @override
   Future<void> deleteStoryHighlight({required String highlightId}) =>
       _databaseClient.deleteStoryHighlight(highlightId: highlightId);
-
-  @override
-  Future<void> addStoryToHighlight({
-    required String highlightId,
-    required String storyId,
-  }) =>
-      _databaseClient.addStoryToHighlight(
-        highlightId: highlightId,
-        storyId: storyId,
-      );
-
-  @override
-  Future<void> setStoryLocation({
-    required String storyId,
-    required double lat,
-    required double lng,
-    String? name,
-  }) =>
-      _databaseClient.setStoryLocation(
-        storyId: storyId,
-        lat: lat,
-        lng: lng,
-        name: name,
-      );
 
   @override
   Future<bool> isStoryPinned({required String storyId}) =>
@@ -536,14 +500,12 @@ class UserRepository implements UserBaseRepository {
     required int offset,
     required String? query,
     String? userId,
-    String? excludeUserIds,
   }) =>
       _databaseClient.searchUsers(
         userId: userId,
         limit: limit,
         offset: offset,
         query: query,
-        excludeUserIds: excludeUserIds,
       );
 
   @override

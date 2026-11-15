@@ -151,19 +151,11 @@ abstract class UserBaseRepository {
     required int offset,
     required String? query,
     String? userId,
-    String? excludeUserIds,
   });
 
   /// People the current user does not follow yet — the "Discover people"
   /// suggestions. Excludes the current user and everyone they already follow.
   Future<List<User>> suggestedUsers({int limit = 50});
-
-  /// Realtime count of people the user identified by [userId] has referred.
-  Stream<int> referralCountOf({required String userId});
-
-  /// Realtime highest reward tier (0..6) earned by the user identified by
-  /// [userId].
-  Stream<int> referralTierOf({required String userId});
 
   /// The user's verification badge tier, 0-6 — earned purely by inviting
   /// people, per [kInviteBadgeRungs]. See [inviteBadgeStatusOf] for the full
@@ -172,11 +164,6 @@ abstract class UserBaseRepository {
 
   /// Live badge state for the invite screen: invites, tier, expiry, next rung.
   Stream<InviteBadgeStatus> inviteBadgeStatusOf({required String userId});
-
-  /// ISO 3166-2 codes the user explicitly marked as visited (onboarding /
-  /// profile) — as opposed to [visitedRegionsOf], which derives them from
-  /// posts.
-  Stream<Set<String>> markedRegionsOf({required String userId});
 
   /// The user's story highlights, newest first.
   Stream<List<StoryHighlight>> storyHighlightsOf({required String userId});
@@ -194,22 +181,6 @@ abstract class UserBaseRepository {
 
   /// Removes a highlight and its items.
   Future<void> deleteStoryHighlight({required String highlightId});
-
-  /// Adds an existing [storyId] to an existing highlight; a no-op if it is
-  /// already in there.
-  Future<void> addStoryToHighlight({
-    required String highlightId,
-    required String storyId,
-  });
-
-  /// Sets a story's own location columns so it appears on the owner's map at
-  /// the pinned place (the map reads the `stories` row, not `location_stories`).
-  Future<void> setStoryLocation({
-    required String storyId,
-    required double lat,
-    required double lng,
-    String? name,
-  });
 
   /// Whether [storyId] is pinned anywhere — to a place or inside a highlight.
   Future<bool> isStoryPinned({required String storyId});
@@ -342,12 +313,6 @@ abstract class PostsBaseRepository {
     bool? liked,
   });
 
-  /// Returns a real-time stream of likes count of post by provided [id].
-  Stream<int> likesOf({
-    required String id,
-    bool post = true,
-  });
-
   /// The counts and the viewer's state for every post in [postIds], in one
   /// live query, keyed by post id. A post that isn't on this device is left
   /// out.
@@ -434,10 +399,6 @@ abstract class PostsBaseRepository {
     double? locationLng,
   });
 
-  /// Returns a real-time stream of the distinct ISO 3166-2 region codes the
-  /// user identified by [userId] has posted from (their "visited" regions).
-  Stream<Set<String>> visitedRegionsOf({required String userId});
-
   /// Returns a real-time stream mapping each ISO 3166-2 region code to the
   /// number of posts and story pins [userId] has placed there (plus regions
   /// marked visited without either) — used to shade each region on the
@@ -491,9 +452,6 @@ abstract class PostsBaseRepository {
 
   /// Returns a stream of amount of posts of the user identified by [userId].
   Stream<int> postsAmountOf({required String userId});
-
-  /// Returns a stream of amount of comments of the post identified by [postId].
-  Stream<int> commentsAmountOf({required String postId});
 
   /// Returns a stream of comments of the post identified by [postId].
   Stream<List<Comment>> commentsOf({required String postId});
@@ -924,23 +882,6 @@ SELECT * FROM profiles WHERE id = ?
   }
 
   @override
-  Stream<Set<String>> visitedRegionsOf({required String userId}) =>
-      _powerSyncRepository
-          .db()
-          .watch(
-            '''
-    SELECT DISTINCT location_region FROM posts
-    WHERE user_id = ?1 AND location_region IS NOT NULL AND location_region != ''
-      AND ${_visibleAuthorSql('?1')}
-    ''',
-            parameters: [userId],
-          )
-          .map(
-            (result) =>
-                result.map((row) => row['location_region'] as String).toSet(),
-          );
-
-  @override
   Stream<Map<String, int>> visitedRegionCountsOf({required String userId}) =>
       _powerSyncRepository
           .db()
@@ -1039,23 +980,6 @@ SELECT * FROM profiles WHERE id = ?
     localSql: 'SELECT COUNT(*) FROM posts WHERE user_id = ?1',
   );
 
-  @override
-  Stream<int> referralCountOf({required String userId}) => _powerSyncRepository
-      .db()
-      .watch(
-        'SELECT COUNT(*) AS referral_count FROM referrals '
-        'WHERE referrer_id = ?',
-        parameters: [userId],
-      )
-      .map(
-        (event) =>
-            event.safeMap((element) => element['referral_count']).first as int,
-      );
-
-  @override
-  Stream<int> referralTierOf({required String userId}) =>
-      travelTierOf(userId: userId);
-
   /// The badge everyone sees, read off the globally-synced profile.
   ///
   /// It cannot be computed from `referrals`: that table only syncs to the
@@ -1141,18 +1065,6 @@ SELECT
               expiresAt: premiumEndFromInvites(dates),
             );
           });
-
-  @override
-  Stream<Set<String>> markedRegionsOf({required String userId}) =>
-      _powerSyncRepository
-          .db()
-          .watch(
-            'SELECT region_iso FROM visited_regions WHERE user_id = ?',
-            parameters: [userId],
-          )
-          .map(
-            (event) => event.map((row) => row['region_iso'] as String).toSet(),
-          );
 
   @override
   Stream<List<StoryHighlight>> storyHighlightsOf({required String userId}) =>
@@ -1244,52 +1156,6 @@ ORDER BY i.created_at ASC
         [highlightId],
       );
     });
-  }
-
-  @override
-  Future<void> addStoryToHighlight({
-    required String highlightId,
-    required String storyId,
-  }) async {
-    // SELECT-then-INSERT, same as pinStoryToLocation: the local PowerSync
-    // tables carry no unique index for ON CONFLICT to resolve against.
-    final existing = await _powerSyncRepository.db().getAll(
-      'SELECT id FROM story_highlight_items '
-      'WHERE highlight_id = ? AND story_id = ?',
-      [highlightId, storyId],
-    );
-    if (existing.isNotEmpty) return;
-    await _powerSyncRepository.db().execute(
-      'INSERT INTO story_highlight_items(id, highlight_id, story_id, created_at) '
-      'VALUES (?, ?, ?, ?)',
-      [uuid.v4(), highlightId, storyId, DateTime.timestamp().toIso8601String()],
-    );
-  }
-
-  @override
-  Future<void> setStoryLocation({
-    required String storyId,
-    required double lat,
-    required double lng,
-    String? name,
-  }) {
-    // Persist the pin's name so the travel map can label it. This used to write
-    // only lat/lng, to keep the story-view "place chip" from appearing — but
-    // that chip is deliberately not rendered (see StoriesAuthorListTile), so the
-    // name now only surfaces on the map, which is what we want. A null/blank
-    // name leaves any existing label untouched (no clobber).
-    final trimmed = name?.trim();
-    if (trimmed != null && trimmed.isNotEmpty) {
-      return _powerSyncRepository.db().execute(
-        'UPDATE stories SET location_lat = ?, location_lng = ?, location_name = ? '
-        'WHERE id = ?',
-        [lat, lng, trimmed, storyId],
-      );
-    }
-    return _powerSyncRepository.db().execute(
-      'UPDATE stories SET location_lat = ?, location_lng = ? WHERE id = ?',
-      [lat, lng, storyId],
-    );
   }
 
   @override
@@ -1960,20 +1826,6 @@ RETURNING *
     final media = _decodeMedia(json['media'] as String);
     return Post.fromJson(json, media: media);
   }
-
-  @override
-  Stream<int> likesOf({required String id, bool post = true}) =>
-      _powerSyncRepository
-          .db()
-          .watch(
-            post
-                ? 'SELECT likes_count AS c FROM post_stats WHERE id = ?'
-                : 'SELECT likes_count AS c FROM comments WHERE id = ?',
-            parameters: [id],
-          )
-          .map(
-            (rows) => rows.isEmpty ? 0 : (rows.first['c'] as int?) ?? 0,
-          );
 
   /// One row per comment: its likes as the server counts them (the phone has
   /// only the user's own likes), whether the user liked it, and whether the
@@ -2875,23 +2727,6 @@ LIMIT ?2 OFFSET ?3''';
         .map((event) => event.isNotEmpty);
   }
 
-  @override
-  Stream<int> commentsAmountOf({required String postId}) => _powerSyncRepository
-      .db()
-      .watch(
-        '''
-SELECT COALESCE(
-  (SELECT comments_count FROM post_stats WHERE id = ?1),
-  (SELECT COUNT(*) FROM comments
-    WHERE post_id = ?1 AND ${_notBlockedSql('comments.user_id')})
-) AS comments_count
-''',
-        parameters: [postId],
-      )
-      .map(
-        (result) => result.map((row) => row['comments_count']).first as int,
-      );
-
   /// A comment's author's card: the one the server keeps on the comment
   /// (their profile may not be on the phone), else their profile — the
   /// user's own comment before the server has filled it in.
@@ -3148,7 +2983,6 @@ SELECT blocker_id FROM blocked_users WHERE blocked_id = ?1''',
     required int offset,
     required String? query,
     String? userId,
-    String? excludeUserIds,
   }) async {
     if (query == null || _searchKey(query).isEmpty) return <User>[];
     final me = currentUserId;
@@ -3174,14 +3008,11 @@ SELECT blocker_id FROM blocked_users WHERE blocked_id = ?1''',
       // Offline / server error — fall back to the local synced profiles.
     }
 
-    final excludeUserIdsStatement = excludeUserIds == null
-        ? ''
-        : 'AND id NOT IN ($excludeUserIds)';
     final rows = await _powerSyncRepository.db().getAll(
       '''
 SELECT id, avatar_url, full_name, username
   FROM profiles
-WHERE id <> ?1 $excludeUserIdsStatement
+WHERE id <> ?1
   AND ${_notBlockedSql('profiles.id')}
 ''',
       [currentUserId],
