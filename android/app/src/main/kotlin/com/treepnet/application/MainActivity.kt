@@ -11,6 +11,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity: FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        forgetPushBackgroundHandler()
         // The notifications list's "turn on notifications" row: straight to
         // this app's notification settings (its app page if that won't open).
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "treepnet/settings")
@@ -40,5 +41,19 @@ class MainActivity: FlutterActivity() {
                     }
                 }
             }
+    }
+
+    /**
+     * The app no longer has a background push handler, but firebase_messaging
+     * kept the old one's handles on the phone, and while they are there it
+     * starts a second, hidden Flutter engine for a push in the background.
+     * Forget them (the plugin writes them only when a handler is registered).
+     */
+    private fun forgetPushBackgroundHandler() {
+        getSharedPreferences("io.flutter.firebase.messaging.callback", MODE_PRIVATE)
+            .edit()
+            .remove("callback_handle")
+            .remove("user_callback_handle")
+            .apply()
     }
 }

@@ -8,15 +8,6 @@ import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:user_repository/user_repository.dart';
 
-/// Handles a push that arrives while the app is in the background or fully
-/// terminated. FCM *notification* messages are drawn by the OS itself, so there
-/// is nothing to render here — but a background handler must still be
-/// registered for Firebase Messaging to deliver in that state.
-@pragma('vm:entry-point')
-Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Intentionally empty: notification payloads are shown by Android directly.
-}
-
 /// Thin wrapper around Firebase Cloud Messaging + local notifications.
 ///
 /// FCM is only the transport here; the server decides what to send.
@@ -119,9 +110,11 @@ class PushNotifications {
       try {
         // Bounded so a hung Firebase init can never keep this future pending.
         await Firebase.initializeApp().timeout(const Duration(seconds: 10));
-        FirebaseMessaging.onBackgroundMessage(
-          firebaseMessagingBackgroundHandler,
-        );
+        // No background handler: every push we send is a *notification*
+        // message, which the phone shows by itself, and a tap still opens the
+        // app (below). A handler — even an empty one — made Android start a
+        // second, hidden copy of the app for a push in the background. Add one
+        // back only for data-only messages.
         _fcmReady = true;
         FirebaseMessaging.onMessageOpenedApp.listen(
           (message) => _taps.add(_tapData(message)),
