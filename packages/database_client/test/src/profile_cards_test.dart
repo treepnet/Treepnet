@@ -2,6 +2,8 @@
 // through powersync_repository.
 // ignore_for_file: depend_on_referenced_packages
 
+import 'dart:async';
+
 import 'package:database_client/database_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -13,6 +15,17 @@ class _MockPowerSyncRepository extends Mock implements PowerSyncRepository {}
 class _MockDatabase extends Mock implements PowerSyncDatabase {}
 
 class _MockPostgrest extends Mock implements PostgrestClient {}
+
+/// An RPC's answer, as PostgREST's builder (a Future) gives it.
+class _Answer<T> extends Fake implements PostgrestFilterBuilder<T> {
+  _Answer(this._value);
+
+  final T _value;
+
+  @override
+  Future<R> then<R>(FutureOr<R> Function(T) onValue, {Function? onError}) =>
+      Future<T>.value(_value).then(onValue, onError: onError);
+}
 
 const _someone = '0b6f3c1e-8a52-4d7e-9c11-2f4a6b8d0e13';
 
@@ -72,6 +85,33 @@ void main() {
           .first;
       expect(profiles, isEmpty);
       expect(asked, isEmpty);
+    });
+
+    test('more than the server reads per call go in parts of 200', () async {
+      // `profile_cards` reads the first 200 ids only: everyone past them came
+      // back empty and left the list (a long inbox, blocked or saved list).
+      when(
+        () => postgrest.rpc<List<dynamic>>(
+          'profile_cards',
+          params: any(named: 'params'),
+        ),
+      ).thenAnswer((invocation) {
+        final params = invocation.namedArguments[#params] as Map;
+        final ids = (params['p_ids'] as List).cast<String>();
+        asked.add(ids);
+        return _Answer<List<dynamic>>([
+          for (final id in ids.take(200)) {'id': id, 'username': 'user-$id'},
+        ]);
+      });
+      final ids = [
+        for (var i = 0; i < 450; i++)
+          '00000000-0000-4000-8000-${i.toString().padLeft(12, '0')}',
+      ];
+
+      final profiles = await client.profilesOf(ids: ids).first;
+
+      expect(asked.map((part) => part.length), [200, 200, 50]);
+      expect(profiles.keys.toSet(), ids.toSet());
     });
 
     test('a badge asked for at the same moment goes out alone', () async {

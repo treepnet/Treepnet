@@ -2731,6 +2731,9 @@ LIMIT ?2 OFFSET ?3''';
   final _cardRequests = _Batcher<_Card?>(const Duration(milliseconds: 50));
   static const _cardLife = Duration(minutes: 10);
 
+  /// The most ids `profile_cards` reads per call.
+  static const _cardsMax = 200;
+
   /// The server's card (name, username, avatar, badge) of each of [ids] it
   /// knows; none offline.
   ///
@@ -2755,9 +2758,21 @@ LIMIT ?2 OFFSET ?3''';
       for (final id in wanted)
         _cardRequests
             .get(id, (ids) async {
-              final rows = await _powerSyncRepository
-                  .postgrest()
-                  .rpc<List<dynamic>>('profile_cards', params: {'p_ids': ids});
+              // `profile_cards` reads the first [_cardsMax] ids only: a bigger
+              // batch goes in parts, or everyone past them came back empty.
+              final parts = await Future.wait([
+                for (var i = 0; i < ids.length; i += _cardsMax)
+                  _powerSyncRepository.postgrest().rpc<List<dynamic>>(
+                    'profile_cards',
+                    params: {
+                      'p_ids': ids.sublist(
+                        i,
+                        i + _cardsMax < ids.length ? i + _cardsMax : ids.length,
+                      ),
+                    },
+                  ),
+              ]);
+              final rows = [for (final part in parts) ...part];
               final found = <String, _Card?>{for (final id in ids) id: null};
               for (final row in rows.cast<Map<String, dynamic>>()) {
                 found[row['id'] as String] = (
