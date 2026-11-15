@@ -828,6 +828,7 @@
   "lastSeenAWhileText": "last seen a while ago",
   "blockedThisUserText": "You've blocked this user. Unblock to send a message.",
   "cantMessageUserText": "You can't message this user because they've blocked you.",
+  "tooManyNewChatsText": "Too many new chats in a short time. Try again later.",
   "openPostText": "Open post",
   "postUnavailableText": "Post unavailable",
   "storyUnavailableText": "Story unavailable",

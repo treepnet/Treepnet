@@ -1555,6 +1555,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'You can\'t message this user because they\'ve blocked you.';
 
   @override
+  String get tooManyNewChatsText =>
+      'Too many new chats in a short time. Try again later.';
+
+  @override
   String get openPostText => 'Open post';
 
   @override

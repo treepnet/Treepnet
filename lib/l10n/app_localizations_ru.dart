@@ -1578,6 +1578,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'Вы не можете написать этому пользователю, так как он вас заблокировал.';
 
   @override
+  String get tooManyNewChatsText =>
+      'Слишком много новых чатов за короткое время. Попробуйте позже.';
+
+  @override
   String get openPostText => 'Открыть пост';
 
   @override

@@ -71,7 +71,6 @@ class ChatThreadScreen extends StatelessWidget {
 
   Widget _buildForPeer(BuildContext context, ChatUser peer) {
     final me = context.select((AppBloc bloc) => bloc.state.user.id);
-    final repo = context.read<UserRepository>();
     final menu = _ChatOverflowMenu(
       peerUuid: peerUuid,
       peerName: peer.name,
@@ -115,29 +114,22 @@ class ChatThreadScreen extends StatelessWidget {
     // Block gates BOTH ways: if I blocked them the notice offers unblock; if
     // they blocked me it just says messaging is unavailable. The thread still
     // opens and history stays readable.
-    return StreamBuilder<bool>(
-      stream: repo.isBlocked(userId: me, otherUserId: peerUuid),
-      initialData: false,
-      builder: (context, iBlockedSnap) {
-        final iBlocked = iBlockedSnap.data ?? false;
-        return StreamBuilder<bool>(
-          stream: repo.isBlocked(userId: peerUuid, otherUserId: me),
-          initialData: false,
-          builder: (context, blockedMeSnap) {
-            final blockedMe = blockedMeSnap.data ?? false;
-            final blocked = iBlocked || blockedMe;
-            return _chat(
-              peer: peer,
-              trailing: menu,
-              avatar: headerAvatar,
-              onTitleTap: onTitleTap,
-              composerOverride: blocked
-                  ? _BlockedComposerBar(iBlocked: iBlocked)
-                  : null,
-            );
-          },
-        );
-      },
+    return _BlockGate(
+      me: me,
+      peerUuid: peerUuid,
+      builder: (context, iBlocked, blockedMe) => _chat(
+        peer: peer,
+        trailing: menu,
+        avatar: headerAvatar,
+        onTitleTap: onTitleTap,
+        // No composer until both are known: assumed "not blocked" at first,
+        // it showed (and took typing) before the notice replaced it.
+        composerOverride: iBlocked == null || blockedMe == null
+            ? const SizedBox.shrink()
+            : iBlocked || blockedMe
+            ? _BlockedComposerBar(iBlocked: iBlocked)
+            : null,
+      ),
     );
   }
 
@@ -280,6 +272,63 @@ class _ChatOverflowMenu extends StatelessWidget {
 enum _ChatMenuAction { block, delete }
 
 /// Shown in place of the input when either side has blocked the other.
+/// Whether [me] blocked the peer and the peer blocked [me] (null until
+/// known), watched once per pair: made in build, the watches started again
+/// on every rebuild, each time from "not blocked".
+class _BlockGate extends StatefulWidget {
+  const _BlockGate({
+    required this.me,
+    required this.peerUuid,
+    required this.builder,
+  });
+
+  final String me;
+  final String peerUuid;
+  final Widget Function(BuildContext context, bool? iBlocked, bool? blockedMe)
+  builder;
+
+  @override
+  State<_BlockGate> createState() => _BlockGateState();
+}
+
+class _BlockGateState extends State<_BlockGate> {
+  late Stream<bool> _iBlocked;
+  late Stream<bool> _blockedMe;
+
+  @override
+  void initState() {
+    super.initState();
+    _watch();
+  }
+
+  @override
+  void didUpdateWidget(_BlockGate oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.me != widget.me || oldWidget.peerUuid != widget.peerUuid) {
+      _watch();
+    }
+  }
+
+  void _watch() {
+    final repo = context.read<UserRepository>();
+    _iBlocked = repo.isBlocked(userId: widget.me, otherUserId: widget.peerUuid);
+    _blockedMe = repo.isBlocked(
+      userId: widget.peerUuid,
+      otherUserId: widget.me,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => StreamBuilder<bool>(
+    stream: _iBlocked,
+    builder: (context, iBlocked) => StreamBuilder<bool>(
+      stream: _blockedMe,
+      builder: (context, blockedMe) =>
+          widget.builder(context, iBlocked.data, blockedMe.data),
+    ),
+  );
+}
+
 class _BlockedComposerBar extends StatelessWidget {
   const _BlockedComposerBar({required this.iBlocked});
 

@@ -2655,6 +2655,12 @@ abstract class AppLocalizations {
   /// **'You can\'t message this user because they\'ve blocked you.'**
   String get cantMessageUserText;
 
+  /// No description provided for @tooManyNewChatsText.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many new chats in a short time. Try again later.'**
+  String get tooManyNewChatsText;
+
   /// No description provided for @openPostText.
   ///
   /// In en, this message translates to:

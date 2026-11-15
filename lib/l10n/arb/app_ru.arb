@@ -763,6 +763,7 @@
   "lastSeenAWhileText": "был(а) давно",
   "blockedThisUserText": "Вы заблокировали этого пользователя. Разблокируйте, чтобы написать.",
   "cantMessageUserText": "Вы не можете написать этому пользователю, так как он вас заблокировал.",
+  "tooManyNewChatsText": "Слишком много новых чатов за короткое время. Попробуйте позже.",
   "openPostText": "Открыть пост",
   "postUnavailableText": "Пост недоступен",
   "storyUnavailableText": "История недоступна",

@@ -150,7 +150,9 @@ class _StoryFooterState extends State<StoryFooter> with WidgetsBindingObserver {
         ? widget.author.avatarUrl
         : null;
     try {
-      await shareTextToUser(
+      // False when it wasn't sent (a block either way): it said "Reply sent"
+      // all the same. The reply stays in the field.
+      var sent = await shareTextToUser(
         context,
         peerUuid: widget.author.id,
         peerName: widget.author.displayUsername,
@@ -158,14 +160,22 @@ class _StoryFooterState extends State<StoryFooter> with WidgetsBindingObserver {
         text: encodeStoryShare(widget.story.id),
       );
       if (!mounted) return;
-      await shareTextToUser(
-        context,
-        peerUuid: widget.author.id,
-        peerName: widget.author.displayUsername,
-        peerAvatarUrl: peerAvatar,
-        text: text,
-      );
-      if (!mounted) return;
+      if (sent) {
+        sent = await shareTextToUser(
+          context,
+          peerUuid: widget.author.id,
+          peerName: widget.author.displayUsername,
+          peerAvatarUrl: peerAvatar,
+          text: text,
+        );
+        if (!mounted) return;
+      }
+      if (!sent) {
+        openSnackbar(
+          SnackbarMessage.error(title: context.l10n.messageNotSentText),
+        );
+        return;
+      }
       _replyController.clear();
       _replyFocus.unfocus();
       _setReplying(false);

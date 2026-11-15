@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart' show DioException;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:messenger_chat/messenger_chat.dart';
@@ -27,6 +28,40 @@ Future<bool> _blockedBetween(
     repo.isBlocked(userId: peerUuid, otherUserId: meId).first,
   ]);
   return results.any((blocked) => blocked);
+}
+
+/// What to say when a chat couldn't be opened, from the server's answer: a
+/// block (and whose), too many new chats at once, or anything else. Every
+/// case read "Couldn't open the chat".
+Future<String> _whyNotOpened(
+  Object error, {
+  required UserRepository repo,
+  required String meId,
+  required String peerUuid,
+  required ({
+    String generic,
+    String blockedByThem,
+    String blockedByMe,
+    String tooMany,
+  })
+  texts,
+}) async {
+  if (error is! DioException) return texts.generic;
+  final response = error.response;
+  final data = response?.data;
+  final code = data is Map ? data['code']?.toString() : null;
+  if (response?.statusCode == 429 || code == 'TOO_MANY_NEW_CHATS') {
+    return texts.tooMany;
+  }
+  if (code != 'BLOCKED') return texts.generic;
+  try {
+    final iBlocked = await repo
+        .isBlocked(userId: meId, otherUserId: peerUuid)
+        .first;
+    return iBlocked ? texts.blockedByMe : texts.blockedByThem;
+  } catch (_) {
+    return texts.blockedByThem;
+  }
 }
 
 /// Resolves the current user's real username for the chat backend.
@@ -82,7 +117,13 @@ Future<void> openChat(
   final messenger = ScaffoldMessenger.of(context);
   final navigator = Navigator.of(context, rootNavigator: true);
   final repo = context.read<UserRepository>();
-  final couldNotOpen = context.l10n.couldNotOpenChatText;
+  final l10n = context.l10n;
+  final notOpenedTexts = (
+    generic: l10n.couldNotOpenChatText,
+    blockedByThem: l10n.cantMessageUserText,
+    blockedByMe: l10n.blockedThisUserText,
+    tooMany: l10n.tooManyNewChatsText,
+  );
 
   // Blocking no longer prevents OPENING the thread — you can read the history
   // and the composer is replaced by a "blocked" notice inside (see
@@ -112,9 +153,16 @@ Future<void> openChat(
           peerName: peerName,
           peerAvatarUrl: peerAvatarUrl,
         );
-      } catch (_) {
+      } catch (error) {
         if (loading.isActive) {
-          messenger.showSnackBar(SnackBar(content: Text(couldNotOpen)));
+          final why = await _whyNotOpened(
+            error,
+            repo: repo,
+            meId: me.id,
+            peerUuid: peerUuid,
+            texts: notOpenedTexts,
+          );
+          messenger.showSnackBar(SnackBar(content: Text(why)));
         }
         return;
       }
