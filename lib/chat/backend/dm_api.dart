@@ -17,7 +17,6 @@ class DmApi {
     required this.myUuid,
     required this.appName,
     required this.apiKey,
-    required this.deviceId,
     required this.deviceName,
     required this.idToken,
     this.lang = 'en',
@@ -27,7 +26,6 @@ class DmApi {
   final String myUuid;
   final String appName;
   final String apiKey;
-  final String deviceId;
   final String deviceName;
 
   /// The signed-in user's Firebase ID token, sent with every request and every
@@ -145,7 +143,8 @@ class DmApi {
     'x-uuid': myUuid,
     'x-app': appName,
     'x-app-key': apiKey,
-    'x-device-id': deviceId,
+    // No x-device-id: it was a hardware fingerprint (Android) or the vendor
+    // id (iOS), stored by the backend and used for nothing.
     'x-device-name': deviceName,
     'x-device-type': 'mobile',
     'x-lang': lang,

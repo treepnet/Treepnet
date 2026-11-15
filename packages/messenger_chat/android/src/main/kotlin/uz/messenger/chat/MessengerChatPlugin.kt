@@ -19,57 +19,21 @@ class MessengerChatPlugin: FlutterPlugin, MethodCallHandler {
       "getPlatformVersion" -> {
         result.success("Android ${android.os.Build.VERSION.RELEASE}")
       }
-      "getUniqueDeviceId" -> {
-        val deviceId = getUniqueDeviceId()
-        result.success(deviceId)
-      }
       else -> {
         result.notImplemented()
       }
     }
   }
 
-  private fun getUniqueDeviceId(): String {
-    val androidId = android.provider.Settings.Secure.getString(
-      context?.contentResolver,
-      android.provider.Settings.Secure.ANDROID_ID
-    ) ?: "unknown"
-
-    val combined = "35" + // We make it look like IMEI (optional but common practice in some fingerprinting)
-            android.os.Build.BOARD +
-            android.os.Build.BRAND +
-            android.os.Build.DEVICE +
-            android.os.Build.DISPLAY +
-            android.os.Build.HOST +
-            android.os.Build.ID +
-            android.os.Build.MANUFACTURER +
-            android.os.Build.MODEL +
-            android.os.Build.PRODUCT +
-            android.os.Build.TAGS +
-            android.os.Build.TYPE +
-            android.os.Build.USER +
-            androidId
-
-    return hashString(combined)
-  }
-
-  private fun hashString(input: String): String {
-    val bytes = java.security.MessageDigest
-            .getInstance("SHA-256")
-            .digest(input.toByteArray())
-    return bytes.joinToString("") { "%02x".format(it) }
-  }
-
-  private var context: android.content.Context? = null
+  // No device id: it was a SHA-256 of the hardware's Build fields and
+  // ANDROID_ID (a fingerprint), which the chat backend stored and never used.
 
   override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
-    context = flutterPluginBinding.applicationContext
     channel = MethodChannel(flutterPluginBinding.binaryMessenger, "messenger_chat")
     channel.setMethodCallHandler(this)
   }
 
   override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
     channel.setMethodCallHandler(null)
-    context = null
   }
 }

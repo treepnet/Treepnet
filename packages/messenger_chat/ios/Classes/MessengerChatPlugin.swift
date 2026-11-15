@@ -12,12 +12,6 @@ public class MessengerChatPlugin: NSObject, FlutterPlugin {
     switch call.method {
     case "getPlatformVersion":
       result("iOS " + UIDevice.current.systemVersion)
-    case "getUniqueDeviceId":
-      if let vendorId = UIDevice.current.identifierForVendor?.uuidString {
-          result(vendorId)
-      } else {
-          result(FlutterError(code: "UNAVAILABLE", message: "Device ID not available", details: nil))
-      }
     default:
       result(FlutterMethodNotImplemented)
     }

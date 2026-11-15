@@ -40,18 +40,6 @@ class MessengerChat extends StatefulWidget {
   /// blocked this user" notice). When null, the normal composer is shown.
   final Widget? composerOverride;
 
-  static const MethodChannel _channel = MethodChannel('messenger_chat');
-
-  static Future<String> getDeviceId() async {
-    try {
-      final String? deviceId = await _channel.invokeMethod('getUniqueDeviceId');
-      return deviceId ?? '';
-    } catch (e) {
-      debugPrint('[MessengerChat.getDeviceId Error] $e');
-      return '';
-    }
-  }
-
   /// Plaginni ishga tayyorlaydi.
   ///
   /// Chat ekranini ochishdan oldin bir marta chaqirilishi shart.

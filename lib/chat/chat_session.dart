@@ -183,13 +183,11 @@ class ChatSession {
     if (generation != _generation) return;
     if (saved != null) unreadTotal.value = saved.unread;
 
-    final deviceId = await MessengerChat.getDeviceId();
     final api = DmApi(
       baseUrl: chatBaseUrl,
       myUuid: myUuid,
       appName: chatAppName,
       apiKey: chatApiKey,
-      deviceId: deviceId,
       // x-device-name is mandatory server-side and must not be 'unknown'.
       deviceName: 'TreepNet ${Platform.operatingSystem}',
       lang: _lang,
