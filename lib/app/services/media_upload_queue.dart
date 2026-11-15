@@ -1063,7 +1063,10 @@ class MediaUploadQueue {
         bytes: bytes,
         remotePath: '$postId/image_$index',
         bucket: 'posts',
-        contentType: 'image/$extension',
+        // Always a JPEG now (see compressByte), whatever the picked file was
+        // called: it used to be named by its extension — the non-standard
+        // image/jpg, or image/png and image/heic for what were JPEG bytes.
+        contentType: 'image/jpeg',
         mediaType: shared.ImageMedia.identifier,
         index: index,
         blurHash: blurHash,

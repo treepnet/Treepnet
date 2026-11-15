@@ -9,9 +9,11 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 class ImageCompress {
   const ImageCompress._();
 
-  /// Compress image byte.
+  /// Re-encodes a post photo as a JPEG of at most ~1440px, whatever its size
+  /// or kind. Small files used to go up untouched, with their EXIF — the GPS
+  /// spot where the photo was taken among it — and their rotation unapplied.
+  /// The encoder writes no metadata and turns the picture upright.
   static Future<Uint8List> compressByte(Uint8List file) async {
-    if (file.lengthInBytes <= 200000) return file;
     return FlutterImageCompress.compressWithList(
       file,
       // Cap the resolution. A phone camera shot is often 4000px+ on its long
