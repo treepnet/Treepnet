@@ -110,11 +110,16 @@ streams:
 
   # The app passes the post's author as `owner_id`; the queries only match
   # rows whose author it really is.
+  # public_owner leaves out the user: their own post already matches
+  # `= auth.user_id()`, and with a public profile it matched twice. The bucket
+  # went into the checkpoint twice, every row came twice, the phone's
+  # checksum was double, and its whole sync stalled while the comments of an
+  # own post were open (v11, 2026-11-16).
   post:
     accept_potentially_dangerous_queries: true
     with:
       followed_owner: SELECT subscribed_to_id FROM subscriptions WHERE subscriber_id = auth.user_id() AND subscribed_to_id = subscription.parameter('owner_id') AND status = 'accepted'
-      public_owner: SELECT id FROM profiles WHERE id = subscription.parameter('owner_id') AND is_private = false
+      public_owner: SELECT id FROM profiles WHERE id = subscription.parameter('owner_id') AND is_private = false AND subscription.parameter('owner_id') != auth.user_id()
     queries:
       - SELECT * FROM comments WHERE post_id = subscription.parameter('post_id') AND (post_owner_id = auth.user_id() OR post_owner_id IN followed_owner OR post_owner_id IN public_owner)
       - SELECT * FROM posts WHERE id = subscription.parameter('post_id') AND (user_id = auth.user_id() OR user_id IN followed_owner OR user_id IN public_owner)
