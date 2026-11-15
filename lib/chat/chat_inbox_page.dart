@@ -269,13 +269,24 @@ class _TypeList extends StatefulWidget {
 }
 
 class _TypeListState extends State<_TypeList> {
-  Future<List<User>>? _future;
+  /// A page of search results: it was 8 and nothing more.
+  static const _searchPage = 30;
+
+  List<User>? _users;
+  bool _hasMore = false;
+  bool _loadingMore = false;
+
+  /// Bumped per query: a page that comes back for an older one is dropped.
+  int _generation = 0;
   Timer? _debounce;
 
+  /// Chat list events: someone just messaged drops off the suggestions.
+  StreamSubscription<ChatListEvent>? _chatEvents;
+
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _future ??= _load();
+  void initState() {
+    super.initState();
+    unawaited(_load());
   }
 
   @override
@@ -287,16 +298,16 @@ class _TypeListState extends State<_TypeList> {
     // never surface someone you don't follow (why handles like "rakhimrb" were
     // unfindable here). Debounced so typing doesn't fire a query per keystroke.
     if (oldWidget.query != widget.query) {
+      // The spinner at once, not after the pause: the old list (the
+      // suggestions, or the last query's results) stayed up until then and
+      // read as the results. A page still on its way for it is dropped.
+      _generation++;
+      _users = null;
+      _hasMore = false;
+      _loadingMore = false;
       _debounce?.cancel();
       _debounce = Timer(const Duration(milliseconds: 300), () {
-        // Assign in a block body: an arrow `=> _future = _load()` returns the
-        // Future, and setState warns when its callback returns one. We only
-        // store the future here (the FutureBuilder awaits it), not await it.
-        if (mounted) {
-          setState(() {
-            _future = _load();
-          });
-        }
+        if (mounted) unawaited(_load());
       });
     }
   }
@@ -304,25 +315,95 @@ class _TypeListState extends State<_TypeList> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _chatEvents?.cancel();
     super.dispose();
   }
 
-  Future<List<User>> _load() async {
-    final query = widget.query;
-    if (query.isNotEmpty) {
-      // Real search across every account (server-first; see SearchRepository),
-      // so you can start a chat with anyone, not just your follows/suggestions.
-      final results = await context.read<SearchRepository>().searchUsers(
-        query: query,
-      );
-      return results
-          .where((u) => u.id != widget.userId && !u.isAnonymous)
-          .toList();
+  /// Rebuilds on chat list changes (once the session has a list), so the
+  /// suggestions leave out whoever was just messaged.
+  void _listenForChats() {
+    if (_chatEvents != null) return;
+    final transport = ChatSession.instance.listTransportIfAny;
+    if (transport == null) return;
+    _chatEvents = transport.events.listen((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  /// The first page for the current query: search results, or follows and
+  /// suggestions with no query.
+  Future<void> _load() async {
+    final generation = ++_generation;
+    // Back to the spinner for the new query (nothing to reset on the first
+    // load, run from initState, where setState isn't allowed).
+    if (_users != null || _loadingMore) {
+      setState(() {
+        _users = null;
+        _hasMore = false;
+        _loadingMore = false;
+      });
     }
-    // Empty query: the quick "start a chat" list — follows + suggestions.
-    // Cap followings: getFollowings with no limit fetches EVERY following (one
-    // profile query each), so a user who follows hundreds would load hundreds
-    // and render an unbounded list on inbox open. 50 keeps it fast and bounded.
+    final query = widget.query;
+    List<User> users;
+    var hasMore = false;
+    try {
+      if (query.isNotEmpty) {
+        users = await _search(query, offset: 0);
+        hasMore = users.length >= _searchPage;
+      } else {
+        users = await _suggestions();
+      }
+    } catch (_) {
+      users = const [];
+    }
+    if (!mounted || generation != _generation) return;
+    _listenForChats();
+    setState(() {
+      _users = users;
+      _hasMore = hasMore;
+    });
+  }
+
+  /// The next page of search results, under the shown ones.
+  Future<void> _loadMore() async {
+    final shown = _users;
+    final query = widget.query;
+    if (shown == null || !_hasMore || _loadingMore || query.isEmpty) return;
+    final generation = _generation;
+    setState(() => _loadingMore = true);
+    List<User> page;
+    try {
+      page = await _search(query, offset: shown.length);
+    } catch (_) {
+      page = const [];
+    }
+    if (!mounted || generation != _generation) return;
+    final ids = {for (final user in shown) user.id};
+    setState(() {
+      _users = [...shown, ...page.where((user) => !ids.contains(user.id))];
+      _hasMore = page.length >= _searchPage;
+      _loadingMore = false;
+    });
+  }
+
+  /// Real search across every account (server-first; see SearchRepository),
+  /// so you can start a chat with anyone, not just your follows/suggestions.
+  Future<List<User>> _search(String query, {required int offset}) async {
+    final results = await context.read<SearchRepository>().searchUsers(
+      query: query,
+      limit: _searchPage,
+      offset: offset,
+    );
+    return results
+        .where((u) => u.id != widget.userId && !u.isAnonymous)
+        .toList();
+  }
+
+  /// Empty query: the quick "start a chat" list — follows + suggestions.
+  /// Cap followings: getFollowings with no limit fetches EVERY following (one
+  /// profile query each), so a user who follows hundreds would load hundreds
+  /// and render an unbounded list on inbox open. 50 keeps it fast and bounded.
+  Future<List<User>> _suggestions() async {
     final repo = context.read<UserRepository>();
     final followings = await repo.getFollowings(
       userId: widget.userId,
@@ -340,68 +421,80 @@ class _TypeListState extends State<_TypeList> {
 
   @override
   Widget build(BuildContext context) {
-    // Hide only people we've actually exchanged a message with — a person
-    // opened-but-not-messaged stays here until something is written.
-    final existing =
-        ChatSession.instance.listTransportIfAny?.messagedPeerUuids ??
-        const <String>{};
-
-    return FutureBuilder<List<User>>(
-      future: _future,
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(
-            child: SizedBox(
-              height: 22,
-              width: 22,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: ChatTheme.accent,
-              ),
-            ),
-          );
-        }
-        // No client-side query filter here: _load() already returns the right
-        // set (server search results when searching, follows/suggestions when
-        // not). We only hide people already messaged.
-        final users = snapshot.data!
-            .where((u) => !existing.contains(u.id))
-            .toList();
-
-        if (users.isEmpty) {
-          return Center(
-            child: Text(
-              context.l10n.noOneToMessageText,
-              style: context.bodyMedium?.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-          );
-        }
-
-        return ListView.separated(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          itemCount: users.length,
-          separatorBuilder: (_, __) => Divider(
-            height: 1,
-            color: AppColors.borderOutline.withValues(alpha: 0.4),
+    final loaded = _users;
+    if (loaded == null) {
+      return const Center(
+        child: SizedBox(
+          height: 22,
+          width: 22,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: ChatTheme.accent,
           ),
-          itemBuilder: (context, index) {
-            final user = users[index];
-            return _PersonRow(
-              avatarUrl: user.avatarUrl,
-              author: user,
-              title: user.displayUsername,
-              onTap: () => openChat(
-                context,
-                peerUuid: user.id,
-                peerName: user.displayUsername,
-                peerAvatarUrl: user.hasAvatar ? user.avatarUrl : null,
+        ),
+      );
+    }
+    // The suggestions leave out people already messaged (opened but not
+    // written to stays). A search shows everyone it finds: hiding them left a
+    // common name with nobody, and tapping one opens the chat you have.
+    final searching = widget.query.isNotEmpty;
+    final existing = searching
+        ? const <String>{}
+        : ChatSession.instance.listTransportIfAny?.messagedPeerUuids ??
+              const <String>{};
+    final users = loaded.where((u) => !existing.contains(u.id)).toList();
+
+    if (users.isEmpty) {
+      return Center(
+        child: Text(
+          context.l10n.noOneToMessageText,
+          style: context.bodyMedium?.copyWith(color: AppColors.textSecondary),
+        ),
+      );
+    }
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification.metrics.extentAfter < 400) unawaited(_loadMore());
+        return false;
+      },
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        itemCount: users.length + (_loadingMore ? 1 : 0),
+        separatorBuilder: (_, __) => Divider(
+          height: 1,
+          color: AppColors.borderOutline.withValues(alpha: 0.4),
+        ),
+        itemBuilder: (context, index) {
+          if (index == users.length) {
+            return const Padding(
+              padding: EdgeInsets.all(AppSpacing.md),
+              child: Center(
+                child: SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: ChatTheme.accent,
+                  ),
+                ),
               ),
             );
-          },
-        );
-      },
+          }
+          final user = users[index];
+          return _PersonRow(
+            avatarUrl: user.avatarUrl,
+            author: user,
+            title: user.displayUsername,
+            onTap: () => openChat(
+              context,
+              peerUuid: user.id,
+              peerName: user.displayUsername,
+              peerAvatarUrl: user.hasAvatar ? user.avatarUrl : null,
+            ),
+          );
+        },
+      ),
     );
   }
 }
