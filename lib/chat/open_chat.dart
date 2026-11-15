@@ -212,8 +212,9 @@ Future<bool> shareTextToUser(
   peerAvatarUrl: peerAvatarUrl,
 );
 
-/// How a share to several people went: how many of them got it.
-typedef ShareOutcome = ({int sent, int total});
+/// How a share to several people went: how many got it, and how many are
+/// still on their way (no answer in time; see [MessageStillSending]).
+typedef ShareOutcome = ({int sent, int pending, int total});
 
 /// Shares [text] with each of [receivers], up to three at a time, each one
 /// waiting for the server to confirm it. One that fails, or is blocked either
@@ -237,6 +238,7 @@ Future<ShareOutcome> shareTextToUsers(
   ];
   final pending = [...receivers];
   var sent = 0;
+  var stillSending = 0;
   Future<void> worker() async {
     while (pending.isNotEmpty) {
       final receiver = pending.removeLast();
@@ -252,6 +254,8 @@ Future<ShareOutcome> shareTextToUsers(
               : null,
         );
         if (ok) sent++;
+      } on MessageStillSending {
+        stillSending++;
       } catch (error, stackTrace) {
         logE(
           'Share to ${receiver.id} failed',
@@ -265,7 +269,7 @@ Future<ShareOutcome> shareTextToUsers(
   await Future.wait([
     for (var i = 0; i < receivers.length && i < 3; i++) worker(),
   ]);
-  return (sent: sent, total: receivers.length);
+  return (sent: sent, pending: stillSending, total: receivers.length);
 }
 
 Future<bool> _shareText({

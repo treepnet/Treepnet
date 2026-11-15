@@ -2067,6 +2067,12 @@ abstract class AppLocalizations {
   /// **'Message not sent'**
   String get messageNotSentText;
 
+  /// No description provided for @messageStillSendingText.
+  ///
+  /// In en, this message translates to:
+  /// **'Still sending — it will go out when the connection is back.'**
+  String get messageStillSendingText;
+
   /// No description provided for @typingText.
   ///
   /// In en, this message translates to:

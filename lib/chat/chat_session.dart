@@ -11,6 +11,16 @@ import 'package:treepnet/chat/backend/chat_cache.dart';
 import 'package:treepnet/chat/backend/dm_api.dart';
 import 'package:treepnet/chat/backend/dm_transports.dart';
 
+/// A message sent with [ChatSession.sendText] got no answer in time. It is
+/// probably still on its way (socket.io sends it once the connection is
+/// back): not a failure to send again.
+class MessageStillSending implements Exception {
+  const MessageStillSending();
+
+  @override
+  String toString() => 'MessageStillSending';
+}
+
 /// One shared connection to the chat backend for the whole app session.
 ///
 /// The inbox ([DmListTransport]) and every open conversation
@@ -411,6 +421,12 @@ class ChatSession {
   /// (used by share / story-reply). Opens/creates the conversation, ensures the
   /// socket is up, then sends and waits for the backend to confirm it; throws
   /// when it doesn't. The conversation surfaces in the peer's inbox.
+  ///
+  /// Throws [MessageStillSending] when no answer came in time. Sending the
+  /// same [text] to the same person again within [_resendWindow] reuses that
+  /// message's key: the server keeps one message per key, so a retry after a
+  /// timeout no longer delivers a second (or third) copy when the first
+  /// arrives late. Once confirmed, the same text is a new message again.
   Future<void> sendText({
     required String peerUuid,
     required String peerName,
@@ -423,14 +439,34 @@ class ChatSession {
       peerAvatarUrl: peerAvatarUrl,
     );
     await api.connect();
+    final id = '$peerUuid\u0000$text';
+    final now = DateTime.now();
+    _unconfirmed.removeWhere((_, s) => now.difference(s.at) > _resendWindow);
+    final key = _unconfirmed[id]?.key ?? now.microsecondsSinceEpoch.toString();
     final result = await api.send(
       conversationId: opened.conversationId,
       content: text,
       contentType: 'text',
-      key: DateTime.now().microsecondsSinceEpoch.toString(),
+      key: key,
     );
-    if (!result.ok) throw StateError('Message not sent: ${result.error}');
+    if (result.ok) {
+      _unconfirmed.remove(id);
+      return;
+    }
+    if (result.isRejected) {
+      _unconfirmed.remove(id);
+    } else {
+      _unconfirmed[id] = (key: key, at: now);
+    }
+    if (result.timedOut) throw const MessageStillSending();
+    throw StateError('Message not sent: ${result.error}');
   }
+
+  /// Keys of [sendText] messages not confirmed yet, by person and text.
+  final _unconfirmed = <String, ({String key, DateTime at})>{};
+
+  /// How long a retry of an unconfirmed message reuses its key.
+  static const _resendWindow = Duration(minutes: 30);
 
   /// Tears down the connection on logout; a start still in flight closes its
   /// own when it finishes, and failed starts are no longer retried.

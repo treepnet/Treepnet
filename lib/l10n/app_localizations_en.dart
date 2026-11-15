@@ -1229,6 +1229,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messageNotSentText => 'Message not sent';
 
   @override
+  String get messageStillSendingText =>
+      'Still sending — it will go out when the connection is back.';
+
+  @override
   String get typingText => 'typing…';
 
   @override

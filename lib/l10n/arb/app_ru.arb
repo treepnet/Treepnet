@@ -655,6 +655,7 @@
   "retryText": "Повторить",
   "couldNotLoadMorePostsText": "Не удалось загрузить посты",
   "messageNotSentText": "Сообщение не отправлено",
+  "messageStillSendingText": "Сообщение ещё отправляется — оно уйдёт, когда связь восстановится.",
   "typingText": "печатает…",
   "failedToOpenUrlText": "Не удалось открыть ссылку.",
   "chatsTypeTabText": "Написать",

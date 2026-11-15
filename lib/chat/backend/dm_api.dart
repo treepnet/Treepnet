@@ -470,10 +470,17 @@ class DmApi {
 
 /// The backend's answer to [DmApi.send].
 class DmSendResult {
-  const DmSendResult._({required this.ok, this.error, this.code});
+  const DmSendResult._({
+    required this.ok,
+    this.error,
+    this.code,
+    this.timedOut = false,
+  });
 
+  /// No answer in time. The message may still go: socket.io keeps it and
+  /// sends it once the connection is back.
   const DmSendResult.timedOut()
-    : this._(ok: false, error: 'no confirmation in time');
+    : this._(ok: false, error: 'no confirmation in time', timedOut: true);
 
   factory DmSendResult.fromAck(dynamic response) {
     final data = response is Map ? response : const <dynamic, dynamic>{};
@@ -487,6 +494,7 @@ class DmSendResult {
   final bool ok;
   final String? error;
   final String? code;
+  final bool timedOut;
 
   /// Refused for good — sending it again can't help (a block, or a message
   /// the backend won't take). Anything else (a timeout, rate limit, a server

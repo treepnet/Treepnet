@@ -720,6 +720,7 @@
     "description": "Shown at the end of a list of posts when the next page could not be loaded (offline, timeout). A Retry button follows."
   },
   "messageNotSentText": "Message not sent",
+  "messageStillSendingText": "Still sending — it will go out when the connection is back.",
   "typingText": "typing…",
   "failedToOpenUrlText": "Failed to open the url.",
   "chatsTypeTabText": "Type",

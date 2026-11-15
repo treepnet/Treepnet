@@ -149,25 +149,31 @@ class _StoryFooterState extends State<StoryFooter> with WidgetsBindingObserver {
     final peerAvatar = (widget.author.avatarUrl?.isNotEmpty ?? false)
         ? widget.author.avatarUrl
         : null;
-    try {
-      // False when it wasn't sent (a block either way): it said "Reply sent"
-      // all the same. The reply stays in the field.
-      var sent = await shareTextToUser(
-        context,
-        peerUuid: widget.author.id,
-        peerName: widget.author.displayUsername,
-        peerAvatarUrl: peerAvatar,
-        text: encodeStoryShare(widget.story.id),
-      );
-      if (!mounted) return;
-      if (sent) {
-        sent = await shareTextToUser(
+    // No answer in time: on its way, not failed (it goes once the
+    // connection is back; sent again, it is not sent twice).
+    var stillSending = false;
+    Future<bool> send(String message) async {
+      try {
+        return await shareTextToUser(
           context,
           peerUuid: widget.author.id,
           peerName: widget.author.displayUsername,
           peerAvatarUrl: peerAvatar,
-          text: text,
+          text: message,
         );
+      } on MessageStillSending {
+        stillSending = true;
+        return true;
+      }
+    }
+
+    try {
+      // False when it wasn't sent (a block either way): it said "Reply sent"
+      // all the same. The reply stays in the field.
+      var sent = await send(encodeStoryShare(widget.story.id));
+      if (!mounted) return;
+      if (sent) {
+        sent = await send(text);
         if (!mounted) return;
       }
       if (!sent) {
@@ -180,7 +186,11 @@ class _StoryFooterState extends State<StoryFooter> with WidgetsBindingObserver {
       _replyFocus.unfocus();
       _setReplying(false);
       openSnackbar(
-        SnackbarMessage.success(title: context.l10n.storyReplySentText),
+        SnackbarMessage.success(
+          title: stillSending
+              ? context.l10n.messageStillSendingText
+              : context.l10n.storyReplySentText,
+        ),
       );
     } catch (_) {
       if (!mounted) return;

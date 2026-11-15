@@ -1248,6 +1248,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get messageNotSentText => 'Сообщение не отправлено';
 
   @override
+  String get messageStillSendingText =>
+      'Сообщение ещё отправляется — оно уйдёт, когда связь восстановится.';
+
+  @override
   String get typingText => 'печатает…';
 
   @override

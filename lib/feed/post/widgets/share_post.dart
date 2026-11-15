@@ -26,7 +26,14 @@ SnackbarMessage _shareResultMessage(
   if (outcome.sent == outcome.total) {
     return SnackbarMessage.success(title: allSent);
   }
-  if (outcome.sent == 0) return SnackbarMessage.error(title: noneSent);
+  // No answer in time is not "failed": the message goes once the connection
+  // is back, and sharing again sent it twice.
+  if (outcome.pending > 0 && outcome.sent + outcome.pending == outcome.total) {
+    return SnackbarMessage.success(title: l10n.messageStillSendingText);
+  }
+  if (outcome.sent == 0 && outcome.pending == 0) {
+    return SnackbarMessage.error(title: noneSent);
+  }
   return SnackbarMessage.success(
     title: l10n.sharedToSomeText(outcome.sent, outcome.total),
   );
@@ -140,7 +147,7 @@ class _SharPostState extends State<SharePostView> with SafeSetStateMixin {
         receivers: selected,
         text: encodePostShare(widget.block.id),
       );
-      if (mounted && outcome.sent > 0) context.pop();
+      if (mounted && outcome.sent + outcome.pending > 0) context.pop();
       openSnackbar(
         _shareResultMessage(
           l10n,
@@ -387,7 +394,7 @@ class _ShareStoryState extends State<ShareStoryView> with SafeSetStateMixin {
         receivers: selected,
         text: encodeStoryShare(widget.storyId),
       );
-      if (mounted && outcome.sent > 0) context.pop();
+      if (mounted && outcome.sent + outcome.pending > 0) context.pop();
       openSnackbar(
         _shareResultMessage(
           l10n,
