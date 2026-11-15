@@ -1665,14 +1665,6 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get notifMessageText => 'Отправил(а) вам сообщение.';
-
-  @override
-  String notifMessageContentText(String text) {
-    return 'Отправил(а): $text.';
-  }
-
-  @override
   String get nowText => 'сейчас';
 
   @override

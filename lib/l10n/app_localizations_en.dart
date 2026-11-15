@@ -1638,14 +1638,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get notifMessageText => 'Sent you a message.';
-
-  @override
-  String notifMessageContentText(String text) {
-    return 'Sent: $text.';
-  }
-
-  @override
   String get nowText => 'now';
 
   @override

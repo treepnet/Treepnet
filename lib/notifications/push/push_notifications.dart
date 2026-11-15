@@ -78,9 +78,10 @@ class PushNotifications {
         requestBadgePermission: false,
         requestSoundPermission: false,
       );
+      // The app shows no notifications of its own (pushes are drawn by the
+      // phone), so there is no tap of ours to handle here.
       await _local.initialize(
         const InitializationSettings(android: androidInit, iOS: iosInit),
-        onDidReceiveNotificationResponse: _onLocalTap,
       );
       await _local
           .resolvePlatformSpecificImplementation<
@@ -339,31 +340,5 @@ class PushNotifications {
     } catch (_) {
       // Kept in _pendingToken for retryPending.
     }
-  }
-
-  // static void _showForeground(RemoteMessage message) {
-  //   final notification = message.notification;
-  //   if (notification == null) return;
-  //   _local.show(
-  //     notification.hashCode,
-  //     notification.title,
-  //     notification.body,
-  //     NotificationDetails(
-  //       android: AndroidNotificationDetails(
-  //         _channel.id,
-  //         _channel.name,
-  //         channelDescription: _channel.description,
-  //         icon: 'ic_stat_notification',
-  //         importance: Importance.high,
-  //         priority: Priority.high,
-  //       ),
-  //     ),
-  //     payload: jsonEncode(message.data),
-  //   );
-  // }
-
-  static void _onLocalTap(NotificationResponse response) {
-    // Deep-link routing from a tapped notification is wired in a later phase;
-    // for now tapping simply opens the app.
   }
 }

@@ -2775,18 +2775,6 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1{And 1 other person liked your post.} other{And {count} others liked your post.}}'**
   String notifLikedOthersText(int count);
 
-  /// No description provided for @notifMessageText.
-  ///
-  /// In en, this message translates to:
-  /// **'Sent you a message.'**
-  String get notifMessageText;
-
-  /// No description provided for @notifMessageContentText.
-  ///
-  /// In en, this message translates to:
-  /// **'Sent: {text}.'**
-  String notifMessageContentText(String text);
-
   /// No description provided for @nowText.
   ///
   /// In en, this message translates to:

@@ -12,9 +12,6 @@ enum NotificationType {
   /// Someone asked to follow the user's private account — awaits Accept/Decline.
   followRequest,
 
-  /// Someone sent the user a direct message.
-  message,
-
   /// Someone replied to the user's comment.
   reply,
 
@@ -67,7 +64,6 @@ class NotificationItem {
     'comment' => NotificationType.comment,
     'follow' => NotificationType.follow,
     'follow_request' => NotificationType.followRequest,
-    'message' => NotificationType.message,
     'reply' => NotificationType.reply,
     'follow_accepted' => NotificationType.followAccepted,
     'comment_like' => NotificationType.commentLike,
@@ -80,7 +76,6 @@ class NotificationItem {
     'comment',
     'follow',
     'follow_request',
-    'message',
     'reply',
     'follow_accepted',
     'comment_like',

@@ -8,7 +8,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared/shared.dart';
 import 'package:treepnet/app/app.dart';
-import 'package:treepnet/chat/chat.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/notifications/notification_rows.dart';
 import 'package:treepnet/notifications/push/push_notifications.dart';
@@ -207,17 +206,6 @@ class _NotificationTile extends StatelessWidget {
       context.pushNamed(AppRoutes.post.name, pathParameters: {'id': postId});
       return;
     }
-    if (item.type == NotificationType.message) {
-      unawaited(
-        openChat(
-          context,
-          peerUuid: item.actorId,
-          peerName: item.actorUsername,
-          peerAvatarUrl: item.actorAvatarUrl,
-        ),
-      );
-      return;
-    }
     context.pushNamed(
       AppRoutes.userProfile.name,
       pathParameters: {'user_id': item.actorId},
@@ -300,7 +288,6 @@ class _NotificationTile extends StatelessWidget {
       case NotificationType.reply:
       case NotificationType.commentLike:
         return item.postId == null ? null : _PostThumb(url: item.postThumbUrl);
-      case NotificationType.message:
       case NotificationType.followAccepted:
         return null;
     }
@@ -323,11 +310,6 @@ class _NotificationTile extends StatelessWidget {
         return l10n.notifFollowedText;
       case NotificationType.followRequest:
         return l10n.notifFollowRequestText;
-      case NotificationType.message:
-        final text = (n.content ?? '').trim();
-        return text.isEmpty
-            ? l10n.notifMessageText
-            : l10n.notifMessageContentText(text);
       case NotificationType.reply:
         final text = (n.content ?? '').trim();
         return text.isEmpty
