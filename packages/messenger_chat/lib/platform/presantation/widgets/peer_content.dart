@@ -20,22 +20,22 @@ class _PeerContent extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
         children: [
+          // No entry animation: it played again every time the row was
+          // scrolled back into view, so the avatars kept jumping.
           if (showPeerAvatar) ...[
-            _SlideUpFadeTransition(
-              child: Skeleton.leaf(
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  clipBehavior: Clip.hardEdge,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: messageStyle.adminProfileBackgroundColor,
-                    borderRadius: BorderRadius.circular(100),
-                  ),
-                  child: _PeerBubbleAvatar(
-                    peer: _ChatRuntime.instance.peer,
-                    fallbackColor: messageStyle.adminAuthorTextColor,
-                  ),
+            Skeleton.leaf(
+              child: Container(
+                width: 36,
+                height: 36,
+                clipBehavior: Clip.hardEdge,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: messageStyle.adminProfileBackgroundColor,
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: _PeerBubbleAvatar(
+                  peer: _ChatRuntime.instance.peer,
+                  fallbackColor: messageStyle.adminAuthorTextColor,
                 ),
               ),
             ),

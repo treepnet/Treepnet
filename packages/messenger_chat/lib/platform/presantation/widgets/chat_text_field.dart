@@ -145,6 +145,7 @@ class _ChatTextFieldState extends State<_ChatTextField> {
   Widget _sendButton(BuildContext context) => _GeneralEffectsButton(
     key: const ValueKey('send'),
     onTap: _send,
+    haptic: true,
     constraints: const BoxConstraints(),
     borderRadius: BorderRadius.circular(21),
     child: ClipRRect(

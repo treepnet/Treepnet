@@ -110,7 +110,8 @@ class _RipplePainter extends CustomPainter {
     if (tapPosition == null) return;
 
     final paint = Paint()
-      ..color = color.withAlpha((255.0 * (1 - progress)).round())
+      // Fades from the colour's own opacity: a faint ripple stays faint.
+      ..color = color.withValues(alpha: color.a * (1 - progress))
       ..style = PaintingStyle.fill;
 
     canvas.drawCircle(tapPosition!, rippleRadius * progress, paint);

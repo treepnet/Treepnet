@@ -876,53 +876,21 @@ class _ConversationTile extends StatelessWidget {
     };
   }
 
-  String _time(DateTime? utc) {
-    if (utc == null) return '';
-    // Backend timestamps are UTC; the thread shows local time (via toLocal),
-    // so the inbox must too — otherwise it reads hours behind (e.g. UTC+5).
-    final dt = utc.toLocal();
-    final now = DateTime.now();
-    final sameDay =
-        dt.year == now.year && dt.month == now.month && dt.day == now.day;
-    if (sameDay) {
-      return '${dt.hour.toString().padLeft(2, '0')}:'
-          '${dt.minute.toString().padLeft(2, '0')}';
-    }
-    return '${dt.day.toString().padLeft(2, '0')}.'
-        '${dt.month.toString().padLeft(2, '0')}';
-  }
+  String _time(BuildContext context, DateTime? utc) => utc == null
+      ? ''
+      : chatListTime(utc, yesterday: context.l10n.yesterdayText);
 
   /// Long-press → confirm → delete the conversation for the user only (the
   /// peer keeps it; it comes back here with their next message).
   Future<void> _confirmDelete(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     final couldNotDelete = context.l10n.couldNotDeleteChatText;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: ChatTheme.bubble,
-        title: Text(
-          dialogContext.l10n.deleteChatText,
-          style: const TextStyle(color: Colors.white),
-        ),
-        content: Text(
-          dialogContext.l10n.chatDeleteConfirmationText,
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(dialogContext.l10n.cancelText),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(
-              dialogContext.l10n.deleteText,
-              style: const TextStyle(color: Color(0xffE5484D)),
-            ),
-          ),
-        ],
-      ),
+    // The app's own confirmation, as in the chat's menu.
+    final confirmed = await context.showConfirmationDialog(
+      title: context.l10n.deleteChatText,
+      content: context.l10n.chatDeleteConfirmationText,
+      yesText: context.l10n.deleteText,
+      noText: context.l10n.cancelText,
     );
     if (confirmed != true || !ChatSession.instance.isStarted) return;
     try {
@@ -1010,7 +978,7 @@ class _ConversationTile extends StatelessWidget {
             const SizedBox(height: 22),
           const Gap.v(AppSpacing.xs),
           Text(
-            _time(conversation.lastMessageAt),
+            _time(context, conversation.lastMessageAt),
             style: context.labelSmall?.copyWith(color: AppColors.textSecondary),
           ),
         ],
@@ -1183,4 +1151,22 @@ class _PersonRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The inbox's time for a chat's last message, by the phone's clock: the time
+/// today, "Yesterday", then "12.10" — and "12.10.25" from another year, so an
+/// old chat no longer reads like one from this year. Same rules as the
+/// thread's "last seen".
+@visibleForTesting
+String chatListTime(DateTime utc, {required String yesterday, DateTime? now}) {
+  final dt = utc.toLocal();
+  final today = now ?? DateTime.now();
+  String two(int n) => n.toString().padLeft(2, '0');
+  final day = DateTime(dt.year, dt.month, dt.day);
+  if (day == DateTime(today.year, today.month, today.day)) {
+    return '${two(dt.hour)}:${two(dt.minute)}';
+  }
+  if (day == DateTime(today.year, today.month, today.day - 1)) return yesterday;
+  final date = '${two(dt.day)}.${two(dt.month)}';
+  return dt.year == today.year ? date : '$date.${two(dt.year % 100)}';
 }

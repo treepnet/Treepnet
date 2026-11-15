@@ -1586,6 +1586,9 @@ class AppLocalizationsRu extends AppLocalizations {
       'Слишком много новых чатов за короткое время. Попробуйте позже.';
 
   @override
+  String get yesterdayText => 'Вчера';
+
+  @override
   String get openPostText => 'Открыть пост';
 
   @override

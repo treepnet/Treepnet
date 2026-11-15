@@ -409,26 +409,13 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
   /// O'z xabaringizni o'chirish (tasdiqlash bilan).
   Future<void> _deleteMessage(_MessageModel message) async {
     if (message.id.isEmpty) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        content: Text(_AppTexts.deleteMessageConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(_AppTexts.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(
-              _AppTexts.delete,
-              style: const TextStyle(color: Color(0xffEE1D23)),
-            ),
-          ),
-        ],
-      ),
+    final confirmed = await _confirmDestructive(
+      context,
+      title: _AppTexts.deleteMessageConfirm,
+      yes: _AppTexts.delete,
+      no: _AppTexts.cancel,
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     final deleted = await _ChatSocket.deleteMessage(messageId: message.id);
     if (!deleted) _showNotice(_AppTexts.deleteFailed);
   }
@@ -457,10 +444,8 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
 
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xff222222),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      backgroundColor: _chatSheetColor,
+      shape: _chatSheetShape,
       builder: (sheetContext) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -509,11 +494,11 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
               ListTile(
                 leading: const Icon(
                   Icons.delete_outline,
-                  color: Color(0xffEE1D23),
+                  color: _chatDestructiveColor,
                 ),
                 title: Text(
                   _AppTexts.delete,
-                  style: const TextStyle(color: Color(0xffEE1D23)),
+                  style: const TextStyle(color: _chatDestructiveColor),
                 ),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
@@ -892,4 +877,58 @@ class _QuickEmojiBar extends StatelessWidget {
       ),
     );
   }
+}
+
+// The chat's one look for its sheets and confirmations, the same as the
+// app's: a dark sheet with white rows, and a native alert (Cupertino on an
+// iPhone) whose destructive action is the app's red.
+const _chatSheetColor = Color(0xff222222);
+const _chatDestructiveColor = Color(0xffEE1D23);
+const _chatSheetShape = RoundedRectangleBorder(
+  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+);
+
+/// Asks before a destructive step; true only for the red action.
+Future<bool> _confirmDestructive(
+  BuildContext context, {
+  required String title,
+  required String yes,
+  required String no,
+}) async {
+  final ios = Theme.of(context).platform == TargetPlatform.iOS;
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) {
+      Widget action(String text, {required bool destructive}) {
+        void onPressed() => Navigator.of(dialogContext).pop(destructive);
+        if (ios) {
+          return CupertinoDialogAction(
+            onPressed: onPressed,
+            isDefaultAction: !destructive,
+            isDestructiveAction: destructive,
+            child: Text(text),
+          );
+        }
+        return TextButton(
+          onPressed: onPressed,
+          child: Text(
+            text,
+            style: TextStyle(
+              color: destructive ? _chatDestructiveColor : Colors.white,
+            ),
+          ),
+        );
+      }
+
+      return AlertDialog.adaptive(
+        actionsAlignment: MainAxisAlignment.end,
+        title: Text(title),
+        actions: [
+          action(no, destructive: false),
+          action(yes, destructive: true),
+        ],
+      );
+    },
+  );
+  return confirmed ?? false;
 }

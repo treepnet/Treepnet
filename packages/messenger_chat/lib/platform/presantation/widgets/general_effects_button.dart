@@ -5,8 +5,9 @@ class _GeneralEffectsButton extends StatelessWidget {
     required this.child,
     required this.onTap,
     required this.constraints,
-    this.rippleEffectColor = Colors.blue,
+    this.rippleEffectColor = const Color(0x1AFFFFFF),
     this.borderRadius,
+    this.haptic = false,
     super.key,
   });
 
@@ -15,6 +16,10 @@ class _GeneralEffectsButton extends StatelessWidget {
   final Widget child;
   final Color rippleEffectColor;
   final BorderRadius? borderRadius;
+
+  /// A light tap felt in the hand — for sending only; every other button in
+  /// the chat (emoji, scroll down, back) is silent.
+  final bool haptic;
 
   @override
   Widget build(BuildContext context) => _ScaleX(
@@ -25,8 +30,7 @@ class _GeneralEffectsButton extends StatelessWidget {
         constraints: constraints,
         child: _RippleEffect(
           onTap: () {
-            HapticFeedback.mediumImpact();
-
+            if (haptic) HapticFeedback.lightImpact();
             onTap();
           },
           rippleColor: rippleEffectColor,

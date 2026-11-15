@@ -2667,6 +2667,12 @@ abstract class AppLocalizations {
   /// **'Too many new chats in a short time. Try again later.'**
   String get tooManyNewChatsText;
 
+  /// A chat's last message was sent yesterday (inbox time column)
+  ///
+  /// In en, this message translates to:
+  /// **'Yesterday'**
+  String get yesterdayText;
+
   /// No description provided for @openPostText.
   ///
   /// In en, this message translates to:

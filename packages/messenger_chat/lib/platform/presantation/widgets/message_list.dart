@@ -438,18 +438,29 @@ Future<void> _showFailedMessageActions(
   final cubit = context.read<ChatCubit>();
   final action = await showModalBottomSheet<String>(
     context: context,
+    backgroundColor: _chatSheetColor,
+    shape: _chatSheetShape,
     builder: (sheetContext) => SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
-            leading: const Icon(Icons.refresh),
-            title: Text(_AppTexts.retry),
+            leading: const Icon(Icons.refresh, color: Colors.white),
+            title: Text(
+              _AppTexts.retry,
+              style: const TextStyle(color: Colors.white),
+            ),
             onTap: () => Navigator.pop(sheetContext, 'retry'),
           ),
           ListTile(
-            leading: const Icon(Icons.delete_outline),
-            title: Text(_AppTexts.delete),
+            leading: const Icon(
+              Icons.delete_outline,
+              color: _chatDestructiveColor,
+            ),
+            title: Text(
+              _AppTexts.delete,
+              style: const TextStyle(color: _chatDestructiveColor),
+            ),
             onTap: () => Navigator.pop(sheetContext, 'delete'),
           ),
         ],
