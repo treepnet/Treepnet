@@ -22,22 +22,6 @@ enum _ContentType {
     }
   }
 
-  static _ContentType fromName(String name) {
-    switch (name) {
-      case 'text':
-        return _ContentType.text;
-      case 'photo':
-        return _ContentType.photo;
-      case 'voice':
-        return _ContentType.voice;
-      case 'video':
-        return _ContentType.video;
-      case 'document':
-        return _ContentType.document;
-      default:
-        return _ContentType.text;
-    }
-  }
 
   /// Ochiq API dagi [ChatMessageKind] ni ichki turga aylantiradi.
   static _ContentType fromKind(ChatMessageKind kind) {

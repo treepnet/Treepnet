@@ -18,8 +18,6 @@ class _ChatLocalizations {
 
   String getText(String key) {
     final text = switch (_language) {
-      ChatLanguage.uzbek => _Uzbek.texts[key],
-      ChatLanguage.uzbekCyrillic => _UzbekCyrillic.texts[key],
       ChatLanguage.russian => _Russian.texts[key],
       ChatLanguage.english => _English.texts[key],
     };

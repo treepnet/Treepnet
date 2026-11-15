@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:messenger_chat/data/enum/chat_connection_status.dart';
-import 'package:messenger_chat/data/model/toast_data.dart';
 
 class ChatController<T> {
   final _controller = StreamController<T>.broadcast();
@@ -43,16 +42,6 @@ class ChatController<T> {
     _connectionController.add(status);
   }
 
-  final _toastController = StreamController<ToastData>.broadcast();
-
-  /// Toast xabarini yuborish
-  void showToast(String message, {ToastType type = ToastType.info}) {
-    _toastController.add(ToastData(message: message, type: type));
-  }
-
-  /// Toast oqimi
-  Stream<ToastData> get toastStream => _toastController.stream;
-
   /// Typing statusini yangilash
 
   bool get connectionStreamIsClosed => _connectionController.isClosed;
@@ -61,7 +50,6 @@ class ChatController<T> {
     _controller.close();
     _typingController.close();
     _connectionController.close();
-    _toastController.close();
   }
 }
 

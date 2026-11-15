@@ -123,42 +123,4 @@ abstract final class ChatTheme {
     onlineColor: Colors.white,
     offlineColor: secondary,
   );
-
-  static const listStyle = ChatListStyle(
-    backgroundColor: background,
-    avatarBackgroundColor: bubble,
-    avatarTextStyle: TextStyle(
-      fontFamily: fontFamily,
-      color: Colors.white,
-      fontSize: 20,
-      fontWeight: FontWeight.w600,
-    ),
-    titleTextStyle: TextStyle(
-      fontFamily: fontFamily,
-      color: Colors.white,
-      fontSize: 16,
-      fontWeight: FontWeight.w600,
-    ),
-    previewTextStyle: TextStyle(
-      fontFamily: fontFamily,
-      color: secondary,
-      fontSize: 14,
-    ),
-    timeTextStyle: TextStyle(
-      fontFamily: fontFamily,
-      color: secondary,
-      fontSize: 12,
-    ),
-    unreadBadgeColor: accent,
-    unreadBadgeTextStyle: TextStyle(
-      fontFamily: fontFamily,
-      color: Colors.white,
-      fontSize: 12,
-      fontWeight: FontWeight.w600,
-    ),
-    readIconColor: accent,
-    unreadIconColor: secondary,
-    onlineColor: online,
-    dividerColor: divider,
-  );
 }

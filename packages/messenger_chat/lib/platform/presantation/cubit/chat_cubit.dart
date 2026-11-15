@@ -256,20 +256,6 @@ class ChatCubit extends Cubit<ChatState> {
     }
     _ChatLogger.print('📥 Cubit: Adding message ID=${message.id} to UI state');
 
-    if (state.isBackgroundApp) {
-      MessengerChat.notificationController.add(
-        ChatModel(
-          unreadMessageData: UnreadMessageData(
-            content: message.contentType.isText
-                ? message.content.content
-                : message.contentType.name,
-            isAnswer: message.isFromPeer,
-            unreadCount: 0,
-          ),
-        ),
-      );
-    }
-
     MessengerChat.controller.update(
       ChatModel(
         unreadMessageData: UnreadMessageData(

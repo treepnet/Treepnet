@@ -5,9 +5,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
 
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <!-- Optional: Add this permission if you want to use bluetooth telephony device like headset/earbuds -->
-    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- No RECORD_AUDIO / MODIFY_AUDIO_SETTINGS: the chat sends no voice
+         messages (the app manifest also removes them). -->
 
     <queries>
         <intent>

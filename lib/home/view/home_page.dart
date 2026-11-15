@@ -3,7 +3,6 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:treepnet/chat/chat.dart';
 import 'package:treepnet/feed/post/video/video.dart';
 import 'package:treepnet/home/home.dart';
 import 'package:treepnet/navigation/navigation.dart';
@@ -127,9 +126,9 @@ class _HomeViewState extends State<HomeView> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     // The feed used to enable this PageView so a horizontal swipe reached the
-    // camera (page 0) or chats (page 2). The feed now owns that gesture for
-    // its own Posts/Stories tabs, so it stays disabled here; the + button and
-    // the chat tab still get there via `animateToPage`.
+    // camera (page 0). The feed now owns that gesture for its own
+    // Posts/Stories tabs, so it stays disabled here; the + button gets there
+    // via `animateToPage`.
   }
 
   @override
@@ -166,13 +165,16 @@ class _HomeViewState extends State<HomeView> {
                 HomeProvider().animateToPage(1);
               },
               child: PageView.builder(
-                itemCount: 3,
+                // The camera and the app. A third page held a second chat
+                // inbox no button led to (the Chats tab is a route); a swipe
+                // on the bottom bar could still land there.
+                itemCount: 2,
                 controller: _pageController,
                 physics: HomeProvider().enablePageView
                     ? null
                     : const NeverScrollableScrollPhysics(),
                 onPageChanged: (page) {
-                  if (page != 0 && page != 2 && page == 1) {
+                  if (page == 1) {
                     customImagePickerKey.currentState?.resetAll();
                   }
                   if (page == 1) {
@@ -192,7 +194,6 @@ class _HomeViewState extends State<HomeView> {
                                   HomeProvider().animateToPage(1),
                             )
                           : const Scaffold(body: SizedBox()),
-                    2 => const ChatInboxPage(),
                     _ => AppScaffold(
                       body: widget.navigationShell,
                       bottomNavigationBar: BottomNavBar(

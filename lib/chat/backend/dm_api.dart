@@ -21,8 +21,6 @@ class DmApi {
     required this.deviceName,
     required this.idToken,
     this.lang = 'en',
-    this.userName,
-    this.userAvatar,
   });
 
   final String baseUrl;
@@ -41,17 +39,6 @@ class DmApi {
   /// App language ('en' / 'ru'): the backend words this user's chat push
   /// notifications in it. See [setLanguage].
   String lang;
-
-  /// Display name and avatar of the current user. Sent as `x-name` / `x-avatar`
-  /// so the backend can populate this user's row — otherwise the peer would see
-  /// only a device name. Written server-side only when non-empty.
-  ///
-  /// Mutable because the very first `ensureStarted` (from the nav bar, at
-  /// startup) can fire before the profile's username has synced into AppBloc,
-  /// sending `x-name: Unknown`; [refreshIdentity] updates it once the real
-  /// username is known so the peer stops seeing "Unknown".
-  String? userName;
-  String? userAvatar;
 
   /// Bounded, so a bad connection fails in seconds (and the screen can say
   /// so) instead of loading for minutes.
@@ -154,40 +141,6 @@ class DmApi {
     });
   }
 
-  /// Updates the current user's name/avatar mid-session and re-announces it to
-  /// the backend (which upserts the row on the next authenticated request).
-  /// No-op when nothing meaningfully improves — a blank or "Unknown" name never
-  /// overwrites a real one.
-  void refreshIdentity({String? name, String? avatar}) {
-    var changed = false;
-    if (name != null &&
-        name.isNotEmpty &&
-        name != 'Unknown' &&
-        name != userName) {
-      userName = name;
-      dio.options.headers['x-name'] = name;
-      changed = true;
-    }
-    if (avatar != null && avatar.isNotEmpty && avatar != userAvatar) {
-      userAvatar = avatar;
-      dio.options.headers['x-avatar'] = avatar;
-      changed = true;
-    }
-    if (!changed) return;
-    // Touch an authenticated endpoint so the backend re-upserts our row with
-    // the corrected name. Best-effort — the next real request would carry it
-    // anyway now that the header is updated.
-    unawaited(
-      dio
-          .get<Map<String, dynamic>>('/chat/dm/me')
-          .catchError(
-            (_) => Response<Map<String, dynamic>>(
-              requestOptions: RequestOptions(path: '/chat/dm/me'),
-            ),
-          ),
-    );
-  }
-
   Map<String, String> get _headers => {
     'x-uuid': myUuid,
     'x-app': appName,
@@ -196,8 +149,8 @@ class DmApi {
     'x-device-name': deviceName,
     'x-device-type': 'mobile',
     'x-lang': lang,
-    if (userName != null && userName!.isNotEmpty) 'x-name': userName!,
-    if (userAvatar != null && userAvatar!.isNotEmpty) 'x-avatar': userAvatar!,
+    // No x-name / x-avatar: the backend takes names and avatars from the
+    // profiles themselves and ignores them.
   };
 
   Stream<DmEvent> get events => _events.stream;

@@ -120,7 +120,6 @@ class ChatSession {
       if (myName.isNotEmpty && myName != 'Unknown' && myName != _myName) {
         _myName = myName;
       }
-      _api?.refreshIdentity(name: myName, avatar: myAvatarUrl);
       return;
     }
     final start = _start(
@@ -196,8 +195,6 @@ class ChatSession {
       lang: _lang,
       idToken: ({forceRefresh = false}) =>
           _idTokenFor(myUuid, forceRefresh: forceRefresh),
-      userName: myName,
-      userAvatar: myAvatarUrl,
     );
 
     // Our backend numeric id — the middleware auto-creates/updates our row.
@@ -377,8 +374,8 @@ class ChatSession {
 
   /// Opens (or finds) the 1:1 conversation with [peerUuid] and returns its id
   /// plus the resolved peer (carrying the backend numeric id used for
-  /// sender/presence matching). [peerName]/[peerAvatarUrl] seed the peer's row
-  /// when they haven't opened chat yet (cold-start).
+  /// sender/presence matching). [peerName]/[peerAvatarUrl] stand in for what
+  /// the backend returns; it doesn't take them (it reads the profiles).
   Future<({String conversationId, ChatUser peer})> openConversation({
     required String peerUuid,
     required String peerName,
@@ -386,12 +383,7 @@ class ChatSession {
   }) async {
     final response = await api.dio.post<Map<String, dynamic>>(
       '/chat/dm/conversations',
-      data: {
-        'peerUuid': peerUuid,
-        'peerName': peerName,
-        if (peerAvatarUrl != null && peerAvatarUrl.isNotEmpty)
-          'peerAvatar': peerAvatarUrl,
-      },
+      data: {'peerUuid': peerUuid},
     );
 
     final id = response.data?['id']?.toString() ?? '';

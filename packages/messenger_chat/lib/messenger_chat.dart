@@ -6,7 +6,6 @@ import 'package:messenger_chat/data/enum/chat_connection_status.dart';
 import 'package:messenger_chat/data/model/chat_model.dart';
 import 'package:messenger_chat/data/model/unread_message_data.dart';
 import 'package:messenger_chat/service/chat_controller/chat_controller.dart';
-import 'package:messenger_chat/data/model/toast_data.dart';
 import 'package:messenger_chat/platform/presantation/cubit/online_page_merge.dart';
 import 'package:messenger_chat/platform/presantation/cubit/read_marks.dart';
 
@@ -61,12 +60,8 @@ export 'package:messenger_chat/data/model/chat_model.dart';
 
 export 'package:messenger_chat/data/model/unread_message_data.dart';
 
-export 'package:messenger_chat/data/enum/chat_language.dart';
 
 part 'platform/presantation/styles/chat_app_bar_style.dart';
-part 'platform/presantation/styles/chat_list_style.dart';
-part 'platform/presantation/chat_list.dart';
-part 'platform/presantation/widgets/conversation_tile.dart';
 
 part 'utils/crm_icons.dart';
 part 'utils/chat_logger.dart';
@@ -101,11 +96,8 @@ part 'data/model/no_params.dart';
 part 'core/exception/server_exception.dart';
 
 part 'service/socket/chat_socket.dart';
-part 'platform/presantation/animation/chat_bubble_animation.dart';
 
 part 'platform/presantation/animation/scale.dart';
-
-part 'platform/presantation/animation/typing_animation.dart';
 
 part 'platform/presantation/styles/chat_decoration.dart';
 
@@ -117,8 +109,6 @@ part 'platform/presantation/widgets/chat_text_field.dart';
 
 part 'utils/lorem_ipsum.dart';
 
-part 'utils/duartion_formatter.dart';
-
 part 'utils/constants/duration_contants.dart';
 
 part 'core/usecase/usecase.dart';
@@ -128,10 +118,6 @@ part 'platform/presantation/chat.dart';
 part 'data/enum/content_type.dart';
 
 part 'core/localization/chat_localizations.dart';
-
-part 'core/localization/uzbek.dart';
-
-part 'core/localization/uzbek_cyrillic.dart';
 
 part 'core/localization/russian.dart';
 
@@ -164,18 +150,12 @@ part 'platform/presantation/widgets/peer_content.dart';
 
 part 'platform/presantation/widgets/chat_bubble.dart';
 
-part 'platform/presantation/widgets/image_network.dart';
-
 part 'platform/presantation/widgets/message_list.dart';
-part 'platform/presantation/widgets/notifier/chat_toast_notifier.dart';
 
 part 'platform/presantation/widgets/loading_progress.dart';
 
 part 'platform/presantation/widgets/general_effects_button.dart';
 
-part 'service/controller/message_controller.dart';
-
-part 'service/controller/notification_controller.dart';
 part 'service/outbox/legacy_outbox.dart';
 
 part 'data/enum/message_status.dart';

@@ -12,16 +12,12 @@ mixin _AppTexts {
 
   static String get yesterday => _translate('yesterday');
 
-  static String get cantDownloadImage => _translate('cantDownloadImage');
-
   static String get cancel => _translate('cancel');
 
   static String get socketConnectionNot => _translate('socketConnectionNot');
 
   static String get writeHere => _translate('writeHere');
 
-  static String get noMessages => _translate('noMessages');
-  static String get somethingWentWrong => _translate('somethingWentWrong');
   static String get retry => _translate('retry');
 
   static String get messagesLoadFailed => _translate('messagesLoadFailed');

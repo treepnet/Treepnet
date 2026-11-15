@@ -1,6 +1,4 @@
 enum ChatLanguage {
-  uzbek('uz'),
-  uzbekCyrillic('oz'),
   russian('ru'),
   english('en');
 
@@ -14,10 +12,6 @@ enum ChatLanguage {
   );
 
   bool get isExists => ChatLanguage.values.contains(this);
-
-  bool get isUzbek => this == ChatLanguage.uzbek;
-
-  bool get isUzbekCyrillic => this == ChatLanguage.uzbekCyrillic;
 
   bool get isRussian => this == ChatLanguage.russian;
 

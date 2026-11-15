@@ -108,144 +108,6 @@ class MessengerChat extends StatefulWidget {
 
   static ChatController<ChatModel> get controller => _chatController;
 
-  static MessengerChat light({
-    required ChatUser peer,
-    required ChatLanguage lang,
-    ChatAppBarStyle? chatAppBarStyle,
-  }) =>
-      MessengerChat(
-        peer: peer,
-        lang: lang,
-        chatAppBarStyle: chatAppBarStyle,
-        chatDecoration: ChatDecoration(
-          backgroundColor: const Color(0xffEAF3FD),
-          backgroundImagePng: 'assets/images/background.png',
-          backgroundImageSvg: 'assets/images/bg_pattern.svg',
-          backgroundSvgColor: const Color(0xff1064FF).withOpacity(0.3),
-        ),
-        messageStyle: const ChatMessageStyle(
-          clientMessageTextStyle: TextStyle(
-            fontWeight: FontWeight.w500,
-            fontSize: 14,
-            color: Colors.white,
-          ),
-          adminMessageTextStyle: TextStyle(
-            fontWeight: FontWeight.w500,
-            fontSize: 14,
-          ),
-          dateSeparatorTextStyle: TextStyle(
-            fontWeight: FontWeight.w500,
-            fontSize: 12,
-            color: Color(0xff151515),
-          ),
-          clientMessageTimeTextStyle: TextStyle(color: Colors.white),
-          adminMessageTimeTextStyle: TextStyle(color: Color(0xff626262)),
-          adminMessageBackgroundColor: Color(0xffFFFFFF),
-          clientMessageBackgroundColor: Color(0xff1064FF),
-          adminProfileBackgroundColor: Color(0xff1064FF),
-          fileIconColor: Color(0xff1064FF),
-          adminProfileIconSvg: 'assets/icons/support.svg',
-          fileIconSvg: 'assets/icons/support.svg',
-          readIconColor: Colors.white,
-          adminAuthorTextColor: Colors.blueGrey,
-          clientAudioPlayIconColor: Colors.white,
-          adminAudioPlayIconColor: Colors.blueGrey,
-          clientAudioWaveColor: Colors.white,
-          adminAudioWaveColor: Colors.blueGrey,
-        ),
-        chatTextFieldStyle: const ChatTextFieldStyle(
-          sendIconPath: 'assets/icons/arrow-up-sm.svg',
-          closeIconPath: 'assets/icons/close.svg',
-          microphoneIconPath: 'assets/icons/microphone-01.svg',
-          attachmentIconPath: 'assets/icons/attachment.svg',
-          attachmentIconColor: Color(0xff939393),
-          sendBackgroundColor: Color(0xff1064FF),
-          sendIconColor: Colors.white,
-          closeIconColor: Colors.white,
-          enabledBorderColor: Colors.transparent,
-          focusedBorderColor: Colors.transparent,
-          inputBackgroundColor: Colors.transparent,
-          inputFillColor: Colors.transparent,
-          microphoneBackgroundColor: Color(0xff1064FF),
-          microphoneIconColor: Colors.white,
-          inputCursorColor: Colors.black,
-          inputHintTextStyle: TextStyle(color: Colors.black54, fontSize: 16),
-          inputTextStyle: TextStyle(color: Colors.black, fontSize: 16),
-        ),
-      );
-
-  static MessengerChat dark({
-    required ChatUser peer,
-    required ChatLanguage lang,
-    ChatAppBarStyle? chatAppBarStyle,
-  }) =>
-      MessengerChat(
-        peer: peer,
-        lang: lang,
-        chatAppBarStyle: chatAppBarStyle,
-        chatDecoration: ChatDecoration(
-          backgroundColor: const Color(0xff0F172A),
-          backgroundImagePng: 'assets/images/background.png',
-          backgroundImageSvg: 'assets/images/bg_pattern.svg',
-          backgroundSvgColor: Colors.white.withOpacity(0.1),
-        ),
-        messageStyle: const ChatMessageStyle(
-          clientMessageTextStyle: TextStyle(
-            fontWeight: FontWeight.w500,
-            fontSize: 14,
-            color: Colors.white,
-          ),
-          adminMessageTextStyle: TextStyle(
-            fontWeight: FontWeight.w500,
-            fontSize: 14,
-            color: Colors.white,
-          ),
-          dateSeparatorTextStyle: TextStyle(
-            fontWeight: FontWeight.w500,
-            fontSize: 12,
-            color: Color(0xff9CA3AF),
-          ),
-          clientMessageTimeTextStyle: TextStyle(color: Color(0xffD1D5DB)),
-          adminMessageTimeTextStyle: TextStyle(color: Color(0xff9CA3AF)),
-          adminMessageBackgroundColor: Color(0xff1F2937),
-          clientMessageBackgroundColor: Color(0xff2563EB),
-          adminProfileBackgroundColor: Color(0xff2563EB),
-          fileIconColor: Color(0xff93C5FD),
-          adminProfileIconSvg: 'assets/icons/support.svg',
-          fileIconSvg: 'assets/icons/support.svg',
-          readIconColor: Colors.white,
-          adminAuthorTextColor: Color(0xffE5E7EB),
-          clientAudioPlayIconColor: Colors.white,
-          adminAudioPlayIconColor: Color(0xff93C5FD),
-          clientAudioWaveColor: Colors.white,
-          adminAudioWaveColor: Color(0xff93C5FD),
-        ),
-        chatTextFieldStyle: const ChatTextFieldStyle(
-          sendIconPath: 'assets/icons/arrow-up-sm.svg',
-          closeIconPath: 'assets/icons/close.svg',
-          microphoneIconPath: 'assets/icons/microphone-01.svg',
-          attachmentIconPath: 'assets/icons/attachment.svg',
-          attachmentIconColor: Color(0xff9CA3AF),
-          sendBackgroundColor: Color(0xff2563EB),
-          sendIconColor: Colors.white,
-          closeIconColor: Colors.white,
-          enabledBorderColor: Colors.transparent,
-          focusedBorderColor: Colors.transparent,
-          inputBackgroundColor: Colors.transparent,
-          inputFillColor: Colors.transparent,
-          microphoneBackgroundColor: Color(0xff2563EB),
-          microphoneIconColor: Colors.white,
-          inputCursorColor: Colors.white,
-          inputHintTextStyle: TextStyle(color: Color(0xff9CA3AF), fontSize: 16),
-          inputTextStyle: TextStyle(color: Colors.white, fontSize: 16),
-        ),
-      );
-
-  static void socketDataClear() {
-    _ChatSocket.dispose();
-    _SecureStorage.storage.deleteAll();
-  }
-
   /// Full teardown for logout / account switch. Kills the socket, drops the
   /// runtime identity ([me]/transport/peer), and wipes every cached scrap of
   /// chat state — an old version's message queue and the secure storage — so
@@ -255,36 +117,6 @@ class MessengerChat extends StatefulWidget {
     await _ChatRuntime.instance.reset();
     await _removeLegacyOutbox();
     await _SecureStorage.deleteAllData();
-  }
-
-  static NotificationController notificationController =
-      NotificationController();
-
-  static final List<StreamSubscription> _apiSubscriptions = [];
-
-  static StreamSubscription onUnreadCount(void Function(int unread) callback) {
-    final sub = controller.stream
-        .map((e) => e.unreadMessageData.unreadCount)
-        .listen(callback);
-    _apiSubscriptions.add(sub);
-    return sub;
-  }
-
-  static StreamSubscription onChatSummary(
-    void Function(ChatModel summary) callback,
-  ) {
-    final sub = controller.stream.listen(callback);
-    _apiSubscriptions.add(sub);
-    return sub;
-  }
-
-  static void disposeCallbacks() {
-    for (final s in _apiSubscriptions) {
-      try {
-        s.cancel();
-      } catch (_) {}
-    }
-    _apiSubscriptions.clear();
   }
 
   @override
@@ -938,13 +770,6 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
                   ),
                 ),
               ),
-            ),
-            // Toast layer
-            Positioned(
-              top: 20,
-              left: 20,
-              right: 20,
-              child: _ChatToastNotifier(controller: _chatController),
             ),
           ],
         ),
