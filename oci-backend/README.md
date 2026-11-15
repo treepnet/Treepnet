@@ -85,6 +85,28 @@ reboot they point at the wrong containers (it happened: the August file sent
 127.0.0.1:5432 to PowerSync's address). Last done: 2026-11-13 (kernel
 7.0.0-1016, Docker 29.9.3; backup `before-reboot-2026-11-13`).
 
+### Images (same day)
+
+Every image is pinned to a tag and digest — Caddy, Postgres, PowerSync and
+PostgREST in `docker-compose.yml`, Node in each `Dockerfile` — so a pull or a
+rebuild never changes a version by itself. Updating is on purpose:
+
+1. Read the release notes since the pinned version (Caddy, Postgres 16.x,
+   PowerSync, PostgREST, Node 24): security fixes first, nothing urgent may
+   wait for the next month.
+2. One service at a time: `docker pull <image>:<new tag>`, put the new tag
+   and its digest (`docker image inspect <image>:<tag> --format
+   '{{index .RepoDigests 0}}'`) in the file, `docker compose up -d <service>`
+   (a built service: `docker compose build --pull <service>` first), then
+   check it before the next one. Postgres: a minor version only (16.x), a
+   restart of a few seconds; PowerSync: sync rules state ACTIVE and phones
+   syncing.
+3. Clear what is left: `docker builder prune --filter until=168h` (the build
+   cache grew to 10 GB) and `docker image prune` (images no container uses).
+
+Pinned 2026-11-16: caddy 2.11.4, postgres 16.15, powersync-service 1.25.0,
+postgrest v16.2, node 24 (alpine and slim of 2026-10-28).
+
 ## Database changes
 
 `sql/migrations/` is the treepnet database's history: `000_baseline.sql` is

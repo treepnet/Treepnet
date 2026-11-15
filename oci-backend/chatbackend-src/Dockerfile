@@ -1,4 +1,5 @@
-FROM node:24-slim
+# Pinned base image: bump it on purpose (README.md, monthly routine).
+FROM node:24-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c
 WORKDIR /app
 
 RUN apt-get update \

@@ -19,7 +19,9 @@ volumes:
 
 services:
   caddy:
-    image: caddy:2
+    # Pinned to the image that runs (was caddy:2, which any pull could move).
+    # Upgrade on purpose, as in the monthly routine in README.md.
+    image: caddy:2.11.4@sha256:df7f1c2fb114453b951de51a98efc010db1655a92c2e86be6706714e2417a78d
     container_name: treepnet-caddy
     restart: unless-stopped
     logging: *logging
@@ -52,7 +54,9 @@ services:
 
 
   postgres:
-    image: postgres:16
+    # Pinned to the image that runs (was postgres:16). A minor upgrade is a
+    # restart of a few seconds: see the monthly routine in README.md.
+    image: postgres:16.15@sha256:c1b3783309b6499c795eed7c20135a1a4d25cae1b575c3d52c6f536129a1b109
     container_name: treepnet-postgres
     restart: unless-stopped
     logging: *logging
