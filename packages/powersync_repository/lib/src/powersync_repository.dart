@@ -301,6 +301,19 @@ class PowerSyncRepository {
     ttl: const Duration(hours: 1),
   );
 
+  /// What a chat thread's header shows of [userId]: their card and, for the
+  /// story ring, their public stories (`profile_stories`). Not [profileScope]:
+  /// that synced their whole profile — every post, highlight and pin — for a
+  /// name, an avatar and a ring.
+  SyncScope chatPeerScope(String userId) => SyncScope.open(
+    db(),
+    [
+      ('profile_card', {'user_id': userId}),
+      ('profile_stories', {'user_id': userId}),
+    ],
+    ttl: const Duration(hours: 1),
+  );
+
   /// Keeps a post, its counts and its comments on the phone while they are
   /// open. [ownerId] is the post's author; the server only matches it if it
   /// really is, and only for a post the user may see.

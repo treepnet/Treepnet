@@ -23,6 +23,11 @@ class UserRepository implements UserBaseRepository {
   /// Close it when the screen goes.
   SyncScope profileScope(String userId) => _databaseClient.profileScope(userId);
 
+  /// A chat thread's header: [userId]'s card and stories (see
+  /// `DatabaseClient.chatPeerScope`).
+  SyncScope chatPeerScope(String userId) =>
+      _databaseClient.chatPeerScope(userId);
+
   /// Forgets what server lists said about posts (signing out).
   void forgetServerSnapshots() => _databaseClient.forgetServerSnapshots();
 

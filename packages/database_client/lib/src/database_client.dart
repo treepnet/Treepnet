@@ -666,6 +666,10 @@ abstract class DatabaseClient
   /// the people they follow.
   SyncScope profileScope(String userId);
 
+  /// What a chat thread's header needs of [userId] (their card and stories),
+  /// while the thread is open.
+  SyncScope chatPeerScope(String userId);
+
   /// Keeps a post (by [ownerId]), its counts and comments on the phone while
   /// a screen shows them.
   SyncScope postScope({required String postId, required String ownerId});
@@ -713,6 +717,12 @@ class PowerSyncDatabaseClient extends DatabaseClient {
       userId.isEmpty || userId == currentUserId
       ? SyncScope.none()
       : _powerSyncRepository.profileScope(userId);
+
+  @override
+  SyncScope chatPeerScope(String userId) =>
+      userId.isEmpty || userId == currentUserId
+      ? SyncScope.none()
+      : _powerSyncRepository.chatPeerScope(userId);
 
   @override
   SyncScope postScope({required String postId, required String ownerId}) =>

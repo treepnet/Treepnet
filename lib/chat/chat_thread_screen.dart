@@ -45,10 +45,11 @@ class ChatThreadScreen extends StatelessWidget {
     // backend-supplied values until (or unless) the profile is available.
     if (peerUuid.isEmpty) return _buildForPeer(context, peer);
     final repo = context.read<UserRepository>();
-    // The peer's profile and stories sync while the thread is open, if the
-    // user doesn't follow them already.
+    // The peer's card and stories (the header's name, avatar and story ring)
+    // sync while the thread is open, if the user doesn't follow them already.
     return ProfileSyncScope(
       userId: peerUuid,
+      chatHeader: true,
       child: StreamBuilder<User>(
         stream: repo.profile(id: peerUuid),
         builder: (context, snap) {

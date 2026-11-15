@@ -9,11 +9,16 @@ class ProfileSyncScope extends StatefulWidget {
   const ProfileSyncScope({
     required this.userId,
     required this.child,
+    this.chatHeader = false,
     super.key,
   });
 
   final String userId;
   final Widget child;
+
+  /// Only what a chat thread's header shows (card and stories), not the
+  /// whole profile.
+  final bool chatHeader;
 
   @override
   State<ProfileSyncScope> createState() => _ProfileSyncScopeState();
@@ -25,15 +30,25 @@ class _ProfileSyncScopeState extends State<ProfileSyncScope> {
   @override
   void initState() {
     super.initState();
-    _scope = context.read<UserRepository>().profileScope(widget.userId);
+    _scope = _open();
+  }
+
+  SyncScope _open() {
+    final users = context.read<UserRepository>();
+    return widget.chatHeader
+        ? users.chatPeerScope(widget.userId)
+        : users.profileScope(widget.userId);
   }
 
   @override
   void didUpdateWidget(ProfileSyncScope oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.userId == widget.userId) return;
+    if (oldWidget.userId == widget.userId &&
+        oldWidget.chatHeader == widget.chatHeader) {
+      return;
+    }
     _scope.close();
-    _scope = context.read<UserRepository>().profileScope(widget.userId);
+    _scope = _open();
   }
 
   @override

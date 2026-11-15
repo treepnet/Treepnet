@@ -11,6 +11,9 @@
 # and, while a screen asks for it (the app subscribes, see SyncScopes):
 #   * `profile`       the same for a public profile open on screen;
 #   * `profile_card`  any profile's card and counts (a private one too);
+#   * `profile_stories` a public profile's stories, for the story ring of a
+#                     chat with someone not followed (the thread subscribes it
+#                     with the card instead of the whole `profile`);
 #   * `post`          a post, its counts and its comments, when the viewer may
 #                     see it: their own, a followed author's, or a public one.
 # Everything else — the feed past the people you follow, Trends, likers,
@@ -116,3 +119,11 @@ streams:
       - SELECT * FROM comments WHERE post_id = subscription.parameter('post_id') AND (post_owner_id = auth.user_id() OR post_owner_id IN followed_owner OR post_owner_id IN public_owner)
       - SELECT * FROM posts WHERE id = subscription.parameter('post_id') AND (user_id = auth.user_id() OR user_id IN followed_owner OR user_id IN public_owner)
       - SELECT * FROM post_stats WHERE id = subscription.parameter('post_id') AND (user_id = auth.user_id() OR user_id IN followed_owner OR user_id IN public_owner)
+
+  # A chat thread's header: the story ring of a public account not followed.
+  # Not `profile` (posts, highlights, pins and regions too, for a name and a
+  # ring). Its own bucket per author, one per open chat.
+  profile_stories:
+    accept_potentially_dangerous_queries: true
+    queries:
+      - SELECT * FROM stories WHERE visibility = 'public' AND user_id IN public_profile
