@@ -27,7 +27,6 @@ dependencies:
       # The commit in use: a git dependency without a ref takes whatever
       # the branch holds at the next install.
       ref: 8b27aa2dcfda32af8b0da76f8230c3ca1af3cb6c
-  marquee: ^2.2.3
   octo_image: ^2.1.0
   path_provider: ^2.1.5
   pinch_zoom_release_unzoom: ^1.0.1

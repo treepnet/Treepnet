@@ -20,14 +20,6 @@ final class FeedPageRequested extends FeedPageBasedEvent {
   const FeedPageRequested({super.page});
 }
 
-final class FeedReelsPageRequested extends FeedPageBasedEvent {
-  const FeedReelsPageRequested({super.page});
-}
-
-final class FeedReelsRefreshRequested extends FeedEvent {
-  const FeedReelsRefreshRequested();
-}
-
 final class FeedUpdateRequested extends FeedEvent {
   const FeedUpdateRequested({required this.update});
 
@@ -35,37 +27,6 @@ final class FeedUpdateRequested extends FeedEvent {
 
   @override
   List<Object?> get props => [update];
-}
-
-final class FeedPostCreateRequested extends FeedEvent {
-  const FeedPostCreateRequested({
-    required this.postId,
-    required this.caption,
-    required this.media,
-    this.location,
-    this.locationCountry,
-    this.locationRegion,
-    this.locationName,
-    this.locationLat,
-    this.locationLng,
-  });
-
-  final String postId;
-  final String caption;
-  final List<Map<String, dynamic>> media;
-  final String? location;
-  final String? locationCountry;
-  final String? locationRegion;
-  final String? locationName;
-  final double? locationLat;
-  final double? locationLng;
-}
-
-final class FeedRecommendedPostsPageRequested extends FeedPageBasedEvent {
-  const FeedRecommendedPostsPageRequested({super.page});
-
-  @override
-  List<Object?> get props => [page];
 }
 
 /// The signed-in account changed: the feed starts empty, not with the last

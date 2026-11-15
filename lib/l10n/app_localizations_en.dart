@@ -304,16 +304,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'This account is private. To see its posts again, you\'ll have to send a follow request.';
 
   @override
-  String get haveSeenAllRecentPosts => 'You\'re all caught up';
-
-  @override
-  String get haveSeenAllRecentPostsInPast3Days =>
-      'You\'ve seen all new posts from the past 3 days.';
-
-  @override
-  String get suggestedForYouText => 'Suggested for you';
-
-  @override
   String get andText => 'and';
 
   @override

@@ -118,37 +118,10 @@ extension PostBlockActions on PostBlock {
       action?.actionType == BlockActionType.navigation;
 }
 
-/// {@template post_block_list_extension}
-/// Extends the functionality of a list of [PostLargeBlock] by providing a
-/// method to add a navigation action to each element in the list.
-///
-/// Usage:
-/// ```dart
-/// List<PostLargeBlock> postList = ...;
-///
-/// List<PostLargeBlock> postListWithAction =
-///   postList.withNavigateToPostAuthorAction;
-/// ```
-/// The `withNavigateToPostAuthorAction` method returns a new list where each
-/// element has the action [NavigateToPostAuthorProfileAction] added to it.
-/// The action is created using the author ID of each element in the original
-/// list.
-/// {@endtemplate}
-extension PostBlockListExtension on List<PostLargeBlock> {
-  /// Provides each element in list of [PostLargeBlock] with action
-  /// [NavigateToPostAuthorProfileAction].
-  List<PostLargeBlock> get withNavigateToPostAuthorAction => map(
-    (e) => e.copyWith(
-      id: '${uuid.v4()}/${e.createdAt.millisecondsSinceEpoch}',
-      action: NavigateToPostAuthorProfileAction(authorId: e.author.id),
-    ),
-  ).toList();
-}
-
 /// Appending a loaded page to the blocks already shown.
 extension AppendPageExtension on List<InstaBlock> {
   /// This list followed by the blocks of [page] it doesn't have yet: a post
-  /// is matched by its id; other blocks (headers, dividers) always go in.
+  /// is matched by its id; any other block always goes in.
   ///
   /// Pages are read by offset, so a post created or synced in the meantime
   /// shifts the next page by one and repeated the post at the boundary.

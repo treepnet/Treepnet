@@ -23,33 +23,12 @@ import 'package:shared/shared.dart';
 import 'package:sliver_tools/sliver_tools.dart';
 import 'package:stories_repository/stories_repository.dart';
 
-class FeedPage extends StatefulWidget {
-  const FeedPage({super.key, this.initialPage = 1});
+class FeedPage extends StatelessWidget {
+  const FeedPage({super.key});
 
-  final int initialPage;
-
-  @override
-  State<FeedPage> createState() => FeedPageState();
-}
-
-class FeedPageState extends State<FeedPage> with RouteAware {
-  late PageController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = PageController(initialPage: widget.initialPage);
-    // Followings aren't loaded here any more: only the share sheets use them,
-    // and they load their own when opened. Every feed open used to fetch them
-    // all — seconds for someone following hundreds.
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
+  // Followings aren't loaded here any more: only the share sheets use them,
+  // and they load their own when opened. Every feed open used to fetch them
+  // all — seconds for someone following hundreds.
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
@@ -307,7 +286,6 @@ class _FeedBodyState extends State<FeedBody> {
     await feed.stream
         .firstWhere((state) => !state.status.isLoading)
         .timeout(const Duration(seconds: 15), onTimeout: () => feed.state);
-    FeedPageController().markAnimationAsUnseen();
   }
 
   bool _trackScroll(ScrollNotification notification) {
@@ -704,8 +682,6 @@ class _FeedPageListViewState extends State<FeedPageListView> {
 
   @override
   Widget build(BuildContext context) {
-    final feedPageController = FeedPageController();
-
     return SliverList.builder(
       // +1 for the trailing loader, kept as its own item so the last (oldest)
       // real post still renders instead of being replaced by the loader.
@@ -745,7 +721,6 @@ class _FeedPageListViewState extends State<FeedPageListView> {
           index: index,
           feedLength: blocks.length,
           block: block,
-          feedPageController: feedPageController,
         );
       },
     );
@@ -756,46 +731,8 @@ class _FeedPageListViewState extends State<FeedPageListView> {
     required int index,
     required int feedLength,
     required InstaBlock block,
-    required FeedPageController feedPageController,
-    // required bool hasMorePosts,
-    // required bool isFailure,
   }) {
-    if (block is DividerHorizontalBlock) {
-      return DividerBlock(feedPageController: feedPageController);
-    }
-    if (block is SectionHeaderBlock) {
-      return switch (block.sectionType) {
-        SectionHeaderBlockType.suggested => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.xs,
-              ),
-              child: Text(
-                context.l10n.suggestedForYouText,
-                style: context.headlineSmall,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const AppDivider(),
-            if (index + 1 == feedLength)
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.md),
-                child: FeedLoaderItem(
-                  onPresented: () => context.read<FeedBloc>().add(
-                    const FeedRecommendedPostsPageRequested(),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      };
-    }
     if (block is PostBlock) {
-      // return TestPageItem(post: block);
       return PostView(
         key: ValueKey(block.id),
         block: block,

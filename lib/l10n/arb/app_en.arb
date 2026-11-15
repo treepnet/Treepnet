@@ -233,18 +233,6 @@
   "@cancelFollowingText": {
     "description": "Text shown in modal bottom sheet to cancel current following to user"
   },
-  "haveSeenAllRecentPosts": "You're all caught up",
-  "@haveSeenAllRecentPosts": {
-    "description": "Header text shown in divider block when user have seen all recent posts"
-  },
-  "haveSeenAllRecentPostsInPast3Days": "You've seen all new posts from the past 3 days.",
-  "@haveSeenAllRecentPostsInPast3Days": {
-    "description": "Body text shown in divider block when user have seen all recent posts in past 3 days"
-  },
-  "suggestedForYouText": "Suggested for you",
-  "@suggestedForYouText": {
-    "description": "Text shown in a suggested section block."
-  },
   "andText": "and",
   "othersText": "{count, plural, =0{} =1{{count} other} other{{count} others}}",
   "@othersText": {

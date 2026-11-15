@@ -50,12 +50,10 @@ class PostsRepository implements PostsBaseRepository {
   Future<List<Post>> getPage({
     required int offset,
     required int limit,
-    bool onlyReels = false,
     PostOrder order = PostOrder.newest,
   }) => _databaseClient.getPage(
     offset: offset,
     limit: limit,
-    onlyReels: onlyReels,
     order: order,
   );
 
@@ -254,7 +252,4 @@ class PostsRepository implements PostsBaseRepository {
     limit: limit,
     offset: offset,
   );
-
-  /// Returns a list of recommended posts.
-  static final recommendedPosts = <PostLargeBlock>[];
 }

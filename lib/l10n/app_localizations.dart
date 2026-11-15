@@ -549,24 +549,6 @@ abstract class AppLocalizations {
   /// **'This account is private. To see its posts again, you\'ll have to send a follow request.'**
   String get unfollowPrivateText;
 
-  /// Header text shown in divider block when user have seen all recent posts
-  ///
-  /// In en, this message translates to:
-  /// **'You\'re all caught up'**
-  String get haveSeenAllRecentPosts;
-
-  /// Body text shown in divider block when user have seen all recent posts in past 3 days
-  ///
-  /// In en, this message translates to:
-  /// **'You\'ve seen all new posts from the past 3 days.'**
-  String get haveSeenAllRecentPostsInPast3Days;
-
-  /// Text shown in a suggested section block.
-  ///
-  /// In en, this message translates to:
-  /// **'Suggested for you'**
-  String get suggestedForYouText;
-
   /// No description provided for @andText.
   ///
   /// In en, this message translates to:

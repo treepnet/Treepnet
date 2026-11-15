@@ -196,18 +196,6 @@
   "@cancelFollowingText": {
     "description": "Текст об отмене подписки"
   },
-  "haveSeenAllRecentPosts": "Вы посмотрели все обновления",
-  "@haveSeenAllRecentPosts": {
-    "description": "Header text shown in divider block when user have seen all recent posts"
-  },
-  "haveSeenAllRecentPostsInPast3Days": "Вы посмотрели все новые публикации за последние 3 дн.",
-  "@haveSeenAllRecentPostsInPast3Days": {
-    "description": "Body text shown in divider block when user have seen all recent posts in past 3 days"
-  },
-  "suggestedForYouText": "Рекомендуемые публикации",
-  "@suggestedForYouText": {
-    "description": "Текст, отображаемый в предлагаемом блоке раздела."
-  },
   "andText": "и",
   "othersText": "{count, plural, =0{} other{ещё {count}}}",
   "@othersText": {

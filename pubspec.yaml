@@ -101,9 +101,6 @@ dependencies:
   user_repository:
     path: packages/user_repository
 
-dependency_overrides:
-  fading_edge_scrollview: ^4.1.1
-
 dev_dependencies:
   bloc_test: ^10.0.0
   build_runner: ^2.6.0

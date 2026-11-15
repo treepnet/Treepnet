@@ -301,16 +301,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Это закрытый аккаунт. Чтобы снова видеть его публикации, нужно будет отправить запрос на подписку.';
 
   @override
-  String get haveSeenAllRecentPosts => 'Вы посмотрели все обновления';
-
-  @override
-  String get haveSeenAllRecentPostsInPast3Days =>
-      'Вы посмотрели все новые публикации за последние 3 дн.';
-
-  @override
-  String get suggestedForYouText => 'Рекомендуемые публикации';
-
-  @override
   String get andText => 'и';
 
   @override

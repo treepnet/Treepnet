@@ -4,9 +4,6 @@ part of 'feed_bloc.dart';
 typedef PaginatedFeedResult =
     Future<({int newPage, bool hasMore, List<InstaBlock> blocks})>;
 
-/// Represents an update to a page.
-typedef ListPostMapper = List<InstaBlock> Function(List<Post> post);
-
 /// A feed page the server couldn't send ([PostsPageIncomplete]), as blocks:
 /// [blocks] are the posts the phone had for it. The same page is asked for
 /// again on Retry, so the page number doesn't move on.
@@ -43,30 +40,23 @@ enum PageUpdateType {
 ///
 /// This class encapsulates information about a page update, including the new
 /// post and the type of update.
-/// It provides getters to access the new large block and new reel block derived
-/// from the new post.
+/// It provides a getter for the new large block derived from the new post.
 /// The `onUpdate` method can be used to update a block with a new block.
 /// The boolean getters `isCreate`, `isDelete`, and `isUpdate` can be used to
 /// check the type of the update.
-/// The `canUpdateReel` getter returns true if the new post's media is a reel.
 ///
 /// Example usage:
 /// ```dart
 /// final update = PageUpdate(newPost: post, type: PageUpdateType.create);
 /// final newLargeBlock = update.newLargeBlock;
-/// final newReelBlock = update.newReelBlock;
 /// final updatedBlock = update.onUpdate(oldBlock, newBlock);
 /// final isCreate = update.isCreate;
-/// final isDelete = update.isDelete;
-/// final isUpdate = update.isUpdate;
-/// final canUpdateReel = update.canUpdateReel;
 /// ```
 ///
 /// See also:
 /// - `Post` class for representing a post
 /// - `PageUpdateType` enum for representing the type of a page update
 /// - `PostLargeBlock` class for representing a large block of a post
-/// - `PostReelBlock` class for representing a reel block of a post
 /// {@endtemplate}
 sealed class PageUpdate {
   const PageUpdate({required this.newPost, required this.type});
@@ -77,10 +67,6 @@ sealed class PageUpdate {
   /// Returns the new large block derived from the `newPost` by calling the
   /// `toPostLargeBlock()` method.
   PostLargeBlock get newLargeBlock => newPost.toPostLargeBlock;
-
-  /// Returns the new reel block derived from the `newPost` by calling the
-  /// `toPostReelBlock()` method.
-  PostReelBlock get newReelBlock => newPost.toPostReelBlock;
 
   /// Updates a [PostBlock] with a new block.
   ///
@@ -102,9 +88,6 @@ sealed class PageUpdate {
   bool get isCreate => type.isCreate;
   bool get isDelete => type.isDelete;
   bool get isUpdate => type.isUpdate;
-
-  /// Returns a boolean value indicating whether the `newPost` media is a reel.
-  bool get canUpdateReel => newPost.media.isReel;
 }
 
 /// {@template feed_page_update}
@@ -125,7 +108,6 @@ final class FeedPageUpdate extends PageUpdate {
   @override
   PostBlock onUpdate<T>(T block, PostBlock newBlock) => switch (block) {
     final PostLargeBlock block => block.copyWith(caption: newBlock.caption),
-    final PostReelBlock block => block.copyWith(caption: newBlock.caption),
     _ => throw UnsupportedError('Unsupported block type: $block'),
   };
 }
@@ -166,7 +148,6 @@ mixin FeedBlocMixin on Bloc<FeedEvent, FeedState> {
   /// posts, each page past the people you follow a round trip to Frankfurt.
   /// The next page is asked for 3 posts before the end (feed_page.dart).
   int get feedPageLimit => 15;
-  int get reelsPageLimit => 7;
 
   PostsRepository get postsRepository;
 
@@ -195,22 +176,16 @@ mixin FeedBlocMixin on Bloc<FeedEvent, FeedState> {
   ///
   /// Example usage:
   /// ```dart
-  /// final (:newPage, :hasMore, :blocks) = await fetchFeedPage(
-  ///   page: 1,
-  ///   mapper: myMapper,
-  /// );
+  /// final (:newPage, :hasMore, :blocks) = await fetchFeedPage(page: 1);
   ///
   /// print(newPage);
   /// print(hasMore);
   /// print(blocks);
   /// ```
   ///
-  PaginatedFeedResult fetchFeedPage({
-    int page = 0,
-    ListPostMapper? mapper,
-  }) async {
+  PaginatedFeedResult fetchFeedPage({int page = 0}) async {
     final currentPage = page;
-    final toBlocks = mapper ?? postsToLargeBlocksMapper;
+    const toBlocks = postsToLargeBlocksMapper;
     // People you follow and your own posts first, then everyone else's.
     final List<Post> posts;
     try {
@@ -228,29 +203,6 @@ mixin FeedBlocMixin on Bloc<FeedEvent, FeedState> {
     return (newPage: newPage, hasMore: hasMore, blocks: toBlocks(posts));
   }
 
-  /// Converts a list of [Post] objects to a list of [InstaBlock] objects
-  /// representing reel blocks.
-  ///
-  /// The function iterates over the given list of [posts] and filters out the
-  /// posts that have media of type "reel".
-  /// For each filtered post, it creates an [InstaBlock] object representing
-  /// the reel block and adds it to the `instaBlocks` list.
-  /// Finally, it returns the list of [InstaBlock] objects.
-  ///
-  /// Example usage:
-  /// ```dart
-  /// List<Post> posts = [...];
-  /// List<InstaBlock> instaBlocks = postsToReelBlockMapper(posts);
-  /// ```
-  List<InstaBlock> postsToReelBlockMapper(List<Post> posts) {
-    final instaBlocks = <InstaBlock>[];
-    for (final post in posts.where((post) => post.media.isReel)) {
-      final reel = post.toPostReelBlock;
-      instaBlocks.add(reel);
-    }
-    return instaBlocks;
-  }
-
   /// Converts a list of [Post] objects.
   ///
   /// Example usage:
@@ -258,27 +210,14 @@ mixin FeedBlocMixin on Bloc<FeedEvent, FeedState> {
   /// List<Post> posts = [...];
   /// List<InstaBlock> instaBlocks = postsToLargeBlocksMapper(posts);
   /// ```
-  List<InstaBlock> postsToLargeBlocksMapper(List<Post> posts) =>
+  static List<InstaBlock> postsToLargeBlocksMapper(List<Post> posts) =>
       posts.map<InstaBlock>((post) => post.toPostLargeBlock).toList();
-
-
 }
 
 extension on Feed {
   List<PostBlock> updateFeedPage({required PageUpdate update}) {
     try {
       return feedPage.blocks.selectPostsBlock().updateBlocks(update: update);
-    } catch (_) {
-      rethrow;
-    }
-  }
-
-  List<PostBlock> updateReelsPage({required PageUpdate update}) {
-    try {
-      return reelsPage.blocks.selectPostsBlock().updateBlocks(
-        update: update,
-        isReels: true,
-      );
     } catch (_) {
       rethrow;
     }
@@ -301,23 +240,15 @@ extension on List<InstaBlock> {
 }
 
 extension on List<PostBlock> {
-  List<PostBlock> updateBlocks({
-    required PageUpdate update,
-    bool isReels = false,
-  }) => switch (update) {
-    final FeedPageUpdate update =>
-      isReels
-          ? _update<PostReelBlock>(update: update, isReels: isReels)
-          : _update<PostLargeBlock>(update: update, isReels: isReels),
-  };
+  List<PostBlock> updateBlocks({required PageUpdate update}) =>
+      switch (update) {
+        final FeedPageUpdate update => _update<PostLargeBlock>(update: update),
+      };
 
-  List<PostBlock> _update<T extends PostBlock>({
-    required PageUpdate update,
-    required bool isReels,
-  }) {
+  List<PostBlock> _update<T extends PostBlock>({required PageUpdate update}) {
     try {
       return updateWith<T>(
-        newItem: isReels ? update.newReelBlock : update.newLargeBlock,
+        newItem: update.newLargeBlock,
         onUpdate: update.onUpdate,
         isDelete: update.type.isDelete,
         findItemCallback: (block, newBlock) => block.id == newBlock.id,

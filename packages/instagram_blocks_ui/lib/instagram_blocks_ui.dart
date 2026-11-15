@@ -16,20 +16,14 @@ export 'src/smooth_video_progress_indicator.dart' hide VideoScrubber;
 export 'src/user_profile/index.dart';
 export 'src/widgets/widgets.dart'
     show
-        AnimatedCircleBorderPainter,
         AnimatedVisibility,
-        AvatarImagePicker,
         FollowButton,
         InlineVideo,
         MediaCarousel,
         PoppingIconAnimationOverlay,
         PromoFloatingAction,
-        RunningText,
         ShimmerPlaceholder,
-        SwipeDirection,
-        Swipeable,
         TimeAgo,
-        TwoRotatingArc,
         UserComment,
         VideoSettings,
         Viewable;

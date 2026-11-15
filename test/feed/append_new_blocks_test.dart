@@ -39,11 +39,9 @@ void main() {
     });
 
     test('blocks that are not posts always go in', () {
-      const header = SectionHeaderBlock(
-        sectionType: SectionHeaderBlockType.suggested,
-      );
-      final shown = <InstaBlock>[header, _post('1')];
-      expect(shown.appendNew([header, _post('1')]).length, 3);
+      final other = UnknownBlock();
+      final shown = <InstaBlock>[other, _post('1')];
+      expect(shown.appendNew([other, _post('1')]).length, 3);
     });
 
     test('the shown list itself is left as it was', () {

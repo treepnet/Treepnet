@@ -410,7 +410,6 @@ abstract class PostsBaseRepository {
   Future<List<Post>> getPage({
     required int offset,
     required int limit,
-    bool onlyReels = false,
     PostOrder order = PostOrder.newest,
   });
 
@@ -1903,7 +1902,6 @@ ORDER BY ${_postOrderSql(order)} LIMIT ?1 OFFSET ?2
   Future<List<Post>> getPage({
     required int offset,
     required int limit,
-    bool onlyReels = false,
     PostOrder order = PostOrder.newest,
   }) async {
     final hidden = await _hiddenPostIds();

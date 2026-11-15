@@ -22,7 +22,7 @@ import 'package:treepnet/timeline/timeline.dart';
 import 'package:treepnet/user_profile/user_profile.dart';
 import 'package:go_router/go_router.dart';
 import 'package:posts_repository/posts_repository.dart';
-import 'package:shared/shared.dart' hide FeedPage, ReelsPage;
+import 'package:shared/shared.dart' hide FeedPage;
 import 'package:stories_editor/stories_editor.dart';
 import 'package:user_repository/user_repository.dart';
 import 'package:treepnet/app/services/media_upload_queue.dart';

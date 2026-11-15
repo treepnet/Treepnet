@@ -53,27 +53,6 @@ class FeedPageController extends ChangeNotifier {
     if (_storiesScroll == controller) _storiesScroll = null;
   }
 
-  bool _hasPlayedAnimation = false;
-  double _animationValue = 0;
-
-  bool get hasPlayedAnimation => _hasPlayedAnimation;
-  set hasPlayedAnimation(bool value) {
-    _hasPlayedAnimation = value;
-    notifyListeners();
-  }
-
-  double get animationValue => _animationValue;
-  set animationValue(double value) {
-    _animationValue = value;
-    notifyListeners();
-  }
-
-  void markAnimationAsUnseen() {
-    _hasPlayedAnimation = false;
-    _animationValue = 0;
-    notifyListeners();
-  }
-
   /// The Feed tab tapped again: the tab on screen (Posts or Stories) goes
   /// back to its top. The posts' controller used to be attached to nothing,
   /// so this never did anything.
