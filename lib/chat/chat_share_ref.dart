@@ -6,6 +6,9 @@
 /// a rich card instead of plain text (see `sharedMessageBuilder`).
 library;
 
+import 'package:treepnet/app/view/app.dart' show l10nGlobal;
+import 'package:treepnet/l10n/l10n.dart';
+
 enum SharedRefKind { post, story }
 
 class SharedRef {
@@ -39,11 +42,15 @@ SharedRef? parseSharedRef(String content) {
 }
 
 /// A short label for a shared post/story sentinel, used in reply quotes and
-/// inbox previews. Returns `null` for plain text (so callers fall back to the
-/// raw content).
-String? sharedContentPreview(String content) =>
-    switch (parseSharedRef(content)?.kind) {
-      SharedRefKind.post => '📷 Post',
-      SharedRefKind.story => '📖 Story',
-      _ => null,
-    };
+/// inbox previews, in the app's language ([l10n], or the app's current one).
+/// Returns `null` for plain text (so callers fall back to the raw content).
+/// It was English whatever the language.
+String? sharedContentPreview(String content, [AppLocalizations? l10n]) {
+  final kind = parseSharedRef(content)?.kind;
+  if (kind == null) return null;
+  final texts = l10n ?? l10nGlobal;
+  return switch (kind) {
+    SharedRefKind.post => '📷 ${texts.chatSharedPostText}',
+    SharedRefKind.story => '📖 ${texts.chatSharedStoryText}',
+  };
+}

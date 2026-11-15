@@ -1576,6 +1576,12 @@ class AppLocalizationsRu extends AppLocalizations {
       'Слишком много новых чатов за короткое время. Попробуйте позже.';
 
   @override
+  String get chatSharedPostText => 'Пост';
+
+  @override
+  String get chatSharedStoryText => 'История';
+
+  @override
   String get yesterdayText => 'Вчера';
 
   @override

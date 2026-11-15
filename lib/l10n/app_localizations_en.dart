@@ -1553,6 +1553,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Too many new chats in a short time. Try again later.';
 
   @override
+  String get chatSharedPostText => 'Post';
+
+  @override
+  String get chatSharedStoryText => 'Story';
+
+  @override
   String get yesterdayText => 'Yesterday';
 
   @override

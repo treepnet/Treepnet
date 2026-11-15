@@ -1,6 +1,7 @@
 const prisma = require('../database/prisma');
 const fcmService = require('../external/fcm_service');
 const { isBlockedBetween } = require('../external/blocks');
+const { profileCard } = require('../external/profiles');
 
 /**
  * Messenger (user <-> user) uchun socket hodisalari.
@@ -210,6 +211,33 @@ async function partnersOf(userId) {
     return [...new Set(others.map((o) => o.userId))];
 }
 
+/**
+ * Push tilining manbai: ilova profilidagi til (`profiles.lang`, ilovaning
+ * o'zi yangilab turadi). Ilgari ulanish sarlavhasidagi `x-lang` olinardi:
+ * aksar yozuvlarda eski 'uz' turardi (push inglizcha ketardi), socket esa
+ * qayta ulanganda eski tilni yozib qo'yardi. Profilda til bo'lmasa (eski
+ * build), sarlavhadagisi.
+ */
+async function recipientLang(recipient) {
+    if (!recipient) return undefined;
+    const card = await profileCard(recipient.uuid);
+    return card?.lang || recipient.lang;
+}
+
+/** Yangi xabar push'ining sarlavhasi va matni, qabul qiluvchining tilida. */
+function pushText({ lang, sender, contentType, content }) {
+    const ru = lang === 'ru';
+    const isSharePost = contentType === 'text' && content.startsWith('treepnet:share:post:');
+    const isShareStory = contentType === 'text' && content.startsWith('treepnet:share:story:');
+    const title = sender?.name || sender?.deviceName || (ru ? 'Новое сообщение' : 'New message');
+    const body = contentType !== 'text'
+        ? (ru ? '📎 Медиа' : '📎 Media')
+        : isSharePost ? (ru ? '📷 Пост' : '📷 Post')
+        : isShareStory ? (ru ? '📖 История' : '📖 Story')
+        : content.slice(0, 120);
+    return { title, body };
+}
+
 async function broadcastPresence(io, userId, online) {
     try {
         const partners = await partnersOf(userId);
@@ -414,17 +442,10 @@ function register(io, socket) {
                     const sender = await prisma.user.findUnique({
                         where: { id: socket.userId },
                     });
-                    const isSharePost = contentType === 'text' && content.startsWith('treepnet:share:post:');
-                    const isShareStory = contentType === 'text' && content.startsWith('treepnet:share:story:');
                     for (const participantId of offline) {
                         const recipient = await prisma.user.findUnique({ where: { id: participantId } });
-                        const ru = recipient?.lang === 'ru';
-                        const title = sender?.name || sender?.deviceName || (ru ? 'Новое сообщение' : 'New message');
-                        const body = contentType !== 'text'
-                            ? (ru ? '📎 Медиа' : '📎 Media')
-                            : isSharePost ? (ru ? '📷 Пост' : '📷 Post')
-                            : isShareStory ? (ru ? '📖 История' : '📖 Story')
-                            : content.slice(0, 120);
+                        const lang = await recipientLang(recipient);
+                        const { title, body } = pushText({ lang, sender, contentType, content });
                         fcmService
                             .sendToUser(participantId, {
                                 title,
@@ -601,4 +622,4 @@ function register(io, socket) {
     });
 }
 
-module.exports = { register, userRoom, toMessageDto, clientKey, invalidateParticipants, isOnline };
+module.exports = { register, userRoom, toMessageDto, clientKey, invalidateParticipants, isOnline, pushText, recipientLang };

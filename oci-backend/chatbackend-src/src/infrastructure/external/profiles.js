@@ -1,7 +1,8 @@
 const { db } = require('./blocks');
 
 /**
- * Foydalanuvchining ilovadagi ismi (username) va avatari.
+ * Foydalanuvchining ilovadagi ismi (username), avatari va ilova tili (push
+ * matnlari uchun).
  *
  * Ilgari ularni ilova o'zi yuborardi (`x-name` / `x-avatar`, suhbat
  * ochilganda esa suhbatdoshniki - `peerName` / `peerAvatar`) va server
@@ -30,7 +31,7 @@ const cache = new Map(); // uuid -> { card, expiresAt }
  * UUID bo'lmagan qiymat - profil emas (`null`): bazaga yuborilsa, xato
  * berib "so'rab bo'lmadi" bo'lib qolardi.
  *
- * @returns {Promise<{name: string|null, avatar: string|null}|null|undefined>}
+ * @returns {Promise<{name: string|null, avatar: string|null, lang: string|null}|null|undefined>}
  *   `null` - bunday profil yo'q, `undefined` - so'rab bo'lmadi.
  */
 async function profileCard(uuid, { fresh = false } = {}) {
@@ -42,10 +43,10 @@ async function profileCard(uuid, { fresh = false } = {}) {
     let ttl = TTL_MS;
     try {
         const rows = await db.$queryRaw`
-            select username, avatar_url from public.chat_profile_card(${uuid}::uuid)`;
+            select username, avatar_url, lang from public.chat_profile_card(${uuid}::uuid)`;
         const row = rows[0];
         card = row
-            ? { name: row.username || null, avatar: row.avatar_url || null }
+            ? { name: row.username || null, avatar: row.avatar_url || null, lang: row.lang || null }
             : null;
         if (card === null) ttl = NOT_FOUND_TTL_MS;
     } catch (error) {

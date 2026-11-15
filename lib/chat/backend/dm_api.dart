@@ -410,6 +410,10 @@ class DmApi {
     if (value == lang) return;
     lang = value;
     dio.options.headers['x-lang'] = value;
+    // The socket's headers were a copy taken when it was made: each
+    // reconnect sent the old language back while REST sent the new one, and
+    // the chat's pushes switched language. The next (re)connect sends these.
+    _socket?.io.options?['extraHeaders'] = _headers;
   }
 
   /// Stops chat pushes for this device and user (on sign-out).

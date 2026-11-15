@@ -2649,6 +2649,18 @@ abstract class AppLocalizations {
   /// **'Too many new chats in a short time. Try again later.'**
   String get tooManyNewChatsText;
 
+  /// No description provided for @chatSharedPostText.
+  ///
+  /// In en, this message translates to:
+  /// **'Post'**
+  String get chatSharedPostText;
+
+  /// No description provided for @chatSharedStoryText.
+  ///
+  /// In en, this message translates to:
+  /// **'Story'**
+  String get chatSharedStoryText;
+
   /// A chat's last message was sent yesterday (inbox time column)
   ///
   /// In en, this message translates to:

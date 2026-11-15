@@ -6,15 +6,6 @@ import 'package:messenger_chat/messenger_chat.dart';
 import 'package:treepnet/chat/backend/chat_cache.dart';
 import 'package:treepnet/chat/backend/dm_api.dart';
 import 'package:treepnet/chat/chat_failures.dart';
-import 'package:treepnet/chat/chat_share_ref.dart';
-
-/// Inbox last-message preview text. Renders a share sentinel as a friendly
-/// label instead of the raw `treepnet:share:...` string.
-String _previewText(String content) => switch (parseSharedRef(content)?.kind) {
-  SharedRefKind.post => '📷 Post',
-  SharedRefKind.story => '📖 Story',
-  _ => content,
-};
 
 /// Transport for a single conversation.
 ///
@@ -407,8 +398,9 @@ class DmListTransport implements ChatListTransport {
           }
           final isMine = message.senderId == myUserId;
           final updated = current.copyWith(
+            // The inbox turns a share into its label, in the app's language.
             lastMessage: message.kind == ChatMessageKind.text
-                ? _previewText(message.content)
+                ? message.content
                 : '',
             lastMessageKind: message.kind,
             lastMessageId: message.id,
@@ -433,7 +425,7 @@ class DmListTransport implements ChatListTransport {
           final updated = current.copyWith(
             lastMessage: message.isDeleted || !isText
                 ? ''
-                : _previewText(message.content),
+                : message.content,
             lastMessageDeleted: message.isDeleted,
           );
           _conversations[updated.id] = updated;
@@ -590,7 +582,7 @@ class DmListTransport implements ChatListTransport {
       lastMessage: message != null &&
               !message.isDeleted &&
               message.kind == ChatMessageKind.text
-          ? _previewText(message.content)
+          ? message.content
           : '',
       lastMessageKind: message?.kind ?? ChatMessageKind.text,
       lastMessageId: message?.id,

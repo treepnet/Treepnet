@@ -9,6 +9,7 @@ import 'package:treepnet/stories/widgets/user_stories_avatar.dart';
 import 'package:messenger_chat/messenger_chat.dart';
 import 'package:treepnet/app/bloc/app_bloc.dart';
 import 'package:treepnet/chat/chat_session.dart';
+import 'package:treepnet/chat/chat_share_ref.dart';
 import 'package:treepnet/chat/chat_theme.dart';
 import 'package:treepnet/chat/open_chat.dart';
 import 'package:treepnet/l10n/l10n.dart';
@@ -873,7 +874,8 @@ class _ConversationTile extends StatelessWidget {
     if (conversation.lastMessageDeleted) {
       return l10n.chatMessageDeletedPreviewText;
     }
-    if (conversation.lastMessage.isNotEmpty) return conversation.lastMessage;
+    final last = conversation.lastMessage;
+    if (last.isNotEmpty) return sharedContentPreview(last, l10n) ?? last;
     return switch (conversation.lastMessageKind) {
       ChatMessageKind.photo => '📷 ${l10n.chatPhotoPreviewText}',
       ChatMessageKind.video => '🎬 ${l10n.chatVideoPreviewText}',

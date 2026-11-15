@@ -818,6 +818,8 @@
   "blockedThisUserText": "You've blocked this user. Unblock to send a message.",
   "cantMessageUserText": "You can't message this user because they've blocked you.",
   "tooManyNewChatsText": "Too many new chats in a short time. Try again later.",
+  "chatSharedPostText": "Post",
+  "chatSharedStoryText": "Story",
   "yesterdayText": "Yesterday",
   "@yesterdayText": {
     "description": "A chat's last message was sent yesterday (inbox time column)"
