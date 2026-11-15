@@ -14,10 +14,9 @@ dependencies:
     path: ../camera
   flutter:
     sdk: flutter
-  image: ^4.3.0
-  image_picker: ^1.1.2
+  # No image, image_picker or intl: none was imported, yet image_picker's
+  # native plugin shipped in both apps.
   insta_assets_crop: ^0.1.2
-  intl: ^0.20.2
   # 3.8 fixed the iOS crash while loading thumbnails (EXC_BAD_ACCESS in
   # fetchThumb); 3.10 stopped loading the full-size file on the UI thread
   # (every first tap of a photo froze the picker).

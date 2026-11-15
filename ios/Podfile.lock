@@ -105,8 +105,6 @@ PODS:
     - GoogleUtilities/Logger
     - GoogleUtilities/Privacy
   - GTMSessionFetcher/Core (4.5.0)
-  - image_picker_ios (0.0.1):
-    - Flutter
   - insta_assets_crop (0.0.1):
     - Flutter
   - libwebp (1.6.0):
@@ -208,7 +206,6 @@ DEPENDENCIES:
   - fluttertoast (from `.symlinks/plugins/fluttertoast/ios`)
   - gal (from `.symlinks/plugins/gal/darwin`)
   - geolocator_apple (from `.symlinks/plugins/geolocator_apple/darwin`)
-  - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
   - insta_assets_crop (from `.symlinks/plugins/insta_assets_crop/ios`)
   - messenger_chat (from `.symlinks/plugins/messenger_chat/ios`)
   - native_exif (from `.symlinks/plugins/native_exif/ios`)
@@ -276,8 +273,6 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/gal/darwin"
   geolocator_apple:
     :path: ".symlinks/plugins/geolocator_apple/darwin"
-  image_picker_ios:
-    :path: ".symlinks/plugins/image_picker_ios/ios"
   insta_assets_crop:
     :path: ".symlinks/plugins/insta_assets_crop/ios"
   messenger_chat:
@@ -332,7 +327,6 @@ SPEC CHECKSUMS:
   GoogleDataTransport: a24e58982ab3ba2f64d79613e027fe7f57e88539
   GoogleUtilities: 766ace00c6b10d8148408f329d10c4f051931850
   GTMSessionFetcher: fc75fc972958dceedee61cb662ae1da7a83a91cf
-  image_picker_ios: 7fe1ff8e34c1790d6fff70a32484959f563a928a
   insta_assets_crop: 960856014dc16c08c92b02caf56d197fdea56051
   libwebp: af5937a13536ef73f3784d69cc342b98961acf33
   Mantle: c5aa8794a29a022dfbbfc9799af95f477a69b62d
