@@ -8,6 +8,7 @@ import 'package:treepnet/feed/post/post.dart';
 import 'package:treepnet/feed/widgets/widgets.dart';
 import 'package:treepnet/feed/post/video/video.dart';
 import 'package:treepnet/l10n/l10n.dart';
+import 'package:treepnet/navigation/tab_reselect.dart';
 import 'package:treepnet/search/view/search_page.dart';
 import 'package:treepnet/timeline/timeline.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart' hide VideoPlayer;
@@ -55,9 +56,14 @@ class _TimelineViewState extends State<TimelineView>
   /// still loading, after it there are really no posts to show.
   bool _hasSynced = false;
 
+  /// The grid's scroll: back to its top when the Trends tab is tapped again.
+  final _scroll = ScrollController();
+  StreamSubscription<int>? _reselect;
+
   @override
   void initState() {
     super.initState();
+    _reselect = TabReselect.scrollToTopOn(1, () => _scroll);
     final db = context.read<PowerSyncRepository>().db();
     _hasSynced = db.currentStatus.hasSynced ?? false;
     _lastSyncedAt = db.currentStatus.lastSyncedAt;
@@ -79,6 +85,8 @@ class _TimelineViewState extends State<TimelineView>
   @override
   void dispose() {
     _syncSub?.cancel();
+    _reselect?.cancel();
+    _scroll.dispose();
     _isNextPageLoading.dispose();
     super.dispose();
   }
@@ -106,6 +114,7 @@ class _TimelineViewState extends State<TimelineView>
           await _settled((state) => !state.status.isLoading);
         },
         child: InViewNotifierCustomScrollView(
+          controller: _scroll,
           onListEndReached: () async {
             if (!hasMore) return;
             Future<void> onEndReached() async {

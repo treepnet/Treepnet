@@ -8,6 +8,7 @@ import 'package:posts_repository/posts_repository.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/map/map.dart';
+import 'package:treepnet/navigation/tab_reselect.dart';
 
 /// Profile tab showing the user's "travel map": every ISO 3166-2 region they
 /// have posted from is highlighted on an interactive globe. Nothing else.
@@ -69,6 +70,8 @@ class _UserProfileTravelMapState extends State<UserProfileTravelMap>
   @override
   void dispose() {
     _overlapHandle?.removeListener(_onOverlapChanged);
+    _reselect?.cancel();
+    _globeController.dispose();
     _unsubscribe();
     super.dispose();
   }
@@ -86,10 +89,21 @@ class _UserProfileTravelMapState extends State<UserProfileTravelMap>
   /// worked out from it.
   List<({double lat, double lng, String? name})> _points = const [];
 
+  /// The globe flies back to its opening view when the Profile tab is
+  /// tapped again, as the profile itself goes back to its top.
+  final _globeController = GlobeController();
+  StreamSubscription<int>? _reselect;
+
   @override
   void initState() {
     super.initState();
     _subscribe();
+    _reselect = TabReselect.taps.where((tab) => tab == 4).listen((_) {
+      // Only on the tab's own profile, at the root of the tab.
+      if (mounted && (ModalRoute.of(context)?.isFirst ?? false)) {
+        _globeController.reset();
+      }
+    });
   }
 
   @override
@@ -179,6 +193,7 @@ class _UserProfileTravelMapState extends State<UserProfileTravelMap>
 
   Widget _globe(BuildContext context) {
     return GlobeView(
+      controller: _globeController,
       visitedCounts: _visited,
       points: _points,
       viewerId: context.read<AppBloc>().state.user.id,

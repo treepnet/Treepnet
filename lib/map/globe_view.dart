@@ -169,6 +169,9 @@ class GlobeController extends ChangeNotifier {
   /// Zooms by [levels] flat-map zoom levels (each one doubles the scale).
   void zoomBy(double levels) =>
       _view?._zoomBy(math.pow(2, levels).toDouble());
+
+  /// Flies back to the opening view, as the "my location" button does.
+  void reset() => _view?._reset();
 }
 
 const double _deg = math.pi / 180;

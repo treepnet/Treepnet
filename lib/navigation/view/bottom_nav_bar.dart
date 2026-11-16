@@ -9,6 +9,7 @@ import 'package:treepnet/feed/feed.dart';
 import 'package:treepnet/feed/post/video/video.dart';
 import 'package:treepnet/home/home.dart';
 import 'package:treepnet/l10n/l10n.dart';
+import 'package:treepnet/navigation/tab_reselect.dart';
 import 'package:go_router/go_router.dart';
 import 'package:user_repository/user_repository.dart';
 
@@ -84,6 +85,9 @@ class BottomNavBar extends StatelessWidget {
         if (index == 0) {
           if (!(index == navigationShell.currentIndex)) return;
           FeedPageController().scrollToTop();
+        } else if (index != 2 && index == navigationShell.currentIndex) {
+          // Trends, Chat and the profile go back to their top too.
+          TabReselect.tapped(index);
         }
       },
       // The Figma icons are drawn at their native 24x24.

@@ -12,6 +12,7 @@ import 'package:treepnet/feed/feed.dart' show FeedBloc, FeedRefreshRequested;
 import 'package:treepnet/feed/post/post.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/monitoring/crash_reporter.dart';
+import 'package:treepnet/navigation/tab_reselect.dart';
 import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:treepnet/settings/view/settings_page.dart';
 import 'package:treepnet/user_profile/user_profile.dart';
@@ -74,8 +75,36 @@ class _UserProfileViewState extends State<UserProfileView> {
 
   UserProfileProps get props => widget.props;
 
+  /// The profile's header and grid scroll apart (a NestedScrollView): both
+  /// go back to the top when the Profile tab is tapped again.
+  final _nestedKey = GlobalKey<NestedScrollViewState>();
+  StreamSubscription<int>? _reselect;
+
+  @override
+  void initState() {
+    super.initState();
+    _reselect = TabReselect.taps.where((tab) => tab == 4).listen((_) {
+      // Only the tab's own profile, at the root of the tab: not one opened
+      // from somewhere else.
+      if (!mounted || !(ModalRoute.of(context)?.isFirst ?? false)) return;
+      final nested = _nestedKey.currentState;
+      if (nested == null) return;
+      for (final scroll in [nested.innerController, nested.outerController]) {
+        if (!scroll.hasClients) continue;
+        unawaited(
+          scroll.animateTo(
+            0,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.ease,
+          ),
+        );
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _reselect?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -122,6 +151,7 @@ class _UserProfileViewState extends State<UserProfileView> {
                     // No pull-to-refresh on the profile — the header, counts and
                     // grid are all live streams, so there is nothing to re-fetch.
                     return NestedScrollView(
+                      key: _nestedKey,
                       // Keep the OUTER scroll live on both tabs so the profile
                       // header can be collapsed (map pushed to full-screen) the
                       // moment the profile opens — not only after a round-trip

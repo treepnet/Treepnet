@@ -13,6 +13,7 @@ import 'package:treepnet/chat/chat_share_ref.dart';
 import 'package:treepnet/chat/chat_theme.dart';
 import 'package:treepnet/chat/open_chat.dart';
 import 'package:treepnet/l10n/l10n.dart';
+import 'package:treepnet/navigation/tab_reselect.dart';
 import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:search_repository/search_repository.dart';
 import 'package:user_repository/user_repository.dart';
@@ -285,9 +286,14 @@ class _TypeListState extends State<_TypeList> {
   /// Chat list events: someone just messaged drops off the suggestions.
   StreamSubscription<ChatListEvent>? _chatEvents;
 
+  /// Back to the top when the Chat tab is tapped again.
+  final _scroll = ScrollController();
+  StreamSubscription<int>? _reselect;
+
   @override
   void initState() {
     super.initState();
+    _reselect = TabReselect.scrollToTopOn(3, () => _scroll);
     unawaited(_load());
   }
 
@@ -318,6 +324,8 @@ class _TypeListState extends State<_TypeList> {
   void dispose() {
     _debounce?.cancel();
     _chatEvents?.cancel();
+    _reselect?.cancel();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -461,6 +469,7 @@ class _TypeListState extends State<_TypeList> {
         return false;
       },
       child: ListView.separated(
+        controller: _scroll,
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
         itemCount: users.length + (_loadingMore ? 1 : 0),
         separatorBuilder: (_, __) => Divider(
@@ -529,6 +538,10 @@ class _ChatsListState extends State<_ChatsList> {
   final Set<String> _fromCache = {};
   StreamSubscription<ChatListEvent>? _sub;
   bool _loading = true;
+
+  /// Back to the top when the Chat tab is tapped again.
+  final _scroll = ScrollController();
+  StreamSubscription<int>? _reselect;
   Object? _error;
 
   /// Tries again on its own while loading has failed (5 s, 10 s, 20 s, then
@@ -590,6 +603,7 @@ class _ChatsListState extends State<_ChatsList> {
           if (mounted) setState(() => _blocked = peers);
         });
     ChatSession.instance.restarts.addListener(_onSessionRestarted);
+    _reselect = TabReselect.scrollToTopOn(3, () => _scroll);
     _bind();
   }
 
@@ -743,6 +757,8 @@ class _ChatsListState extends State<_ChatsList> {
   @override
   void dispose() {
     ChatSession.instance.restarts.removeListener(_onSessionRestarted);
+    _reselect?.cancel();
+    _scroll.dispose();
     _retryTimer?.cancel();
     unawaited(_sub?.cancel());
     unawaited(_blockedSub?.cancel());
@@ -821,6 +837,7 @@ class _ChatsListState extends State<_ChatsList> {
         return false;
       },
       child: ListView.separated(
+        controller: _scroll,
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
         itemCount: conversations.length + (_loadingMore ? 1 : 0),
         separatorBuilder: (_, __) => Divider(
