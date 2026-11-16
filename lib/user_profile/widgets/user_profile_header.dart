@@ -301,9 +301,10 @@ class _ProfileBioBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bio = (user.bio != null && user.bio!.trim().isNotEmpty)
-        ? user.bio!
-        : '@${user.displayUsername}';
+    // Only what the user filled in. An empty name showed the username, and
+    // an empty bio "@username", while the username is already at the top.
+    final name = user.fullName?.trim() ?? '';
+    final bio = user.bio?.trim() ?? '';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -316,18 +317,23 @@ class _ProfileBioBlock extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    user.displayFullName,
-                    style: context.bodyLarge?.copyWith(
-                      color: AppColors.white,
-                      fontWeight: AppFontWeight.semiBold,
+                  if (name.isNotEmpty)
+                    Text(
+                      name,
+                      style: context.bodyLarge?.copyWith(
+                        color: AppColors.white,
+                        fontWeight: AppFontWeight.semiBold,
+                      ),
                     ),
-                  ),
-                  const Gap.v(AppSpacing.xxs),
-                  Text(
-                    bio,
-                    style: context.bodyMedium?.copyWith(color: AppColors.white),
-                  ),
+                  if (name.isNotEmpty && bio.isNotEmpty)
+                    const Gap.v(AppSpacing.xxs),
+                  if (bio.isNotEmpty)
+                    Text(
+                      user.bio!,
+                      style: context.bodyMedium?.copyWith(
+                        color: AppColors.white,
+                      ),
+                    ),
                 ],
               ),
             ),

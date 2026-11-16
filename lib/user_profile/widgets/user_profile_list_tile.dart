@@ -251,7 +251,8 @@ const _compactPadding = EdgeInsets.symmetric(
   vertical: AppSpacing.xs + AppSpacing.xxs,
 );
 
-/// The person's username over their name.
+/// The person's username over their name — the name only when they gave
+/// one: without it the username showed twice.
 class _NameAndFullName extends StatelessWidget {
   const _NameAndFullName({required this.user});
 
@@ -259,6 +260,7 @@ class _NameAndFullName extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final name = user.fullName?.trim() ?? '';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -270,15 +272,16 @@ class _NameAndFullName extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        Text(
-          user.displayFullName,
-          style: context.labelLarge?.copyWith(
-            fontWeight: AppFontWeight.medium,
-            color: AppColors.grey,
+        if (name.isNotEmpty)
+          Text(
+            name,
+            style: context.labelLarge?.copyWith(
+              fontWeight: AppFontWeight.medium,
+              color: AppColors.grey,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
       ],
     );
   }
