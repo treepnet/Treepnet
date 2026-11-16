@@ -80,7 +80,9 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
     );
   }
 
-  static const _pageSize = 15;
+  /// Trends posts per page: 24, eight full rows of the 3-column grid (it
+  /// was 15). feed_page_ids takes up to 100.
+  static const _pageSize = 24;
 
   Future<void> _onTimelinePageRequested(
     TimelinePageRequested event,

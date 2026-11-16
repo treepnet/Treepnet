@@ -91,7 +91,8 @@ void main() {
 
   test('Trends keeps its page after a failed one, then retries', () async {
     final bloc = TimelineBloc(postsRepository: posts);
-    answer(() => List.generate(15, (i) => _post('t$i')));
+    // A full page (24, TimelineBloc._pageSize).
+    answer(() => List.generate(24, (i) => _post('t$i')));
     bloc.add(const TimelinePageRequested());
     await settle();
     expect(bloc.state.timeline.page, 1);
@@ -103,14 +104,14 @@ void main() {
     expect(bloc.state.status, TimelineStatus.failure);
     expect(bloc.state.timeline.page, 1);
     expect(bloc.state.timeline.hasMore, isTrue);
-    expect(bloc.state.timeline.blocks, hasLength(15));
+    expect(bloc.state.timeline.blocks, hasLength(24));
 
-    answer(() => [_post('t15')]);
+    answer(() => [_post('t24')]);
     await Future<void>.delayed(const Duration(milliseconds: 600));
     bloc.add(const TimelinePageRequested());
     await settle();
     expect(bloc.state.status, TimelineStatus.populated);
-    expect(bloc.state.timeline.blocks, hasLength(16));
+    expect(bloc.state.timeline.blocks, hasLength(25));
     await bloc.close();
   });
 }
