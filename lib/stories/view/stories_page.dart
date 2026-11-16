@@ -1,6 +1,7 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/l10n/l10n.dart';
@@ -65,6 +66,9 @@ const double _timerHeight = 2;
 /// Empty space the design wants between the timer and the top of the picture.
 const double _storyTopGap = 3;
 
+/// Least space kept between a grown 9:16 story and the footer.
+const double _storyFooterGap = AppSpacing.sm;
+
 /// Whether a story of this width / height was made in the editor's 9:16 frame
 /// (its export is 1080 x 1920, give or take a pixel of rounding).
 bool _isStoryFrame(double aspect) => (aspect - 9 / 16).abs() < 0.01;
@@ -81,6 +85,11 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
   /// the top-aligned frame so the picture keeps its editor proportions instead
   /// of being letterboxed with a black bar top and bottom.
   final _storyAspect = ValueNotifier<double?>(null);
+
+  /// The footer's height (author, reply bar and the phone's bottom inset),
+  /// measured while the keyboard is down: a 9:16 story grows into the band
+  /// left above it.
+  final _footerHeight = ValueNotifier<double>(0);
 
   /// Each image story's width / height, by story id, as the player decoded
   /// it ([_onImageSize]): a story shown again takes its shape at once.
@@ -386,6 +395,7 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
     _createdAt.dispose();
     _wasVisible.dispose();
     _storyAspect.dispose();
+    _footerHeight.dispose();
     super.dispose();
   }
 
@@ -444,9 +454,13 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
                   // below. Falls back to filling the frame until the aspect
                   // is known.
                   child: LayoutBuilder(
-                      builder: (context, constraints) => ValueListenableBuilder<double?>(
-                        valueListenable: _storyAspect,
-                        builder: (context, aspect, _) {
+                      builder: (context, constraints) => ListenableBuilder(
+                        listenable: Listenable.merge([
+                          _storyAspect,
+                          _footerHeight,
+                        ]),
+                        builder: (context, _) {
+                          final aspect = _storyAspect.value;
                           // Room for the timer plus a 3px gap above the picture.
                           // Added to the box height so the image keeps its full
                           // height and is NOT cropped — the shift eats into the
@@ -458,11 +472,27 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
                                 (constraints.maxHeight - topReserve) * aspect;
                             if (fits < w) w = fits;
                           }
-                          final h =
+                          var h =
                               (aspect == null
                                   ? constraints.maxHeight
                                   : w / aspect) +
                               topReserve;
+                          // A 9:16 story at full width on a phone a little
+                          // less tall (an S23) left a band of the backdrop
+                          // above the footer: it grows into it, by up to a
+                          // tenth (cover trims a sliver off each side). On a
+                          // taller phone there is no band, and nothing
+                          // changes.
+                          if (aspect != null && _isStoryFrame(aspect)) {
+                            final footer = _footerHeight.value;
+                            final room = constraints.maxHeight -
+                                footer -
+                                _storyFooterGap -
+                                h;
+                            if (footer > 0 && room > 0) {
+                              h += room.clamp(0.0, (h - topReserve) * 0.1);
+                            }
+                          }
                           return OverflowBox(
                             alignment: Alignment.topCenter,
                             minWidth: w,
@@ -600,7 +630,19 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
                 padding: EdgeInsets.only(
                   bottom: MediaQuery.viewInsetsOf(context).bottom,
                 ),
-                child: StoryFooter(
+                child: _MeasureHeight(
+                  // Only with the keyboard down: its inset would shrink the
+                  // story while typing.
+                  onHeight: (height) {
+                    if (!mounted) return;
+                    if (MediaQuery.viewInsetsOf(this.context).bottom > 0) {
+                      return;
+                    }
+                    if ((height - _footerHeight.value).abs() > 0.5) {
+                      _footerHeight.value = height;
+                    }
+                  },
+                  child: StoryFooter(
                   story: story,
                   author: props.author,
                   viewer: user,
@@ -623,6 +665,7 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
                     place: story.locationName,
                     dense: true,
                   ),
+                ),
                 ),
               );
             },
@@ -846,5 +889,39 @@ class _DismissKeyboardFirst extends StatelessWidget {
       },
       child: child,
     );
+  }
+}
+
+/// Reports its child's laid-out height after each layout that changes it.
+class _MeasureHeight extends SingleChildRenderObjectWidget {
+  const _MeasureHeight({required this.onHeight, required super.child});
+
+  final ValueChanged<double> onHeight;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderMeasureHeight(onHeight);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderMeasureHeight renderObject,
+  ) => renderObject.onHeight = onHeight;
+}
+
+class _RenderMeasureHeight extends RenderProxyBox {
+  _RenderMeasureHeight(this.onHeight);
+
+  ValueChanged<double> onHeight;
+  double? _last;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    final height = size.height;
+    if (height == _last) return;
+    _last = height;
+    // Not during layout: the story above rebuilds from it.
+    WidgetsBinding.instance.addPostFrameCallback((_) => onHeight(height));
   }
 }
