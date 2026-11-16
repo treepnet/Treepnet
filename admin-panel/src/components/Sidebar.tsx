@@ -1,15 +1,16 @@
 import React from 'react';
 import {
-  Activity, ChevronLeft, ChevronRight, Gift, Heart, Image as ImageIcon, LayoutDashboard, MapPin, Users, X,
+  Activity, ChevronLeft, ChevronRight, Gift, Heart, Image as ImageIcon, LayoutDashboard, MapPin, Smartphone, Users, X,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { TreepnetLogo } from './Logo';
 
-export type TabType = 'overview' | 'users' | 'activity' | 'content' | 'engagement' | 'referral' | 'geography';
+export type TabType = 'overview' | 'users' | 'devices' | 'activity' | 'content' | 'engagement' | 'referral' | 'geography';
 
 export const TABS: { id: TabType; icon: typeof LayoutDashboard }[] = [
   { id: 'overview', icon: LayoutDashboard },
   { id: 'users', icon: Users },
+  { id: 'devices', icon: Smartphone },
   { id: 'activity', icon: Activity },
   { id: 'content', icon: ImageIcon },
   { id: 'engagement', icon: Heart },

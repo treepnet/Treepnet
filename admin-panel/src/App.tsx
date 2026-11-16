@@ -6,6 +6,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { DataProvider, useData } from './context/DataContext';
 import { OverviewView } from './views/OverviewView';
 import { UsersView } from './views/UsersView';
+import { DevicesView } from './views/DevicesView';
 import { ActivityView } from './views/ActivityView';
 import { ContentView } from './views/ContentView';
 import { EngagementView } from './views/EngagementView';
@@ -75,6 +76,7 @@ const Shell: React.FC = () => {
     }
     switch (tab) {
       case 'users': return <UsersView />;
+      case 'devices': return <DevicesView />;
       case 'activity': return <ActivityView />;
       case 'content': return <ContentView />;
       case 'engagement': return <EngagementView />;

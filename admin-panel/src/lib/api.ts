@@ -146,6 +146,69 @@ export interface UserRow {
   regions: number;
 }
 
+/** One account with its phone as far as it is known; null: not known yet. */
+export interface DeviceUserRow {
+  id: string;
+  username: string;
+  signupAt: string | null;
+  lastSeenAt: string | null;
+  platform: 'ios' | 'android' | null;
+  /** `app`: the app reported it (1.0.9+); `chat`: the chat service's last one (older builds). */
+  platformSource: 'app' | 'chat' | null;
+  appVersion: string | null;
+  build: number | null;
+  osVersion: string | null;
+  model: string | null;
+  deviceFirstSeen: string | null;
+  deviceLastSeen: string | null;
+  /** Installs this account reported from (1.0.9+). */
+  devices: number;
+}
+
+export interface UnregisteredDeviceRow {
+  id: string;
+  platform: 'ios' | 'android';
+  appVersion: string;
+  build: number;
+  osVersion: string | null;
+  model: string | null;
+  firstSeen: string | null;
+  lastSeen: string | null;
+}
+
+export interface PlatformCount {
+  ios: number;
+  android: number;
+  total: number;
+}
+
+export interface DevicesData {
+  generatedAt: string;
+  summary: {
+    users: number;
+    usersIos: number;
+    usersAndroid: number;
+    usersUnknown: number;
+    usersWithVersion: number;
+    devices: number;
+    devicesIos: number;
+    devicesAndroid: number;
+    /** Installs someone has signed in on, and those no one has. */
+    devicesRegistered: number;
+    devicesUnregistered: number;
+    active7d: number;
+    active30d: number;
+    firstReportAt: string | null;
+  };
+  versions: (PlatformCount & { version: string; build: number })[];
+  os: (PlatformCount & { os: string })[];
+  models: (PlatformCount & { model: string })[];
+  daily: { date: string; ios: number; android: number }[];
+  /** Installs no one has signed in on yet (1.0.9+). */
+  unregistered: UnregisteredDeviceRow[];
+  users: DeviceUserRow[];
+}
+
 export interface OnlineData {
   asOf: string;
   onlineNow: number;
@@ -169,3 +232,4 @@ export function periodQuery(p: PeriodSel): string {
 export const fetchDashboard = (p: PeriodSel) => getJson<DashboardData>(`/dashboard?${periodQuery(p)}`);
 export const fetchUsers = () => getJson<{ generatedAt: string; users: UserRow[] }>('/users');
 export const fetchOnline = () => getJson<OnlineData>('/online');
+export const fetchDevices = () => getJson<DevicesData>('/devices');

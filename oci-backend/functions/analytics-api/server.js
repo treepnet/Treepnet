@@ -12,6 +12,8 @@
 //   GET /dashboard?preset=today|yesterday|7d|30d|90d|all
 //   GET /dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD      (inclusive, Tashkent days)
 //   GET /users      every account with per-user counts (no PII)
+//   GET /devices    every account with its phone as far as it is known, and
+//                   the installs no one has signed in on
 //   GET /online     live presence counters
 //   GET /health
 //
@@ -580,6 +582,133 @@ async function buildUsers() {
   };
 }
 
+// --- devices ------------------------------------------------------------------
+// Every account with its phone as far as it is known, and every install with
+// no account on it. From 1.0.9 the app reports its phone, app version and OS
+// (analytics.devices, one row per install), signed in or not yet; for older
+// builds only the platform is known, from the chat service
+// (analytics.chat_platform, copied nightly). What isn't known is null.
+const osMajor = (platform, v) => {
+  if (!v) return null;
+  const major = String(v).split('.')[0];
+  return `${platform === 'ios' ? 'iOS' : 'Android'} ${major}`;
+};
+
+async function buildDevices() {
+  const [users, devices] = await Promise.all([
+    q(`with last as (
+         select distinct on (user_id) user_id, platform, app_version, build, os_version, model,
+                first_seen_at, last_seen_at
+         from analytics.devices
+         where user_id is not null
+         order by user_id, last_seen_at desc),
+       counts as (
+         select user_id, count(*) n from analytics.devices where user_id is not null group by user_id)
+       select u.id, u.username, u.signup_at, u.last_seen_at,
+              coalesce(l.platform, cp.platform) platform,
+              case when l.platform is not null then 'app' when cp.platform is not null then 'chat' end platform_source,
+              l.app_version, l.build, l.os_version, l.model,
+              l.first_seen_at device_first_seen, l.last_seen_at device_last_seen,
+              coalesce(c.n, 0) devices
+       from analytics.users u
+       left join last l on l.user_id = u.id
+       left join counts c on c.user_id = u.id
+       left join analytics.chat_platform cp on cp.user_id = u.id
+       order by u.signup_at desc nulls last`),
+    q(`select device_id, (user_id is not null) registered, platform, app_version, build, os_version, model,
+              first_seen_at, last_seen_at,
+              to_char((first_seen_at at time zone '${TZ}')::date, 'YYYY-MM-DD') first_day
+       from analytics.devices
+       order by last_seen_at desc`),
+  ]);
+
+  const now = Date.now();
+  const within = (ts, days) => ts && now - new Date(ts).getTime() <= days * 86400000;
+  const count = (list, f) => list.filter(f).length;
+  const tally = (list, keyOf) => {
+    const m = new Map();
+    for (const r of list) {
+      const k = keyOf(r);
+      if (!k) continue;
+      const e = m.get(k.key) || { ...k, ios: 0, android: 0, total: 0 };
+      e[r.platform] += 1;
+      e.total += 1;
+      m.set(k.key, e);
+    }
+    return [...m.values()];
+  };
+
+  const versions = tally(devices, (d) => ({ key: `${d.app_version}+${d.build}`, version: d.app_version, build: n(d.build) }))
+    .sort((a, b) => b.build - a.build || b.total - a.total);
+  const os = tally(devices, (d) => {
+    const k = osMajor(d.platform, d.os_version);
+    return k && { key: k, os: k };
+  }).sort((a, b) => b.total - a.total);
+  const models = tally(devices, (d) => d.model && { key: `${d.platform}:${d.model}`, model: d.model })
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 15);
+
+  // New installs reported per Tashkent day, the last 30 days (0 on quiet days).
+  const { today } = await one(`select to_char((now() at time zone '${TZ}')::date, 'YYYY-MM-DD') as today`);
+  const daily = [];
+  const end = new Date(`${today}T00:00:00Z`);
+  for (let i = 29; i >= 0; i--) {
+    const day = new Date(end.getTime() - i * 86400000).toISOString().slice(0, 10);
+    const on = devices.filter((d) => d.first_day === day);
+    daily.push({ date: day, ios: count(on, (d) => d.platform === 'ios'), android: count(on, (d) => d.platform === 'android') });
+  }
+
+  const firstReport = devices.reduce((m, d) => (!m || new Date(d.first_seen_at) < m ? new Date(d.first_seen_at) : m), null);
+  return {
+    generatedAt: new Date().toISOString(),
+    summary: {
+      users: users.length,
+      usersIos: count(users, (u) => u.platform === 'ios'),
+      usersAndroid: count(users, (u) => u.platform === 'android'),
+      usersUnknown: count(users, (u) => !u.platform),
+      usersWithVersion: count(users, (u) => !!u.app_version),
+      devices: devices.length,
+      devicesIos: count(devices, (d) => d.platform === 'ios'),
+      devicesAndroid: count(devices, (d) => d.platform === 'android'),
+      devicesRegistered: count(devices, (d) => d.registered),
+      devicesUnregistered: count(devices, (d) => !d.registered),
+      active7d: count(devices, (d) => within(d.last_seen_at, 7)),
+      active30d: count(devices, (d) => within(d.last_seen_at, 30)),
+      firstReportAt: iso(firstReport),
+    },
+    versions: versions.map(({ key, ...v }) => v),
+    os: os.map(({ key, ...v }) => v),
+    models: models.map(({ key, ...v }) => v),
+    daily,
+    // Installs no one has signed in on yet.
+    unregistered: devices.filter((d) => !d.registered).map((d) => ({
+      id: d.device_id,
+      platform: d.platform,
+      appVersion: d.app_version,
+      build: n(d.build),
+      osVersion: d.os_version || null,
+      model: d.model || null,
+      firstSeen: iso(d.first_seen_at),
+      lastSeen: iso(d.last_seen_at),
+    })),
+    users: users.map((r) => ({
+      id: r.id,
+      username: r.username,
+      signupAt: iso(r.signup_at),
+      lastSeenAt: iso(r.last_seen_at),
+      platform: r.platform || null,
+      platformSource: r.platform_source || null,
+      appVersion: r.app_version || null,
+      build: r.build == null ? null : n(r.build),
+      osVersion: r.os_version || null,
+      model: r.model || null,
+      deviceFirstSeen: iso(r.device_first_seen),
+      deviceLastSeen: iso(r.device_last_seen),
+      devices: n(r.devices),
+    })),
+  };
+}
+
 async function buildOnline() {
   const r = await one(
     `select
@@ -618,6 +747,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/users') {
       return sendJson(res, 200, await cached('users', 30000, buildUsers));
+    }
+    if (url.pathname === '/devices') {
+      return sendJson(res, 200, await cached('devices', 30000, buildDevices));
     }
     if (url.pathname === '/online') {
       return sendJson(res, 200, await cached('online', 10000, buildOnline));

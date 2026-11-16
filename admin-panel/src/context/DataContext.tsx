@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
-  DashboardData, OnlineData, PeriodSel, UserRow, fetchDashboard, fetchOnline, fetchUsers,
+  DashboardData, DevicesData, OnlineData, PeriodSel, UserRow, fetchDashboard, fetchDevices, fetchOnline, fetchUsers,
 } from '../lib/api';
 
 interface DataContextValue {
@@ -13,6 +13,10 @@ interface DataContextValue {
   usersLoading: boolean;
   usersError: string | null;
   loadUsers: () => void;
+  devices: DevicesData | null;
+  devicesLoading: boolean;
+  devicesError: string | null;
+  loadDevices: () => void;
   online: OnlineData | null;
   refresh: () => void;
   lastUpdated: number | null;
@@ -41,10 +45,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [users, setUsers] = useState<UserRow[] | null>(null);
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState<string | null>(null);
+  const [devices, setDevices] = useState<DevicesData | null>(null);
+  const [devicesLoading, setDevicesLoading] = useState(false);
+  const [devicesError, setDevicesError] = useState<string | null>(null);
   const [online, setOnline] = useState<OnlineData | null>(null);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const reqId = useRef(0);
   const usersWanted = useRef(false);
+  const devicesWanted = useRef(false);
 
   const loadDashboard = useCallback(async (p: PeriodSel) => {
     const id = ++reqId.current;
@@ -72,6 +80,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUsersError(e instanceof Error ? e.message : String(e));
     } finally {
       setUsersLoading(false);
+    }
+  }, []);
+
+  const loadDevices = useCallback(async () => {
+    devicesWanted.current = true;
+    setDevicesLoading(true);
+    setDevicesError(null);
+    try {
+      setDevices(await fetchDevices());
+    } catch (e) {
+      setDevicesError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDevicesLoading(false);
     }
   }, []);
 
@@ -106,12 +127,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadDashboard(period);
     loadOnline();
     if (usersWanted.current) loadUsers();
+    if (devicesWanted.current) loadDevices();
   };
 
   return (
     <DataContext.Provider
       value={{
-        period, setPeriod, data, loading, error, users, usersLoading, usersError, loadUsers, online, refresh, lastUpdated,
+        period, setPeriod, data, loading, error, users, usersLoading, usersError, loadUsers,
+        devices, devicesLoading, devicesError, loadDevices, online, refresh, lastUpdated,
       }}
     >
       {children}
