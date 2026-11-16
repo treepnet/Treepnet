@@ -191,6 +191,11 @@ const double _maxFlatZoom = 15;
 // These are the flat map's zoom 3 / 4.5 / 5 thresholds, so both maps read alike.
 const double _provincePpd = 5;
 
+/// Province borders: their alpha on the whole globe, and the zoom (px/degree)
+/// they start to brighten from towards [_provincePpd].
+const double _farProvinceAlpha = 0.06;
+const double _minPpdForProvinces = 2.5;
+
 /// The flat map's furthest zoom-out (zoom 3).
 const double _flatMinPpd = 5.7;
 const double _provinceNamePpd = 16;
@@ -1796,27 +1801,28 @@ class _GlobePainter extends CustomPainter {
             ),
         );
 
-      // Province borders over the country lines (as on the flat map), fading
-      // in towards its province zoom. From 3.5 px/degree: below that they
-      // were stroked at about 5% alpha (a phone's whole-globe view is ~3),
-      // ~4,000 rings a frame for lines no one could see.
-      final t = ((ppd - 3.5) / (_provincePpd - 3.5)).clamp(0.0, 1.0);
-      if (t > 0) {
-        final provinces = Path();
-        for (final ring in level.provinces) {
-          if (ring.cap * r < 1.5) continue;
-          addRing(ring, outline: provinces);
-        }
-        canvas.drawPath(
-          provinces,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 0.6
-            ..color = MapColors.provinceBorderColor.withValues(
-              alpha: 0.25 * t,
-            ),
-        );
+      // Province borders over the country lines (as on the flat map): faint
+      // on the whole globe, full at its province zoom. They were left out
+      // below 3.5 px/degree to spare the strokes, and the whole-globe view
+      // (about 3 on a phone) lost them: the countries showed empty. Below
+      // 2.5 they had already faded to nothing on smaller screens.
+      final t = ((ppd - _minPpdForProvinces) /
+              (_provincePpd - _minPpdForProvinces))
+          .clamp(0.0, 1.0);
+      final provinces = Path();
+      for (final ring in level.provinces) {
+        if (ring.cap * r < 1.5) continue;
+        addRing(ring, outline: provinces);
       }
+      canvas.drawPath(
+        provinces,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.6
+          ..color = MapColors.provinceBorderColor.withValues(
+            alpha: _farProvinceAlpha + (0.25 - _farProvinceAlpha) * t,
+          ),
+      );
     }
 
     // Visited regions in the travel-map colour bands. Finer than the base so
