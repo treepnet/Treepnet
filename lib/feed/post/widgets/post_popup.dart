@@ -63,6 +63,7 @@ class PostPopup extends StatelessWidget {
     required this.index,
     required this.builder,
     this.showComments = true,
+    this.showAuthor = true,
     this.feedPosts,
     this.feedLoadMore,
     this.postOrder = PostOrder.newest,
@@ -73,6 +74,10 @@ class PostPopup extends StatelessWidget {
   final int index;
   final WidgetBuilder builder;
   final bool showComments;
+
+  /// The author's avatar and name above the photo. A profile grid leaves
+  /// them out: the profile already says whose posts these are.
+  final bool showAuthor;
 
   /// The feed a tap should scroll through. Null falls back to every post in
   /// [postOrder] — right for Trends and a profile, wrong for a place.
@@ -100,6 +105,7 @@ class PostPopup extends StatelessWidget {
         index: index,
         builder: builder,
         showComments: showComments,
+        showAuthor: showAuthor,
         feedPosts: feedPosts,
         feedLoadMore: feedLoadMore,
         postOrder: postOrder,
@@ -114,6 +120,7 @@ class PopupModal extends StatefulWidget {
     required this.index,
     required this.builder,
     required this.showComments,
+    this.showAuthor = true,
     this.feedPosts,
     this.feedLoadMore,
     this.postOrder = PostOrder.newest,
@@ -124,6 +131,7 @@ class PopupModal extends StatefulWidget {
   final int index;
   final WidgetBuilder builder;
   final bool showComments;
+  final bool showAuthor;
   final List<Post>? feedPosts;
   final PostsLoader? feedLoadMore;
   final PostOrder postOrder;
@@ -178,8 +186,7 @@ class _PostPopupState extends State<PopupModal>
 
   Future<void> _popupDialogStatusListener(AnimationStatus status) async {
     if (status == AnimationStatus.dismissed) {
-      _popupDialog?.remove();
-      _popupEmptyDialog?.remove();
+      _removeOverlays();
       final comments = _commentOrViewProfileVisibility.value;
       final share = _sharePostVisibility.value;
       _clearChoice();
@@ -200,8 +207,18 @@ class _PostPopupState extends State<PopupModal>
     _messageVisibility.value = false;
   }
 
+  /// Takes the card off the screen (once: the tile can go while it shows).
+  void _removeOverlays() {
+    if (_popupDialog?.mounted ?? false) _popupDialog!.remove();
+    if (_popupEmptyDialog?.mounted ?? false) _popupEmptyDialog!.remove();
+    _popupDialog = null;
+    _popupEmptyDialog = null;
+  }
+
   @override
   void dispose() {
+    // The grid rebuilt under an open card: it goes with its tile.
+    _removeOverlays();
     _likeAnimationController.dispose();
     _popupDialogAnimationController
       ..removeStatusListener(_popupDialogStatusListener)
@@ -341,6 +358,17 @@ class _PostPopupState extends State<PopupModal>
     required bool isLiked,
     required BuildContext context,
   }) async {
+    final chose =
+        _likeVisibility.value ||
+        _saveVisibility.value ||
+        _commentOrViewProfileVisibility.value ||
+        _sharePostVisibility.value;
+    // Let go off the buttons: the card stays, for its buttons to be tapped;
+    // a tap outside it, or Back, closes it. It used to go at once.
+    if (!chose) {
+      _messageVisibility.value = false;
+      return;
+    }
     if (_saveVisibility.value) {
       context.read<PostBloc>().add(const PostBookmarkRequested());
     }
@@ -361,6 +389,36 @@ class _PostPopupState extends State<PopupModal>
   void _animateLike() => _likeAnimationController.loop(count: 1);
 
   void _animateDialogBack() => _popupDialogAnimationController.reverse();
+
+  /// Closes the open card without doing anything.
+  void _dismiss() {
+    _clearChoice();
+    _animateDialogBack();
+  }
+
+  void _onLikeTap() {
+    final bloc = context.read<PostBloc>();
+    final liked = bloc.state.isLiked;
+    bloc.add(PostLikeRequested(liked: !liked));
+    if (!liked) _animateLike();
+  }
+
+  void _onSaveTap() =>
+      context.read<PostBloc>().add(const PostBookmarkRequested());
+
+  /// Comments (or the author's profile) and Share open once the card has
+  /// gone (see [_popupDialogStatusListener]).
+  void _onCommentOrViewProfileTap() {
+    _clearChoice();
+    _commentOrViewProfileVisibility.value = true;
+    _animateDialogBack();
+  }
+
+  void _onShareTap() {
+    _clearChoice();
+    _sharePostVisibility.value = true;
+    _animateDialogBack();
+  }
 
   Future<void> showCommentsOrViewProfile() async {
     if (widget.showComments) {
@@ -420,6 +478,12 @@ class _PostPopupState extends State<PopupModal>
         sharePostKey: _sharePostKey,
         saveKey: _saveKey,
         showComments: widget.showComments,
+        showAuthor: widget.showAuthor,
+        onDismiss: _dismiss,
+        onLikeTap: _onLikeTap,
+        onCommentOrViewProfileTap: _onCommentOrViewProfileTap,
+        onShareTap: _onShareTap,
+        onSaveTap: _onSaveTap,
       ),
     ),
   );

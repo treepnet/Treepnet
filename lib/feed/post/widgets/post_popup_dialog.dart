@@ -23,6 +23,12 @@ class PostPopupDialog extends StatelessWidget {
     required this.sharePostKey,
     required this.saveKey,
     required this.showComments,
+    required this.onDismiss,
+    this.showAuthor = true,
+    required this.onLikeTap,
+    required this.onCommentOrViewProfileTap,
+    required this.onShareTap,
+    required this.onSaveTap,
     super.key,
   });
 
@@ -38,45 +44,69 @@ class PostPopupDialog extends StatelessWidget {
   final GlobalKey saveKey;
   final bool showComments;
 
+  /// The author row above the photo; without it the photo starts at the
+  /// card's top.
+  final bool showAuthor;
+
+  /// A tap outside the card, or Back: the card goes. It stays open once the
+  /// finger lets go off the buttons, so its buttons can be tapped.
+  final VoidCallback onDismiss;
+  final VoidCallback onLikeTap;
+  final VoidCallback onCommentOrViewProfileTap;
+  final VoidCallback onShareTap;
+  final VoidCallback onSaveTap;
+
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: RepaintBoundary(
-        child: AnimatedPopupDialog(
-          controller: popupDialogAnimationController,
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              color: context.customReversedAdaptiveColor(
-                light: AppColors.brightGrey,
-                dark: context.theme.splashColor,
+    return BackButtonListener(
+      onBackButtonPressed: () async {
+        onDismiss();
+        return true;
+      },
+      child: SafeArea(
+        child: RepaintBoundary(
+          child: AnimatedPopupDialog(
+            controller: popupDialogAnimationController,
+            onBarrierTap: onDismiss,
+            child: Container(
+              // The photo's corners follow the card's when nothing is above it.
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                // The app's own background: the card's header and buttons sat
+                // on a near-white band around the photo.
+                color: context.theme.scaffoldBackgroundColor,
               ),
-            ),
-            margin: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.md,
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  PopupDialogHeader(block: block),
-                  PopupDialogBody(
-                    block: block,
-                    messageVisibility: messageVisibility,
-                    messageText: messageText,
-                    messagePositionLeft: messagePositionLeft,
-                    likeIconAnimationController: likeIconAnimationController,
-                  ),
-                  PopupDialogFooter(
-                    likeButtonKey: likeButtonKey,
-                    commentOrViewProfileButtonKey:
-                        commentOrViewProfileButtonKey,
-                    showComments: showComments,
-                    sharePostKey: sharePostKey,
-                    saveKey: saveKey,
-                  ),
-                ],
+              margin: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.md,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (showAuthor) PopupDialogHeader(block: block),
+                    PopupDialogBody(
+                      block: block,
+                      messageVisibility: messageVisibility,
+                      messageText: messageText,
+                      messagePositionLeft: messagePositionLeft,
+                      likeIconAnimationController: likeIconAnimationController,
+                    ),
+                    PopupDialogFooter(
+                      likeButtonKey: likeButtonKey,
+                      commentOrViewProfileButtonKey:
+                          commentOrViewProfileButtonKey,
+                      showComments: showComments,
+                      sharePostKey: sharePostKey,
+                      saveKey: saveKey,
+                      onLikeTap: onLikeTap,
+                      onCommentOrViewProfileTap: onCommentOrViewProfileTap,
+                      onShareTap: onShareTap,
+                      onSaveTap: onSaveTap,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -188,6 +218,10 @@ class PopupDialogFooter extends StatelessWidget {
     required this.showComments,
     required this.sharePostKey,
     required this.saveKey,
+    required this.onLikeTap,
+    required this.onCommentOrViewProfileTap,
+    required this.onShareTap,
+    required this.onSaveTap,
     super.key,
   });
 
@@ -196,9 +230,21 @@ class PopupDialogFooter extends StatelessWidget {
   final bool showComments;
   final GlobalKey<State<StatefulWidget>> sharePostKey;
   final GlobalKey<State<StatefulWidget>> saveKey;
+  final VoidCallback onLikeTap;
+  final VoidCallback onCommentOrViewProfileTap;
+  final VoidCallback onShareTap;
+  final VoidCallback onSaveTap;
+
+  /// A button that also takes a tap, once the card stays open.
+  Widget _tappable(VoidCallback onTap, Widget child) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: onTap,
+    child: Padding(padding: const EdgeInsets.all(AppSpacing.xs), child: child),
+  );
 
   @override
   Widget build(BuildContext context) {
+    // The feed card's order: like, share, comment, save.
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
@@ -207,71 +253,83 @@ class PopupDialogFooter extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          SizedBox(
-            key: likeButtonKey,
-            child: BlocBuilder<PostBloc, PostState>(
-              builder: (context, state) {
-                final isLiked = state.isLiked;
+          _tappable(
+            onLikeTap,
+            SizedBox(
+              key: likeButtonKey,
+              child: BlocBuilder<PostBloc, PostState>(
+                builder: (context, state) {
+                  final isLiked = state.isLiked;
 
-                // The card's heart (LikeButton): filled pink once liked.
-                return (isLiked
-                        ? Assets.icons.heartFilled
-                        : Assets.icons.heartLined)
-                    .svg(
-                      width: 28,
-                      height: 28,
-                      colorFilter: ColorFilter.mode(
-                        isLiked ? AppColors.pink : context.adaptiveColor,
-                        BlendMode.srcIn,
-                      ),
-                    );
-              },
-            ),
-          ),
-          SizedBox(
-            key: commentOrViewProfileButtonKey,
-            child: showComments
-                ? Assets.icons.commentLined.svg(
-                    height: 28,
-                    colorFilter: ColorFilter.mode(
-                      context.adaptiveColor,
-                      BlendMode.srcIn,
-                    ),
-                  )
-                : Assets.icons.user.svg(
-                    height: 28,
-                    colorFilter: ColorFilter.mode(
-                      context.adaptiveColor,
-                      BlendMode.srcIn,
-                    ),
-                  ),
-          ),
-          SizedBox(
-            key: sharePostKey,
-            child: Assets.icons.shareLined.svg(
-              height: 28,
-              colorFilter: ColorFilter.mode(
-                context.adaptiveColor,
-                BlendMode.srcIn,
+                  // The card's heart (LikeButton): filled pink once liked.
+                  return (isLiked
+                          ? Assets.icons.heartFilled
+                          : Assets.icons.heartLined)
+                      .svg(
+                        width: 28,
+                        height: 28,
+                        colorFilter: ColorFilter.mode(
+                          isLiked ? AppColors.pink : context.adaptiveColor,
+                          BlendMode.srcIn,
+                        ),
+                      );
+                },
               ),
             ),
           ),
-          // Save, where an Options target sat that did nothing.
-          SizedBox(
-            key: saveKey,
-            child: BlocBuilder<PostBloc, PostState>(
-              buildWhen: (a, b) => a.isBookmarked != b.isBookmarked,
-              builder: (context, state) =>
-                  (state.isBookmarked
-                          ? Assets.icons.savedFilled
-                          : Assets.icons.savedLined)
-                      .svg(
-                        height: 28,
-                        colorFilter: ColorFilter.mode(
-                          context.adaptiveColor,
-                          BlendMode.srcIn,
-                        ),
+          _tappable(
+            onShareTap,
+            SizedBox(
+              key: sharePostKey,
+              child: Assets.icons.shareLined.svg(
+                height: 28,
+                colorFilter: ColorFilter.mode(
+                  context.adaptiveColor,
+                  BlendMode.srcIn,
+                ),
+              ),
+            ),
+          ),
+          _tappable(
+            onCommentOrViewProfileTap,
+            SizedBox(
+              key: commentOrViewProfileButtonKey,
+              child: showComments
+                  ? Assets.icons.commentLined.svg(
+                      height: 28,
+                      colorFilter: ColorFilter.mode(
+                        context.adaptiveColor,
+                        BlendMode.srcIn,
                       ),
+                    )
+                  : Assets.icons.user.svg(
+                      height: 28,
+                      colorFilter: ColorFilter.mode(
+                        context.adaptiveColor,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+            ),
+          ),
+          // Save, where an Options target sat that did nothing.
+          _tappable(
+            onSaveTap,
+            SizedBox(
+              key: saveKey,
+              child: BlocBuilder<PostBloc, PostState>(
+                buildWhen: (a, b) => a.isBookmarked != b.isBookmarked,
+                builder: (context, state) =>
+                    (state.isBookmarked
+                            ? Assets.icons.savedFilled
+                            : Assets.icons.savedLined)
+                        .svg(
+                          height: 28,
+                          colorFilter: ColorFilter.mode(
+                            context.adaptiveColor,
+                            BlendMode.srcIn,
+                          ),
+                        ),
+              ),
             ),
           ),
         ],
@@ -368,10 +426,18 @@ class _PopupMessageDialog extends StatelessWidget {
 }
 
 class AnimatedPopupDialog extends StatefulWidget {
-  const AnimatedPopupDialog({required this.child, this.controller, super.key});
+  const AnimatedPopupDialog({
+    required this.child,
+    this.controller,
+    this.onBarrierTap,
+    super.key,
+  });
 
   final AnimationController? controller;
   final Widget child;
+
+  /// A tap on the dimmed area around [child].
+  final VoidCallback? onBarrierTap;
 
   @override
   State<StatefulWidget> createState() => AnimatedPopupDialogState();
@@ -419,14 +485,22 @@ class AnimatedPopupDialogState extends State<AnimatedPopupDialog>
             child: child,
           );
         },
-        child: Center(
-          child: widget.child
-              .animate(autoPlay: true, controller: _animationController)
-              .scaleXY(
-                duration: 450.ms,
-                curve: Sprung.custom(damping: 12, stiffness: 60),
-              )
-              .fadeIn(),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onBarrierTap,
+          child: Center(
+            // A tap on the card itself is not one on the dimmed area.
+            child: GestureDetector(
+              onTap: () {},
+              child: widget.child
+                  .animate(autoPlay: true, controller: _animationController)
+                  .scaleXY(
+                    duration: 450.ms,
+                    curve: Sprung.custom(damping: 12, stiffness: 60),
+                  )
+                  .fadeIn(),
+            ),
+          ),
         ),
       ),
       builder: (context, child) {

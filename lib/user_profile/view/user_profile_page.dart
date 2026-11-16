@@ -552,6 +552,8 @@ class _PostsPageState extends State<PostsPage>
                   return PostPopup(
                     block: block,
                     index: index,
+                    // The profile already shows whose posts these are.
+                    showAuthor: false,
                     // Keep the feed inside this profile; a sponsored tile keeps
                     // the default (newest) feed.
                     feedPosts: widget.sponsoredPost != null ? null : posts,
