@@ -1759,6 +1759,19 @@ ORDER BY ${_postOrderSql(order)} LIMIT ?1 OFFSET ?2
     return _hydratePosts(result);
   }
 
+  /// Until this account's first sync has landed (after a sign-in: signing out
+  /// empties the phone), at most [_firstSyncWait]; at once after that, and
+  /// offline it goes on with what there is.
+  Future<void> _firstSync() async {
+    final db = _powerSyncRepository.db();
+    if (db.currentStatus.hasSynced ?? false) return;
+    try {
+      await db.waitForFirstSync().timeout(_firstSyncWait);
+    } catch (_) {}
+  }
+
+  static const _firstSyncWait = Duration(seconds: 8);
+
   /// Newest and Trends come from the server — every post the user may see,
   /// not just the ones on the phone. The feed is the user's own posts and
   /// those of the people they follow (on the phone), then everyone else's
@@ -1790,6 +1803,10 @@ ORDER BY ${_postOrderSql(order)} LIMIT ?1 OFFSET ?2
         );
       }
     }
+    // Just signed in: the phone has none of the user's own or followed posts
+    // yet, so the first page was everyone else's (from the server) — they
+    // showed for a moment, then the real feed replaced them once sync landed.
+    if (offset == 0) await _firstSync();
     final ownAndFollowed = await _ownAndFollowedCount();
     final local = offset < ownAndFollowed
         ? await _localPage(offset: offset, limit: limit, order: order)
