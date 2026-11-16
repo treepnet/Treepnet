@@ -938,9 +938,9 @@ class _ImagesViewPageState extends State<ImagesViewPage>
               builder: (context, List<File> selectedImagesValue, child) {
                 final mediaList = mediaListValue[index];
                 // The File may be null until this tile is tapped (resolved
-                // lazily). The tile still renders from its thumbnail; only the
-                // File-dependent overlays (selection blur, multi-select badge)
-                // wait for a resolved File.
+                // lazily). The tile still renders from its thumbnail, and so
+                // does its multi-select badge (empty: not picked yet); only
+                // the selection blur waits for a resolved File.
                 final image = index < allImagesValue.length
                     ? allImagesValue[index]
                     : null;
@@ -952,14 +952,15 @@ class _ImagesViewPageState extends State<ImagesViewPage>
                     gestureDetector(index, mediaList),
                     if (image != null && selectedImageValue == image)
                       gestureDetector(index, blurContainer()),
-                    if (image != null)
-                      MultiSelectionMode(
-                        appTheme: widget.appTheme,
-                        image: image,
-                        multiSelectionMode: widget.multiSelectionMode,
-                        imageSelected: imageSelected,
-                        multiSelectedImage: selectedImagesValue,
-                      ),
+                    // Every tile, file or not yet: it used to show only on
+                    // tiles already tapped, so most had no badge at all.
+                    MultiSelectionMode(
+                      appTheme: widget.appTheme,
+                      image: image,
+                      multiSelectionMode: widget.multiSelectionMode,
+                      imageSelected: imageSelected,
+                      multiSelectedImage: selectedImagesValue,
+                    ),
                   ],
                 );
               },
