@@ -399,8 +399,9 @@ class _NewPostsButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // White with black text, as the app's other white buttons (Follow).
     return Material(
-      color: AppColors.deepBlue,
+      color: AppColors.white,
       shape: const StadiumBorder(),
       elevation: 4,
       child: InkWell(
@@ -417,13 +418,13 @@ class _NewPostsButton extends StatelessWidget {
               const Icon(
                 Icons.arrow_upward_rounded,
                 size: 18,
-                color: AppColors.white,
+                color: AppColors.black,
               ),
               const Gap.h(AppSpacing.xs),
               Text(
                 context.l10n.newPostsText,
                 style: context.labelLarge?.copyWith(
-                  color: AppColors.white,
+                  color: AppColors.black,
                   fontWeight: AppFontWeight.semiBold,
                 ),
               ),
