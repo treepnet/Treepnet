@@ -150,13 +150,12 @@ class CustomCropState extends State<CustomCrop> with TickerProviderStateMixin {
       _shownImage = null;
       _getImage();
     } else if (widget.aspectRatio != oldWidget.aspectRatio) {
-      // _area = _calculateDefaultArea(
-      //   viewWidth: _view.width,
-      //   viewHeight: _view.height,
-      //   imageWidth: _image?.width,
-      //   imageHeight: _image?.height,
-      // );
-      WidgetsBinding.instance.addPostFrameCallback((_) => _updateView());
+      // The frame changed shape (square <-> 3:4) and so did its size: lay
+      // the photo out afresh for it, as when it is first shown. Only the
+      // area was redone, with the scale and ratio of the old frame: the
+      // photo stopped covering the frame (a white band at one side), and the
+      // post was cut that way.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _relayout());
     }
     if (widget.alwaysShowGrid != oldWidget.alwaysShowGrid) {
       if (widget.alwaysShowGrid) {
@@ -492,6 +491,7 @@ class CustomCropState extends State<CustomCrop> with TickerProviderStateMixin {
         // );
         _image = image;
 
+        _imageScale = imageInfo.scale;
         _scale = imageInfo.scale;
         _ratio = max(
           boundaries.width / image.width,
@@ -505,6 +505,24 @@ class CustomCropState extends State<CustomCrop> with TickerProviderStateMixin {
     });
 
     WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  /// The scale the photo was decoded at ([ImageInfo.scale]).
+  double _imageScale = 1;
+
+  /// Fits the shown photo to the frame as it is now: the scale it was
+  /// decoded at, its ratio to the frame, a centred default area.
+  void _relayout() {
+    if (!mounted) return;
+    final boundaries = _boundaries;
+    final image = _image;
+    if (boundaries == null || image == null) return;
+    _scale = _imageScale;
+    _ratio = max(
+      boundaries.width / image.width,
+      boundaries.height / image.height,
+    );
+    _updateView(boundaries);
   }
 
   void _updateView([Size? b]) {
