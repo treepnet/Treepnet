@@ -220,6 +220,25 @@ class UserRepository implements UserBaseRepository {
   /// The signed-in user is here now (see [DatabaseClient.touchPresence]).
   Future<void> touchPresence() => _databaseClient.touchPresence();
 
+  /// The phone and app version this install is on, signed in or not (see
+  /// [DatabaseClient.reportDevice]). Throws when it can't get through, so
+  /// the caller can try again later.
+  Future<void> reportDevice({
+    required String deviceId,
+    required String platform,
+    required String appVersion,
+    required int build,
+    String? osVersion,
+    String? model,
+  }) => _databaseClient.reportDevice(
+    deviceId: deviceId,
+    platform: platform,
+    appVersion: appVersion,
+    build: build,
+    osVersion: osVersion,
+    model: model,
+  );
+
   /// Profiles [userId] has saved (bookmarked), newest first.
   Stream<List<User>> savedProfilesOf({required String userId}) =>
       _databaseClient.savedProfilesOf(userId: userId);

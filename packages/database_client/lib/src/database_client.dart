@@ -238,6 +238,19 @@ abstract class UserBaseRepository {
   /// The signed-in user is here now (the app's foreground beat): one call to
   /// the server, nothing on the phone. Quiet when it can't get through.
   Future<void> touchPresence();
+
+  /// Tells the server which phone, app version and OS this install is
+  /// (report_device, migrations 036-037: the admin's Devices page), with the
+  /// signed-in user, or before anyone has signed in. [deviceId] is the
+  /// install's own random id. Throws when it can't get through.
+  Future<void> reportDevice({
+    required String deviceId,
+    required String platform,
+    required String appVersion,
+    required int build,
+    String? osVersion,
+    String? model,
+  });
 }
 
 /// The order of a list of posts ([PostsBaseRepository.getPage]).
@@ -828,6 +841,29 @@ WHERE p.id = ?''',
     } catch (_) {
       // Offline or the server busy: this beat is skipped; the next one counts.
     }
+  }
+
+  @override
+  Future<void> reportDevice({
+    required String deviceId,
+    required String platform,
+    required String appVersion,
+    required int build,
+    String? osVersion,
+    String? model,
+  }) async {
+    // Signed out too: the server keeps the install without a user.
+    await _powerSyncRepository.postgrest().rpc<void>(
+      'report_device',
+      params: {
+        'p_device_id': deviceId,
+        'p_platform': platform,
+        'p_app_version': appVersion,
+        'p_build': build,
+        'p_os_version': osVersion,
+        'p_model': model,
+      },
+    );
   }
 
   @override
