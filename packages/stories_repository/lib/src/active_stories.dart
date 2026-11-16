@@ -20,14 +20,29 @@ import 'package:shared/shared.dart' show Story;
 /// the next expiry.
 class ActiveStories {
   /// Reads through [databaseClient].
-  ActiveStories(DatabaseClient databaseClient)
-    : _byAuthor = databaseClient
+  ActiveStories(this._databaseClient);
+
+  final DatabaseClient _databaseClient;
+
+  /// The shared query while anything listens; made anew once the last
+  /// listener has left. It was built once, as rxdart's refCount, which never
+  /// connects again after its listeners go: signing out closed every ring and
+  /// the tray, and after signing back in they all stayed empty (or showed the
+  /// last account's stories) until the app was restarted.
+  Stream<Map<String, List<Story>>>? _shared;
+
+  Stream<Map<String, List<Story>>> _current() =>
+      _shared ??= _databaseClient
           .activeStories()
           .switchMap(_untilExpired)
+          // The last listener left: the next one starts a fresh query.
+          .doOnCancel(() => _shared = null)
           .publishReplay(maxSize: 1)
           .refCount();
 
-  final Stream<Map<String, List<Story>>> _byAuthor;
+  /// The shared query as it is when listened to, not when asked for.
+  Stream<Map<String, List<Story>>> get _byAuthor =>
+      Rx.defer(_current, reusable: true);
 
   /// The active stories of [authorId], oldest first; emits only when they
   /// change.
