@@ -1,6 +1,5 @@
-import 'dart:math';
+import 'dart:async';
 
-import 'package:app_ui/app_ui.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart';
@@ -30,12 +29,35 @@ class _MediaCarouselState extends State<MediaCarousel> {
   void initState() {
     super.initState();
     _currentIndex = ValueNotifier(0);
+    // The second photo is on its way before the first swipe.
+    _prefetchAfter(0);
   }
 
   @override
   void dispose() {
     _currentIndex.dispose();
     super.dispose();
+  }
+
+  /// Photos of this post already fetched ahead.
+  final _prefetched = <String>{};
+
+  /// Fetches the next page's photo into the image cache (the file only), so
+  /// a swipe finds it there instead of waiting for it.
+  void _prefetchAfter(int index) {
+    final next = index + 1;
+    if (next >= widget.media.length) return;
+    final media = widget.media[next];
+    if (media is! ImageMedia) return;
+    final url = media.url;
+    if (url.isEmpty || url.startsWith('file://') || !_prefetched.add(url)) {
+      return;
+    }
+    unawaited(
+      postImageCacheManager
+          .getSingleFile(url, key: url)
+          .then<void>((_) {}, onError: (Object _) => _prefetched.remove(url)),
+    );
   }
 
   Widget _carousel({bool? isInView}) => CarouselSlider.builder(
@@ -79,6 +101,7 @@ class _MediaCarouselState extends State<MediaCarousel> {
       enableInfiniteScroll: widget.settings.enableInfiniteScroll!,
       onPageChanged: (index, reason) {
         _currentIndex.value = index;
+        _prefetchAfter(index);
         widget.settings.onPageChanged?.call(index, reason);
       },
     ),
@@ -211,6 +234,9 @@ class _MediaCarouselImage extends StatelessWidget {
       fit: settings.fit,
       decodeWidth: _decodeWidth,
       blurHash: blurHash,
+      // Its 480 px copy first (a grid has the first one already), then the
+      // photo over it.
+      previewUrl: media.thumbUrl,
     );
   }
 }

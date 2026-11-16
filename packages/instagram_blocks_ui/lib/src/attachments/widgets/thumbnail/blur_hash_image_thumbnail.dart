@@ -31,11 +31,18 @@ class BlurHashImageThumbnail extends StatefulWidget {
     super.key,
     this.id,
     this.blurHash,
+    this.previewUrl,
   });
 
   final String url;
   final String? blurHash;
   final String? id;
+
+  /// A small copy of the same photo, shown over the blur hash until [url]
+  /// has loaded — a post photo's 480 px thumbnail, which a grid has usually
+  /// fetched already. Only the blur's colours showed while a full photo
+  /// (300-500 KB) came in, for each page of a many-photo post.
+  final String? previewUrl;
 
   /// Largest width to decode to, in physical pixels. Height follows from the
   /// image's own proportions.
@@ -58,6 +65,12 @@ class _BlurHashImageThumbnailState extends State<BlurHashImageThumbnail> {
     return OctoImage.fromSet(
       key: _key,
       fit: widget.fit,
+      // The photo is there at once under its placeholder, which fades out on
+      // top. Both used to fade at the same time (the photo in, the
+      // placeholder out), and half-way through each let the dark background
+      // through: the picture dimmed for a moment as it loaded.
+      fadeInDuration: Duration.zero,
+      fadeOutDuration: const Duration(milliseconds: 250),
       // Width only. Handing the decoder BOTH dimensions resizes the bitmap to
       // exactly that box instead of scaling it, and because the width was
       // derived from devicePixelRatio the same photo came out a different
@@ -79,11 +92,46 @@ class _BlurHashImageThumbnailState extends State<BlurHashImageThumbnail> {
             ),
       // No size given: the placeholder fills the same box the image will, so
       // nothing jumps when it swaps in.
-      octoSet: OctoBlurHashPlaceholder(
-        blurHash: widget.blurHash,
-        fit: widget.fit,
-        onImageRefresh: _resetKey,
+      octoSet: _withPreview(
+        OctoBlurHashPlaceholder(
+          blurHash: widget.blurHash,
+          fit: widget.fit,
+          onImageRefresh: _resetKey,
+        ),
       ),
+    );
+  }
+
+  /// [blur], with [BlurHashImageThumbnail.previewUrl] over its blur while the
+  /// photo loads (the blur alone shows until the preview is there, or if it
+  /// can't be had).
+  OctoSet _withPreview(OctoSet blur) {
+    final preview = widget.previewUrl;
+    if (preview == null || preview.isEmpty || preview == widget.url) {
+      return blur;
+    }
+    return OctoSet(
+      placeholderBuilder: (context) => Stack(
+        fit: StackFit.expand,
+        children: [
+          blur.placeholderBuilder!(context),
+          Image(
+            image: ResizeImage(
+              CachedNetworkImageProvider(
+                preview,
+                cacheManager: postImageCacheManager,
+                cacheKey: preview,
+              ),
+              width: 480,
+              policy: ResizeImagePolicy.fit,
+            ),
+            fit: widget.fit,
+            gaplessPlayback: true,
+            errorBuilder: (_, _, _) => const SizedBox.shrink(),
+          ),
+        ],
+      ),
+      errorBuilder: blur.errorBuilder,
     );
   }
 }

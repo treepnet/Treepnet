@@ -193,14 +193,38 @@ class _NewestPostsPageState extends State<NewestPostsPage> {
     }
   }
 
-  /// When the user scrolls within a few posts of the end, page in the next 50.
+  /// Photos already fetched ahead.
+  final _prefetched = <String>{};
+
+  /// Fetches the first photo of the 3 posts after [index] into the image
+  /// cache (the file only), as the home feed does, so it's there when the
+  /// post scrolls in.
+  void _prefetchAfter(int index) {
+    for (var i = index + 1; i <= index + 3 && i < _posts.length; i++) {
+      final first = _posts[i].media.firstOrNull;
+      if (first is! ImageMedia) continue;
+      final url = first.url;
+      if (url.isEmpty || url.startsWith('file://') || !_prefetched.add(url)) {
+        continue;
+      }
+      unawaited(
+        postImageCacheManager
+            .getSingleFile(url, key: url)
+            .then<void>((_) {}, onError: (Object _) => _prefetched.remove(url)),
+      );
+    }
+  }
+
+  /// Prefetches ahead of the posts in view, and when the user scrolls within
+  /// a few posts of the end, pages in the next 50.
   void _onPositionsChanged() {
-    if (!_paginates || _loading || _loadingMore || !_hasMore) return;
     final positions = _itemPositionsListener.itemPositions.value;
     if (positions.isEmpty) return;
     final maxIndex = positions
         .map((p) => p.index)
         .reduce((a, b) => a > b ? a : b);
+    _prefetchAfter(maxIndex);
+    if (!_paginates || _loading || _loadingMore || !_hasMore) return;
     if (maxIndex >= _posts.length - 5) _loadMore();
   }
 
