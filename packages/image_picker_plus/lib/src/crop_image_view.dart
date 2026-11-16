@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker_plus/image_picker_plus.dart';
 import 'package:image_picker_plus/src/custom_crop.dart';
+import 'package:image_picker_plus/src/photo_crops.dart';
 
 class CropImageView extends StatefulWidget {
   const CropImageView({
@@ -45,8 +46,9 @@ class CropImageView extends StatefulWidget {
   final double? topPosition;
   final bool withMultiSelection;
 
-  /// Whether the frame can be switched between square and 4:5 ([expandImage]):
-  /// a post's photos. The feed card takes the photo's shape (4:5 to 1:1), but
+  /// Whether the frame can be switched between square and 3:4 ([expandImage],
+  /// [kTallPostAspect]): a post's photos. The feed card takes the photo's
+  /// shape (3:4 to 1:1), but
   /// the picker had no way to choose it, so every post came out square and a
   /// portrait photo lost its top and bottom.
   final bool canExpand;
@@ -226,7 +228,7 @@ class CropPreview extends StatelessWidget {
       image: selectedMedia,
       isThatImage: !selectedMedia.isVideo,
       paintColor: paintColor,
-      aspectRatio: expandMedia ? 4 / 5 : 1.0,
+      aspectRatio: expandMedia ? kTallPostAspect : 1.0,
       shownImage: shownImage,
     );
   }

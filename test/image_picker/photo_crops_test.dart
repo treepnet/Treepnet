@@ -88,4 +88,30 @@ void main() {
       });
     });
   });
+
+  group('the tall frame (3:4)', () {
+    test('is 3:4, as the feed card takes it', () {
+      expect(kTallPostAspect, 3 / 4);
+    });
+
+    test('a taller photo loses its top and bottom, never its sides', () {
+      // 9:16, as a phone shoots portrait.
+      final crop = PhotoCrops.centered(
+        width: 900,
+        height: 1600,
+        aspect: kTallPostAspect,
+      );
+      expect(crop.area.width, closeTo(1, 1e-9));
+      expect(crop.area, _rect(0, (1 - 0.5625 / 0.75) / 2, 1, 0.5625 / 0.75));
+    });
+
+    test('a 3:4 photo is kept whole', () {
+      final crop = PhotoCrops.centered(
+        width: 1440,
+        height: 1920,
+        aspect: kTallPostAspect,
+      );
+      expect(crop.area, _rect(0, 0, 1, 1));
+    });
+  });
 }

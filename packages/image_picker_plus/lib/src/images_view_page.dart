@@ -728,8 +728,9 @@ class _ImagesViewPageState extends State<ImagesViewPage>
     if (crop != null) _crops.save(file.path, crop, aspect: _aspect);
   }
 
-  /// The frame's shape: 4:5 when expanded, else square.
-  double get _aspect => expandMedia.value ? 4 / 5 : 1.0;
+  /// The frame's shape: [kTallPostAspect] when expanded, else square — the
+  /// same as the preview's ([CropPreview]).
+  double get _aspect => expandMedia.value ? kTallPostAspect : 1.0;
 
   /// [file]'s crop: the preview's when it shows [file], else the one kept
   /// when the preview left it, else the middle of the photo (it was never on

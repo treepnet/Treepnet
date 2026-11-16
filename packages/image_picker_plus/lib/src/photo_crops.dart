@@ -1,5 +1,11 @@
 import 'dart:ui' as ui;
 
+/// A post photo's tallest frame (width / height): 3:4, as Instagram's feed
+/// since 2025 (it was 4:5). The expanded crop frame takes it; the feed card
+/// (`PostMedia` in instagram_blocks_ui) takes a photo's shape down to it, so
+/// both must move together.
+const double kTallPostAspect = 3 / 4;
+
 /// A crop of one photo, as the preview (CustomCrop) gives it: [area] is the
 /// kept part of the image in 0–1 coordinates, [scale] how far it was zoomed
 /// (it sets the sample size before cropping).
@@ -40,7 +46,8 @@ class PhotoCrops {
 
   /// The saved crop of [path] for a frame of [aspect], or null when there is
   /// none (never shown long enough to load) or it was made for the other
-  /// frame shape (square vs 4:5): those use [centered] instead.
+  /// frame shape (square vs [kTallPostAspect]): those use [centered]
+  /// instead.
   PhotoCrop? of(String path, {required double aspect}) {
     final saved = _byPath[path];
     if (saved == null || (saved.aspect - aspect).abs() > 0.001) return null;

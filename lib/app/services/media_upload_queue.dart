@@ -1078,7 +1078,7 @@ class MediaUploadQueue {
         'url': '',
         'type': shared.ImageMedia.identifier,
         'blur_hash': blurHash,
-        // Shapes the feed card (4:5 to 1:1); grids keep their fixed cells.
+        // Shapes the feed card (3:4 to 1:1); grids keep their fixed cells.
         if (size != null) 'width': size.width,
         if (size != null) 'height': size.height,
       };

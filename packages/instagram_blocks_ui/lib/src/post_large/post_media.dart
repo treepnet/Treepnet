@@ -51,14 +51,18 @@ class _PostMediaState extends State<PostMedia> {
     },
   );
 
-  /// The first photo's own shape, between 4:5 (tall, the picker's crop) and
-  /// 1:1, so a tall photo isn't cut down to a square. Posts without a size
-  /// (older ones) stay square. Only this card: grids keep uniform cells.
+  /// The first photo's own shape, between 3:4 (tall, the picker's crop:
+  /// `kTallPostAspect` in image_picker_plus) and 1:1, so a tall photo isn't
+  /// cut down to a square. Posts without a size (older ones) stay square.
+  /// Only this card: grids keep uniform cells. A 4:5 post (the tallest until
+  /// 3:4) is inside the range and shows as it did.
   static double? _photoAspectRatio(List<Media> media) {
     final first = media.firstOrNull;
     if (first is! ImageMedia) return null;
-    return first.aspectRatio?.clamp(4 / 5, 1.0);
+    return first.aspectRatio?.clamp(_tallest, 1.0);
   }
+
+  static const double _tallest = 3 / 4;
 
   bool get singleImage => widget.media.length == 1;
   bool get showMediaCount => !singleImage && widget.media.isNotEmpty;
