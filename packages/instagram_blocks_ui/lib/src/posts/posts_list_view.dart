@@ -89,17 +89,12 @@ class _PostsItemController extends StatefulWidget {
 
 class _PostsItemControllerState extends State<_PostsItemController> {
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
-      widget.itemScrollController.jumpTo(index: widget.index);
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     return SliverFillRemaining(
       child: ScrollablePositionedList.builder(
+        // Built on the chosen post straight away. It was built from the
+        // first post and jumped a frame later, which flashed that post.
+        initialScrollIndex: widget.index.clamp(0, widget.blocks.length - 1),
         itemScrollController: widget.itemScrollController,
         itemPositionsListener: widget.itemPositionsListener,
         scrollOffsetController: widget.scrollOffsetController,

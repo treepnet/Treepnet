@@ -238,6 +238,11 @@ class TimelineGridView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The posts already here open at once in the list a tap opens; it pages
+    // on through Trends. Without them that list asked the server for the
+    // tapped post's place and its page first, behind a spinner.
+    final bloc = context.read<TimelineBloc>();
+    final posts = bloc.postsFor(blocks);
     return SliverGrid.builder(
       // Uniform 3-column grid of portrait tiles (Figma "Trends" — each tile is
       // ~133x170, ratio ≈ 0.78).
@@ -260,6 +265,8 @@ class TimelineGridView extends StatelessWidget {
           // a tap on the author at the card's top.
           // A tap scrolls on through Trends in its own order.
           postOrder: PostOrder.trending,
+          feedPosts: posts.isEmpty ? null : posts,
+          feedLoadMore: posts.isEmpty ? null : bloc.morePosts,
           builder: (_) => PostSmall(
             pinned: false,
             isReel: block.isReel,

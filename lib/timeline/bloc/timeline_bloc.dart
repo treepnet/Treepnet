@@ -29,6 +29,26 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
   final PostsRepository _postsRepository;
   late final StreamSubscription<PostRemoval> _removals;
 
+  /// The posts behind the tiles, by id: a tap opens them in a list at once,
+  /// without asking the server for them again.
+  final Map<String, Post> _posts = {};
+
+  /// The grid's posts in its order — the list a tapped tile opens on.
+  List<Post> postsFor(List<PostBlock> blocks) => [
+    for (final block in blocks)
+      if (_posts[block.id] case final post?) post,
+  ];
+
+  /// Trends from [offset], [limit] at a time: where that list goes on.
+  Future<List<Post>> morePosts(int offset, int limit) => _postsRepository
+      .getPage(offset: offset, limit: limit, order: PostOrder.trending);
+
+  void _keep(Iterable<Post> posts) {
+    for (final post in posts) {
+      _posts[post.id] = post;
+    }
+  }
+
   @override
   Future<void> close() async {
     await _removals.cancel();
@@ -85,6 +105,7 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
       final newPage = currentPage + 1;
 
       final hasMore = posts.length >= _pageSize;
+      _keep(posts);
 
       final blocks = <InstaBlock>[];
       for (final post in posts) {
@@ -108,6 +129,7 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
     } on PostsPageIncomplete catch (incomplete, stackTrace) {
       // Not the end of Trends: what the phone had goes on screen and the grid
       // ends in a Retry for the same page.
+      _keep(incomplete.posts);
       final updatedBlocks = state.timeline.blocks.appendNew([
         for (final post in incomplete.posts) post.toPostSmallBlock,
       ]);
@@ -144,6 +166,8 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
       const newPage = currentPage + 1;
 
       final hasMore = posts.length >= _pageSize;
+      _posts.clear();
+      _keep(posts);
 
       final blocks = <InstaBlock>[];
       for (final post in posts) {
@@ -164,6 +188,7 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
     } on PostsPageIncomplete catch (incomplete, stackTrace) {
       // Posts already on screen stay; an empty grid shows what the phone had,
       // from page 0, so Retry asks for the first page again.
+      _keep(incomplete.posts);
       final blocks = [
         for (final post in incomplete.posts) post.toPostSmallBlock,
       ];
