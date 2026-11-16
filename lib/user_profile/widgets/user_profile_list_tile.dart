@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:app_ui/app_ui.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
@@ -34,7 +33,7 @@ class _UserProfileListTileState extends State<UserProfileListTile> {
     _checkFollowed();
   }
 
-  /// Whether the viewer follows this person (the " · Follow" link), asked
+  /// Whether the viewer follows this person (the Follow back button), asked
   /// again if the row is handed someone else.
   void _checkFollowed() {
     if (widget.follower) {
@@ -78,6 +77,48 @@ class _UserProfileListTileState extends State<UserProfileListTile> {
     final isMe = widget.user.id == me.id;
     final isMine = me.id == profile.id;
 
+    final avatar = UserStoriesAvatar(
+      resizeHeight: 156,
+      author: widget.user,
+      withAdaptiveBorder: false,
+      enableInactiveBorder: false,
+      radius: 26,
+    );
+
+    // The user's own followers: the name takes what the two buttons leave,
+    // both sized to their words. The Follow was a blue link squeezed in after
+    // the name, and Remove took half the row.
+    if (isMine && widget.follower) {
+      return Tappable.faded(
+        onTap: () => context.pushNamed(
+          AppRoutes.userProfile.name,
+          pathParameters: {'user_id': widget.user.id},
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
+          children: [
+            avatar,
+            gapW8,
+            Expanded(child: _NameAndFullName(user: widget.user)),
+            gapW8,
+            _FollowBackButton(wasFollowed: _isFollowed, user: widget.user),
+            UserProfileButton(
+              onTap: () => _removeFollower(context),
+              label: context.l10n.removeText,
+              padding: _compactPadding,
+              textStyle: context.labelLarge?.copyWith(
+                fontWeight: AppFontWeight.semiBold,
+              ),
+              fadeStrength: FadeStrength.md,
+            ),
+          ],
+        ),
+      );
+    }
+
     return Tappable.faded(
       onTap: () => context.pushNamed(
         AppRoutes.userProfile.name,
@@ -89,55 +130,13 @@ class _UserProfileListTileState extends State<UserProfileListTile> {
       ),
       child: Row(
         children: [
-          UserStoriesAvatar(
-            resizeHeight: 156,
-            author: widget.user,
-            withAdaptiveBorder: false,
-            enableInactiveBorder: false,
-            radius: 26,
-          ),
+          avatar,
           gapW8,
           Expanded(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Flexible(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      DefaultTextStyle(
-                        style: context.bodyLarge!.copyWith(
-                          fontWeight: AppFontWeight.semiBold,
-                        ),
-                        child: Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                widget.user.displayUsername,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            if (widget.follower && isMine)
-                              FollowTextButton(
-                                wasFollowed: _isFollowed,
-                                user: widget.user,
-                              ),
-                          ],
-                        ),
-                      ),
-                      Text(
-                        widget.user.displayFullName,
-                        style: context.labelLarge?.copyWith(
-                          fontWeight: AppFontWeight.medium,
-                          color: AppColors.grey,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
+                Flexible(child: _NameAndFullName(user: widget.user)),
                 gapH12,
                 Expanded(
                   child: Row(
@@ -153,15 +152,6 @@ class _UserProfileListTileState extends State<UserProfileListTile> {
                           onFollowTap: (relation) =>
                               _onFollowButton(context, relation),
                         ),
-                      if (isMine && widget.follower) ...[
-                        const Gap.h(AppSpacing.md),
-                        Flexible(
-                          child: Tappable.faded(
-                            onTap: () => _removeFollower(context),
-                            child: const Icon(Icons.more_vert),
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -255,66 +245,85 @@ class UserActionButton extends StatelessWidget {
   }
 }
 
-class FollowTextButton extends StatefulWidget {
-  const FollowTextButton({
-    required this.wasFollowed,
-    required this.user,
-    super.key,
-  });
+/// A row's buttons sized to their words: Remove and Follow side by side.
+const _compactPadding = EdgeInsets.symmetric(
+  horizontal: AppSpacing.md,
+  vertical: AppSpacing.xs + AppSpacing.xxs,
+);
+
+/// The person's username over their name.
+class _NameAndFullName extends StatelessWidget {
+  const _NameAndFullName({required this.user});
+
+  final User user;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          user.displayUsername,
+          style: context.bodyLarge?.copyWith(
+            fontWeight: AppFontWeight.semiBold,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text(
+          user.displayFullName,
+          style: context.labelLarge?.copyWith(
+            fontWeight: AppFontWeight.medium,
+            color: AppColors.grey,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    );
+  }
+}
+
+/// Follow back, on one of the user's own followers they don't follow: the
+/// app's white pill with black words (it was a blue link). Once tapped it
+/// shows what it became, grey, like every other follow button; nothing for
+/// someone already followed when the list opened.
+class _FollowBackButton extends StatelessWidget {
+  const _FollowBackButton({required this.wasFollowed, required this.user});
 
   final Future<bool> wasFollowed;
   final User user;
 
   @override
-  State<FollowTextButton> createState() => _FollowTextButtonState();
-}
-
-class _FollowTextButtonState extends State<FollowTextButton> {
-  /// The link's one recognizer, let go with the row: a new one was made on
-  /// every build and never disposed.
-  final _tap = TapGestureRecognizer();
-
-  @override
-  void dispose() {
-    _tap.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final user = widget.user;
-
     return FutureBuilder<bool>(
-      future: widget.wasFollowed,
+      future: wasFollowed,
       builder: (context, snapshot) {
-        final wasFollowed = snapshot.data;
-        if (wasFollowed == null || wasFollowed) {
-          return const SizedBox.shrink();
-        }
+        final followed = snapshot.data;
+        if (followed == null || followed) return const SizedBox.shrink();
         return FollowStateBuilder(
           userId: user.id,
           builder: (context, relation) {
             if (relation == null) return const SizedBox.shrink();
-            final followed = relation != FollowRelation.none;
-            return Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(text: ' • ', style: context.bodyMedium),
-                  TextSpan(
-                    text: switch (relation) {
-                      FollowRelation.following => l10n.followingUser,
-                      FollowRelation.requested => l10n.requestedText,
-                      FollowRelation.none => l10n.followUser,
-                    },
-                    style: context.bodyMedium?.copyWith(
-                      color: followed ? AppColors.white : AppColors.blue,
-                    ),
-                    recognizer: _tap
-                      ..onTap = () =>
-                          onFollowButton(context, user: user, relation: relation),
-                  ),
-                ],
+            final grey = relation != FollowRelation.none;
+            return Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.sm - 2),
+              child: UserProfileButton(
+                onTap: () =>
+                    onFollowButton(context, user: user, relation: relation),
+                label: switch (relation) {
+                  FollowRelation.following => l10n.followingUser,
+                  FollowRelation.requested => l10n.requestedText,
+                  FollowRelation.none => l10n.followUser,
+                },
+                padding: _compactPadding,
+                fadeStrength: FadeStrength.md,
+                color: grey ? const Color(0xFF414141) : AppColors.white,
+                textStyle: context.labelLarge?.copyWith(
+                  color: grey ? AppColors.white : AppColors.black,
+                  fontWeight: AppFontWeight.semiBold,
+                ),
               ),
             );
           },
