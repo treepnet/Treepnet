@@ -6,6 +6,7 @@ class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.peer,
     this.trailing,
     this.avatar,
+    this.titleSuffix,
     this.onTitleTap,
   });
 
@@ -19,6 +20,9 @@ class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   /// App-provided avatar (e.g. with a story ring). Replaces the default.
   final Widget? avatar;
+
+  /// App-provided widget right after the name (e.g. a verification badge).
+  final Widget? titleSuffix;
 
   /// Called when the peer's name is tapped.
   final VoidCallback? onTitleTap;
@@ -85,10 +89,23 @@ class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
               GestureDetector(
                 onTap: onTitleTap,
                 behavior: HitTestBehavior.opaque,
-                child: Text(
-                  peer.name,
-                  style: style.titleTextStyle?.copyWith(letterSpacing: -0.5),
-                  overflow: TextOverflow.ellipsis,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        peer.name,
+                        style: style.titleTextStyle?.copyWith(
+                          letterSpacing: -0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (titleSuffix != null) ...[
+                      const SizedBox(width: 4),
+                      titleSuffix!,
+                    ],
+                  ],
                 ),
               ),
               const SizedBox(height: 2),

@@ -12,6 +12,7 @@ class MessengerChat extends StatefulWidget {
     this.chatAppBarStyle,
     this.appBarTrailing,
     this.appBarAvatar,
+    this.appBarTitleSuffix,
     this.onTitleTap,
     this.composerOverride,
     super.key,
@@ -32,6 +33,10 @@ class MessengerChat extends StatefulWidget {
   /// App-provided header avatar (e.g. one with a story ring + its own tap).
   /// Replaces the default peer avatar when non-null.
   final Widget? appBarAvatar;
+
+  /// App-provided widget right after the peer's name in the header (e.g. a
+  /// verification badge).
+  final Widget? appBarTitleSuffix;
 
   /// Tapping the peer's name in the header (e.g. open their profile).
   final VoidCallback? onTitleTap;
@@ -539,6 +544,7 @@ class _MessengerChatState extends State<MessengerChat> with WidgetsBindingObserv
                 peer: widget.peer,
                 trailing: widget.appBarTrailing,
                 avatar: widget.appBarAvatar,
+                titleSuffix: widget.appBarTitleSuffix,
                 onTitleTap: widget.onTitleTap,
               )
             : null,

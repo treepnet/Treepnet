@@ -13,6 +13,7 @@ import 'package:treepnet/chat/chat_share_ref.dart';
 import 'package:treepnet/chat/chat_theme.dart';
 import 'package:treepnet/chat/open_chat.dart';
 import 'package:treepnet/l10n/l10n.dart';
+import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:search_repository/search_repository.dart';
 import 'package:user_repository/user_repository.dart';
 
@@ -1132,13 +1133,24 @@ class _PersonRow extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.bodyLarge?.copyWith(
-                      fontWeight: AppFontWeight.semiBold,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.bodyLarge?.copyWith(
+                            fontWeight: AppFontWeight.semiBold,
+                          ),
+                        ),
+                      ),
+                      // The checkmark, as beside every other name in the app.
+                      if (author != null) ...[
+                        const Gap.h(AppSpacing.xs),
+                        TravelTierBadge(userId: author!.id),
+                      ],
+                    ],
                   ),
                   if (subtitle != null && subtitle!.isNotEmpty) ...[
                     const Gap.v(AppSpacing.xxs),

@@ -8,6 +8,7 @@ import 'package:treepnet/app/routes/app_routes.dart';
 import 'package:treepnet/chat/chat_session.dart';
 import 'package:treepnet/chat/chat_theme.dart';
 import 'package:treepnet/l10n/l10n.dart';
+import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:treepnet/stories/widgets/user_stories_avatar.dart';
 import 'package:treepnet/user_profile/widgets/profile_sync_scope.dart';
 import 'package:user_repository/user_repository.dart';
@@ -83,8 +84,11 @@ class ChatThreadScreen extends StatelessWidget {
     // profile. Tapping the name always opens the profile. Only when we know the
     // peer's app uuid.
     Widget? headerAvatar;
+    Widget? badge;
     VoidCallback? onTitleTap;
     if (peerUuid.isNotEmpty) {
+      // The checkmark beside their name, as everywhere else in the app.
+      badge = TravelTierBadge(userId: peerUuid, size: 16);
       final peerUser = User(
         id: peerUuid,
         username: peer.name,
@@ -122,6 +126,7 @@ class ChatThreadScreen extends StatelessWidget {
         peer: peer,
         trailing: menu,
         avatar: headerAvatar,
+        badge: badge,
         onTitleTap: onTitleTap,
         // No composer until both are known: assumed "not blocked" at first,
         // it showed (and took typing) before the notice replaced it.
@@ -138,6 +143,7 @@ class ChatThreadScreen extends StatelessWidget {
     required ChatUser peer,
     required Widget trailing,
     Widget? avatar,
+    Widget? badge,
     VoidCallback? onTitleTap,
     Widget? composerOverride,
   }) => MessengerChat(
@@ -149,6 +155,7 @@ class ChatThreadScreen extends StatelessWidget {
     chatTextFieldStyle: ChatTheme.textFieldStyle,
     appBarTrailing: trailing,
     appBarAvatar: avatar,
+    appBarTitleSuffix: badge,
     onTitleTap: onTitleTap,
     composerOverride: composerOverride,
   );
