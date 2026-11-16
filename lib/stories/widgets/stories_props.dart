@@ -15,6 +15,7 @@ class StoriesProps {
     required this.stories,
     required this.author,
     this.continuation,
+    this.previous,
   });
 
   final User author;
@@ -23,4 +24,10 @@ class StoriesProps {
   /// Null (the default) means the viewer closes when the stories end — which is
   /// what the archive and map entry points want.
   final StoriesContinuation? continuation;
+
+  /// What comes before these stories in the list they were opened from (the
+  /// Stories tab's previous profile, a profile's previous highlight): a back
+  /// tap on the first story goes there, whether or not it was watched on the
+  /// way. Null: that tap starts the first story over.
+  final StoriesContinuation? previous;
 }

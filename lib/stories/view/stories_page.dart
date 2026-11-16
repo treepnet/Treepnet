@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:app_ui/app_ui.dart';
 import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:flutter/material.dart';
@@ -200,6 +202,55 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
     // decoders go too.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       for (final item in previous) {
+        item.dispose();
+      }
+      if (mounted) _controller.play();
+    });
+  }
+
+  /// A back tap on the first story: back to the profile (or highlight)
+  /// before this one in the list it was opened from ([StoriesProps.previous]),
+  /// on its last story — watched on the way here or not. It used to start
+  /// the first story over, so a back tap never left a profile. False when
+  /// there is nothing before: the story starts over.
+  bool _backToPreviousProfile() {
+    final previous = _props.previous;
+    if (previous == null || _composing || !mounted) return false;
+    _controller.pause();
+    unawaited(_showPrevious(previous));
+    return true;
+  }
+
+  Future<void> _showPrevious(StoriesContinuation previous) async {
+    StoriesProps? before;
+    try {
+      before = await previous();
+    } catch (_) {}
+    if (!mounted) return;
+    if (before == null || before.stories.isEmpty) {
+      // Nothing before it after all (those stories expired): start over.
+      _controller
+        ..rewind()
+        ..play();
+      return;
+    }
+    final outgoing = _storyItems.value;
+    final items = _itemsOf(before.stories);
+    // The player opens on the first story not marked shown: the last one.
+    for (var i = 0; i < items.length - 1; i++) {
+      items[i].shown = true;
+    }
+    final props = before;
+    setState(() {
+      _props = props;
+      _stories
+        ..clear()
+        ..addAll(props.stories);
+      _storyItems.value = items;
+      _generation++;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final item in outgoing) {
         item.dispose();
       }
       if (mounted) _controller.play();
@@ -584,6 +635,7 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
                                   },
                                   onVerticalSwipeComplete: (_) => context.pop(),
                                   onComplete: _onStoriesComplete,
+                                  onBackAtStart: _backToPreviousProfile,
                                 ),
                               ),
                             ),

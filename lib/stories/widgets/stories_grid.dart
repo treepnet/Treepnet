@@ -205,6 +205,13 @@ class _StoryCard extends StatelessWidget {
                         viewerId: currentUser.id,
                         startedUnseen: !allSeen,
                       ),
+                      previous: previousProfileContinuation(
+                        storiesRepository: context.read<StoriesRepository>(),
+                        authors: authors,
+                        fromIndex: index,
+                        viewerId: currentUser.id,
+                        startedUnseen: !allSeen,
+                      ),
                     ),
                   ),
             // The avatar straddles the card's top edge, so the card starts

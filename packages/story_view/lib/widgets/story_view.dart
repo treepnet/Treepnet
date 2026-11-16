@@ -124,6 +124,10 @@ class StoryView extends StatefulWidget {
   /// Callback for when a full cycle of story is shown.
   final VoidCallback? onComplete;
 
+  /// A back tap on the first story: true when the caller took it (e.g. went
+  /// back to the previous profile); otherwise the first story starts over.
+  final bool Function()? onBackAtStart;
+
   /// Callback for when a vertical swipe gesture is detected. If you do not
   /// want to listen to such event, do not provide it. For instance,
   /// for inline stories inside ListViews, it is preferrable to not to
@@ -166,6 +170,7 @@ class StoryView extends StatefulWidget {
     required this.storyItems,
     required this.controller,
     this.onComplete,
+    this.onBackAtStart,
     this.onStoryShow,
     this.progressPosition = ProgressPosition.top,
     this.inline = false,
@@ -331,6 +336,7 @@ class StoryViewState extends State<StoryView> with TickerProviderStateMixin {
     }
 
     if (this._currentStory == widget.storyItems.first) {
+      if (widget.onBackAtStart?.call() ?? false) return;
       _beginPlay();
     } else {
       this._currentStory!.shown = false;

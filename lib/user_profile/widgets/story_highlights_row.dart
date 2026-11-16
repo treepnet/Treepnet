@@ -124,6 +124,11 @@ class _HighlightCircle extends StatelessWidget {
               highlights: highlights,
               fromIndex: index,
             ),
+            previous: previousHighlightContinuation(
+              storiesRepository: stories,
+              highlights: highlights,
+              fromIndex: index,
+            ),
           ),
         );
       },

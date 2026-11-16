@@ -42,21 +42,75 @@ StoriesContinuation nextProfileContinuation({
       // The boundary between the unseen run and the seen run — stop here.
       if (unseen != startedUnseen) return null;
 
-      return StoriesProps(
+      return _profileProps(
+        storiesRepository: storiesRepository,
+        authors: authors,
+        index: cursor,
         stories: stories,
-        author: author,
-        continuation: nextProfileContinuation(
-          storiesRepository: storiesRepository,
-          authors: authors,
-          fromIndex: cursor,
-          viewerId: viewerId,
-          startedUnseen: startedUnseen,
-        ),
+        viewerId: viewerId,
+        startedUnseen: startedUnseen,
       );
     }
     return null;
   };
 }
+
+/// Back to the profile before [fromIndex] in the Stories tab, for a back tap
+/// on a first story: the one just before (skipping any whose stories have
+/// expired), watched on the way here or not. Null at the start of the list.
+StoriesContinuation previousProfileContinuation({
+  required StoriesRepository storiesRepository,
+  required List<User> authors,
+  required int fromIndex,
+  required String viewerId,
+  required bool startedUnseen,
+}) {
+  return () async {
+    for (var cursor = fromIndex - 1; cursor >= 0; cursor--) {
+      final stories = await storiesRepository
+          .mergedStories(authorId: authors[cursor].id, userId: viewerId)
+          .first;
+      if (stories.isEmpty) continue;
+      return _profileProps(
+        storiesRepository: storiesRepository,
+        authors: authors,
+        index: cursor,
+        stories: stories,
+        viewerId: viewerId,
+        startedUnseen: startedUnseen,
+      );
+    }
+    return null;
+  };
+}
+
+/// [authors]' [index]th profile with its [stories], going on and back
+/// from there.
+StoriesProps _profileProps({
+  required StoriesRepository storiesRepository,
+  required List<User> authors,
+  required int index,
+  required List<Story> stories,
+  required String viewerId,
+  required bool startedUnseen,
+}) => StoriesProps(
+  stories: stories,
+  author: authors[index],
+  continuation: nextProfileContinuation(
+    storiesRepository: storiesRepository,
+    authors: authors,
+    fromIndex: index,
+    viewerId: viewerId,
+    startedUnseen: startedUnseen,
+  ),
+  previous: previousProfileContinuation(
+    storiesRepository: storiesRepository,
+    authors: authors,
+    fromIndex: index,
+    viewerId: viewerId,
+    startedUnseen: startedUnseen,
+  ),
+);
 
 /// Rolls the viewer on to the next highlight cover on a profile.
 ///
@@ -77,14 +131,56 @@ StoriesContinuation nextHighlightContinuation({
         .first;
     if (stories.isEmpty) return null;
 
-    return StoriesProps(
+    return _highlightProps(
+      storiesRepository: storiesRepository,
+      highlights: highlights,
+      index: cursor,
       stories: stories,
-      author: stories.first.author,
-      continuation: nextHighlightContinuation(
-        storiesRepository: storiesRepository,
-        highlights: highlights,
-        fromIndex: cursor,
-      ),
     );
   };
 }
+
+/// Back to the highlight before [fromIndex] on the profile, for a back tap
+/// on its first story (skipping any left empty). Null at the first one.
+StoriesContinuation previousHighlightContinuation({
+  required StoriesRepository storiesRepository,
+  required List<StoryHighlight> highlights,
+  required int fromIndex,
+}) {
+  return () async {
+    for (var cursor = fromIndex - 1; cursor >= 0; cursor--) {
+      final stories = await storiesRepository
+          .highlightStoriesOf(highlightId: highlights[cursor].id)
+          .first;
+      if (stories.isEmpty) continue;
+      return _highlightProps(
+        storiesRepository: storiesRepository,
+        highlights: highlights,
+        index: cursor,
+        stories: stories,
+      );
+    }
+    return null;
+  };
+}
+
+/// [highlights]' [index]th with its [stories], going on and back from there.
+StoriesProps _highlightProps({
+  required StoriesRepository storiesRepository,
+  required List<StoryHighlight> highlights,
+  required int index,
+  required List<Story> stories,
+}) => StoriesProps(
+  stories: stories,
+  author: stories.first.author,
+  continuation: nextHighlightContinuation(
+    storiesRepository: storiesRepository,
+    highlights: highlights,
+    fromIndex: index,
+  ),
+  previous: previousHighlightContinuation(
+    storiesRepository: storiesRepository,
+    highlights: highlights,
+    fromIndex: index,
+  ),
+);
