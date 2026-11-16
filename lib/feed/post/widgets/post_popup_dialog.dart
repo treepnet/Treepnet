@@ -25,6 +25,7 @@ class PostPopupDialog extends StatelessWidget {
     required this.showComments,
     required this.onDismiss,
     this.showAuthor = true,
+    this.onAuthorTap,
     required this.onLikeTap,
     required this.onCommentOrViewProfileTap,
     required this.onShareTap,
@@ -47,6 +48,9 @@ class PostPopupDialog extends StatelessWidget {
   /// The author row above the photo; without it the photo starts at the
   /// card's top.
   final bool showAuthor;
+
+  /// A tap on the author's avatar or name: their profile.
+  final VoidCallback? onAuthorTap;
 
   /// A tap outside the card, or Back: the card goes. It stays open once the
   /// finger lets go off the buttons, so its buttons can be tapped.
@@ -85,7 +89,8 @@ class PostPopupDialog extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (showAuthor) PopupDialogHeader(block: block),
+                    if (showAuthor)
+                      PopupDialogHeader(block: block, onTap: onAuthorTap),
                     PopupDialogBody(
                       block: block,
                       messageVisibility: messageVisibility,
@@ -117,13 +122,15 @@ class PostPopupDialog extends StatelessWidget {
 }
 
 class PopupDialogHeader extends StatelessWidget {
-  const PopupDialogHeader({required this.block, super.key});
+  const PopupDialogHeader({required this.block, this.onTap, super.key});
 
   final PostBlock block;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
+      onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.xxxs,

@@ -488,7 +488,8 @@ class _PostsGrid extends StatelessWidget {
           key: ValueKey(block.id),
           block: block,
           index: index,
-          showComments: false,
+          // Comments in the card (it had a profile button); the profile is a tap
+          // on the author at the card's top, as in Trends.
           // Stay inside this place: without it a tap opened the newest posts
           // from everywhere and scrolled straight out of the location.
           feedPosts: posts,

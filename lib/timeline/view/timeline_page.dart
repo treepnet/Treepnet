@@ -256,7 +256,8 @@ class TimelineGridView extends StatelessWidget {
           key: ValueKey(block.id),
           block: block,
           index: index,
-          showComments: false,
+          // Comments in the card (it had a profile button); the profile is
+          // a tap on the author at the card's top.
           // A tap scrolls on through Trends in its own order.
           postOrder: PostOrder.trending,
           builder: (_) => PostSmall(

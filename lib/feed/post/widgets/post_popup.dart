@@ -165,6 +165,10 @@ class _PostPopupState extends State<PopupModal>
   final _isLiked = ValueNotifier(false);
   StreamSubscription<PostState>? _isLikedSubscription;
 
+  /// The author's avatar or name was tapped: their profile opens once the
+  /// card has gone.
+  bool _openAuthor = false;
+
   /// Whether the post's stats (the liked state) have been asked for — on the
   /// first long press, so a grid of tiles keeps no live queries.
   bool _statsRequested = false;
@@ -189,9 +193,11 @@ class _PostPopupState extends State<PopupModal>
       _removeOverlays();
       final comments = _commentOrViewProfileVisibility.value;
       final share = _sharePostVisibility.value;
+      final profile = _openAuthor;
       _clearChoice();
       if (comments) await showCommentsOrViewProfile();
       if (share) await sharePost();
+      if (profile) await _showAuthorProfile();
     }
   }
 
@@ -200,6 +206,7 @@ class _PostPopupState extends State<PopupModal>
   /// peek of a tile, released in place, repeated the last action (a like
   /// toggled again, Share or the profile opened again).
   void _clearChoice() {
+    _openAuthor = false;
     _likeVisibility.value = false;
     _commentOrViewProfileVisibility.value = false;
     _sharePostVisibility.value = false;
@@ -420,6 +427,17 @@ class _PostPopupState extends State<PopupModal>
     _animateDialogBack();
   }
 
+  void _onAuthorTap() {
+    _clearChoice();
+    _openAuthor = true;
+    _animateDialogBack();
+  }
+
+  Future<void> _showAuthorProfile() => context.pushNamed(
+    AppRoutes.userProfile.name,
+    pathParameters: {'user_id': widget.block.author.id},
+  );
+
   Future<void> showCommentsOrViewProfile() async {
     if (widget.showComments) {
       await context.showScrollableModal(
@@ -479,6 +497,7 @@ class _PostPopupState extends State<PopupModal>
         saveKey: _saveKey,
         showComments: widget.showComments,
         showAuthor: widget.showAuthor,
+        onAuthorTap: _onAuthorTap,
         onDismiss: _dismiss,
         onLikeTap: _onLikeTap,
         onCommentOrViewProfileTap: _onCommentOrViewProfileTap,
