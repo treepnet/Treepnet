@@ -236,10 +236,7 @@ class _StoriesViewState extends State<StoriesView> with SafeSetStateMixin {
     }
     final outgoing = _storyItems.value;
     final items = _itemsOf(before.stories);
-    // The player opens on the first story not marked shown: the last one.
-    for (var i = 0; i < items.length - 1; i++) {
-      items[i].shown = true;
-    }
+    openOnLast(items);
     final props = before;
     setState(() {
       _props = props;
@@ -829,6 +826,17 @@ class StoriesAuthorListTile extends StatelessWidget {
         child: content,
       ),
     );
+  }
+}
+
+/// Marks [items] so the player opens on the last one. It opens on the first
+/// not marked shown, and when every one is (all watched: the previous
+/// profile's stories, just seen on the way here) it starts over from the
+/// first — so the last is marked unshown as well, not left as watched.
+@visibleForTesting
+void openOnLast(List<StoryItem> items) {
+  for (var i = 0; i < items.length; i++) {
+    items[i].shown = i < items.length - 1;
   }
 }
 
