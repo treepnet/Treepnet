@@ -81,4 +81,64 @@ void main() {
     loader.loadImage(() => called = true);
     expect(called, isFalse);
   });
+
+  testWidgets('a story shown again still has its picture (a back tap)', (
+    tester,
+  ) async {
+    final loader = ImageLoader('https://media.test/back.jpg');
+    await tester.runAsync(() async => loader.frames = await _codec());
+
+    Future<ui.Image?> show() async {
+      await tester.pumpWidget(MaterialApp(home: StoryImage(loader)));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pump();
+      return tester.widget<RawImage>(find.byType(RawImage)).image;
+    }
+
+    expect(await show(), isNotNull);
+    // On to the next story: this one's page lets go of its picture.
+    await tester.pumpWidget(const SizedBox());
+    // Back to it: the picture is still there, not a black page.
+    expect(await show(), isNotNull);
+
+    await tester.pumpWidget(const SizedBox());
+    loader.dispose();
+  });
+
+  testWidgets('only the stories shown last keep their picture', (
+    tester,
+  ) async {
+    final loaders = [
+      for (var i = 0; i <= ImageLoader.keepAtMost; i++)
+        ImageLoader('https://media.test/$i.jpg'),
+    ];
+    for (final loader in loaders) {
+      await tester.runAsync(() async => loader.frames = await _codec());
+    }
+
+    // The first is on screen...
+    await tester.pumpWidget(MaterialApp(home: StoryImage(loaders.first)));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump();
+
+    // ...and then the others are shown.
+    for (final loader in loaders.skip(1)) {
+      loader.loadImage(() {});
+    }
+    expect(loaders.first.frames, isNull, reason: 'the oldest is let go');
+    expect(loaders.skip(1).map((l) => l.frames), everyElement(isNotNull));
+
+    // The page still showing it keeps its own picture.
+    await tester.pump();
+    expect(tester.widget<RawImage>(find.byType(RawImage)).image, isNotNull);
+
+    await tester.pumpWidget(const SizedBox());
+    for (final loader in loaders) {
+      loader.dispose();
+    }
+  });
 }

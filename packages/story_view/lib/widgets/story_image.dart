@@ -25,6 +25,21 @@ class ImageLoader {
   /// [dispose]d: nothing more is loaded or kept.
   bool _disposed = false;
 
+  /// A still's picture, held by the loader itself. A one-frame decoder gives
+  /// the same picture on every [ui.Codec.getNextFrame], and that picture is
+  /// gone once every handle to it is let go: a story's page lets go of its
+  /// handle when it leaves, so going back to that story showed black. Kept
+  /// for the few stories shown last ([keepAtMost]).
+  ui.Image? _still;
+
+  /// The loaders keeping what they decoded, the one shown last at the end.
+  static final List<ImageLoader> _kept = <ImageLoader>[];
+
+  /// How many stories keep their decoded picture, so going back to one shows
+  /// it at once. Each is a screen-wide bitmap (~8-14 MB): an older one is
+  /// decoded again from the disk cache when it is shown again.
+  static const keepAtMost = 4;
+
   /// How long a load may take before it counts as failed. On a stalled
   /// connection the download never errors — it just never finishes — and the
   /// story sat on a spinner for good.
@@ -60,6 +75,7 @@ class ImageLoader {
     if (_disposed) return;
     if (this.frames != null) {
       this.state = LoadState.success;
+      _keepRecent();
       onComplete();
       return;
     }
@@ -103,6 +119,7 @@ class ImageLoader {
           }
           this.state = LoadState.success;
           this.frames = codec;
+          _keepRecent();
         } catch (_) {
           this.state = LoadState.failure;
         } finally {
@@ -119,6 +136,39 @@ class ImageLoader {
     );
   }
 
+  /// The next frame of [codec] (this loader's [frames]) to show. A still's is
+  /// kept as well ([_still]), so the story can be shown again.
+  Future<ui.FrameInfo> nextFrame(ui.Codec codec) async {
+    final frame = await codec.getNextFrame();
+    if (_still == null &&
+        !_disposed &&
+        identical(codec, this.frames) &&
+        codec.frameCount == 1) {
+      _still = frame.image.clone();
+    }
+    return frame;
+  }
+
+  /// Marks this loader as shown last, and lets go of what the ones beyond
+  /// [keepAtMost] decoded.
+  void _keepRecent() {
+    _kept.remove(this);
+    _kept.add(this);
+    while (_kept.length > keepAtMost) {
+      _kept.removeAt(0)._release();
+    }
+  }
+
+  /// Lets go of what was decoded: a later [loadImage] decodes it again from
+  /// the disk cache. A page still showing it holds its own handle, so its
+  /// picture stays until that page goes.
+  void _release() {
+    _still?.dispose();
+    _still = null;
+    frames?.dispose();
+    frames = null;
+  }
+
   /// Stops listening for this load (the page went away, or it is being
   /// retried). The download, if any, still lands in the disk cache.
   void cancel() {
@@ -133,8 +183,8 @@ class ImageLoader {
   void dispose() {
     _disposed = true;
     cancel();
-    frames?.dispose();
-    frames = null;
+    _kept.remove(this);
+    _release();
   }
 }
 
@@ -296,7 +346,7 @@ class StoryImageState extends State<StoryImage> {
     if (frames == null) return;
     final ui.FrameInfo nextFrame;
     try {
-      nextFrame = await frames.getNextFrame();
+      nextFrame = await widget.imageLoader.nextFrame(frames);
     } catch (_) {
       return; // The decoder was let go meanwhile.
     }
