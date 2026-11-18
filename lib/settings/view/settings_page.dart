@@ -61,6 +61,38 @@ class SettingsPage extends StatelessWidget {
     );
     if (confirmed != true || !context.mounted) return;
 
+    final userRepository = context.read<UserRepository>();
+    // How this account signs in: a password is asked for, as before; one
+    // made with Google or Apple (no password) confirms with it instead.
+    final SignInMethods methods;
+    try {
+      methods = await userRepository.signInMethods();
+    } catch (error) {
+      if (!context.mounted) return;
+      openSnackbar(
+        SnackbarMessage.error(title: authErrorText(context.l10n, error)),
+      );
+      return;
+    }
+    if (!context.mounted) return;
+    final provider = methods.password
+        ? null
+        : methods.apple
+        ? SocialProvider.apple
+        : methods.google
+        ? SocialProvider.google
+        : null;
+    if (provider != null) {
+      await _deleteConfirmed(
+        context,
+        (beforeSignOut) => userRepository.deleteAccountConfirmedWith(
+          provider,
+          beforeSignOut: beforeSignOut,
+        ),
+      );
+      return;
+    }
+
     // Hand the auth client the *username*, exactly as the normal login screen
     // does — the auth-service resolves the handle to the account's email
     // itself, so re-auth matches sign-in even if the profile's `email` field
@@ -84,6 +116,23 @@ class SettingsPage extends StatelessWidget {
     );
     if (password == null || password.isEmpty || !context.mounted) return;
 
+    await _deleteConfirmed(
+      context,
+      (beforeSignOut) => userRepository.deleteAccount(
+        email: identifier,
+        password: password,
+        beforeSignOut: beforeSignOut,
+      ),
+    );
+  }
+
+  /// Runs [delete] — which confirms it is the account's owner first (the
+  /// password, or Google/Apple once more), then erases it — behind a
+  /// progress dialog, and says what went wrong if anything did.
+  Future<void> _deleteConfirmed(
+    BuildContext context,
+    Future<void> Function(Future<void> Function() beforeSignOut) delete,
+  ) async {
     final userRepository = context.read<UserRepository>();
     final uploadQueue = context.read<MediaUploadQueue>();
     final deletedId = userRepository.currentUserId;
@@ -109,12 +158,10 @@ class SettingsPage extends StatelessWidget {
       ),
     );
     try {
-      await userRepository.deleteAccount(
-        email: identifier,
-        password: password,
+      await delete(
         // Like signing out: this phone stops getting the account's pushes and
         // its chat closes, so nothing reaches the next account here.
-        beforeSignOut: () async {
+        () async {
           try {
             // Its posts and stories still being published go too: they'd
             // never be created, and their files would upload with no owner.
@@ -127,6 +174,19 @@ class SettingsPage extends StatelessWidget {
       );
       closeProgress();
       // A successful delete signs out; AppBloc routes back to login on its own.
+    } on SocialSignInCanceled {
+      // Google's or Apple's sheet was closed: nothing is deleted.
+      closeProgress();
+    } on SocialSignInFailure catch (error) {
+      // Not confirmed (another account picked, no connection): nothing is
+      // deleted.
+      closeProgress();
+      if (!context.mounted) return;
+      openSnackbar(
+        SnackbarMessage.error(
+          title: socialSignInErrorText(context.l10n, error),
+        ),
+      );
     } on LogInWithPasswordFailure catch (error) {
       // The password step failed: usually a wrong password, sometimes the
       // network — said in the app's language, not as the exception's text.
@@ -136,8 +196,8 @@ class SettingsPage extends StatelessWidget {
         SnackbarMessage.error(title: authErrorText(context.l10n, error)),
       );
     } catch (error, stackTrace) {
-      // Password was accepted but the delete itself failed (RPC/permission):
-      // to the crash log, which keeps no names or emails.
+      // Confirmed, but the delete itself failed (RPC/permission): to the
+      // crash log, which keeps no names or emails.
       CrashReporter.instance.report(error, stackTrace, kind: 'delete_account');
       closeProgress();
       if (!context.mounted) return;

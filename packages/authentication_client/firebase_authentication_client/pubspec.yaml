@@ -10,15 +10,20 @@ environment:
 dependencies:
   authentication_client:
     path: ../authentication_client
+  crypto: ^3.0.3
   dio: ^5.10.0
   firebase_auth: ^5.3.4
   firebase_core: ^3.8.1
   flutter:
     sdk: flutter
+  # Sign in with Google / Apple (social.js on the auth-service checks what
+  # they give). sign_in_with_apple 8 needs Flutter 3.41.
+  google_sign_in: ^7.2.0
   powersync_repository:
     path: ../../powersync_repository
   shared:
     path: ../../shared
+  sign_in_with_apple: ^7.0.1
   token_storage:
     path: ../token_storage
 

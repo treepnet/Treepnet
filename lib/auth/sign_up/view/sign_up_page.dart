@@ -7,6 +7,7 @@ import 'package:treepnet/auth/cubit/auth_cubit.dart';
 import 'package:treepnet/auth/resend_code_button.dart';
 import 'package:treepnet/auth/sign_up/cubit/sign_up_cubit.dart';
 import 'package:treepnet/auth/sign_up/widgets/widgets.dart';
+import 'package:treepnet/auth/social/social_sign_in_buttons.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:user_repository/user_repository.dart';
 
@@ -109,6 +110,11 @@ class SignUpView extends StatelessWidget {
                       ],
                     ),
                   ),
+                  // Or with Google / Apple, before anything is typed.
+                  if (state.step == SignUpStep.details) ...[
+                    const Gap.v(AppSpacing.lg),
+                    const SocialSignInButtons(),
+                  ],
                   const Gap.v(AppSpacing.lg),
                   const SignInIntoAccountButton(),
                 ],

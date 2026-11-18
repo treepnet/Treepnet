@@ -113,6 +113,29 @@ class UserRepository implements UserBaseRepository {
   Future<bool> isUsernameAvailable(String username) =>
       _authenticationClient.isUsernameAvailable(username);
 
+  /// Whether "Continue with [provider]" is offered on this phone.
+  bool isSocialSignInAvailable(SocialProvider provider) =>
+      _authenticationClient.isSocialSignInAvailable(provider);
+
+  /// Signs in with Google or Apple (see
+  /// [AuthenticationClient.signInWithSocial]).
+  Future<SocialSignInResult> signInWithSocial(SocialProvider provider) =>
+      _authenticationClient.signInWithSocial(provider);
+
+  /// Makes the account a Google/Apple sign-in found none for (see
+  /// [AuthenticationClient.completeSocialSignUp]).
+  Future<void> completeSocialSignUp({
+    required String ticket,
+    required String username,
+  }) => _authenticationClient.completeSocialSignUp(
+    ticket: ticket,
+    username: username,
+  );
+
+  /// How the signed-in account signs in: password, Google, Apple.
+  Future<SignInMethods> signInMethods() =>
+      _authenticationClient.signInMethods();
+
   /// Starts the code-based sign-up: registers the pending account and emails a
   /// one-time code. Returns the continuation token and expected code length.
   Future<({String continuationToken, int codeLength})> signUpSendCode({
@@ -352,6 +375,27 @@ class UserRepository implements UserBaseRepository {
       // The account is gone already; signing out must still happen.
     }
     // Remove the auth-provider user too (and sign out), not just sign out.
+    await _authenticationClient.deleteAuthUser();
+  }
+
+  /// [deleteAccount] for an account with no password (made with Google or
+  /// Apple): the person signs in with [provider] once more instead — another
+  /// account picked throws (`wrong_account`) and nothing is deleted. Apple's
+  /// tokens are revoked then, as Apple asks of an account deleted.
+  Future<void> deleteAccountConfirmedWith(
+    SocialProvider provider, {
+    Future<void> Function()? beforeSignOut,
+  }) async {
+    await _authenticationClient.confirmSocialSignIn(
+      provider,
+      revoke: provider == SocialProvider.apple,
+    );
+    await _databaseClient.deleteAccount();
+    try {
+      await beforeSignOut?.call();
+    } catch (_) {
+      // The account is gone already; signing out must still happen.
+    }
     await _authenticationClient.deleteAuthUser();
   }
 

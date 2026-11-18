@@ -3122,6 +3122,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, =1{1 region} other{{count} regions}}'**
   String regionsCountText(int count);
+
+  /// No description provided for @continueWithGoogleText.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue with Google'**
+  String get continueWithGoogleText;
+
+  /// No description provided for @continueWithAppleText.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue with Apple'**
+  String get continueWithAppleText;
+
+  /// No description provided for @chooseUsernameTitleText.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a username'**
+  String get chooseUsernameTitleText;
+
+  /// No description provided for @chooseUsernameSubtitleText.
+  ///
+  /// In en, this message translates to:
+  /// **'This is how people will find you on Treepnet. You can change it later.'**
+  String get chooseUsernameSubtitleText;
+
+  /// No description provided for @socialSignInFailedText.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t sign in. Please try again.'**
+  String get socialSignInFailedText;
+
+  /// No description provided for @socialSignInUnavailableText.
+  ///
+  /// In en, this message translates to:
+  /// **'This sign-in isn\'t available yet.'**
+  String get socialSignInUnavailableText;
+
+  /// No description provided for @socialSignInNoEmailText.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Google or Apple account has no confirmed email.'**
+  String get socialSignInNoEmailText;
+
+  /// No description provided for @socialSignInExpiredText.
+  ///
+  /// In en, this message translates to:
+  /// **'That took too long. Please sign in again.'**
+  String get socialSignInExpiredText;
+
+  /// No description provided for @socialSignInWrongAccountText.
+  ///
+  /// In en, this message translates to:
+  /// **'That\'s a different account. Choose the one you use for Treepnet.'**
+  String get socialSignInWrongAccountText;
 }
 
 class _AppLocalizationsDelegate

@@ -19,6 +19,17 @@ void main() {
 
     final authenticationClient = FirebaseAuthenticationClient(
       powerSyncRepository: powerSyncRepository,
+      // Sign in with Google / Apple, for this bundle (com.treepnet.application):
+      // Google's web client id (Android) and this bundle's iOS one (its
+      // reversed form is in Info.plist); Sign in with Apple is on for its
+      // App ID.
+      social: const SocialSignInConfig(
+        googleServerClientId:
+            '349647020201-6povs1g4ktrtso8mt8dk169c4fkf7k4i.apps.googleusercontent.com',
+        googleIosClientId:
+            '349647020201-ehq1ft0v0t7amv8tvj5mom2713u7grhm.apps.googleusercontent.com',
+        apple: true,
+      ),
     );
     // Restore any persisted Firebase session before the app reads the first user.
     // It returns within ~2 s even offline: a signed-in user opens straight into

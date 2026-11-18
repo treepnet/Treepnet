@@ -55,13 +55,15 @@ class AuthServiceApi {
   );
 
   /// POSTs [body] as JSON to [path] and returns the decoded response map.
+  /// [bearer]: the signed-in user's ID token, for calls about their account.
   ///
   /// Throws [AuthServiceError] on a 4xx (structured `{error, code}`) or on a
   /// network/5xx failure (generic message).
   Future<Map<String, dynamic>> post(
     String path,
-    Map<String, dynamic> body,
-  ) async {
+    Map<String, dynamic> body, {
+    String? bearer,
+  }) async {
     const maxAttempts = 3;
     for (var attempt = 0; attempt < maxAttempts; attempt++) {
       // First try the shared client; on a connection failure retry on a FRESH
@@ -74,7 +76,10 @@ class AuthServiceApi {
           '$baseUrl$path',
           data: body,
           options: Options(
-            headers: <String, dynamic>{'Content-Type': 'application/json'},
+            headers: <String, dynamic>{
+              'Content-Type': 'application/json',
+              if (bearer != null) 'Authorization': 'Bearer $bearer',
+            },
             // Let us read 4xx bodies ({error, code}); only 5xx/network throw.
             validateStatus: (status) => status != null && status < 500,
           ),

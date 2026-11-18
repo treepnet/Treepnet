@@ -1845,4 +1845,36 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get continueWithGoogleText => 'Continue with Google';
+
+  @override
+  String get continueWithAppleText => 'Continue with Apple';
+
+  @override
+  String get chooseUsernameTitleText => 'Choose a username';
+
+  @override
+  String get chooseUsernameSubtitleText =>
+      'This is how people will find you on Treepnet. You can change it later.';
+
+  @override
+  String get socialSignInFailedText => 'Couldn\'t sign in. Please try again.';
+
+  @override
+  String get socialSignInUnavailableText =>
+      'This sign-in isn\'t available yet.';
+
+  @override
+  String get socialSignInNoEmailText =>
+      'Your Google or Apple account has no confirmed email.';
+
+  @override
+  String get socialSignInExpiredText =>
+      'That took too long. Please sign in again.';
+
+  @override
+  String get socialSignInWrongAccountText =>
+      'That\'s a different account. Choose the one you use for Treepnet.';
 }

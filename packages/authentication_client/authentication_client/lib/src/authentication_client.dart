@@ -75,6 +75,54 @@ class LogOutFailure extends AuthenticationException {
   const LogOutFailure(super.error);
 }
 
+/// Google or Apple, for "Continue with ..." sign-in.
+enum SocialProvider { google, apple }
+
+/// What a Google/Apple sign-in came to.
+sealed class SocialSignInResult {
+  const SocialSignInResult();
+}
+
+/// Signed in: the account tied to that Google/Apple account, or the one with
+/// the address Google/Apple vouch for (tied from now on).
+class SocialSignedIn extends SocialSignInResult {
+  const SocialSignedIn();
+}
+
+/// No account yet: one is made once a username is picked
+/// ([AuthenticationClient.completeSocialSignUp] with [ticket]).
+class SocialNeedsUsername extends SocialSignInResult {
+  const SocialNeedsUsername({
+    required this.ticket,
+    this.suggestedUsername,
+    this.fullName = '',
+  });
+
+  /// The checked sign-in, handed back for
+  /// [AuthenticationClient.completeSocialSignUp] (good for 30 minutes).
+  final String ticket;
+
+  /// A free username made from the address, to start the field with.
+  final String? suggestedUsername;
+
+  /// The name Google/Apple gave, if any.
+  final String fullName;
+}
+
+/// The person closed the Google/Apple sheet: nothing to report.
+class SocialSignInCanceled extends AuthenticationException {
+  const SocialSignInCanceled(super.error);
+}
+
+/// A Google/Apple sign-in that failed. [error] carries why (the auth
+/// service's error with its code, e.g. `username_taken`, `wrong_account`).
+class SocialSignInFailure extends AuthenticationException {
+  const SocialSignInFailure(super.error);
+}
+
+/// How an account signs in: with a password, Google, Apple.
+typedef SignInMethods = ({bool password, bool google, bool apple});
+
 /// A generic Authentication Client Interface.
 abstract class AuthenticationClient {
   /// Stream of [AuthenticationUser] which will emit the current user when
@@ -142,6 +190,37 @@ abstract class AuthenticationClient {
   ///
   /// Throws a [LogOutFailure] if an exception occurs.
   Future<void> logOut();
+
+  /// Whether "Continue with [provider]" is offered on this phone (set up for
+  /// this platform and build).
+  bool isSocialSignInAvailable(SocialProvider provider);
+
+  /// Signs in with Google or Apple: into the account tied to it (or the one
+  /// with its address), or [SocialNeedsUsername] for a new one.
+  ///
+  /// Throws [SocialSignInCanceled] when the person closes the sheet, else a
+  /// [SocialSignInFailure].
+  Future<SocialSignInResult> signInWithSocial(SocialProvider provider);
+
+  /// Makes the account a Google/Apple sign-in found none for, with
+  /// [username], and signs in. Throws a [SocialSignInFailure].
+  Future<void> completeSocialSignUp({
+    required String ticket,
+    required String username,
+  });
+
+  /// How the signed-in account signs in.
+  Future<SignInMethods> signInMethods();
+
+  /// Signs in with [provider] again to confirm it is this account (before it
+  /// is deleted); with [revoke], Apple's tokens are revoked as Apple asks.
+  ///
+  /// Throws [SocialSignInCanceled] or a [SocialSignInFailure]
+  /// (`wrong_account`: another Google/Apple account was picked).
+  Future<void> confirmSocialSignIn(
+    SocialProvider provider, {
+    bool revoke = false,
+  });
 
   /// Deletes the currently authenticated identity from the auth provider and
   /// ends the session (emitting [AuthenticationUser.anonymous]). Called after

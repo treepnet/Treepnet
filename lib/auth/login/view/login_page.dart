@@ -7,6 +7,7 @@ import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/auth/login/widgets/login_form.dart';
 import 'package:treepnet/auth/login/widgets/sign_in_button.dart';
 import 'package:treepnet/auth/login/widgets/widgets.dart';
+import 'package:treepnet/auth/social/social_sign_in_buttons.dart';
 import 'package:user_repository/user_repository.dart';
 
 class LoginPage extends StatelessWidget {
@@ -59,6 +60,8 @@ class LoginView extends StatelessWidget {
                 ],
               ),
             ),
+            const Gap.v(AppSpacing.lg),
+            const SocialSignInButtons(),
             const Gap.v(AppSpacing.xlg),
             const SignUpNewAccountButton(),
           ],

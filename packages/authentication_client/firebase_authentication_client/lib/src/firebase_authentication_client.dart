@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:authentication_client/authentication_client.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_authentication_client/src/auth_service_api.dart';
+import 'package:firebase_authentication_client/src/social_sign_in.dart';
 import 'package:powersync_repository/powersync_repository.dart';
 import 'package:token_storage/token_storage.dart';
 
@@ -30,9 +31,13 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
     FirebaseAuth? firebaseAuth,
     AuthServiceApi? api,
     String authBaseUrl = 'https://api.treepnet.com/auth',
+    SocialSignInConfig social = const SocialSignInConfig(),
+    SocialProviders? socialProviders,
   }) : _powerSyncRepository = powerSyncRepository,
        _auth = firebaseAuth ?? FirebaseAuth.instance,
-       _api = api ?? AuthServiceApi(baseUrl: authBaseUrl) {
+       _api = api ?? AuthServiceApi(baseUrl: authBaseUrl),
+       _social = social,
+       _providers = socialProviders ?? SocialProviders(social) {
     // Let PowerSyncRepository trigger a silent refresh without a dependency
     // cycle.
     AuthSession.instance.registerRefresher(_refresh);
@@ -55,6 +60,8 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
   final PowerSyncRepository _powerSyncRepository;
   final FirebaseAuth _auth;
   final AuthServiceApi _api;
+  final SocialSignInConfig _social;
+  final SocialProviders _providers;
   StreamSubscription<User?>? _sub;
 
   @override
@@ -320,6 +327,133 @@ class FirebaseAuthenticationClient implements AuthenticationClient {
       Error.throwWithStackTrace(ResetPasswordFailure(error), stackTrace);
     }
   }
+
+  // --- Sign in with Google / Apple ----------------------------------------
+  //
+  // Google's or Apple's own sheet gives the phone an ID token; the
+  // auth-service checks it (social.js) and answers as a password sign-in
+  // does — a custom token for the account tied to it — or with a ticket for
+  // a new account, made once a username is picked.
+
+  @override
+  bool isSocialSignInAvailable(SocialProvider provider) =>
+      _social.offers(provider);
+
+  /// Not set up for this build (the development build shows the button
+  /// anyway): said, rather than opening a sheet that can't work — Google's
+  /// on iOS would close the app without its URL scheme.
+  void _requireReady(SocialProvider provider) {
+    if (_social.isReady(provider)) return;
+    throw const SocialSignInFailure(
+      AuthServiceError(
+        message: 'This sign-in is not available yet.',
+        code: 'provider_unavailable',
+      ),
+    );
+  }
+
+  Map<String, dynamic> _tokenBody(SocialProvider provider, ProviderTokens t) =>
+      <String, dynamic>{
+        'provider': provider.name,
+        'idToken': t.idToken,
+        if (t.nonce != null) 'nonce': t.nonce,
+        if (t.fullName.isNotEmpty) 'fullName': t.fullName,
+      };
+
+  /// [run], with anything but a cancel or a failure already said turned
+  /// into a [SocialSignInFailure].
+  Future<T> _socialCall<T>(Future<T> Function() run) async {
+    try {
+      return await run();
+    } on SocialSignInCanceled {
+      rethrow;
+    } on SocialSignInFailure {
+      rethrow;
+    } catch (error, stackTrace) {
+      Error.throwWithStackTrace(SocialSignInFailure(error), stackTrace);
+    }
+  }
+
+  @override
+  Future<SocialSignInResult> signInWithSocial(SocialProvider provider) =>
+      _socialCall(() async {
+        _requireReady(provider);
+        final tokens = await _providers.signIn(provider);
+        final res = await _api.post('/social/sign-in', <String, dynamic>{
+          ..._tokenBody(provider, tokens),
+          'lang': AuthServiceApi.language,
+        });
+        if (res['needsUsername'] == true) {
+          final ticket = res['ticket'] as String?;
+          if (ticket == null || ticket.isEmpty) {
+            throw const SocialSignInFailure('No ticket returned from auth.');
+          }
+          return SocialNeedsUsername(
+            ticket: ticket,
+            suggestedUsername: res['suggestedUsername'] as String?,
+            fullName: (res['fullName'] as String?) ?? '',
+          );
+        }
+        await _signInWithCustomToken(res['token'] as String?);
+        return const SocialSignedIn();
+      });
+
+  @override
+  Future<void> completeSocialSignUp({
+    required String ticket,
+    required String username,
+  }) => _socialCall(() async {
+    final res = await _api.post('/social/complete', <String, dynamic>{
+      'ticket': ticket,
+      'username': username.trim().toLowerCase(),
+    });
+    await _signInWithCustomToken(res['token'] as String?);
+  });
+
+  /// The signed-in user's ID token, for a call about their account.
+  Future<String> _bearer() async {
+    final token = await AuthSession.instance.idToken();
+    if (token == null || token.isEmpty) {
+      throw const SocialSignInFailure(
+        AuthServiceError(message: 'Sign in again.', code: 'unauthorized'),
+      );
+    }
+    return token;
+  }
+
+  @override
+  Future<SignInMethods> signInMethods() => _socialCall(() async {
+    final res = await _api.post(
+      '/account/methods',
+      const <String, dynamic>{},
+      bearer: await _bearer(),
+    );
+    return (
+      password: res['password'] == true,
+      google: res['google'] == true,
+      apple: res['apple'] == true,
+    );
+  });
+
+  @override
+  Future<void> confirmSocialSignIn(
+    SocialProvider provider, {
+    bool revoke = false,
+  }) => _socialCall(() async {
+    _requireReady(provider);
+    final bearer = await _bearer();
+    final tokens = await _providers.signIn(provider);
+    await _api.post(
+      '/social/reauth',
+      <String, dynamic>{
+        ..._tokenBody(provider, tokens),
+        if (tokens.authorizationCode != null)
+          'authorizationCode': tokens.authorizationCode,
+        'revoke': revoke,
+      },
+      bearer: bearer,
+    );
+  });
 
   // --- Sign out -----------------------------------------------------------
 

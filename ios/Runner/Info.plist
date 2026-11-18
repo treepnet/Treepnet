@@ -37,6 +37,18 @@
 				<string>treepnet</string>
 			</array>
 		</dict>
+		<!-- Sign in with Google: its sheet comes back to the app through the
+		     reversed iOS client id (App Store build, then the .dev one).
+		     Without it Google's SDK ends the app on sign-in. -->
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.349647020201-ehq1ft0v0t7amv8tvj5mom2713u7grhm</string>
+				<string>com.googleusercontent.apps.349647020201-li5v1roppa288r5p72911sqvfnit9lev</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>

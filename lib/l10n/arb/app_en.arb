@@ -960,5 +960,14 @@
         "type": "int"
       }
     }
-  }
+  },
+  "continueWithGoogleText": "Continue with Google",
+  "continueWithAppleText": "Continue with Apple",
+  "chooseUsernameTitleText": "Choose a username",
+  "chooseUsernameSubtitleText": "This is how people will find you on Treepnet. You can change it later.",
+  "socialSignInFailedText": "Couldn't sign in. Please try again.",
+  "socialSignInUnavailableText": "This sign-in isn't available yet.",
+  "socialSignInNoEmailText": "Your Google or Apple account has no confirmed email.",
+  "socialSignInExpiredText": "That took too long. Please sign in again.",
+  "socialSignInWrongAccountText": "That's a different account. Choose the one you use for Treepnet."
 }

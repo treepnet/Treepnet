@@ -1880,4 +1880,35 @@ class AppLocalizationsRu extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get continueWithGoogleText => 'Продолжить с Google';
+
+  @override
+  String get continueWithAppleText => 'Продолжить с Apple';
+
+  @override
+  String get chooseUsernameTitleText => 'Выберите имя пользователя';
+
+  @override
+  String get chooseUsernameSubtitleText =>
+      'По нему вас найдут в Treepnet. Его можно изменить позже.';
+
+  @override
+  String get socialSignInFailedText => 'Не удалось войти. Попробуйте ещё раз.';
+
+  @override
+  String get socialSignInUnavailableText =>
+      'Этот способ входа пока недоступен.';
+
+  @override
+  String get socialSignInNoEmailText =>
+      'У аккаунта Google или Apple нет подтверждённой почты.';
+
+  @override
+  String get socialSignInExpiredText => 'Время вышло. Войдите ещё раз.';
+
+  @override
+  String get socialSignInWrongAccountText =>
+      'Это другой аккаунт. Выберите тот, с которым вы входите в Treepnet.';
 }

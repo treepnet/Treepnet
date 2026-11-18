@@ -5,3 +5,4 @@ export 'package:authentication_client/authentication_client.dart';
 
 export 'src/auth_service_api.dart';
 export 'src/firebase_authentication_client.dart';
+export 'src/social_sign_in.dart' show SocialSignInConfig;

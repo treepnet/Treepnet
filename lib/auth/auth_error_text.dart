@@ -41,6 +41,23 @@ String authErrorTextFor(AppLocalizations l10n, String? code) => switch (code) {
   'password_too_short' => l10n.passwordLengthErrorText(8),
   'invalid_credentials' => l10n.incorrectCredentialsText,
   'email_failed' => l10n.emailSendFailedText,
+  'provider_unavailable' => l10n.socialSignInUnavailableText,
+  'email_unverified' => l10n.socialSignInNoEmailText,
+  'ticket_expired' => l10n.socialSignInExpiredText,
+  'wrong_account' => l10n.socialSignInWrongAccountText,
+  'invalid_token' ||
+  'token_expired' ||
+  'provider_unreachable' => l10n.socialSignInFailedText,
   AuthServiceError.networkCode => l10n.networkProblemText,
   _ => l10n.signUpGenericError,
 };
+
+/// What to tell a person about a failed Google/Apple sign-in: as
+/// [authErrorText], and when there's no telling (Google's or Apple's own
+/// sheet failed), that the sign-in didn't work.
+String socialSignInErrorText(AppLocalizations l10n, Object error) {
+  final code = authErrorCode(error);
+  return code == null
+      ? l10n.socialSignInFailedText
+      : authErrorTextFor(l10n, code);
+}

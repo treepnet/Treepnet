@@ -19,6 +19,10 @@ void main() {
 
     final authenticationClient = FirebaseAuthenticationClient(
       powerSyncRepository: powerSyncRepository,
+      // Sign in with Google / Apple: off (no buttons). This bundle
+      // (com.treepnet.application.stg) has no Google client and no Sign in
+      // with Apple of its own.
+      social: const SocialSignInConfig(),
     );
     // Restore any persisted Firebase session before the app reads the first user.
     await authenticationClient.restoreSession();
