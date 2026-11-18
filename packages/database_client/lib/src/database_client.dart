@@ -7,6 +7,7 @@ import 'package:database_client/src/comment_stats.dart';
 import 'package:database_client/src/post_removal.dart';
 import 'package:database_client/src/post_stats.dart';
 import 'package:database_client/src/server_snapshots.dart';
+import 'package:database_client/src/travel_map.dart';
 import 'package:powersync_repository/powersync_repository.dart';
 import 'package:shared/shared.dart';
 import 'package:user_repository/user_repository.dart';
@@ -418,6 +419,13 @@ abstract class PostsBaseRepository {
   /// travel map by density.
   Stream<Map<String, int>> visitedRegionCountsOf({required String userId});
 
+  /// [userId]'s travel globe from the server (regions and pins, each post's
+  /// pin with its id), for the new feed: it shows anyone's, followed or
+  /// not, and the phone keeps only followed people's posts. Null when the
+  /// server shows none (a private profile not followed) or can't be reached
+  /// and none was fetched before.
+  Future<TravelMap?> travelMapOf({required String userId});
+
   /// Returns a real-time stream of the exact `(lat, lng)` of every post by
   /// [userId] that has a picked location — one marker per post on the map.
   Stream<List<({double lat, double lng, String? name})>> visitedPointsOf({
@@ -701,6 +709,8 @@ class PowerSyncDatabaseClient extends DatabaseClient {
   @override
   void forgetServerSnapshots() {
     _remotePosts.clear();
+    // Another account sees other globes (privacy, blocks).
+    _travelCache.clear();
     _pendingLikes.clear();
     _cardCache.clear();
     _viewsSent.clear();
@@ -953,6 +963,54 @@ SELECT * FROM profiles WHERE id = ?
                 row['location_region'] as String: (row['c'] as num).toInt(),
             },
           );
+
+  /// Travel globes fetched, kept [_travelLife]; asked a few at a time.
+  final _travelCache = <String, ({TravelMap map, DateTime at})>{};
+  final _travelRequests = _Batcher<TravelMap?>(
+    const Duration(milliseconds: 50),
+  );
+  static const _travelLife = Duration(minutes: 5);
+
+  /// The most people `travel_maps` reads per call.
+  static const _travelMax = 50;
+
+  @override
+  Future<TravelMap?> travelMapOf({required String userId}) async {
+    if (!_uuidShape.hasMatch(userId)) return null;
+    final cached = _travelCache[userId];
+    if (cached != null &&
+        DateTime.now().difference(cached.at) < _travelLife) {
+      return cached.map;
+    }
+    try {
+      final map = await _travelRequests.get(userId, (ids) async {
+        final parts = await Future.wait([
+          for (var i = 0; i < ids.length; i += _travelMax)
+            _powerSyncRepository.postgrest().rpc<List<dynamic>>(
+              'travel_maps',
+              params: {
+                'p_ids': ids.sublist(
+                  i,
+                  i + _travelMax < ids.length ? i + _travelMax : ids.length,
+                ),
+              },
+            ),
+        ]);
+        final found = <String, TravelMap?>{for (final id in ids) id: null};
+        for (final part in parts) {
+          for (final row in part.cast<Map<String, dynamic>>()) {
+            found[row['user_id'] as String] = TravelMap.fromRow(row);
+          }
+        }
+        return found;
+      });
+      if (map != null) _travelCache[userId] = (map: map, at: DateTime.now());
+      return map;
+    } catch (_) {
+      // Offline or the server busy: the last one fetched, if any.
+      return cached?.map;
+    }
+  }
 
   @override
   Stream<List<({double lat, double lng, String? name})>> visitedPointsOf({

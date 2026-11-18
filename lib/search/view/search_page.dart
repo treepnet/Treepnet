@@ -21,6 +21,10 @@ class SearchPage extends StatelessWidget {
 /// scrolled to its end (it used to stop at 8).
 const _searchPageSize = 20;
 
+/// How many suggested people show while nothing is typed (as the chat's Type
+/// tab suggests them).
+const _suggestedCount = 30;
+
 class SearchView extends StatefulWidget {
   const SearchView({super.key});
 
@@ -32,6 +36,36 @@ class _SearchViewState extends State<SearchView> {
   /// Held here: made in `build`, a rebuild would have dropped the results.
   final _search = ValueNotifier(const _SearchResults());
   bool _loadingMore = false;
+
+  /// People to look at before anything is typed: the most followed ones the
+  /// user doesn't follow yet (the server's suggestions). Null while they
+  /// load; asked for once, so clearing the field brings them straight back.
+  List<User>? _suggested;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSuggested();
+  }
+
+  Future<void> _loadSuggested() async {
+    final me = context.read<AppBloc>().state.user.id;
+    List<User> users;
+    try {
+      users = await context.read<UserRepository>().suggestedUsers(
+        limit: _suggestedCount,
+      );
+    } catch (_) {
+      users = const [];
+    }
+    if (!mounted) return;
+    setState(() {
+      _suggested = [
+        for (final user in users)
+          if (user.id != me && !user.isAnonymous) user,
+      ];
+    });
+  }
 
   @override
   void dispose() {
@@ -91,8 +125,29 @@ class _SearchViewState extends State<SearchView> {
       body: ValueListenableBuilder(
         valueListenable: search,
         builder: (context, search, _) {
+          // Nothing typed: the suggested people, until a search replaces
+          // them.
+          if (search.query.trim().isEmpty) {
+            final suggested = _suggested;
+            if (suggested == null) {
+              return const Center(child: CircularProgressIndicator.adaptive());
+            }
+            return CustomScrollView(
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
+              slivers: [
+                SliverList.builder(
+                  itemCount: suggested.length,
+                  itemBuilder: (context, index) {
+                    final user = suggested[index];
+                    return UserListTile(key: ValueKey(user.id), user: user);
+                  },
+                ),
+              ],
+            );
+          }
           final users = search.users;
-          if (users.isEmpty && search.query.trim().isNotEmpty) {
+          if (users.isEmpty) {
             return Center(
               child: search.loading
                   ? const CircularProgressIndicator.adaptive()

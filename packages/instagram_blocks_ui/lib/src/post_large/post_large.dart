@@ -50,9 +50,13 @@ class PostLarge extends StatefulWidget {
     this.postAuthorAvatarBuilder,
     this.authorBadge,
     this.authorSubtitle,
+    this.mediaReplacement,
     this.videoPlayerBuilder,
     this.postIndex,
     this.likesCountBuilder,
+    this.footerInPlaceOfActions,
+    this.showCaption = true,
+    this.showTime = true,
     super.key,
   });
 
@@ -82,6 +86,22 @@ class PostLarge extends StatefulWidget {
 
   /// Line under the author's name; see `PostHeader.authorSubtitle`.
   final Widget? authorSubtitle;
+
+  /// Shown in place of the photos (the new feed's globe): no carousel then.
+  /// It takes its own taps — a double tap to like included — so that its
+  /// buttons answer at once (a double tap around them would hold every
+  /// single tap back).
+  final Widget? mediaReplacement;
+
+  /// Shown instead of the like, share, comment and save row under the post
+  /// (see `PostFooter.inPlaceOfActions`).
+  final Widget? footerInPlaceOfActions;
+
+  /// The post's description under it (see `PostFooter.showCaption`).
+  final bool showCaption;
+
+  /// When it was posted, under the description (see `PostFooter.showTime`).
+  final bool showTime;
   final VideoPlayerBuilder? videoPlayerBuilder;
   final int? postIndex;
   final bool withInViewNotifier;
@@ -142,10 +162,15 @@ class _PostLargeState extends State<PostLarge> {
       onAvatarTap: (_) => _onAvatarTap.call(),
     );
 
+    final replacement = widget.mediaReplacement;
+    // A reel lays its header over the video; in place of the video it is a
+    // post like any other.
+    final reel = widget.block.isReel && replacement == null;
+
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (widget.block.isReel)
+        if (reel)
           Stack(
             children: [
               postMedia,
@@ -154,25 +179,28 @@ class _PostLargeState extends State<PostLarge> {
           )
         else ...[
           postHeader(),
-          // Figma: the photo is full-bleed with a corner radius of 0, and the
-          // carousel dots ride on the photo itself, bottom-centre.
-          Stack(
-            alignment: Alignment.bottomCenter,
-            children: [
-              postMedia,
-              if (widget.block.mediaUrls.length > 1)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                  child: ValueListenableBuilder(
-                    valueListenable: _indicatorValue,
-                    builder: (context, index, child) => CarouselDotIndicator(
-                      mediaCount: widget.block.mediaUrls.length,
-                      activeMediaIndex: index,
+          if (replacement != null)
+            replacement
+          else
+            // Figma: the photo is full-bleed with a corner radius of 0, and the
+            // carousel dots ride on the photo itself, bottom-centre.
+            Stack(
+              alignment: Alignment.bottomCenter,
+              children: [
+                postMedia,
+                if (widget.block.mediaUrls.length > 1)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                    child: ValueListenableBuilder(
+                      valueListenable: _indicatorValue,
+                      builder: (context, index, child) => CarouselDotIndicator(
+                        mediaCount: widget.block.mediaUrls.length,
+                        activeMediaIndex: index,
+                      ),
                     ),
                   ),
-                ),
-            ],
-          ),
+              ],
+            ),
         ],
         PostFooter(
           block: widget.block,
@@ -188,11 +216,14 @@ class _PostLargeState extends State<PostLarge> {
           onCommentsTap: widget.onCommentsTap,
           onPostShareTap: widget.onPostShareTap,
           likesCountBuilder: widget.likesCountBuilder,
+          inPlaceOfActions: widget.footerInPlaceOfActions,
+          showCaption: widget.showCaption,
+          showTime: widget.showTime,
         ),
       ],
     );
 
-    if (widget.block.isReel) {
+    if (reel) {
       return content;
     }
 

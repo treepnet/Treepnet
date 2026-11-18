@@ -10,6 +10,9 @@ import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:treepnet/feed/post/video/video.dart';
 import 'package:treepnet/stories/stories.dart';
 import 'package:treepnet/user_profile/user_profile.dart';
+import 'package:treepnet/feed/new_feed/feed_post_globe.dart';
+import 'package:treepnet/feed/new_feed/feed_post_place.dart';
+import 'package:treepnet/feed/new_feed/feed_post_steps.dart';
 import 'package:go_router/go_router.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart' hide VideoPlayer;
 import 'package:posts_repository/posts_repository.dart';
@@ -87,6 +90,31 @@ class _PostLargeViewState extends State<PostLargeView> {
     extra: props,
   );
 
+  /// The comments of this post, or of [block] (another of its author's,
+  /// opened on the new feed's globe).
+  void _openComments(
+    BuildContext context, {
+    required bool showFullSized,
+    PostBlock? block,
+  }) => context.showScrollableModal(
+    showFullSized: showFullSized,
+    pageBuilder: (scrollController, draggableScrollController) => CommentsPage(
+      post: block ?? widget.block,
+      scrollController: scrollController,
+      draggableScrollController: draggableScrollController,
+    ),
+  );
+
+  /// Shares this post, or [block] (as [_openComments]).
+  void _openShare(BuildContext context, {PostBlock? block}) =>
+      context.showScrollableModal(
+        pageBuilder: (scrollController, draggableScrollController) => SharePost(
+          block: block ?? widget.block,
+          scrollController: scrollController,
+          draggableScrollController: draggableScrollController,
+        ),
+      );
+
   void _handleOnPostTap(BuildContext context, {required BlockAction action}) =>
       action.when(
         navigateToPostAuthor: (action) =>
@@ -133,6 +161,11 @@ class _PostLargeViewState extends State<PostLargeView> {
     final authorPlaces = context.select(
       (PostBloc bloc) => bloc.state.authorPlaces,
     );
+    // The new feed (a prototype): the author's globe, facing the post's
+    // place, in place of the photos, and the post's buttons on its small card.
+    final globeMode = FeedGlobeMode.maybeOf(context);
+    final globe = globeMode != null;
+    final likesCount = context.select((PostBloc bloc) => bloc.state.likes);
 
     return PostLarge(
       block: widget.block,
@@ -153,6 +186,43 @@ class _PostLargeViewState extends State<PostLargeView> {
           PostLikesCount(block: widget.block, onUserTap: onUserTap),
       authorBadge: TravelTierBadge.tier(authorTier),
       authorSubtitle: _AuthorLocationCount(count: authorPlaces),
+      mediaReplacement: globe
+          ? FeedPostGlobe(
+              block: widget.block,
+              isLiked: isLiked,
+              isBookmarked: isBookmarked,
+              commentsCount: commentsCount,
+              likesCount: likesCount,
+              onLikeTap: () => bloc.add(const PostLikeRequested()),
+              // This post's, or another of its author's grown on the globe.
+              onShareTap: (block) => _openShare(context, block: block),
+              onCommentsTap: (block) =>
+                  _openComments(context, showFullSized: true, block: block),
+              onSaveTap: () => bloc.add(const PostBookmarkRequested()),
+            )
+          : null,
+      // Its place where the buttons were (they are on the globe's card), and
+      // at the right, where save was, the steps to the next post and the
+      // one before (not before the first).
+      // Its description, but on Trends' Maps tab.
+      showCaption: globeMode?.showCaption ?? true,
+      // Its time under it, but on Trends' Maps tab (as its place line).
+      showTime: globeMode?.showPlace ?? true,
+      footerInPlaceOfActions: globe
+          ? Row(
+              children: [
+                // Its country and city (the new feed's); on Trends the
+                // arrows alone — no time either: the globe is about all the
+                // author's posts, not this one.
+                if (globeMode.showPlace)
+                  Expanded(child: FeedPostPlace(block: widget.block))
+                else
+                  const Spacer(),
+                if (widget.postIndex case final index?)
+                  FeedPostSteps(first: index == 0),
+              ],
+            )
+          : null,
       postAuthorAvatarBuilder: (context, author, onAvatarTap) {
         return UserStoriesAvatar(
           resizeHeight: 108,
@@ -229,24 +299,11 @@ class _PostLargeViewState extends State<PostLargeView> {
                 );
               },
             ),
-      onCommentsTap: (showFullSized) => context.showScrollableModal(
-        showFullSized: showFullSized,
-        pageBuilder: (scrollController, draggableScrollController) =>
-            CommentsPage(
-              post: widget.block,
-              scrollController: scrollController,
-              draggableScrollController: draggableScrollController,
-            ),
-      ),
+      onCommentsTap: (showFullSized) =>
+          _openComments(context, showFullSized: showFullSized),
       onUserTap: (userId) => _navigateToPostAuthor(context, id: userId),
       onPressed: (action) => _handleOnPostTap(context, action: action),
-      onPostShareTap: (postId, author) => context.showScrollableModal(
-        pageBuilder: (scrollController, draggableScrollController) => SharePost(
-          block: widget.block,
-          scrollController: scrollController,
-          draggableScrollController: draggableScrollController,
-        ),
-      ),
+      onPostShareTap: (postId, author) => _openShare(context),
       videoPlayerBuilder: !widget.withCustomVideoPlayer
           ? null
           : (_, media, aspectRatio, isInView) => PostVideoPlayer(

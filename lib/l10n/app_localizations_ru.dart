@@ -1911,4 +1911,7 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get socialSignInWrongAccountText =>
       'Это другой аккаунт. Выберите тот, с которым вы входите в Treepnet.';
+
+  @override
+  String get trendsMapsTabText => 'Карты';
 }

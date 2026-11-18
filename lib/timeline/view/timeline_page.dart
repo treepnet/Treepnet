@@ -2,14 +2,16 @@ import 'dart:async';
 
 import 'package:app_ui/app_ui.dart';
 import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import 'package:treepnet/app/app.dart';
 import 'package:treepnet/feed/post/post.dart';
 import 'package:treepnet/feed/widgets/widgets.dart';
 import 'package:treepnet/feed/post/video/video.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/navigation/tab_reselect.dart';
-import 'package:treepnet/search/view/search_page.dart';
 import 'package:treepnet/timeline/timeline.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart' hide VideoPlayer;
 import 'package:inview_notifier_list/inview_notifier_list.dart';
@@ -60,10 +62,30 @@ class _TimelineViewState extends State<TimelineView>
   final _scroll = ScrollController();
   StreamSubscription<int>? _reselect;
 
+  /// The tab shown: Maps (the posts on their authors' globes) or Posts (the
+  /// grid). Maps, the first, at first.
+  int _tab = TrendsTopBar.maps;
+
+  /// The Maps tab's list, to its top as the grid is.
+  final _mapsScroll = ScrollController();
+
+  /// Whether the grid is the tab shown: its videos play only then (kept
+  /// alive under the Maps tab, they would play unseen).
+  final _gridShown = ValueNotifier(false);
+
+  void _showTab(int tab) {
+    if (tab == _tab) return;
+    setState(() => _tab = tab);
+    _gridShown.value = tab == TrendsTopBar.posts;
+  }
+
   @override
   void initState() {
     super.initState();
-    _reselect = TabReselect.scrollToTopOn(1, () => _scroll);
+    _reselect = TabReselect.scrollToTopOn(
+      1,
+      () => _tab == TrendsTopBar.maps ? _mapsScroll : _scroll,
+    );
     final db = context.read<PowerSyncRepository>().db();
     _hasSynced = db.currentStatus.hasSynced ?? false;
     _lastSyncedAt = db.currentStatus.lastSyncedAt;
@@ -87,6 +109,8 @@ class _TimelineViewState extends State<TimelineView>
     _syncSub?.cancel();
     _reselect?.cancel();
     _scroll.dispose();
+    _mapsScroll.dispose();
+    _gridShown.dispose();
     _isNextPageLoading.dispose();
     super.dispose();
   }
@@ -108,132 +132,174 @@ class _TimelineViewState extends State<TimelineView>
 
     return AppScaffold(
       releaseFocus: true,
-      body: RefreshIndicator.adaptive(
-        onRefresh: () async {
-          context.read<TimelineBloc>().add(const TimelineRefreshRequested());
-          await _settled((state) => !state.status.isLoading);
-        },
-        child: InViewNotifierCustomScrollView(
-          controller: _scroll,
-          onListEndReached: () async {
-            if (!hasMore) return;
-            Future<void> onEndReached() async {
-              final bloc = context.read<TimelineBloc>();
-              final page = bloc.state.timeline.page;
-              bloc.add(const TimelinePageRequested());
-              await _settled(
-                (state) =>
-                    state.timeline.page != page || state.status.isFailure,
-              );
+      body: Column(
+        children: [
+          TrendsTopBar(currentTab: _tab, onTabChanged: _showTab),
+          Expanded(
+            // Both kept: back on a tab, it is where it was left.
+            child: IndexedStack(
+              index: _tab,
+              children: [
+                TimelineMapsView(scrollController: _mapsScroll),
+                _grid(context, hasMore: hasMore),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The Posts tab: Trends' grid.
+  Widget _grid(BuildContext context, {required bool hasMore}) {
+    return RefreshIndicator.adaptive(
+      onRefresh: () async {
+        context.read<TimelineBloc>().add(const TimelineRefreshRequested());
+        await _settled((state) => !state.status.isLoading);
+      },
+      child: InViewNotifierCustomScrollView(
+        controller: _scroll,
+        onListEndReached: () async {
+          if (!hasMore) return;
+          Future<void> onEndReached() async {
+            final bloc = context.read<TimelineBloc>();
+            final page = bloc.state.timeline.page;
+            bloc.add(const TimelinePageRequested());
+            await _settled(
+              (state) => state.timeline.page != page || state.status.isFailure,
+            );
+          }
+
+          if (_isNextPageLoading.value) return;
+
+          _controller
+            ..duration = Duration.zero
+            // ignore: unawaited_futures
+            ..forward();
+
+          _isNextPageLoading.value = true;
+
+          await onEndReached().whenComplete(() {
+            if (mounted) {
+              _controller
+                ..duration = const Duration(milliseconds: 300)
+                ..reverse();
+
+              _isNextPageLoading.value = false;
             }
-
-            if (_isNextPageLoading.value) return;
-
-            _controller
-              ..duration = Duration.zero
-              // ignore: unawaited_futures
-              ..forward();
-
-            _isNextPageLoading.value = true;
-
-            await onEndReached().whenComplete(() {
-              if (mounted) {
-                _controller
-                  ..duration = const Duration(milliseconds: 300)
-                  ..reverse();
-
-                _isNextPageLoading.value = false;
-              }
-            });
-          },
-          initialInViewIds: const ['2', '5'],
-          isInViewPortCondition: (deltaTop, deltaBottom, vpHeight) =>
-              deltaTop < (0.5 * vpHeight) + 220.0 &&
-              deltaBottom > (0.5 * vpHeight) - 220.0,
-          slivers: [
-            const SliverAppBar(
-              title: SearchInputField(active: true, readOnly: true),
-              floating: true,
-              toolbarHeight: 64,
-            ),
-            BlocBuilder<TimelineBloc, TimelineState>(
-              // A change of status rebuilds too: a failure (or an empty first
-              // page) used to leave the loading shimmer up for good.
-              buildWhen: (previous, current) {
-                return previous.status != current.status ||
-                    !const ListEquality<InstaBlock>().equals(
-                      previous.timeline.blocks,
-                      current.timeline.blocks,
-                    );
-              },
-              builder: (context, state) {
-                final blocks = state.timeline.blocks;
-                // Posts on screen stay on screen, whatever the status.
-                if (blocks.isEmpty && state.status.isFailure) {
-                  return const TimelineError();
-                }
-                return SliverAnimatedSwitcher(
-                  duration: 150.ms,
-                  child: blocks.isNotEmpty
-                      ? TimelineGridView(blocks: blocks.cast<PostBlock>())
-                      : _hasSynced && state.status.isPopulated
-                      ? const TimelineEmpty()
-                      : const TimelineLoading(),
-                );
-              },
-            ),
-            // A failed page under posts already on screen: Retry, then a
-            // spinner while it runs (only a Retry loads with posts shown).
-            BlocBuilder<TimelineBloc, TimelineState>(
-              buildWhen: (previous, current) =>
-                  previous.status != current.status,
-              builder: (context, state) {
-                if (state.timeline.blocks.isEmpty) {
-                  return const SliverToBoxAdapter(child: SizedBox.shrink());
-                }
-                if (state.status.isFailure) {
-                  return SliverToBoxAdapter(
-                    child: PageLoadRetry(
-                      onRetry: () => context.read<TimelineBloc>().add(
-                        const TimelinePageRequested(),
-                      ),
-                    ),
+          });
+        },
+        initialInViewIds: const ['2', '5'],
+        isInViewPortCondition: (deltaTop, deltaBottom, vpHeight) =>
+            deltaTop < (0.5 * vpHeight) + 220.0 &&
+            deltaBottom > (0.5 * vpHeight) - 220.0,
+        slivers: [
+          BlocBuilder<TimelineBloc, TimelineState>(
+            // A change of status rebuilds too: a failure (or an empty first
+            // page) used to leave the loading shimmer up for good.
+            buildWhen: (previous, current) {
+              return previous.status != current.status ||
+                  !const ListEquality<InstaBlock>().equals(
+                    previous.timeline.blocks,
+                    current.timeline.blocks,
                   );
-                }
-                if (state.status.isLoading) {
-                  return const SliverToBoxAdapter(child: FeedLoaderItem());
-                }
+            },
+            builder: (context, state) {
+              final blocks = state.timeline.blocks;
+              // Posts on screen stay on screen, whatever the status.
+              if (blocks.isEmpty && state.status.isFailure) {
+                return const TimelineError();
+              }
+              return SliverAnimatedSwitcher(
+                duration: 150.ms,
+                child: blocks.isNotEmpty
+                    ? TimelineGridView(
+                        blocks: blocks.cast<PostBlock>(),
+                        playing: _gridShown,
+                      )
+                    : _hasSynced && state.status.isPopulated
+                    ? const TimelineEmpty()
+                    : const TimelineLoading(),
+              );
+            },
+          ),
+          // A failed page under posts already on screen: Retry, then a
+          // spinner while it runs (only a Retry loads with posts shown).
+          BlocBuilder<TimelineBloc, TimelineState>(
+            buildWhen: (previous, current) => previous.status != current.status,
+            builder: (context, state) {
+              if (state.timeline.blocks.isEmpty) {
                 return const SliverToBoxAdapter(child: SizedBox.shrink());
-              },
+              }
+              if (state.status.isFailure) {
+                return SliverToBoxAdapter(
+                  child: PageLoadRetry(
+                    onRetry: () => context.read<TimelineBloc>().add(
+                      const TimelinePageRequested(),
+                    ),
+                  ),
+                );
+              }
+              if (state.status.isLoading) {
+                return const SliverToBoxAdapter(child: FeedLoaderItem());
+              }
+              return const SliverToBoxAdapter(child: SizedBox.shrink());
+            },
+          ),
+          SliverPadding(
+            padding: EdgeInsets.only(
+              top:
+                  16 +
+                  (context.isMobile ? MediaQuery.paddingOf(context).top : 0),
             ),
-            SliverPadding(
-              padding: EdgeInsets.only(
-                top:
-                    16 +
-                    (context.isMobile ? MediaQuery.paddingOf(context).top : 0),
-              ),
-              sliver: SliverToBoxAdapter(
-                child: SizeTransition(
-                  axisAlignment: 1,
-                  sizeFactor: _animation,
-                  child: Center(
-                    child: Container(
-                      alignment: Alignment.center,
-                      height: 38,
-                      width: 38,
-                      child: const SizedBox(
-                        height: 26,
-                        width: 26,
-                        child: CircularProgressIndicator.adaptive(
-                          strokeWidth: 2,
-                        ),
-                      ),
+            sliver: SliverToBoxAdapter(
+              child: SizeTransition(
+                axisAlignment: 1,
+                sizeFactor: _animation,
+                child: Center(
+                  child: Container(
+                    alignment: Alignment.center,
+                    height: 38,
+                    width: 38,
+                    child: const SizedBox(
+                      height: 26,
+                      width: 26,
+                      child: CircularProgressIndicator.adaptive(strokeWidth: 2),
                     ),
                   ),
                 ),
               ),
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Trends' search: the magnifier at the top right, where the feed has its
+/// bell (the same size and margin), opening the search page as the field on
+/// top used to.
+class TimelineSearchButton extends StatelessWidget {
+  const TimelineSearchButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: AppSpacing.md),
+      child: Semantics(
+        button: true,
+        label: context.l10n.searchText,
+        child: Tappable.scaled(
+          onTap: () => context.pushNamed(AppRoutes.search.name),
+          child: Assets.icons.search.svg(
+            width: AppSize.iconSizeMedium,
+            height: AppSize.iconSizeMedium,
+            colorFilter: ColorFilter.mode(
+              context.adaptiveColor,
+              BlendMode.srcIn,
+            ),
+          ),
         ),
       ),
     );
@@ -241,9 +307,12 @@ class _TimelineViewState extends State<TimelineView>
 }
 
 class TimelineGridView extends StatelessWidget {
-  const TimelineGridView({required this.blocks, super.key});
+  const TimelineGridView({required this.blocks, this.playing, super.key});
 
   final List<PostBlock> blocks;
+
+  /// Whether its videos may play (false while another tab covers it).
+  final ValueListenable<bool>? playing;
 
   @override
   Widget build(BuildContext context) {
@@ -287,20 +356,14 @@ class TimelineGridView extends StatelessWidget {
                     id: '$index',
                     checkIsInView: true,
                     builder: (context, shouldPlay, child) {
-                      return InlineVideo(
-                        videoSettings: VideoSettings.build(
-                          videoUrl: block.firstMedia?.url ?? '',
-                          shouldPlay: shouldPlay,
-                          withSound: false,
-                          shouldExpand: true,
-                          blurHash: block.firstMedia?.blurHash,
-                          withSoundButton: false,
-                          withPlayerController: false,
-                          videoPlayerOptions: VideoPlayerOptions(
-                            mixWithOthers: true,
-                          ),
-                          initDelay: 250,
-                        ),
+                      final playing = this.playing;
+                      if (playing == null) {
+                        return _video(block, shouldPlay: shouldPlay);
+                      }
+                      return ValueListenableBuilder<bool>(
+                        valueListenable: playing,
+                        builder: (context, shown, _) =>
+                            _video(block, shouldPlay: shouldPlay && shown),
                       );
                     },
                   )
@@ -308,6 +371,22 @@ class TimelineGridView extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _video(PostBlock block, {required bool shouldPlay}) {
+    return InlineVideo(
+      videoSettings: VideoSettings.build(
+        videoUrl: block.firstMedia?.url ?? '',
+        shouldPlay: shouldPlay,
+        withSound: false,
+        shouldExpand: true,
+        blurHash: block.firstMedia?.blurHash,
+        withSoundButton: false,
+        withPlayerController: false,
+        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+        initDelay: 250,
+      ),
     );
   }
 }
@@ -338,9 +417,13 @@ class TimelineLoading extends StatelessWidget {
     return SliverFillRemaining(
       child: Shimmer.fromColors(
         baseColor: context.customReversedAdaptiveColor(
-            dark: AppColors.emphasizeDarkGrey, light: AppColors.brightGrey),
+          dark: AppColors.emphasizeDarkGrey,
+          light: AppColors.brightGrey,
+        ),
         highlightColor: context.customReversedAdaptiveColor(
-            dark: AppColors.dark, light: AppColors.grey),
+          dark: AppColors.dark,
+          light: AppColors.grey,
+        ),
         child: GridView.builder(
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 3,
@@ -366,10 +449,7 @@ class TimelineEmpty extends StatelessWidget {
     return SliverFillRemaining(
       hasScrollBody: false,
       child: Center(
-        child: Text(
-          context.l10n.noPostsHereText,
-          style: context.titleMedium,
-        ),
+        child: Text(context.l10n.noPostsHereText, style: context.titleMedium),
       ),
     );
   }

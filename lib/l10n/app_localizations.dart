@@ -3176,6 +3176,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'That\'s a different account. Choose the one you use for Treepnet.'**
   String get socialSignInWrongAccountText;
+
+  /// Trends: the tab of posts on their authors' globes, beside Posts
+  ///
+  /// In en, this message translates to:
+  /// **'Maps'**
+  String get trendsMapsTabText;
 }
 
 class _AppLocalizationsDelegate

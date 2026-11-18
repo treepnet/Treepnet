@@ -65,6 +65,7 @@ class GlobeView extends StatefulWidget {
     this.controller,
     this.faceTravels = false,
     this.showButtons = true,
+    this.interactive = true,
     this.borderRadius = 16,
     this.padding = EdgeInsets.zero,
     super.key,
@@ -121,12 +122,64 @@ class GlobeView extends StatefulWidget {
   /// draws its own).
   final bool showButtons;
 
+  /// False: a picture of the globe that takes no touches (the new feed's
+  /// cards, where a drag must scroll the feed). It claims every pointer
+  /// otherwise, so dragging turns it and never scrolls what it is in.
+  final bool interactive;
+
   final double borderRadius;
 
   /// Parts of the globe's area that something else covers (the profile's
   /// pinned bar and tabs sit over the top of its tab). The globe is sized
   /// and centred in what is left, so nothing it shows hides underneath.
   final EdgeInsets padding;
+
+  /// The whole globe's radius in a [size] panel with no [padding]: how big it
+  /// opens without a zoom.
+  static double wholeGlobeRadius(Size size) =>
+      math.min(size.width, size.height) / 2 * _globeFill;
+
+  /// How far above its spot a travel-map pin's icon starts.
+  static const double pinIconTop = _pinIconTop;
+
+  /// The name the travel globe prints under the pin of [point]: the author's
+  /// own, or the region's in [lang] when the author gave none or only the
+  /// region's (in any language).
+  static String pinLabel(
+    ({double lat, double lng, String? name}) point,
+    String lang,
+  ) => _GlobeScene._pinLabel(point, lang);
+
+  /// Where the zoomed-out globe draws the pin of [point], one of [points]: a
+  /// region's pins merge into one at their middle (see [_PinGroup]). The spot
+  /// itself until the map data is in (nothing merges before), or out at sea.
+  static ({double lat, double lng}) zoomedOutPinOf(
+    List<({double lat, double lng, String? name})> points,
+    ({double lat, double lng}) point,
+  ) {
+    final geo = GeoRegions.instance;
+    final region = geo.isLoaded ? geo.regionAt(point.lng, point.lat) : null;
+    if (region == null) return point;
+    // One pin per spot, as the scene keeps them.
+    final spots = <String>{};
+    var sx = 0.0;
+    var sy = 0.0;
+    var sz = 0.0;
+    for (final p in points) {
+      if (!spots.add(_pinKey(p.lat, p.lng))) continue;
+      if (!region.containsPoint(p.lng, p.lat)) continue;
+      final at = _Anchor(p.lng, p.lat);
+      sx += at.x;
+      sy += at.y;
+      sz += at.z;
+    }
+    final len = math.sqrt(sx * sx + sy * sy + sz * sz);
+    if (len < 1e-9) return point;
+    return (
+      lat: math.asin((sz / len).clamp(-1.0, 1.0)) / _deg,
+      lng: math.atan2(sy, sx) / _deg,
+    );
+  }
 
   @override
   State<GlobeView> createState() => _GlobeViewState();
@@ -172,6 +225,43 @@ class GlobeController extends ChangeNotifier {
 
   /// Flies back to the opening view, as the "my location" button does.
   void reset() => _view?._reset();
+
+  /// Fires on each frame the globe moves — a turn, a zoom, its pins
+  /// spreading out or gathering in — for what follows a pin ([pinAt]).
+  Listenable get frames => _frames;
+  final _frames = _Frames();
+
+  /// Where the globe draws the pin of [point] (one of its points) now: the
+  /// foot of the pin, in the globe's own box. Merged into its region's pin
+  /// while zoomed out, and sliding out of it as the pins spread, as drawn.
+  /// Null round the back of the globe, or before it is laid out.
+  Offset? pinAt(({double lat, double lng}) point) => _view?._drawnPinAt(point);
+
+  /// [pinAt] for many points at once (in one pass over the pins), keyed by
+  /// [pinKeyOf] each; a point round the back is not in it.
+  Map<String, Offset> pinsAt(Iterable<({double lat, double lng})> points) =>
+      _view?._drawnPinsAt(points) ?? const {};
+
+  /// The key [pinsAt] files [point] under.
+  static String pinKeyOf(({double lat, double lng}) point) =>
+      _pinKey(point.lat, point.lng);
+
+  /// Whether the globe has a size and its pins: [pinAt] can answer.
+  bool get isLaidOut {
+    final view = _view;
+    return view != null && view._scene != null && !view._view.isEmpty;
+  }
+
+  @override
+  void dispose() {
+    _frames.dispose();
+    super.dispose();
+  }
+}
+
+/// [GlobeController.frames].
+class _Frames extends ChangeNotifier {
+  void fire() => notifyListeners();
 }
 
 const double _deg = math.pi / 180;
@@ -305,6 +395,7 @@ class _GlobeViewState extends State<GlobeView>
       ..addListener(_notifyController);
     widget.controller?._view = this;
     _cam.addListener(_syncSplit);
+    _split.addListener(_onSplitFrame);
     if (widget.look == GlobeLook.travelMap) unawaited(_loadSeenPoints());
     // The two coarse levels, in the background, as soon as the map is in:
     // the whole-globe views need them first.
@@ -365,7 +456,75 @@ class _GlobeViewState extends State<GlobeView>
     super.dispose();
   }
 
-  void _notifyController() => widget.controller?.notifyListeners();
+  void _notifyController() {
+    widget.controller?.notifyListeners();
+    widget.controller?._frames.fire();
+  }
+
+  /// The pins spread out or gather in a little more.
+  void _onSplitFrame() => widget.controller?._frames.fire();
+
+  /// See [GlobeController.pinAt]: the painter's projection and pin merging.
+  Offset? _drawnPinAt(({double lat, double lng}) point) =>
+      _drawnPinsAt([point])[_pinKey(point.lat, point.lng)];
+
+  /// See [GlobeController.pinsAt]: one pass over the scene, by pin key.
+  Map<String, Offset> _drawnPinsAt(
+    Iterable<({double lat, double lng})> points,
+  ) {
+    final scene = _scene;
+    final view = _view;
+    final found = <String, Offset>{};
+    if (scene == null || view.isEmpty) return found;
+    final wanted = {for (final p in points) _pinKey(p.lat, p.lng)};
+    if (wanted.isEmpty) return found;
+    final r = _radius;
+    final c = view.center;
+    final l0 = _cam.lon * _deg;
+    final p0 = _cam.lat * _deg;
+    final cosL0 = math.cos(l0);
+    final sinL0 = math.sin(l0);
+    final cosP0 = math.cos(p0);
+    final sinP0 = math.sin(p0);
+    Offset? project(_Anchor p) {
+      final a = p.x * cosL0 + p.y * sinL0;
+      if (sinP0 * p.z + cosP0 * a < 0.02) return null;
+      return Offset(
+        c.dx + r * (p.y * cosL0 - p.x * sinL0),
+        c.dy - r * (cosP0 * p.z - sinP0 * a),
+      );
+    }
+
+    final spread = Curves.easeOutCubic.transform(_split.value);
+    for (final group in scene.groups) {
+      Offset? merged;
+      var mergedDone = false;
+      for (final pin in group.pins) {
+        if (!wanted.contains(pin.key)) continue;
+        final Offset? at;
+        if (spread >= 1) {
+          at = project(pin.at);
+        } else {
+          if (!mergedDone) {
+            merged = project(group.at);
+            mergedDone = true;
+          }
+          if (spread <= 0) {
+            at = merged;
+          } else {
+            final own = project(pin.at);
+            at = own == null
+                ? null
+                : merged == null
+                ? own
+                : Offset.lerp(merged, own, spread);
+          }
+        }
+        if (at != null) found[pin.key] = at;
+      }
+    }
+    return found;
+  }
 
   /// Spreads the pins out (or gathers them in) as the zoom crosses
   /// [_pinsSplitZoom].
@@ -1047,6 +1206,19 @@ class _GlobeViewState extends State<GlobeView>
               builder: (context, constraints) {
                 _size = constraints.biggest;
                 _applyInitialView();
+                final painted = RepaintBoundary(
+                  child: CustomPaint(
+                    size: Size.infinite,
+                    painter: _GlobePainter(
+                      camera: _cam,
+                      scene: scene,
+                      seen: seen,
+                      padding: widget.padding,
+                      split: _split,
+                    ),
+                  ),
+                );
+                if (!widget.interactive) return painted;
                 return RawGestureDetector(
                   behavior: HitTestBehavior.opaque,
                   gestures: <Type, GestureRecognizerFactory>{
@@ -1062,18 +1234,7 @@ class _GlobeViewState extends State<GlobeView>
                     onPointerUp: _onPointerEnd,
                     onPointerCancel: _onPointerEnd,
                     onPointerSignal: _onPointerSignal,
-                    child: RepaintBoundary(
-                      child: CustomPaint(
-                        size: Size.infinite,
-                        painter: _GlobePainter(
-                          camera: _cam,
-                          scene: scene,
-                          seen: seen,
-                          padding: widget.padding,
-                          split: _split,
-                        ),
-                      ),
-                    ),
+                    child: painted,
                   ),
                 );
               },
@@ -1103,6 +1264,34 @@ class _GlobeViewState extends State<GlobeView>
   }
 }
 
+/// The globe's +, − and "my location" buttons, as [GlobeView.showButtons]
+/// draws them in its bottom right corner, for a globe drawn without them
+/// (showButtons false) that has things over it the buttons must stay above
+/// (the new feed's posts' photos).
+class GlobeButtons extends StatelessWidget {
+  const GlobeButtons({required this.controller, super.key});
+
+  final GlobeController controller;
+
+  /// Each button's side (as GlobeView's own).
+  static const double size = 36;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Each a flat-map zoom level, as GlobeView's own (×2, ÷2).
+        _GlobeButton(icon: Icons.add, onTap: () => controller.zoomBy(1)),
+        const SizedBox(height: 8),
+        _GlobeButton(icon: Icons.remove, onTap: () => controller.zoomBy(-1)),
+        const SizedBox(height: 8),
+        _GlobeButton(icon: Icons.my_location, onTap: controller.reset),
+      ],
+    );
+  }
+}
+
 class _GlobeButton extends StatelessWidget {
   const _GlobeButton({required this.icon, required this.onTap});
 
@@ -1118,8 +1307,8 @@ class _GlobeButton extends StatelessWidget {
         customBorder: const CircleBorder(),
         onTap: onTap,
         child: SizedBox(
-          width: 36,
-          height: 36,
+          width: GlobeButtons.size,
+          height: GlobeButtons.size,
           child: Icon(icon, size: 20, color: AppColors.white),
         ),
       ),
