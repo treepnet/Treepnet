@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/l10n/l10n.dart';
+import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:treepnet/stories/stories.dart';
 import 'package:treepnet/user_profile/user_profile.dart';
 import 'package:go_router/go_router.dart';
@@ -264,13 +265,26 @@ class _NameAndFullName extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          user.displayUsername,
-          style: context.bodyLarge?.copyWith(
-            fontWeight: AppFontWeight.semiBold,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        Row(
+          // Only as wide as the name and its checkmark, as the name alone
+          // was (one layout puts this beside a flexible column).
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                user.displayUsername,
+                style: context.bodyLarge?.copyWith(
+                  fontWeight: AppFontWeight.semiBold,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            // The checkmark, as beside every other name in the app (nothing
+            // for someone who hasn't earned one).
+            const Gap.h(AppSpacing.xs),
+            TravelTierBadge(userId: user.id),
+          ],
         ),
         if (name.isNotEmpty)
           Text(
