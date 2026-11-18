@@ -9,6 +9,8 @@ export 'package:database_client/database_client.dart'
         PostRemoval,
         PostStats,
         PostsPageIncomplete,
-        SyncScope;
+        SyncScope,
+        TravelMap,
+        TravelPin;
 
 export 'src/posts_repository.dart';

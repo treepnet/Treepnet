@@ -93,6 +93,12 @@ class GeoRegion {
   /// maxLng, maxLat)`). Used for viewport culling and label sizing.
   Rect get lngLatBounds => _bounds ??= _computeBounds();
 
+  /// Whether [lng]/[lat] is inside the region (the test [GeoRegions.regionAt]
+  /// makes).
+  bool containsPoint(double lng, double lat) =>
+      lngLatBounds.contains(Offset(lng, lat)) &&
+      GeoRegions._containsPoint(rings, lng, lat);
+
   /// The label anchor, in lng/lat: a point inside the region. The middle of
   /// its largest ring when that is inside; otherwise its innermost point
   /// ([_interiorPoint]). Computed for every region while the map loads, in

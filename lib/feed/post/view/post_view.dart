@@ -10,6 +10,9 @@ import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:treepnet/feed/post/video/video.dart';
 import 'package:treepnet/stories/stories.dart';
 import 'package:treepnet/user_profile/user_profile.dart';
+import 'package:treepnet/feed/new_feed/feed_post_globe.dart';
+import 'package:treepnet/feed/new_feed/feed_post_place.dart';
+import 'package:treepnet/feed/new_feed/feed_post_steps.dart';
 import 'package:go_router/go_router.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart' hide VideoPlayer;
 import 'package:posts_repository/posts_repository.dart';
@@ -87,6 +90,25 @@ class _PostLargeViewState extends State<PostLargeView> {
     extra: props,
   );
 
+  void _openComments(BuildContext context, {required bool showFullSized}) =>
+      context.showScrollableModal(
+        showFullSized: showFullSized,
+        pageBuilder: (scrollController, draggableScrollController) =>
+            CommentsPage(
+              post: widget.block,
+              scrollController: scrollController,
+              draggableScrollController: draggableScrollController,
+            ),
+      );
+
+  void _openShare(BuildContext context) => context.showScrollableModal(
+    pageBuilder: (scrollController, draggableScrollController) => SharePost(
+      block: widget.block,
+      scrollController: scrollController,
+      draggableScrollController: draggableScrollController,
+    ),
+  );
+
   void _handleOnPostTap(BuildContext context, {required BlockAction action}) =>
       action.when(
         navigateToPostAuthor: (action) =>
@@ -133,6 +155,10 @@ class _PostLargeViewState extends State<PostLargeView> {
     final authorPlaces = context.select(
       (PostBloc bloc) => bloc.state.authorPlaces,
     );
+    // The new feed (a prototype): the author's globe, facing the post's
+    // place, in place of the photos, and the post's buttons on its small card.
+    final globe = FeedGlobeMode.of(context);
+    final likesCount = context.select((PostBloc bloc) => bloc.state.likes);
 
     return PostLarge(
       block: widget.block,
@@ -153,6 +179,31 @@ class _PostLargeViewState extends State<PostLargeView> {
           PostLikesCount(block: widget.block, onUserTap: onUserTap),
       authorBadge: TravelTierBadge.tier(authorTier),
       authorSubtitle: _AuthorLocationCount(count: authorPlaces),
+      mediaReplacement: globe
+          ? FeedPostGlobe(
+              block: widget.block,
+              isLiked: isLiked,
+              isBookmarked: isBookmarked,
+              commentsCount: commentsCount,
+              likesCount: likesCount,
+              onLikeTap: () => bloc.add(const PostLikeRequested()),
+              onShareTap: () => _openShare(context),
+              onCommentsTap: () => _openComments(context, showFullSized: true),
+              onSaveTap: () => bloc.add(const PostBookmarkRequested()),
+            )
+          : null,
+      // Its place where the buttons were (they are on the globe's card), and
+      // at the right, where save was, the steps to the next post and the
+      // one before (not before the first).
+      footerInPlaceOfActions: globe
+          ? Row(
+              children: [
+                Expanded(child: FeedPostPlace(block: widget.block)),
+                if (widget.postIndex case final index?)
+                  FeedPostSteps(first: index == 0),
+              ],
+            )
+          : null,
       postAuthorAvatarBuilder: (context, author, onAvatarTap) {
         return UserStoriesAvatar(
           resizeHeight: 108,
@@ -229,24 +280,11 @@ class _PostLargeViewState extends State<PostLargeView> {
                 );
               },
             ),
-      onCommentsTap: (showFullSized) => context.showScrollableModal(
-        showFullSized: showFullSized,
-        pageBuilder: (scrollController, draggableScrollController) =>
-            CommentsPage(
-              post: widget.block,
-              scrollController: scrollController,
-              draggableScrollController: draggableScrollController,
-            ),
-      ),
+      onCommentsTap: (showFullSized) =>
+          _openComments(context, showFullSized: showFullSized),
       onUserTap: (userId) => _navigateToPostAuthor(context, id: userId),
       onPressed: (action) => _handleOnPostTap(context, action: action),
-      onPostShareTap: (postId, author) => context.showScrollableModal(
-        pageBuilder: (scrollController, draggableScrollController) => SharePost(
-          block: widget.block,
-          scrollController: scrollController,
-          draggableScrollController: draggableScrollController,
-        ),
-      ),
+      onPostShareTap: (postId, author) => _openShare(context),
       videoPlayerBuilder: !widget.withCustomVideoPlayer
           ? null
           : (_, media, aspectRatio, isInView) => PostVideoPlayer(

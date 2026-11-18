@@ -16,6 +16,8 @@ import 'package:treepnet/feed/post/video/widgets/video_player_inherited_widget.d
 import 'package:treepnet/app/services/media_upload_queue.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/stories/stories.dart';
+import 'package:treepnet/feed/feed_mode.dart';
+import 'package:treepnet/feed/new_feed/feed_post_globe.dart';
 import 'package:inview_notifier_list/inview_notifier_list.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart'
     show postImageCacheManager;
@@ -65,22 +67,46 @@ class _FeedViewState extends State<FeedView> {
   /// Refreshes the feed each time PowerSync finishes a sync round.
   StreamSubscription<void>? _syncSub;
 
-  /// Pauses feed videos while the Stories tab is shown.
+  /// Pauses feed videos while the Stories tab or the new feed is shown.
   FeedTabsVideoGate? _videoGate;
+
+  /// The usual feed or the new one, on the Posts tab (the switch at the top
+  /// left; kept on the phone).
+  FeedMode _mode = FeedModeStore.mode.value;
+
+  /// The new feed's list (the usual one's is [_nestedScrollController]).
+  final _globeScrollController = ScrollController();
+
+  ScrollController get _shownScroll =>
+      _mode == FeedMode.classic ? _nestedScrollController : _globeScrollController;
+
+  void _onModeChanged() {
+    final mode = FeedModeStore.mode.value;
+    if (!mounted || mode == _mode) return;
+    setState(() => _mode = mode);
+    _videoGate?.modeChanged(classic: mode == FeedMode.classic);
+    // The Feed tab tapped again scrolls the list on screen.
+    FeedPageController().usePostsScroll(_shownScroll);
+  }
 
   @override
   void initState() {
     super.initState();
     final videoPlayer = VideoPlayerInheritedWidget.maybeOf(context);
     if (videoPlayer != null) {
-      _videoGate = FeedTabsVideoGate(videoPlayer.videoPlayerState);
+      _videoGate = FeedTabsVideoGate(videoPlayer.videoPlayerState)
+        ..modeChanged(classic: _mode == FeedMode.classic);
     }
+    FeedModeStore.mode.addListener(_onModeChanged);
+    unawaited(FeedModeStore.load());
     context.read<FeedBloc>().add(const FeedPageRequested(page: 0));
     unawaited(_refetchWhenFirstSyncLands());
 
     _nestedScrollController = ScrollController();
     FeedPageController().init(
-      nestedScrollController: _nestedScrollController,
+      // The list on screen: the usual feed's, or the new one's if that is
+      // the one picked.
+      nestedScrollController: _shownScroll,
       context: context,
       currentTab: () => _tab,
       showTab: (tab) {
@@ -133,9 +159,13 @@ class _FeedViewState extends State<FeedView> {
   @override
   void dispose() {
     _syncSub?.cancel();
+    FeedModeStore.mode.removeListener(_onModeChanged);
     _videoGate?.dispose();
-    FeedPageController().detach(_nestedScrollController);
+    FeedPageController()
+      ..detach(_nestedScrollController)
+      ..detach(_globeScrollController);
     _nestedScrollController.dispose();
+    _globeScrollController.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -148,6 +178,8 @@ class _FeedViewState extends State<FeedView> {
         children: [
           FeedTopBar(
             currentTab: _tab,
+            feedMode: _mode,
+            onFeedModeChanged: (mode) => unawaited(FeedModeStore.set(mode)),
             onTabChanged: (tab) {
               if (tab == _tab) return;
               _tabController.animateToPage(
@@ -167,8 +199,23 @@ class _FeedViewState extends State<FeedView> {
               // Both tabs stay alive: coming back to Posts finds the list
               // where it was left, not rebuilt from the top.
               children: [
+                // The usual feed or the new one; the usual one stays alive
+                // behind the new one, where it was left.
                 FeedKeepAliveTab(
-                  child: FeedBody(scrollController: _nestedScrollController),
+                  child: IndexedStack(
+                    index: _mode == FeedMode.classic ? 0 : 1,
+                    children: [
+                      FeedBody(
+                        scrollController: _nestedScrollController,
+                        isShown: () => _mode == FeedMode.classic,
+                      ),
+                      FeedBody(
+                        scrollController: _globeScrollController,
+                        globe: true,
+                        isShown: () => _mode == FeedMode.globe,
+                      ),
+                    ],
+                  ),
                 ),
                 const FeedKeepAliveTab(child: StoriesGridView()),
               ],
@@ -181,11 +228,24 @@ class _FeedViewState extends State<FeedView> {
 }
 
 class FeedBody extends StatefulWidget {
-  const FeedBody({this.scrollController, super.key});
+  const FeedBody({
+    this.scrollController,
+    this.globe = false,
+    this.isShown,
+    super.key,
+  });
 
   /// The posts list's controller: the Feed tab tapped again, or a post just
   /// shared, scroll it back to the top (FeedPageController).
   final ScrollController? scrollController;
+
+  /// The new feed (a prototype): the same posts, each with its author's
+  /// globe in place of the photos ([FeedGlobeMode]).
+  final bool globe;
+
+  /// Whether this list is the one on screen (the usual feed and the new one
+  /// are both kept): only that one looks for new posts.
+  final bool Function()? isShown;
 
   @override
   State<FeedBody> createState() => _FeedBodyState();
@@ -232,6 +292,7 @@ class _FeedBodyState extends State<FeedBody> {
   /// reader's place is left alone). An own new post is already at the top.
   Future<void> _checkForNewPosts() async {
     if (_checking || _hasNewPosts || !mounted) return;
+    if (!(widget.isShown?.call() ?? true)) return;
     final now = DateTime.now();
     final last = _lastCheck;
     if (last != null && now.difference(last) < const Duration(seconds: 10)) {
@@ -304,7 +365,9 @@ class _FeedBodyState extends State<FeedBody> {
           onRefresh: _onPullToRefresh,
           child: NotificationListener<ScrollNotification>(
             onNotification: _trackScroll,
-            child: _feedScrollView(),
+            child: widget.globe
+                ? FeedGlobeMode(child: _feedScrollView())
+                : _feedScrollView(),
           ),
         ),
         Positioned(
@@ -327,6 +390,9 @@ class _FeedBodyState extends State<FeedBody> {
   Widget _feedScrollView() {
     return InViewNotifierCustomScrollView(
       controller: widget.scrollController,
+      // The new feed scrolls by its buttons only (under each post): a drag
+      // there turns the post's globe.
+      physics: widget.globe ? const NeverScrollableScrollPhysics() : null,
       initialInViewIds: const ['0'],
       isInViewPortCondition: (deltaTop, deltaBottom, vpHeight) {
         return deltaTop < (0.5 * vpHeight) + 80.0 &&

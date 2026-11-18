@@ -1877,4 +1877,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get socialSignInWrongAccountText =>
       'That\'s a different account. Choose the one you use for Treepnet.';
+
+  @override
+  String get feedModeNewText => 'New feed';
+
+  @override
+  String get feedModeClassicText => 'Feed';
 }

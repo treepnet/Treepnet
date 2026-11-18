@@ -184,7 +184,7 @@ class _UserProfileTravelMapState extends State<UserProfileTravelMap>
                 math.max(0, _overlap - UserProfileTravelMap._inset) +
                 AppSpacing.sm,
             left: AppSpacing.sm,
-            child: _TravelCount(visited: _visited),
+            child: TravelCountBadge(visited: _visited),
           ),
         ],
       ),
@@ -229,9 +229,10 @@ class _UserProfileTravelMapState extends State<UserProfileTravelMap>
 
 /// "5 countries · 12 regions" over the globe: how much someone has travelled,
 /// which the map alone didn't say. The regions are those the globe colours;
-/// their countries are counted once each. Nothing until there is one.
-class _TravelCount extends StatelessWidget {
-  const _TravelCount({required this.visited});
+/// their countries are counted once each. Nothing until there is one. Over
+/// the profile's globe and the new feed's.
+class TravelCountBadge extends StatelessWidget {
+  const TravelCountBadge({required this.visited, super.key});
 
   final Map<String, int> visited;
 

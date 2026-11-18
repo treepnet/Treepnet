@@ -3176,6 +3176,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'That\'s a different account. Choose the one you use for Treepnet.'**
   String get socialSignInWrongAccountText;
+
+  /// No description provided for @feedModeNewText.
+  ///
+  /// In en, this message translates to:
+  /// **'New feed'**
+  String get feedModeNewText;
+
+  /// No description provided for @feedModeClassicText.
+  ///
+  /// In en, this message translates to:
+  /// **'Feed'**
+  String get feedModeClassicText;
 }
 
 class _AppLocalizationsDelegate

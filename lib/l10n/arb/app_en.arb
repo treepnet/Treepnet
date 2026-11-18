@@ -969,5 +969,7 @@
   "socialSignInUnavailableText": "This sign-in isn't available yet.",
   "socialSignInNoEmailText": "Your Google or Apple account has no confirmed email.",
   "socialSignInExpiredText": "That took too long. Please sign in again.",
-  "socialSignInWrongAccountText": "That's a different account. Choose the one you use for Treepnet."
+  "socialSignInWrongAccountText": "That's a different account. Choose the one you use for Treepnet.",
+  "feedModeNewText": "New feed",
+  "feedModeClassicText": "Feed"
 }

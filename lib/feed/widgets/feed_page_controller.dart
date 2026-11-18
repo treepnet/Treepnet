@@ -37,6 +37,10 @@ class FeedPageController extends ChangeNotifier {
     _showTab = showTab;
   }
 
+  /// The Posts tab's list on screen now: the usual feed's or the new one's
+  /// (the switch at the feed's top left).
+  void usePostsScroll(ScrollController controller) => _postsScroll = controller;
+
   /// The feed went away with [nestedScrollController]: forget it.
   void detach(ScrollController nestedScrollController) {
     if (_postsScroll != nestedScrollController) return;

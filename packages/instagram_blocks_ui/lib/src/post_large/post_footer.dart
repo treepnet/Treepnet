@@ -21,6 +21,7 @@ class PostFooter extends StatelessWidget {
     required this.onPostShareTap,
     super.key,
     this.likesCountBuilder,
+    this.inPlaceOfActions,
   });
 
   final PostBlock block;
@@ -37,6 +38,11 @@ class PostFooter extends StatelessWidget {
   final OnPostShareTap onPostShareTap;
   final LikesCountBuilder? likesCountBuilder;
 
+  /// Shown where the like, share, comment and save row goes, instead of it:
+  /// the new feed's post's place (its globe carries the buttons, on the
+  /// post's small card).
+  final Widget? inPlaceOfActions;
+
   @override
   Widget build(BuildContext context) {
     final isSponsored = block is PostSponsoredBlock;
@@ -51,48 +57,59 @@ class PostFooter extends StatelessWidget {
             onTap: () => onAvatarTap.call(author.avatarUrl),
           ),
         gapH8,
-        // Design: the four actions are spread evenly across the full width —
-        // like on the far left, bookmark on the far right — each with its
-        // count inline.
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: AppSpacing.xs,
+        if (inPlaceOfActions case final place?) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.xs,
+            ),
+            child: place,
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  LikeButton(isLiked: isLiked, onLikedTap: likePost),
-                  if (likesCountBuilder != null) ...[
-                    const Gap.h(AppSpacing.xs),
-                    likesCountBuilder!.call(onUserTap),
+          gapH4,
+        ] else ...[
+          // Design: the four actions are spread evenly across the full width —
+          // like on the far left, bookmark on the far right — each with its
+          // count inline.
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.xs,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    LikeButton(isLiked: isLiked, onLikedTap: likePost),
+                    if (likesCountBuilder != null) ...[
+                      const Gap.h(AppSpacing.xs),
+                      likesCountBuilder!.call(onUserTap),
+                    ],
                   ],
-                ],
-              ),
-              _PostAction(
-                onTap: () => onPostShareTap(block.id, block.author),
-                icon: _FigmaIcon(asset: Assets.icons.shareLined),
-              ),
-              _PostAction(
-                onTap: () => onCommentsTap(true),
-                count: commentsCount,
-                icon: _FigmaIcon(asset: Assets.icons.commentLined),
-              ),
-              _PostAction(
-                onTap: bookmarkPost,
-                icon: _FigmaIcon(
-                  asset: isBookmarked
-                      ? Assets.icons.savedFilled
-                      : Assets.icons.savedLined,
                 ),
-              ),
-            ],
+                _PostAction(
+                  onTap: () => onPostShareTap(block.id, block.author),
+                  icon: _FigmaIcon(asset: Assets.icons.shareLined),
+                ),
+                _PostAction(
+                  onTap: () => onCommentsTap(true),
+                  count: commentsCount,
+                  icon: _FigmaIcon(asset: Assets.icons.commentLined),
+                ),
+                _PostAction(
+                  onTap: bookmarkPost,
+                  icon: _FigmaIcon(
+                    asset: isBookmarked
+                        ? Assets.icons.savedFilled
+                        : Assets.icons.savedLined,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        gapH8,
+          gapH8,
+        ],
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
           child: Column(

@@ -30,11 +30,12 @@ class _FeedKeepAliveTabState extends State<FeedKeepAliveTab>
   }
 }
 
-/// Feed videos play only while the Posts tab is the one shown. The posts stay
-/// alive behind Stories now ([FeedKeepAliveTab]), and their "in view" check
-/// goes by the list's own scroll, so a video there would keep playing (with
-/// sound) out of sight. Whatever turns feed playback on while Stories is open
-/// (the bottom bar, the home pager) is undone at once.
+/// Feed videos play only while the usual feed is the one shown: the Posts
+/// tab, with the usual feed picked (not the new one, [modeChanged]). The
+/// posts stay alive behind Stories and behind the new feed, and their "in
+/// view" check goes by the list's own scroll, so a video there would keep
+/// playing (with sound) out of sight. Whatever turns feed playback on while
+/// it isn't shown (the bottom bar, the home pager) is undone at once.
 class FeedTabsVideoGate {
   /// Watches [state]'s feed playback; call [dispose] when done.
   FeedTabsVideoGate(this.state) {
@@ -45,11 +46,24 @@ class FeedTabsVideoGate {
   final VideoPlayerState state;
 
   int _tab = 0;
+  bool _classic = true;
+
+  bool get _feedShown => _tab == 0 && _classic;
 
   /// 0 = Posts, 1 = Stories.
   void tabChanged(int tab) {
     _tab = tab;
-    if (tab == 0) {
+    _apply();
+  }
+
+  /// The usual feed ([classic]) or the new one picked on the Posts tab.
+  void modeChanged({required bool classic}) {
+    _classic = classic;
+    _apply();
+  }
+
+  void _apply() {
+    if (_feedShown) {
       state.playFeed();
     } else {
       state.shouldPlayFeed.value = false;
@@ -57,7 +71,7 @@ class FeedTabsVideoGate {
   }
 
   void _keepQuietOffPosts() {
-    if (_tab != 0 && state.shouldPlayFeed.value) {
+    if (!_feedShown && state.shouldPlayFeed.value) {
       state.shouldPlayFeed.value = false;
     }
   }
