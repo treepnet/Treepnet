@@ -849,5 +849,7 @@
   "socialSignInNoEmailText": "У аккаунта Google или Apple нет подтверждённой почты.",
   "socialSignInExpiredText": "Время вышло. Войдите ещё раз.",
   "socialSignInWrongAccountText": "Это другой аккаунт. Выберите тот, с которым вы входите в Treepnet.",
-  "trendsMapsTabText": "Карты"
+  "trendsMapsTabText": "Карты",
+  "feedModeNewText": "Новая лента",
+  "feedModeClassicText": "Лента"
 }

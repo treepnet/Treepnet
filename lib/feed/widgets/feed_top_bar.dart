@@ -5,18 +5,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared/shared.dart';
 import 'package:treepnet/app/app.dart';
+import 'package:treepnet/feed/feed_mode.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/notifications/push/push_notifications.dart';
 import 'package:treepnet/notifications/view/notifications_page.dart';
 import 'package:user_repository/user_repository.dart';
 
 /// The feed's header from the design: two centered tabs — `Posts` and
-/// `Stories` — with the active one underlined, and a notification bell pinned
-/// to the right. Replaces the old logo app bar.
+/// `Stories` — with the active one underlined, a notification bell pinned
+/// to the right and, on Posts only, the switch between the usual feed and
+/// the new one pinned to the left. Replaces the old logo app bar.
 class FeedTopBar extends StatelessWidget {
   const FeedTopBar({
     required this.currentTab,
     required this.onTabChanged,
+    this.feedMode = FeedMode.classic,
+    this.onFeedModeChanged,
     super.key,
   });
 
@@ -24,6 +28,14 @@ class FeedTopBar extends StatelessWidget {
   final int currentTab;
 
   final ValueSetter<int> onTabChanged;
+
+  /// The feed the Posts tab shows, and where a pick on the switch goes.
+  final FeedMode feedMode;
+  final ValueSetter<FeedMode>? onFeedModeChanged;
+
+  /// The bell's and the switch's sides: the same width, so the tabs stay in
+  /// the middle whichever shows.
+  static const double _side = 78;
 
   @override
   Widget build(BuildContext context) {
@@ -36,51 +48,164 @@ class FeedTopBar extends StatelessWidget {
             bottom: BorderSide(color: AppColors.borderOutline, width: 1),
           ),
         ),
-        child: Stack(
+        child: Row(
           children: [
-            Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _FeedTab(
-                    label: context.l10n.postsText,
-                    isActive: currentTab == 0,
-                    onTap: () => onTabChanged(0),
+            SizedBox(
+              width: _side,
+              child: currentTab == 0 && onFeedModeChanged != null
+                  ? Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: AppSpacing.md),
+                        child: FeedModeSwitch(
+                          mode: feedMode,
+                          onChanged: onFeedModeChanged!,
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
+            Expanded(
+              // A narrow phone shrinks the tabs a little rather than let them
+              // run under the switch or the bell.
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _FeedTab(
+                        label: context.l10n.postsText,
+                        isActive: currentTab == 0,
+                        onTap: () => onTabChanged(0),
+                      ),
+                      const Gap.h(AppSpacing.xlg),
+                      _FeedTab(
+                        label: context.l10n.storiesText,
+                        isActive: currentTab == 1,
+                        onTap: () => onTabChanged(1),
+                      ),
+                    ],
                   ),
-                  const Gap.h(AppSpacing.xlg),
-                  _FeedTab(
-                    label: context.l10n.storiesText,
-                    isActive: currentTab == 1,
-                    onTap: () => onTabChanged(1),
-                  ),
-                ],
+                ),
               ),
             ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(right: AppSpacing.md),
-                child: Tappable.scaled(
-                  onTap: () {
-                    // Clear the badge on open. The watermark lives on the
-                    // profile row, which the count query joins, so the badge
-                    // drops without any extra refresh plumbing.
-                    unawaited(
-                      context.read<UserRepository>().markNotificationsSeen(
-                        userId: context.read<AppBloc>().state.user.id,
-                      ),
-                    );
-                    Navigator.of(context).push<void>(
-                      MaterialPageRoute(
-                        builder: (_) => const NotificationsPage(),
-                      ),
-                    );
-                  },
-                  child: const _BellIcon(),
+            SizedBox(
+              width: _side,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: AppSpacing.md),
+                  child: Tappable.scaled(
+                    onTap: () {
+                      // Clear the badge on open. The watermark lives on the
+                      // profile row, which the count query joins, so the badge
+                      // drops without any extra refresh plumbing.
+                      unawaited(
+                        context.read<UserRepository>().markNotificationsSeen(
+                          userId: context.read<AppBloc>().state.user.id,
+                        ),
+                      );
+                      Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationsPage(),
+                        ),
+                      );
+                    },
+                    child: const _BellIcon(),
+                  ),
                 ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The switch at the feed's top left: the new feed (the profile's globe) or
+/// the usual one (the profile's grid), the picked side white with a black
+/// icon, as the app's white buttons.
+class FeedModeSwitch extends StatelessWidget {
+  const FeedModeSwitch({
+    required this.mode,
+    required this.onChanged,
+    super.key,
+  });
+
+  final FeedMode mode;
+  final ValueSetter<FeedMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return Container(
+      height: 30,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: AppColors.inputSpace,
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _FeedModeSide(
+            icon: Assets.icons.globusLined,
+            label: l10n.feedModeNewText,
+            selected: mode == FeedMode.globe,
+            onTap: () => onChanged(FeedMode.globe),
+          ),
+          _FeedModeSide(
+            icon: Assets.icons.postsLined,
+            label: l10n.feedModeClassicText,
+            selected: mode == FeedMode.classic,
+            onTap: () => onChanged(FeedMode.classic),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeedModeSide extends StatelessWidget {
+  const _FeedModeSide({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final SvgGenImage icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: Tappable.scaled(
+        onTap: selected ? null : onTap,
+        child: AnimatedContainer(
+          duration: 180.ms,
+          width: 30,
+          height: 24,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? AppColors.white : AppColors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: icon.svg(
+            width: 16,
+            height: 16,
+            colorFilter: ColorFilter.mode(
+              selected ? AppColors.black : AppColors.textSecondary,
+              BlendMode.srcIn,
+            ),
+          ),
         ),
       ),
     );

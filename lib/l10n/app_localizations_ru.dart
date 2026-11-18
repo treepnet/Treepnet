@@ -1914,4 +1914,10 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get trendsMapsTabText => 'Карты';
+
+  @override
+  String get feedModeNewText => 'Новая лента';
+
+  @override
+  String get feedModeClassicText => 'Лента';
 }

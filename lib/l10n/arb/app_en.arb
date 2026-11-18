@@ -973,5 +973,7 @@
   "trendsMapsTabText": "Maps",
   "@trendsMapsTabText": {
     "description": "Trends: the tab of posts on their authors' globes, beside Posts"
-  }
+  },
+  "feedModeNewText": "New feed",
+  "feedModeClassicText": "Feed"
 }

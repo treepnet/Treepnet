@@ -3182,6 +3182,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Maps'**
   String get trendsMapsTabText;
+
+  /// No description provided for @feedModeNewText.
+  ///
+  /// In en, this message translates to:
+  /// **'New feed'**
+  String get feedModeNewText;
+
+  /// No description provided for @feedModeClassicText.
+  ///
+  /// In en, this message translates to:
+  /// **'Feed'**
+  String get feedModeClassicText;
 }
 
 class _AppLocalizationsDelegate

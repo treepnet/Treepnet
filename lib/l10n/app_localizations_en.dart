@@ -1880,4 +1880,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get trendsMapsTabText => 'Maps';
+
+  @override
+  String get feedModeNewText => 'New feed';
+
+  @override
+  String get feedModeClassicText => 'Feed';
 }
