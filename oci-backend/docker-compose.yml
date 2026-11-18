@@ -246,8 +246,19 @@ services:
       PORT: "4100"
       # Code emails that fail to send are reported to the error bot.
       LOG_APP_KEY: ${LOG_APP_KEY}
+      # Sign in with Google / Apple (auth-service/social.js): the client ids an
+      # ID token must be for. Google's (web + iOS) come from .env; empty, the
+      # button is off. Apple's are the app's bundle ids.
+      GOOGLE_CLIENT_IDS: ${GOOGLE_CLIENT_IDS:-}
+      APPLE_CLIENT_IDS: "com.treepnet.application,com.treepnet.application.dev"
+      # Revoking Apple's tokens when an account is deleted: the Sign in with
+      # Apple key (.p8, in ./functions/apple-signin, mode 600) and its id.
+      APPLE_TEAM_ID: "YR6Y9NXLYK"
+      APPLE_KEY_ID: ${APPLE_KEY_ID:-}
+      APPLE_PRIVATE_KEY_FILE: /secrets/apple-signin/AuthKey.p8
     volumes:
       - ./functions/fcm-service-account.json:/secrets/fcm-service-account.json:ro
+      - ./functions/apple-signin:/secrets/apple-signin:ro
     networks:
       - treepnet
 

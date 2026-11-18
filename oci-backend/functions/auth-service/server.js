@@ -13,6 +13,12 @@
 //   /login             { usernameOrEmail, password }                 -> {token}
 //   /reset/send-code   { usernameOrEmail }                           -> emails a code
 //   /reset/verify      { continuationToken(email), code, newPassword }-> {ok}
+//   /social/sign-in    { provider: google|apple, idToken, nonce?, fullName? }
+//                       -> {token} | {needsUsername, ticket, suggestedUsername}
+//   /social/complete   { ticket, username }                          -> {token, isNew}
+//   /social/reauth     { provider, idToken, nonce?, authorizationCode?, revoke? }
+//                       + Bearer ID token -> {ok} (before deleting the account)
+//   /account/methods   {} + Bearer ID token -> {password, google, apple}
 //   /media/upload-url  { bucket, path, contentType } + Bearer ID token -> {uploadUrl, path}
 //   /media/upload-urls { files: [{ bucket, path, contentType }, ...] } -> { links: [...] }
 //       a one-object, 15-minute write link for a post, story or avatar file
@@ -22,6 +28,7 @@ const { Pool } = require('pg');
 const nodemailer = require('nodemailer');
 const bcrypt = require('bcryptjs');
 const admin = require('firebase-admin');
+const social = require('./social');
 
 // --- Firebase Admin (custom-token minting) — signs locally with the service
 //     account private key, no network call needed. ------------------------
@@ -82,6 +89,33 @@ const SEGMENT_RE = /^[A-Za-z0-9._:-]{1,120}$/;
 const CONTENT_TYPE_RE = /^(image\/(jpeg|jpg|png|heic|heif|webp|gif)|video\/[a-z0-9.+-]{1,30})$/;
 const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '10', 10);
 const CODE_LENGTH = 6;
+
+// --- Sign in with Google / Apple (social.js) ------------------------------
+// Our client ids: the audiences a provider's ID token must be for. Empty: the
+// provider is off (the app hides its button then, and a call gets
+// provider_unavailable).
+const idList = (v) => String(v || '').split(',').map((x) => x.trim()).filter(Boolean);
+const SOCIAL_AUDIENCES = {
+  google: idList(process.env.GOOGLE_CLIENT_IDS),
+  apple: idList(process.env.APPLE_CLIENT_IDS),
+};
+// For revoking Apple's tokens when an account is deleted: the Sign in with
+// Apple key. Missing, the deletion still goes ahead (logged).
+const APPLE_TEAM_ID = process.env.APPLE_TEAM_ID || '';
+const APPLE_KEY_ID = process.env.APPLE_KEY_ID || '';
+let applePrivateKey = null;
+try {
+  if (process.env.APPLE_PRIVATE_KEY_FILE) {
+    applePrivateKey = require('fs').readFileSync(process.env.APPLE_PRIVATE_KEY_FILE, 'utf8');
+  }
+} catch (_) {
+  applePrivateKey = null;
+}
+// Signs the sign-up tickets; like CODE_KEY, from the key outside the database.
+const TICKET_KEY = crypto
+  .createHash('sha256')
+  .update(`treepnet-social-tickets:${serviceAccount.private_key}`)
+  .digest();
 
 // Ten seconds at most for each step: nodemailer waited up to 2 minutes to
 // connect and 10 to send, long after the app had given up (~15 s) and taken a
@@ -712,12 +746,13 @@ async function resetSendCode(res, b) {
   // tells nothing about which accounts exist or their email addresses.
   let token = newResetToken();
   if (email) {
-    const hasCreds = await pool.query(
-      `select 1 from profiles p join auth_credentials c on c.user_id = p.id
-        where lower(p.email) = $1 limit 1`,
+    // Any account with this address: one made with Google/Apple has no
+    // password yet, and sets its first one here.
+    const hasAccount = await pool.query(
+      'select 1 from profiles where lower(email) = $1 limit 1',
       [email],
     );
-    if (hasCreds.rowCount > 0) {
+    if (hasAccount.rowCount > 0) {
       const recent = await codeJustSent(email, 'reset');
       if (recent?.payload?.token) {
         // A repeat: the code already mailed stays, with its token.
@@ -766,21 +801,22 @@ async function resetVerify(res, b) {
   }
 
   const r = await pool.query(
-    `select c.user_id
-       from profiles p join auth_credentials c on c.user_id = p.id
-      where lower(p.email) = $1 limit 1`,
+    'select id from profiles where lower(email) = $1 limit 1',
     [email],
   );
-  const uid = r.rows[0]?.user_id;
+  const uid = r.rows[0]?.id;
   if (!uid) return fail(res, 400, 'Invalid or expired code.', 'invalid_code');
 
   // Before the password changes: if revoking fails, nothing has changed and
   // the same code still works for a retry.
   await revokeSessions(uid);
 
+  // The account's first password when it was made with Google/Apple.
   const hash = await bcrypt.hash(newPassword, BCRYPT_COST);
   await pool.query(
-    'update auth_credentials set password_hash = $2, updated_at = now() where user_id = $1',
+    `insert into auth_credentials (user_id, password_hash) values ($1, $2)
+     on conflict (user_id) do update
+       set password_hash = excluded.password_hash, updated_at = now()`,
     [uid, hash],
   );
   // The code is used up, but its token still leads to the email for a few
@@ -797,6 +833,200 @@ async function resetVerify(res, b) {
   return send(res, 200, { ok: true });
 }
 
+// --- Sign in with Google / Apple -----------------------------------------
+const PROVIDER_NAMES = new Set(['google', 'apple']);
+
+// The provider's ID token checked (social.js), or a refusal already sent.
+async function checkedClaims(res, b) {
+  const provider = b.provider;
+  if (!PROVIDER_NAMES.has(provider)) {
+    fail(res, 400, 'Bad request.', 'invalid_provider');
+    return null;
+  }
+  const audiences = SOCIAL_AUDIENCES[provider];
+  if (!audiences.length) {
+    fail(res, 503, 'This sign-in is not available yet.', 'provider_unavailable');
+    return null;
+  }
+  try {
+    return await social.verifyIdToken(provider, b.idToken, { audiences, nonce: b.nonce });
+  } catch (e) {
+    if (e.code === 'provider_unreachable') {
+      fail(res, 503, 'Could not reach Google or Apple. Please try again.', 'provider_unreachable');
+    } else {
+      fail(res, 401, 'Sign-in failed. Please try again.', e.code === 'token_expired' ? 'token_expired' : 'invalid_token');
+    }
+    return null;
+  }
+}
+
+async function signedIn(res, uid, extra = {}) {
+  return send(res, 200, { token: await mintToken(uid), userId: uid, ...extra });
+}
+
+// Google/Apple account -> ours: the one tied to it, else the one with the
+// address Google/Apple vouch for (tied from now on), else a ticket to make a
+// new one once a username is picked.
+async function socialSignIn(res, b) {
+  const claims = await checkedClaims(res, b);
+  if (!claims) return;
+  const provider = b.provider;
+  const subject = claims.sub;
+  const email = social.verifiedEmail(claims);
+
+  const known = await pool.query(
+    `update auth_identities set last_login_at = now(), email = coalesce($3, email)
+      where provider = $1 and subject = $2
+      returning user_id`,
+    [provider, subject, email],
+  );
+  if (known.rowCount > 0) return signedIn(res, known.rows[0].user_id);
+
+  if (!email) {
+    // No account can be made, or found, without an address someone vouches
+    // for: one made from an unchecked one could take a stranger's address.
+    return fail(res, 400, 'Your Google or Apple account has no confirmed email.', 'email_unverified');
+  }
+
+  const existing = await pool.query('select id from profiles where lower(email) = $1 limit 1', [email]);
+  if (existing.rowCount > 0) {
+    const uid = existing.rows[0].id;
+    await pool.query(
+      `insert into auth_identities (provider, subject, user_id, email)
+       values ($1, $2, $3, $4) on conflict (provider, subject) do nothing`,
+      [provider, subject, uid, email],
+    );
+    return signedIn(res, uid);
+  }
+
+  // Apple gives the name only the first time, in the app; Google, in the token.
+  const name = String(
+    (provider === 'google' ? claims.name : b.fullName) || b.fullName || '',
+  ).trim().slice(0, 64);
+  const ticket = social.signTicket(TICKET_KEY, { p: provider, s: subject, e: email, n: name });
+  const suggestedUsername = await social.suggestUsername(email, async (u) =>
+    (await pool.query('select 1 from profiles where lower(username) = $1', [u])).rowCount === 0,
+  );
+  return send(res, 200, { needsUsername: true, ticket, suggestedUsername, fullName: name });
+}
+
+// The new account, once its username is picked.
+async function socialComplete(res, b) {
+  const t = social.readTicket(TICKET_KEY, b.ticket);
+  if (!t || !PROVIDER_NAMES.has(t.p) || !t.s || !isEmail(t.e || '')) {
+    return fail(res, 400, 'Please sign in with Google or Apple again.', 'ticket_expired');
+  }
+  const username = (b.username || '').trim().toLowerCase();
+  if (!isUsername(username)) return fail(res, 400, 'That username is not valid.', 'invalid_username');
+
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    // A repeat (a slow answer retried), or the same Google/Apple account
+    // tied meanwhile: sign in as that account.
+    const tied = await client.query(
+      'select user_id from auth_identities where provider = $1 and subject = $2',
+      [t.p, t.s],
+    );
+    if (tied.rowCount > 0) {
+      await client.query('rollback');
+      return signedIn(res, tied.rows[0].user_id);
+    }
+    const sameEmail = await client.query('select id from profiles where lower(email) = $1', [t.e]);
+    if (sameEmail.rowCount > 0) {
+      // Made with this address meanwhile (a password sign-up): tie it.
+      const uid = sameEmail.rows[0].id;
+      await client.query(
+        'insert into auth_identities (provider, subject, user_id, email) values ($1, $2, $3, $4)',
+        [t.p, t.s, uid, t.e],
+      );
+      await client.query('commit');
+      return signedIn(res, uid);
+    }
+    const taken = await client.query('select 1 from profiles where lower(username) = $1', [username]);
+    if (taken.rowCount > 0) {
+      await client.query('rollback');
+      return fail(res, 409, 'That username is already taken.', 'username_taken');
+    }
+    const inserted = await client.query(
+      // full_name is NOT NULL: the empty string when Google/Apple gave none.
+      `insert into profiles (id, email, full_name, username)
+         values (gen_random_uuid(), $1, $2, $3)
+       returning id`,
+      [t.e, String(t.n || ''), username],
+    );
+    const uid = inserted.rows[0].id;
+    await client.query(
+      'insert into auth_identities (provider, subject, user_id, email) values ($1, $2, $3, $4)',
+      [t.p, t.s, uid, t.e],
+    );
+    await client.query('commit');
+    return signedIn(res, uid, { isNew: true });
+  } catch (e) {
+    await client.query('rollback').catch(() => {});
+    // Two taps at once: the other made it (unique username or address).
+    if (e.code === '23505') {
+      return fail(res, 409, 'That username is already taken.', 'username_taken');
+    }
+    console.error('auth-service /social/complete error:', e);
+    return fail(res, 500, 'Something went wrong. Please try again.');
+  } finally {
+    client.release();
+  }
+}
+
+// Before an account made with Google/Apple is deleted: the person signs in
+// with it once more, here checked to be this very account. For Apple, its
+// tokens are revoked as Apple asks (with the fresh authorization code).
+async function socialReauth(res, b, headers) {
+  const uid = await uidFromRequest(headers);
+  if (!uid) return fail(res, 401, 'Sign in again.', 'unauthorized');
+  const claims = await checkedClaims(res, b);
+  if (!claims) return;
+  const r = await pool.query(
+    'select user_id from auth_identities where provider = $1 and subject = $2',
+    [b.provider, claims.sub],
+  );
+  if (r.rows[0]?.user_id !== uid) {
+    return fail(res, 403, 'That is a different account.', 'wrong_account');
+  }
+  if (b.provider === 'apple' && b.revoke === true && typeof b.authorizationCode === 'string') {
+    const aud = Array.isArray(claims.aud) ? claims.aud[0] : claims.aud;
+    if (applePrivateKey && APPLE_TEAM_ID && APPLE_KEY_ID) {
+      try {
+        await social.appleRevokeWithCode({
+          code: b.authorizationCode,
+          clientId: aud,
+          teamId: APPLE_TEAM_ID,
+          keyId: APPLE_KEY_ID,
+          privateKey: applePrivateKey,
+        });
+      } catch (e) {
+        // The deletion goes on: the account and its data are what matter.
+        console.error('auth-service: Apple token revoke failed:', e.message);
+      }
+    } else {
+      console.error('auth-service: Apple token revoke skipped: no Sign in with Apple key');
+    }
+  }
+  return send(res, 200, { ok: true });
+}
+
+// How this account signs in: a password, Google, Apple (the app asks for
+// the right one before deleting it).
+async function accountMethods(res, b, headers) {
+  const uid = await uidFromRequest(headers);
+  if (!uid || !UUID_RE.test(uid)) return fail(res, 401, 'Sign in again.', 'unauthorized');
+  const r = await pool.query(
+    `select exists (select 1 from auth_credentials where user_id = $1) as password,
+            exists (select 1 from auth_identities where user_id = $1 and provider = 'google') as google,
+            exists (select 1 from auth_identities where user_id = $1 and provider = 'apple') as apple`,
+    [uid],
+  );
+  const m = r.rows[0];
+  return send(res, 200, { password: m.password, google: m.google, apple: m.apple });
+}
+
 // --- routing ------------------------------------------------------------
 const ROUTES = {
   '/signup/send-code': signupSendCode,
@@ -804,6 +1034,10 @@ const ROUTES = {
   '/login': login,
   '/reset/send-code': resetSendCode,
   '/reset/verify': resetVerify,
+  '/social/sign-in': socialSignIn,
+  '/social/complete': socialComplete,
+  '/social/reauth': socialReauth,
+  '/account/methods': accountMethods,
   '/media/upload-url': mediaUploadUrl,
   '/media/upload-urls': mediaUploadUrls,
 };
