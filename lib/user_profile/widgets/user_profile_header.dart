@@ -43,6 +43,22 @@ class UserProfileHeader extends StatelessWidget {
         : user$.isAnonymous
         ? sponsoredPost!.author.toUser
         : user$;
+    final avatar = UserStoriesAvatar(
+      resizeHeight: 252,
+      author: user,
+      onLongPress: (avatarUrl) =>
+          avatarUrl == null ? null : context.showImagePreview(avatarUrl),
+      onAvatarTap: (imageUrl) {
+        if (imageUrl == null) return;
+        if (!isOwner) context.showImagePreview(imageUrl);
+        if (isOwner) {
+          startStoryCreation(context, user);
+        }
+      },
+      isLarge: true,
+      tappableVariant: TappableVariant.scaled,
+      showWhenSeen: true,
+    );
     return SliverPadding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
@@ -50,104 +66,102 @@ class UserProfileHeader extends StatelessWidget {
       ),
       sliver: SliverToBoxAdapter(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Center(
-              child: UserStoriesAvatar(
-                resizeHeight: 252,
-                author: user,
-                onLongPress: (avatarUrl) => avatarUrl == null
-                    ? null
-                    : context.showImagePreview(avatarUrl),
-                onAvatarTap: (imageUrl) {
-                  if (imageUrl == null) return;
-                  if (!isOwner) context.showImagePreview(imageUrl);
-                  if (isOwner) {
-                    startStoryCreation(context, user);
-                  }
-                },
-                isLarge: true,
-                tappableVariant: TappableVariant.scaled,
-                showWhenSeen: true,
-              ),
-            ),
+            // With a name, bio or link: the avatar on the left and those
+            // beside it (as Instagram). With none: the avatar centred alone.
+            if (_ProfileBioBlock.hasContent(user))
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  avatar,
+                  const Gap.h(AppSpacing.lg),
+                  Expanded(
+                    // A short one (a name) sits level with the avatar's
+                    // middle; a longer one starts at its top.
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minHeight: _avatarBox,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [_ProfileBioBlock(user: user)],
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            else
+              Center(child: avatar),
             const Gap.v(AppSpacing.lg),
             UserProfileStatisticsCounts(
               onStatisticTap: (tabIndex) =>
                   _pushToUserStatistics(context, tabIndex: tabIndex),
             ),
-            const Gap.v(AppSpacing.lg),
-            if (isOwner)
-              // Editing lives behind the pencil in the app bar, so the profile
-              // itself just shows the bio block (with its Invite friend
-              // button — only ever on your own profile).
-              _ProfileBioBlock(user: user, isOwner: true)
-            // Blocked either way: Follow and Message would only be refused
-            // (the server forbids both across a block).
-            else if (blocked)
-              _ProfileBioBlock(user: user)
-            else
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            // Under the counts, the whole width: Invite friend on your own
+            // profile; Follow and Message side by side on someone else's.
+            // Blocked either way: none (the server forbids both across a
+            // block).
+            if (isOwner) ...[
+              const Gap.v(AppSpacing.md),
+              const _InviteFriendButton(),
+            ] else if (!blocked) ...[
+              const Gap.v(AppSpacing.md),
+              const Row(
                 children: [
-                  Expanded(child: _ProfileBioBlock(user: user)),
-                  const Gap.h(AppSpacing.md),
-                  const SizedBox(
-                    width: 140,
-                    child: Column(
-                      children: [
-                        UserProfileFollowUserButton(),
-                        SizedBox(height: 8),
-                        _MessageUserButton(),
-                      ],
-                    ),
-                  ),
+                  Expanded(child: UserProfileFollowUserButton()),
+                  Gap.h(AppSpacing.sm),
+                  Expanded(child: _MessageUserButton()),
                 ],
               ),
+            ],
           ],
         ),
       ),
     );
   }
+
+  /// The avatar's box on the profile: 2 × 42 (large) and its 12 of border.
+  static const double _avatarBox = 96;
 }
 
-/// The referral entry point, shown opposite the name/bio on your own profile.
+/// The referral entry point on your own profile: under the counts, the
+/// whole width, as Follow / Message on someone else's (the same white button).
 class _InviteFriendButton extends StatelessWidget {
   const _InviteFriendButton();
 
   @override
   Widget build(BuildContext context) {
-    return Tappable.scaled(
+    return UserProfileButton(
+      color: AppColors.white,
+      textStyle: context.labelLarge?.copyWith(color: AppColors.black),
       onTap: () => Navigator.of(
         context,
         rootNavigator: true,
       ).push<void>(MaterialPageRoute(builder: (_) => const ReferralPage())),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.sm,
-        ),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.person_add_alt,
-              size: AppSize.iconSizeSmall,
-              color: AppColors.black,
-            ),
-            const Gap.h(AppSpacing.xs),
-            Text(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.person_add_alt,
+            size: AppSize.iconSizeSmall,
+            color: AppColors.black,
+          ),
+          const Gap.h(AppSpacing.xs),
+          Flexible(
+            child: Text(
               context.l10n.inviteFriendText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: context.labelLarge?.copyWith(
                 color: AppColors.black,
                 fontWeight: AppFontWeight.semiBold,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -290,14 +304,18 @@ class _MessageUserButton extends StatelessWidget {
   }
 }
 
-/// Left-aligned bio block: `Name / About / link`, matching the Figma design.
+/// Left-aligned bio block: `Name / About / link`, beside the avatar.
 class _ProfileBioBlock extends StatelessWidget {
-  const _ProfileBioBlock({required this.user, this.isOwner = false});
+  const _ProfileBioBlock({required this.user});
 
   final User user;
 
-  /// Only your own profile gets the Invite friend button.
-  final bool isOwner;
+  /// Whether [user] filled in a name, a bio or a link (else there is no
+  /// block, and the avatar stands alone in the middle).
+  static bool hasContent(User user) =>
+      (user.fullName?.trim().isNotEmpty ?? false) ||
+      (user.bio?.trim().isNotEmpty ?? false) ||
+      (user.website?.trim().isNotEmpty ?? false);
 
   @override
   Widget build(BuildContext context) {
@@ -310,43 +328,24 @@ class _ProfileBioBlock extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // The values speak for themselves — no "Name:" / "About:" labels.
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (name.isNotEmpty)
-                    Text(
-                      name,
-                      style: context.bodyLarge?.copyWith(
-                        color: AppColors.white,
-                        fontWeight: AppFontWeight.semiBold,
-                      ),
-                    ),
-                  if (name.isNotEmpty && bio.isNotEmpty)
-                    const Gap.v(AppSpacing.xxs),
-                  if (bio.isNotEmpty)
-                    Text(
-                      user.bio!,
-                      style: context.bodyMedium?.copyWith(
-                        color: AppColors.white,
-                      ),
-                    ),
-                ],
-              ),
+        if (name.isNotEmpty)
+          Text(
+            name,
+            style: context.bodyLarge?.copyWith(
+              color: AppColors.white,
+              fontWeight: AppFontWeight.semiBold,
             ),
-            if (isOwner) ...[
-              const Gap.h(AppSpacing.md),
-              const _InviteFriendButton(),
-            ],
-          ],
-        ),
+          ),
+        if (name.isNotEmpty && bio.isNotEmpty) const Gap.v(AppSpacing.xxs),
+        if (bio.isNotEmpty)
+          Text(
+            user.bio!,
+            style: context.bodyMedium?.copyWith(color: AppColors.white),
+          ),
         // The one link the profile has (Telegram, Instagram, a site...):
         // whatever the user filled in.
         if (user.website != null && user.website!.trim().isNotEmpty) ...[
-          const Gap.v(AppSpacing.xs),
+          if (name.isNotEmpty || bio.isNotEmpty) const Gap.v(AppSpacing.xs),
           _LinkRow(
             icon: Icons.link,
             label: user.website!,
