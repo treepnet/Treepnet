@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/stories/stories.dart';
+import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:go_router/go_router.dart';
 import 'package:search_repository/search_repository.dart';
 import 'package:shared/shared.dart';
@@ -161,7 +162,7 @@ class UserListTile extends StatelessWidget {
         enableInactiveBorder: false,
         radius: 26,
       ),
-      title: Text(user.displayUsername),
+      title: NameWithBadge(userId: user.id, name: user.displayUsername),
       subtitle: Text(
         user.displayFullName,
         style: context.labelLarge?.copyWith(

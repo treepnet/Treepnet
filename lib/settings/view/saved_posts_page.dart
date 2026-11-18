@@ -11,6 +11,7 @@ import 'package:shared/shared.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/app/services/pager.dart';
 import 'package:treepnet/l10n/l10n.dart';
+import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:user_repository/user_repository.dart';
 
 /// {@template saved_posts_page}
@@ -230,8 +231,9 @@ class _SavedPostsPageState extends State<SavedPostsPage> {
               ),
               // Username only. The display name sat above it and said the same
               // thing twice for most people.
-              title: Text(
-                user.displayUsername,
+              title: NameWithBadge(
+                userId: user.id,
+                name: user.displayUsername,
                 style: context.bodyLarge?.copyWith(
                   fontWeight: AppFontWeight.semiBold,
                 ),

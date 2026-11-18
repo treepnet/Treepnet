@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:user_repository/user_repository.dart';
@@ -160,6 +161,43 @@ class _TravelTierBadgeState extends State<TravelTierBadge> {
     return StreamBuilder<int>(
       stream: _tier,
       builder: (context, snapshot) => _badge(snapshot.data ?? 0),
+    );
+  }
+}
+
+/// [name] with its owner's checkmark right after it ([TravelTierBadge]), as
+/// beside a name anywhere in the app: the name is shortened first, so the
+/// checkmark always shows; someone who hasn't earned one shows the name only.
+class NameWithBadge extends StatelessWidget {
+  const NameWithBadge({
+    required this.userId,
+    required this.name,
+    this.style,
+    this.badgeSize = 14,
+    super.key,
+  });
+
+  final String userId;
+  final String name;
+  final TextStyle? style;
+  final double badgeSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: Text(
+            name,
+            style: style,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const Gap.h(AppSpacing.xs),
+        TravelTierBadge(userId: userId, size: badgeSize),
+      ],
     );
   }
 }

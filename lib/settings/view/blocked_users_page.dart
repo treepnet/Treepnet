@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/l10n/l10n.dart';
+import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:user_repository/user_repository.dart';
 
 /// {@template blocked_users_page}
@@ -72,8 +73,9 @@ class BlockedUsersPage extends StatelessWidget {
                         ? const Icon(Icons.person, color: AppColors.textSecondary)
                         : null,
                   ),
-                  title: Text(
-                    user.displayUsername,
+                  title: NameWithBadge(
+                    userId: user.id,
+                    name: user.displayUsername,
                     style: context.textTheme.titleMedium?.copyWith(
                       color: context.colorScheme.onSurface,
                       fontWeight: FontWeight.w600,

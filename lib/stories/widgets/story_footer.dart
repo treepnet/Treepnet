@@ -10,6 +10,7 @@ import 'package:treepnet/feed/post/widgets/share_post.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/user_profile/widgets/confirm_unfollow.dart';
 import 'package:treepnet/user_profile/widgets/follow_state_builder.dart';
+import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:user_repository/user_repository.dart';
 
 /// The bar under a story.
@@ -726,14 +727,17 @@ class _ViewerTile extends StatelessWidget {
               ),
               const Gap.h(AppSpacing.md),
               Expanded(
-                child: Text(
-                  // Story viewers are shown by username (not full name).
-                  user.displayUsername,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: context.bodyLarge?.copyWith(
-                    color: AppColors.white,
-                    fontWeight: AppFontWeight.semiBold,
+                // Story viewers are shown by username (not full name), with
+                // their checkmark.
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: NameWithBadge(
+                    userId: user.id,
+                    name: user.displayUsername,
+                    style: context.bodyLarge?.copyWith(
+                      color: AppColors.white,
+                      fontWeight: AppFontWeight.semiBold,
+                    ),
                   ),
                 ),
               ),

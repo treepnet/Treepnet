@@ -31,6 +31,7 @@ class UserComment extends StatelessWidget {
     required this.onCommentDelete,
     this.onReplyButtonTap,
     this.avatarBuilder,
+    this.authorBadge,
     super.key,
   });
 
@@ -46,6 +47,10 @@ class UserComment extends StatelessWidget {
   final ValueSetter<String>? onReplyButtonTap;
   final ValueSetter<String> onCommentDelete;
   final CommentUserAvatarBuilder? avatarBuilder;
+
+  /// Shown right after the author's name (the app's checkmark), as
+  /// `PostHeader.authorBadge`.
+  final Widget? authorBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -94,6 +99,10 @@ class UserComment extends StatelessWidget {
               ),
             ),
           ),
+          if (authorBadge != null) ...[
+            const Gap.h(AppSpacing.xs),
+            authorBadge!,
+          ],
           if (isLikedByOwner)
             CommentOwnerLikedAvatar(avatarUrl: post.author.avatarUrl),
           const Gap.h(AppSpacing.sm),

@@ -11,6 +11,7 @@ import 'package:treepnet/app/routes/app_routes.dart';
 import 'package:treepnet/chat/chat_share_ref.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/stories/widgets/stories_props.dart';
+import 'package:treepnet/settings/view/referral_badge.dart';
 
 /// The `sharedMessageBuilder` handed to the chat plugin. Returns a rich card
 /// for a share-sentinel message, or `null` for plain text (rendered normally).
@@ -90,13 +91,12 @@ class _SharedPostCardState extends State<_SharedPostCard> {
                   ),
                   const Gap.h(AppSpacing.sm),
                   Expanded(
-                    child: Text(
-                      loading
+                    child: _CardAuthor(
+                      userId: loading ? null : post?.author.id,
+                      name: loading
                           ? '…'
                           : (post?.author.displayUsername ??
                                 context.l10n.postText),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
@@ -209,13 +209,12 @@ class _SharedStoryCardState extends State<_SharedStoryCard> {
                   ),
                   const Gap.h(AppSpacing.sm),
                   Expanded(
-                    child: Text(
-                      loading
+                    child: _CardAuthor(
+                      userId: loading ? null : story?.author.id,
+                      name: loading
                           ? '…'
                           : (story?.author.displayUsername ??
                                 context.l10n.storyText),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
@@ -321,6 +320,37 @@ class _Media extends StatelessWidget {
           placeholder: (_, __) => const ColoredBox(color: Color(0xff2A2A2A)),
         );
       },
+    );
+  }
+}
+
+/// The shared post's or story's author, with their checkmark; while it loads
+/// (or once it's gone) just the placeholder text.
+class _CardAuthor extends StatelessWidget {
+  const _CardAuthor({
+    required this.userId,
+    required this.name,
+    required this.style,
+  });
+
+  final String? userId;
+  final String name;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    final id = userId;
+    if (id == null || id.isEmpty) {
+      return Text(
+        name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: style,
+      );
+    }
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: NameWithBadge(userId: id, name: name, style: style),
     );
   }
 }

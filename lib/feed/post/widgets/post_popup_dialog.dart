@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/feed/post/post.dart';
+import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart';
 import 'package:shared/shared.dart' hide NumDurationExtension;
 import 'package:sprung/sprung.dart';
@@ -142,7 +143,11 @@ class PopupDialogHeader extends StatelessWidget {
         isLarge: false,
         enableBorder: false,
       ),
-      title: Text(block.author.username, style: context.bodyLarge),
+      title: NameWithBadge(
+        userId: block.author.id,
+        name: block.author.username,
+        style: context.bodyLarge,
+      ),
     );
   }
 }

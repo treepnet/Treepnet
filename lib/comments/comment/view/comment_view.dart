@@ -6,6 +6,7 @@ import 'package:treepnet/comments/comment/comment.dart';
 import 'package:treepnet/comments/comments.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/stories/stories.dart';
+import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:go_router/go_router.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart';
 import 'package:posts_repository/posts_repository.dart';
@@ -75,6 +76,8 @@ class CommentGroup extends StatelessWidget {
             AppRoutes.userProfile.name,
             pathParameters: {'user_id': comment.author.id},
           ),
+          // The checkmark after the author's name, as beside any name.
+          authorBadge: TravelTierBadge(userId: comment.author.id),
           avatarBuilder: (context, author, onAvatarTap, radius) =>
               UserStoriesAvatar(
                 resizeHeight: 108,

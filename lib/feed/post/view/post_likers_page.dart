@@ -7,6 +7,7 @@ import 'package:posts_repository/posts_repository.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/app/services/pager.dart';
 import 'package:treepnet/l10n/l10n.dart';
+import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:user_repository/user_repository.dart';
 
 /// {@template post_likers_page}
@@ -146,8 +147,9 @@ class _LikerTile extends StatelessWidget {
             ? Icon(Icons.person, color: AppColors.textSecondary)
             : null,
       ),
-      title: Text(
-        user.displayUsername,
+      title: NameWithBadge(
+        userId: user.id,
+        name: user.displayUsername,
         style: context.textTheme.titleMedium?.copyWith(
           color: context.colorScheme.onSurface,
           fontWeight: FontWeight.w600,
