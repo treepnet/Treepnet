@@ -32,6 +32,7 @@ class BlurHashImageThumbnail extends StatefulWidget {
     this.id,
     this.blurHash,
     this.previewUrl,
+    this.previewAlsoAt,
   });
 
   final String url;
@@ -43,6 +44,13 @@ class BlurHashImageThumbnail extends StatefulWidget {
   /// fetched already. Only the blur's colours showed while a full photo
   /// (300-500 KB) came in, for each page of a many-photo post.
   final String? previewUrl;
+
+  /// How wide [previewUrl] is already decoded elsewhere on screen, small (a
+  /// post's small photo or card on a globe, growing into this one): that
+  /// copy, in memory, shows at once under the preview while the preview
+  /// decodes — the blur flashed first. With it, the photo itself is its own
+  /// preview too (a video's first frame, a photo with no thumbnail).
+  final int? previewAlsoAt;
 
   /// Largest width to decode to, in physical pixels. Height follows from the
   /// image's own proportions.
@@ -107,31 +115,43 @@ class _BlurHashImageThumbnailState extends State<BlurHashImageThumbnail> {
   /// can't be had).
   OctoSet _withPreview(OctoSet blur) {
     final preview = widget.previewUrl;
-    if (preview == null || preview.isEmpty || preview == widget.url) {
+    final also = widget.previewAlsoAt;
+    if (preview == null ||
+        preview.isEmpty ||
+        (preview == widget.url &&
+            (also == null || widget.decodeWidth == _previewWidth))) {
       return blur;
     }
+    // A file on this phone (an upload not finished) is read as the photo
+    // itself is; the cache downloads only what is on the server.
+    final source = preview.startsWith('file://')
+        ? FileImage(File(Uri.parse(preview).toFilePath())) as ImageProvider
+        : CachedNetworkImageProvider(
+            preview,
+            cacheManager: postImageCacheManager,
+            cacheKey: preview,
+          );
+    Widget copy(int width) => Image(
+      image: ResizeImage.resizeIfNeeded(width, null, source),
+      fit: widget.fit,
+      gaplessPlayback: true,
+      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+    );
     return OctoSet(
       placeholderBuilder: (context) => Stack(
         fit: StackFit.expand,
         children: [
           blur.placeholderBuilder!(context),
-          Image(
-            image: ResizeImage(
-              CachedNetworkImageProvider(
-                preview,
-                cacheManager: postImageCacheManager,
-                cacheKey: preview,
-              ),
-              width: 480,
-              policy: ResizeImagePolicy.fit,
-            ),
-            fit: widget.fit,
-            gaplessPlayback: true,
-            errorBuilder: (_, _, _) => const SizedBox.shrink(),
-          ),
+          if (also != null && also != _previewWidth) copy(also),
+          copy(_previewWidth),
         ],
       ),
       errorBuilder: blur.errorBuilder,
     );
   }
+
+  /// How wide [BlurHashImageThumbnail.previewUrl] is decoded: as a feed card
+  /// decodes the same thumbnail, so a copy already decoded there is the one
+  /// used.
+  static const _previewWidth = 480;
 }

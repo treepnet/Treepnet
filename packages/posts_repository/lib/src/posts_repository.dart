@@ -110,8 +110,10 @@ class PostsRepository implements PostsBaseRepository {
       _databaseClient.visitedRegionCountsOf(userId: userId);
 
   @override
-  Future<TravelMap?> travelMapOf({required String userId}) =>
-      _databaseClient.travelMapOf(userId: userId);
+  Future<TravelMap?> travelMapOf({
+    required String userId,
+    bool fresh = false,
+  }) => _databaseClient.travelMapOf(userId: userId, fresh: fresh);
 
   /// Replaces the user's marked regions.
   Future<void> setVisitedRegions({

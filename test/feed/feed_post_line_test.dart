@@ -1,5 +1,6 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart' show TimeAgo;
@@ -163,6 +164,17 @@ void main() {
         .widget<Text>(find.byKey(const ValueKey('feedPostCaptionRest')))
         .data!;
     expect('$firstText $restText', long);
+    // And all of the first line drawn: none of it cut at the arrows.
+    final drawn = tester.renderObject<RenderParagraph>(
+      find.descendant(
+        of: find.byKey(const ValueKey('feedPostCaptionFirst')),
+        matching: find.byType(RichText),
+      ),
+    );
+    expect(
+      drawn.getMaxIntrinsicWidth(double.infinity),
+      lessThanOrEqualTo(drawn.size.width + 0.01),
+    );
     // Its time under it all.
     expect(tester.getRect(find.byType(TimeAgo)).top, greaterThan(rest.bottom));
     await tester.pump(const Duration(seconds: 1));

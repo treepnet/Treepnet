@@ -4,3 +4,4 @@ export 'feed_loading_block.dart';
 export 'feed_page_controller.dart';
 export 'feed_tabs.dart';
 export 'page_load_retry.dart';
+export 'top_bar_tab.dart';

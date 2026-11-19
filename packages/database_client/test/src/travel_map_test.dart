@@ -105,10 +105,53 @@ void main() {
       expect(await client.travelMapOf(userId: _hamid), isNull);
     });
 
-    test('offline: null, and nothing asked for a non-id', () async {
+    test('offline with none fetched before: the error, for a retry', () async {
       server = () => throw Exception('offline');
-      expect(await client.travelMapOf(userId: _hamid), isNull);
+      await expectLater(
+        client.travelMapOf(userId: _hamid),
+        throwsA(isA<Exception>()),
+      );
       expect(await client.travelMapOf(userId: 'not-an-id'), isNull);
+      expect(calls, 1, reason: 'nothing asked for a non-id');
+    });
+
+    test('offline with one fetched before: that one', () async {
+      final first = await client.travelMapOf(userId: _hamid);
+      server = () => throw Exception('offline');
+      expect(await client.travelMapOf(userId: _hamid, fresh: true), first);
+    });
+
+    test('fresh asks the server again', () async {
+      await client.travelMapOf(userId: _hamid);
+      await client.travelMapOf(userId: _hamid, fresh: true);
+      expect(calls, 2);
+    });
+
+    test('asked again while on its way: the same call', () async {
+      server = () => Future<List<dynamic>>.delayed(
+        const Duration(milliseconds: 100),
+        () => [_row(_hamid)],
+      );
+      final first = client.travelMapOf(userId: _hamid);
+      // After the batch went out, before it answered.
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      final again = client.travelMapOf(userId: _hamid, fresh: true);
+      expect(await first, same(await again));
+      expect(calls, 1);
+    });
+
+    test('a row that won’t read costs that person’s globe only', () async {
+      server = () => [
+        _row(_hamid),
+        {'user_id': _other, 'regions': 'not a map', 'points': 5},
+        {'user_id': 7},
+      ];
+      final both = await Future.wait([
+        client.travelMapOf(userId: _hamid),
+        client.travelMapOf(userId: _other),
+      ]);
+      expect(both.first, isNotNull);
+      expect(both.last?.pins, isEmpty);
     });
 
     test('signing out forgets them', () async {

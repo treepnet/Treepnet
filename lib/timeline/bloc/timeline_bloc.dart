@@ -84,6 +84,25 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
   /// was 15). feed_page_ids takes up to 100.
   static const _pageSize = 24;
 
+  /// Bumped by every refresh, as the feed's (FeedBloc): a next page asked
+  /// for before a refresh landed after it, on the fresh first page with its
+  /// old number — the posts in between skipped (both tabs; the Maps tab's
+  /// end asked for one as a refresh began). A page that lands after a
+  /// refresh began is dropped, and none is asked for while one runs.
+  int _generation = 0;
+  bool _refreshing = false;
+
+  /// How many refreshes have begun: one that begins while a page is on its
+  /// way drops that page (above), so whoever waits for the page stops
+  /// waiting when this changes.
+  int get refreshes => _generation;
+
+  /// Whether the last request that failed was a refresh (a pull to refresh)
+  /// rather than a later page: once back online, that is what is asked for
+  /// again — a refresh, or that page.
+  bool get refreshFailed => _refreshFailed;
+  bool _refreshFailed = false;
+
   Future<void> _onTimelinePageRequested(
     TimelinePageRequested event,
     Emitter<TimelineState> emit,
@@ -92,6 +111,8 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
     // on a Retry after a failed page; a later page keeps the grid as it is.
     // This used to say "populated" here, so an empty first page looked
     // finished at once.
+    if (_refreshing) return;
+    final generation = _generation;
     if (state.timeline.blocks.isEmpty || state.status.isFailure) {
       emit(state.copyWith(status: TimelineStatus.loading));
     }
@@ -103,6 +124,7 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
         offset: _pageSize * currentPage,
         order: PostOrder.trending,
       );
+      if (generation != _generation) return;
 
       final newPage = currentPage + 1;
 
@@ -125,10 +147,13 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
         totalBlocks: updatedBlocks.length,
       );
 
+      _refreshFailed = false;
       emit(
         state.copyWith(status: TimelineStatus.populated, timeline: timeline),
       );
     } on PostsPageIncomplete catch (incomplete, stackTrace) {
+      if (generation != _generation) return;
+      _refreshFailed = false;
       // Not the end of Trends: what the phone had goes on screen and the grid
       // ends in a Retry for the same page.
       _keep(incomplete.posts);
@@ -146,8 +171,10 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
       );
       addError(incomplete.cause, stackTrace);
     } catch (error, stackTrace) {
-      emit(state.copyWith(status: TimelineStatus.failure));
       addError(error, stackTrace);
+      if (generation != _generation) return;
+      _refreshFailed = false;
+      emit(state.copyWith(status: TimelineStatus.failure));
     }
   }
 
@@ -155,6 +182,8 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
     TimelineRefreshRequested event,
     Emitter<TimelineState> emit,
   ) async {
+    final generation = ++_generation;
+    _refreshing = true;
     emit(state.copyWith(status: TimelineStatus.loading));
     try {
       const currentPage = 0;
@@ -164,6 +193,7 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
         offset: _pageSize * currentPage,
         order: PostOrder.trending,
       );
+      if (generation != _generation) return; // a newer refresh is on its way
 
       const newPage = currentPage + 1;
 
@@ -184,10 +214,13 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
         totalBlocks: blocks.length,
       );
 
+      _refreshFailed = false;
       emit(
         state.copyWith(status: TimelineStatus.populated, timeline: timeline),
       );
     } on PostsPageIncomplete catch (incomplete, stackTrace) {
+      if (generation != _generation) return;
+      _refreshFailed = true;
       // Posts already on screen stay; an empty grid shows what the phone had,
       // from page 0, so Retry asks for the first page again.
       _keep(incomplete.posts);
@@ -209,8 +242,12 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
       );
       addError(incomplete.cause, stackTrace);
     } catch (error, stackTrace) {
-      emit(state.copyWith(status: TimelineStatus.failure));
       addError(error, stackTrace);
+      if (generation != _generation) return;
+      _refreshFailed = true;
+      emit(state.copyWith(status: TimelineStatus.failure));
+    } finally {
+      if (generation == _generation) _refreshing = false;
     }
   }
 }

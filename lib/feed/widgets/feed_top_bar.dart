@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared/shared.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/feed/feed_mode.dart';
+import 'package:treepnet/feed/widgets/top_bar_tab.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/notifications/push/push_notifications.dart';
 import 'package:treepnet/notifications/view/notifications_page.dart';
@@ -74,13 +75,13 @@ class FeedTopBar extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _FeedTab(
+                      TopBarTab(
                         label: context.l10n.postsText,
                         isActive: currentTab == 0,
                         onTap: () => onTabChanged(0),
                       ),
                       const Gap.h(AppSpacing.xlg),
-                      _FeedTab(
+                      TopBarTab(
                         label: context.l10n.storiesText,
                         isActive: currentTab == 1,
                         onTap: () => onTabChanged(1),
@@ -207,50 +208,6 @@ class _FeedModeSide extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _FeedTab extends StatelessWidget {
-  const _FeedTab({
-    required this.label,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tappable(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: context.titleMedium?.copyWith(
-              fontSize: 24,
-              fontWeight: AppFontWeight.semiBold,
-              color: isActive ? AppColors.white : AppColors.textSecondary,
-            ),
-          ),
-          const Gap.v(AppSpacing.xs),
-          // The active tab's underline; the inactive one keeps the same space
-          // so the labels never shift.
-          AnimatedContainer(
-            duration: 180.ms,
-            height: 2,
-            width: isActive ? 66 : 0,
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-        ],
       ),
     );
   }

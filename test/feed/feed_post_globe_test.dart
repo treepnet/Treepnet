@@ -1,5 +1,6 @@
+import 'dart:async';
+
 import 'package:app_ui/app_ui.dart';
-import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,30 +11,19 @@ import 'package:posts_repository/posts_repository.dart';
 import 'package:shared/shared.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/feed/new_feed/feed_post_globe.dart';
+import 'package:treepnet/feed/new_feed/post_pin_card.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/map/geo_regions.dart';
 import 'package:treepnet/map/globe_view.dart';
 import 'package:treepnet/user_profile/widgets/user_profile_travel_map.dart';
 import 'package:user_repository/user_repository.dart';
 
-class _MockAppBloc extends MockBloc<AppEvent, AppState> implements AppBloc {}
+import 'helpers/globe_harness.dart';
 
-class _MockPostsRepository extends Mock implements PostsRepository {}
-
-class _MockUserRepository extends Mock implements UserRepository {}
-
-final _post = PostLargeBlock(
-  id: 'post-1',
-  author: const PostAuthor(id: 'author', avatarUrl: '', username: 'author'),
-  createdAt: DateTime(2026),
-  media: const [ImageMedia(id: 'm1', url: '')],
-  caption: '',
-);
+final _post = globePost;
 
 /// The author's other posts' photos on their pins.
-final _others = find.byWidgetPredicate(
-  (w) => w.runtimeType.toString() == '_OtherPhoto',
-);
+final _others = find.byWidgetPredicate((w) => w is OtherPinPhoto);
 
 /// This post's photo (on its pin, or grown).
 Finder _photo() => find.byWidgetPredicate(
@@ -45,56 +35,20 @@ Finder _photo() => find.byWidgetPredicate(
 /// other posts' on theirs (FeedGlobeMode.photosOnPins). The new feed's
 /// card: feed_post_globe_card_test.dart.
 void main() {
-  late _MockAppBloc app;
-  late _MockPostsRepository posts;
-  late _MockUserRepository users;
+  late GlobeHarness harness;
+  late MockPostsRepository posts;
+  late MockAppBloc app;
+  late MockUserRepository users;
 
   setUp(() {
-    app = _MockAppBloc();
-    posts = _MockPostsRepository();
-    users = _MockUserRepository();
-    when(
-      () => posts.statsOf(postId: any(named: 'postId')),
-    ).thenAnswer((_) => const Stream<PostStats>.empty());
-    whenListen(
-      app,
-      const Stream<AppState>.empty(),
-      initialState: const AppState.authenticated(User(id: 'me')),
-    );
-    when(() => posts.travelMapOf(userId: 'author')).thenAnswer(
-      (_) async => const TravelMap(
-        regions: {'UZ-TK': 1},
-        pins: [
-          (postId: 'post-1', lat: 41.36, lng: 69.23, name: 'City', thumb: null),
-        ],
-      ),
-    );
+    harness = GlobeHarness();
+    posts = harness.posts;
+    app = harness.app;
+    users = harness.users;
   });
 
-  Future<void> pump(WidgetTester tester, Widget child) => tester.pumpWidget(
-    MultiBlocProvider(
-      providers: [BlocProvider<AppBloc>.value(value: app)],
-      child: MultiRepositoryProvider(
-        providers: [
-          RepositoryProvider<PostsRepository>.value(value: posts),
-          RepositoryProvider<UserRepository>.value(value: users),
-        ],
-        child: MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          locale: const Locale('en'),
-          home: Scaffold(
-            body: FeedGlobeMode(
-              photosOnPins: true,
-              showPlace: false,
-              showCaption: false,
-              child: child,
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
+  Future<void> pump(WidgetTester tester, Widget child) =>
+      harness.pump(tester, child, style: FeedGlobeStyle.photos);
 
   testWidgets('4:5, facing the post, turned and zoomed as on the profile', (
     tester,
@@ -113,7 +67,7 @@ void main() {
     expect(center.lng, 69.23);
     expect(center.lat, lessThan(41.36 + 15.01));
     expect(center.lat, greaterThan(41.36 - 20.01));
-    expect(globe.interactive, isTrue);
+    expect(globe.claimTap, isNotNull);
     expect(globe.controller, isNotNull);
     // Its +, − and back buttons, drawn over the photos (see below).
     expect(globe.showButtons, isFalse);
@@ -597,25 +551,22 @@ void main() {
       addTearDown(scroll.dispose);
       await pump(
         tester,
-        ListView(
-          controller: scroll,
-          children: [
-            Align(
-              alignment: Alignment.topLeft,
-              child: SizedBox(
-                width: 300,
-                child: FeedPostGlobe(
-                  block: _post,
-                  onLikeTap: () => taps.add('like'),
-                  onShareTap: (_) => taps.add('share'),
-                  onCommentsTap: (_) => taps.add('comment'),
-                  onSaveTap: () => taps.add('save'),
-                ),
+        globeList(scroll, [
+          Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 300,
+              child: FeedPostGlobe(
+                block: _post,
+                onLikeTap: () => taps.add('like'),
+                onShareTap: (_) => taps.add('share'),
+                onCommentsTap: (_) => taps.add('comment'),
+                onSaveTap: () => taps.add('save'),
               ),
             ),
-            const SizedBox(height: 2000),
-          ],
-        ),
+          ),
+          const SizedBox(height: 2000),
+        ]),
       );
       await tester.pump();
       expect(photo(tester).width, closeTo(52, 0.5));
@@ -649,26 +600,21 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     });
 
-    testWidgets('a scroll of the feed shrinks it back', (tester) async {
-      final (:taps, :scroll) = await grow(tester);
-      await tester.dragFrom(const Offset(780, 300), const Offset(0, -200));
-      await settle(tester);
-      expect(scroll.offset, greaterThan(100), reason: 'the feed scrolls');
-      expect(photo(tester).width, closeTo(52, 0.5));
-      expect(taps, isEmpty);
-      await tester.pump(const Duration(seconds: 1));
-    });
-
-    testWidgets('a drag over the big card scrolls the feed and shrinks it', (
+    testWidgets('a scroll of the feed (an arrow) shrinks it back', (
       tester,
     ) async {
       final (:taps, :scroll) = await grow(tester);
-      await tester.drag(
-        find.byType(BlurHashImageThumbnail),
-        const Offset(0, -150),
+      unawaited(
+        scroll.animateTo(
+          300,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeInOutCubic,
+        ),
       );
+      // The scroll, then the shrink it sets off.
       await settle(tester);
-      expect(scroll.offset, greaterThan(100));
+      await settle(tester);
+      expect(scroll.offset, 300, reason: 'the feed scrolls');
       expect(photo(tester).width, closeTo(52, 0.5));
       expect(taps, isEmpty);
       await tester.pump(const Duration(seconds: 1));
@@ -755,9 +701,7 @@ void main() {
             path: '/',
             builder: (context, state) => Scaffold(
               body: FeedGlobeMode(
-                photosOnPins: true,
-                showPlace: false,
-                showCaption: false,
+                style: FeedGlobeStyle.photos,
                 child: Align(
                   alignment: Alignment.topLeft,
                   child: SizedBox(
@@ -841,15 +785,5 @@ void main() {
       expect(find.byKey(const ValueKey('pinCardLike')), findsOneWidget);
       await tester.pump(const Duration(seconds: 1));
     });
-  });
-
-  test('only the new feed marks its posts', () {
-    // FeedGlobeMode is what PostView reads; outside it, the photos.
-    expect(
-      const FeedGlobeMode(
-        child: SizedBox(),
-      ).updateShouldNotify(const FeedGlobeMode(child: SizedBox())),
-      isFalse,
-    );
   });
 }

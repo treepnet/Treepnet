@@ -5,8 +5,6 @@ import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
-import 'package:treepnet/app/app.dart';
 import 'package:treepnet/feed/post/post.dart';
 import 'package:treepnet/feed/widgets/widgets.dart';
 import 'package:treepnet/feed/post/video/video.dart';
@@ -45,11 +43,10 @@ class TimelineView extends StatefulWidget {
 
 class _TimelineViewState extends State<TimelineView>
     with SingleTickerProviderStateMixin {
-  late final Animation<double> _animation = CurvedAnimation(
-    curve: Curves.easeOutQuad,
-    parent: _controller,
-  );
-  late final AnimationController _controller = AnimationController(vsync: this);
+  /// The next page's spinner under the grid (made in [initState]: made
+  /// lazily, it could be made first in [dispose], too late for a ticker).
+  late final AnimationController _controller;
+  late final CurvedAnimation _animation;
   final _isNextPageLoading = ValueNotifier(false);
   StreamSubscription<void>? _syncSub;
   DateTime? _lastSyncedAt;
@@ -63,8 +60,9 @@ class _TimelineViewState extends State<TimelineView>
   StreamSubscription<int>? _reselect;
 
   /// The tab shown: Maps (the posts on their authors' globes) or Posts (the
-  /// grid). Maps, the first, at first.
-  int _tab = TrendsTopBar.maps;
+  /// grid). Maps, the first, at first. Only the header follows it: a swipe
+  /// rebuilds nothing else.
+  final _tab = ValueNotifier(TrendsTopBar.maps);
 
   /// The Maps tab's list, to its top as the grid is.
   final _mapsScroll = ScrollController();
@@ -73,19 +71,23 @@ class _TimelineViewState extends State<TimelineView>
   /// alive under the Maps tab, they would play unseen).
   final _gridShown = ValueNotifier(false);
 
+  /// Whether the Maps tab is shown: a grown card's video plays only then.
+  final _mapsShown = ValueNotifier(true);
+
   /// The two tabs side by side, a swipe from one to the other (as the
   /// feed's Posts and Stories); a tap on a tab's name slides there.
   final _pages = PageController();
 
   /// The page in view changed (swiped to, or slid to from the header).
   void _showTab(int tab) {
-    if (tab == _tab) return;
-    setState(() => _tab = tab);
+    if (tab == _tab.value) return;
+    _tab.value = tab;
     _gridShown.value = tab == TrendsTopBar.posts;
+    _mapsShown.value = tab == TrendsTopBar.maps;
   }
 
   void _goTo(int tab) {
-    if (tab == _tab || !_pages.hasClients) return;
+    if (tab == _tab.value || !_pages.hasClients) return;
     unawaited(
       _pages.animateToPage(
         tab,
@@ -98,9 +100,14 @@ class _TimelineViewState extends State<TimelineView>
   @override
   void initState() {
     super.initState();
+    _controller = AnimationController(vsync: this);
+    _animation = CurvedAnimation(
+      curve: Curves.easeOutQuad,
+      parent: _controller,
+    );
     _reselect = TabReselect.scrollToTopOn(
       1,
-      () => _tab == TrendsTopBar.maps ? _mapsScroll : _scroll,
+      () => _tab.value == TrendsTopBar.maps ? _mapsScroll : _scroll,
     );
     final db = context.read<PowerSyncRepository>().db();
     _hasSynced = db.currentStatus.hasSynced ?? false;
@@ -114,8 +121,16 @@ class _TimelineViewState extends State<TimelineView>
       _lastSyncedAt = syncedAt;
       if (!_hasSynced) setState(() => _hasSynced = true);
       final bloc = context.read<TimelineBloc>();
-      if (bloc.state.timeline.blocks.isEmpty || bloc.state.status.isFailure) {
+      // Still nothing on screen, or a refresh that failed: a refresh. A
+      // later page that failed: that page again — a refresh would cut the
+      // list back to the first page, and the Maps tab's reader would lose
+      // their place.
+      final failed = bloc.state.status.isFailure;
+      if (bloc.state.timeline.blocks.isEmpty ||
+          (failed && bloc.refreshFailed)) {
         bloc.add(const TimelineRefreshRequested());
+      } else if (failed) {
+        bloc.add(const TimelinePageRequested());
       }
     });
   }
@@ -127,8 +142,12 @@ class _TimelineViewState extends State<TimelineView>
     _scroll.dispose();
     _mapsScroll.dispose();
     _pages.dispose();
+    _tab.dispose();
     _gridShown.dispose();
+    _mapsShown.dispose();
     _isNextPageLoading.dispose();
+    _animation.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -151,7 +170,11 @@ class _TimelineViewState extends State<TimelineView>
       releaseFocus: true,
       body: Column(
         children: [
-          TrendsTopBar(currentTab: _tab, onTabChanged: _goTo),
+          ValueListenableBuilder(
+            valueListenable: _tab,
+            builder: (context, tab, _) =>
+                TrendsTopBar(currentTab: tab, onTabChanged: _goTo),
+          ),
           Expanded(
             // A swipe left or right goes from one tab to the other, as on
             // the feed (a drag on a globe turns the globe). Both kept: back
@@ -161,7 +184,10 @@ class _TimelineViewState extends State<TimelineView>
               onPageChanged: _showTab,
               children: [
                 FeedKeepAliveTab(
-                  child: TimelineMapsView(scrollController: _mapsScroll),
+                  child: TimelineMapsView(
+                    scrollController: _mapsScroll,
+                    onScreen: _mapsShown,
+                  ),
                 ),
                 FeedKeepAliveTab(child: _grid(context, hasMore: hasMore)),
               ],
@@ -182,13 +208,23 @@ class _TimelineViewState extends State<TimelineView>
       child: InViewNotifierCustomScrollView(
         controller: _scroll,
         onListEndReached: () async {
-          if (!hasMore) return;
+          // A refresh (or a retry) already running answers first: a page
+          // asked for meanwhile is dropped, and its spinner would wait for
+          // it for nothing.
+          if (!hasMore || context.read<TimelineBloc>().state.status.isLoading) {
+            return;
+          }
           Future<void> onEndReached() async {
             final bloc = context.read<TimelineBloc>();
             final page = bloc.state.timeline.page;
+            final refreshes = bloc.refreshes;
             bloc.add(const TimelinePageRequested());
+            // The page in, a failure, or a refresh that dropped it.
             await _settled(
-              (state) => state.timeline.page != page || state.status.isFailure,
+              (state) =>
+                  state.timeline.page != page ||
+                  state.status.isFailure ||
+                  bloc.refreshes != refreshes,
             );
           }
 
@@ -294,35 +330,6 @@ class _TimelineViewState extends State<TimelineView>
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Trends' search: the magnifier at the top right, where the feed has its
-/// bell (the same size and margin), opening the search page as the field on
-/// top used to.
-class TimelineSearchButton extends StatelessWidget {
-  const TimelineSearchButton({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: AppSpacing.md),
-      child: Semantics(
-        button: true,
-        label: context.l10n.searchText,
-        child: Tappable.scaled(
-          onTap: () => context.pushNamed(AppRoutes.search.name),
-          child: Assets.icons.search.svg(
-            width: AppSize.iconSizeMedium,
-            height: AppSize.iconSizeMedium,
-            colorFilter: ColorFilter.mode(
-              context.adaptiveColor,
-              BlendMode.srcIn,
-            ),
-          ),
-        ),
       ),
     );
   }

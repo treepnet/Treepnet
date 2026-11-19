@@ -66,6 +66,9 @@ class _InlineVideoState extends State<InlineVideo>
                 );
     }
     _controller.initialize().then((_) async {
+      // Gone meanwhile (a grown card shrunk, its tab left): it must not start
+      // playing, aloud, with nothing on screen.
+      if (!mounted) return;
       safeSetState(() {});
       _togglePlayer();
       _toggleSound();
@@ -74,6 +77,8 @@ class _InlineVideoState extends State<InlineVideo>
 
   void _togglePlayer() {
     void enablePlayer() {
+      // Asked to stop, or gone, while it waited [initDelay].
+      if (!mounted || !videoSettings.shouldPlay) return;
       _controller
         ..play()
         ..setLooping(true);

@@ -160,11 +160,10 @@ class _PostLargeViewState extends State<PostLargeView> {
     final authorPlaces = context.select(
       (PostBloc bloc) => bloc.state.authorPlaces,
     );
-    // The new feed (a prototype): the author's globe, facing the post's
-    // place, in place of the photos, and the post's buttons on its small card.
+    // The new feed and Trends' Maps tab: the author's globe, facing the
+    // post's place, in place of the photos, the post's buttons on its card.
     final globeMode = FeedGlobeMode.maybeOf(context);
     final globe = globeMode != null;
-    final likesCount = context.select((PostBloc bloc) => bloc.state.likes);
 
     return PostLarge(
       block: widget.block,
@@ -186,33 +185,38 @@ class _PostLargeViewState extends State<PostLargeView> {
       authorBadge: TravelTierBadge.tier(authorTier),
       authorSubtitle: _AuthorLocationCount(count: authorPlaces),
       mediaReplacement: globe
-          ? FeedPostGlobe(
-              block: widget.block,
-              isLiked: isLiked,
-              isBookmarked: isBookmarked,
-              commentsCount: commentsCount,
-              likesCount: likesCount,
-              onLikeTap: () => bloc.add(const PostLikeRequested()),
-              // This post's, or another of its author's grown on the globe.
-              onShareTap: (block) => _openShare(context, block: block),
-              onCommentsTap: (block) =>
-                  _openComments(context, showFullSized: true, block: block),
-              onSaveTap: () => bloc.add(const PostBookmarkRequested()),
+          // The likes count is the globe card's alone: only it rebuilds when
+          // someone likes the post (the usual card shows its likers).
+          ? BlocSelector<PostBloc, PostState, int>(
+              selector: (state) => state.likes,
+              builder: (context, likesCount) => FeedPostGlobe(
+                block: widget.block,
+                isLiked: isLiked,
+                isBookmarked: isBookmarked,
+                commentsCount: commentsCount,
+                likesCount: likesCount,
+                onLikeTap: () => bloc.add(const PostLikeRequested()),
+                // This post's, or another of its author's grown on the globe.
+                onShareTap: (block) => _openShare(context, block: block),
+                onCommentsTap: (block) =>
+                    _openComments(context, showFullSized: true, block: block),
+                onSaveTap: () => bloc.add(const PostBookmarkRequested()),
+              ),
             )
           : null,
-      // Its place where the buttons were (they are on the globe's card), and
-      // at the right, where save was, the steps to the next post and the
-      // one before (not before the first).
       // On a globe, the description goes up beside the arrows (below), or
       // nowhere (Trends).
       showCaption: !globe,
       // Its time under its description; with none, up beside the arrows
-      // (below) instead; on Trends' Maps tab, nowhere.
+      // (below) instead; on Trends' Maps tab, nowhere. Spaces alone are no
+      // description (as the line beside the arrows reads it).
       showTime:
           globeMode == null ||
-          (globeMode.showCaption && widget.block.caption.isNotEmpty),
+          (globeMode.showCaption && widget.block.caption.trim().isNotEmpty),
+      // The buttons are on the globe's card: where they were, the arrows to
+      // the next post and the one before, and the description (or the time)
+      // beside them.
       footerInPlaceOfActions: globe
-          // The arrows, and the description (or the time) beside them.
           ? FeedPostLine(
               block: widget.block,
               mode: globeMode,

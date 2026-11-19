@@ -2,8 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Which feed the Posts tab shows: the usual one, or the new one (the globe
-/// side of the switch at the feed's top left). A prototype: the new feed is
-/// still to be designed.
+/// side of the switch at the feed's top left).
 enum FeedMode {
   /// The usual feed.
   classic,
@@ -23,8 +22,16 @@ abstract final class FeedModeStore {
   /// Reads the one picked before (quietly the usual feed if it can't).
   static Future<void> load() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      mode.value = prefs.getString(_key) == FeedMode.globe.name
+      restore(await SharedPreferences.getInstance());
+    } catch (_) {}
+  }
+
+  /// Takes the one picked before from [preferences], already open (at
+  /// start-up): the feed opens as it was left from its first frame — it
+  /// showed the usual feed for a moment, and slid the switch over.
+  static void restore(SharedPreferences preferences) {
+    try {
+      mode.value = preferences.getString(_key) == FeedMode.globe.name
           ? FeedMode.globe
           : FeedMode.classic;
     } catch (_) {}

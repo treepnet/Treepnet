@@ -160,7 +160,9 @@ class SyncConnector extends PowerSyncBackendConnector {
     final token = await AuthSession.instance.idToken();
     if (token == null) throw StateError('No ID token yet');
     // The client puts the current token on each request; this one stays for
-    // a request sent just after signing out.
+    // a request sent just after signing out. Ended with the transaction
+    // (below): each one started a JSON isolate that never ended — one more
+    // for every like, save, comment or post, until the app quit.
     final rest = PostgrestClient(
       _postgrestUrl,
       headers: {'Authorization': 'Bearer $token'},
@@ -224,6 +226,9 @@ class SyncConnector extends PowerSyncBackendConnector {
       final attempt = _uploadAttempts.failed(transaction.transactionId);
       _reportIfStuck(lastOp, e.runtimeType.toString(), attempt);
       rethrow;
+    } finally {
+      // Its isolate only: the connection ([_uploadClient]) is shared.
+      await rest.dispose();
     }
   }
 
@@ -346,10 +351,17 @@ class PowerSyncRepository {
   /// authorised with the current ID token. Used for RPC calls and any
   /// direct writes outside the PowerSync upload path. The token is checked
   /// (and refreshed if needed) per request — see [FreshTokenClient].
-  PostgrestClient postgrest() =>
-      PostgrestClient(_postgrestUrl, httpClient: _restHttpClient);
+  PostgrestClient postgrest() => _rest;
 
-  /// One shared client for every [postgrest] call.
+  /// One client for every [postgrest] call. A new one each time started a
+  /// JSON isolate that never ended: one more for each server call (each
+  /// globe of the new feed and Trends asks for its map), until the app quit.
+  late final _rest = PostgrestClient(
+    _postgrestUrl,
+    httpClient: _restHttpClient,
+  );
+
+  /// One shared connection for every [postgrest] call.
   final _restHttpClient = FreshTokenClient();
 
   /// The sync client written in Rust: the only one that speaks sync streams

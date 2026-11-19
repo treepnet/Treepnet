@@ -47,6 +47,17 @@ class WorldLevels<T> extends ChangeNotifier {
   /// Whether [step] is built.
   bool has(double step) => _built.containsKey(step);
 
+  /// Builds every level now, before any is wanted: a test's globe is then
+  /// drawn the same however busy the machine (a level landing after the
+  /// picture was taken left a coarser stand-in in it).
+  Future<void> buildAll() async {
+    for (final step in steps) {
+      if (_built.containsKey(step)) continue;
+      _built[step] = await build(step);
+    }
+    notifyListeners();
+  }
+
   void _request(double step) {
     if (_built.containsKey(step) || !_building.add(step)) return;
     build(step).then(

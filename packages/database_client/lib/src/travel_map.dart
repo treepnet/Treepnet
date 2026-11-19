@@ -55,8 +55,14 @@ class TravelMap {
     return null;
   }
 
-  /// The pins as the globe takes them.
-  List<({double lat, double lng, String? name})> get points => [
-    for (final pin in pins) (lat: pin.lat, lng: pin.lng, name: pin.name),
-  ];
+  /// The pins as the globe takes them: the same list each time, so the
+  /// globes of one person's posts (a feed can show several) share one scene
+  /// rather than each building its own.
+  List<({double lat, double lng, String? name})> get points =>
+      _points[this] ??= List.unmodifiable([
+        for (final pin in pins) (lat: pin.lat, lng: pin.lng, name: pin.name),
+      ]);
+
+  static final _points =
+      Expando<List<({double lat, double lng, String? name})>>();
 }

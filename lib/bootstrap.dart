@@ -17,6 +17,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:token_storage/token_storage.dart';
 import 'package:treepnet/app/services/fresh_install.dart';
 import 'package:treepnet/app/services/media_upload_queue.dart';
+import 'package:treepnet/feed/feed_mode.dart';
 import 'package:treepnet/map/geo_regions.dart';
 import 'package:treepnet/monitoring/crash_reporter.dart';
 import 'package:treepnet/notifications/push/push_notifications.dart';
@@ -108,6 +109,8 @@ Future<void> bootstrap(
         }),
       ).wait;
       HydratedBloc.storage = settings;
+      // The feed picked before, before the first frame.
+      FeedModeStore.restore(sharedPreferences);
 
       // Firebase Cloud Messaging (push). Push is NOT needed to render the first
       // screen, so keep it OFF the startup critical path: a slow or hanging

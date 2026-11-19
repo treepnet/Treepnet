@@ -182,7 +182,7 @@ class LocationPostsPage extends StatelessWidget {
                   style: context.titleMedium?.copyWith(
                     // Exactly the feed's Posts/Stories tabs — 24px semiBold — so
                     // headings across the app are one size, not merely one
-                    // weight. See _FeedTab in feed_top_bar.dart.
+                    // weight. See TopBarTab in top_bar_tab.dart.
                     fontSize: 24,
                     fontWeight: AppFontWeight.semiBold,
                     color: context.colorScheme.onSurface,

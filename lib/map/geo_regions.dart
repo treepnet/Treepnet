@@ -93,12 +93,6 @@ class GeoRegion {
   /// maxLng, maxLat)`). Used for viewport culling and label sizing.
   Rect get lngLatBounds => _bounds ??= _computeBounds();
 
-  /// Whether [lng]/[lat] is inside the region (the test [GeoRegions.regionAt]
-  /// makes).
-  bool containsPoint(double lng, double lat) =>
-      lngLatBounds.contains(Offset(lng, lat)) &&
-      GeoRegions._containsPoint(rings, lng, lat);
-
   /// The label anchor, in lng/lat: a point inside the region. The middle of
   /// its largest ring when that is inside; otherwise its innermost point
   /// ([_interiorPoint]). Computed for every region while the map loads, in
@@ -434,6 +428,24 @@ class GeoRegions {
   /// [lng]/[lat] (bounding-box pre-filter, then even-odd ray casting), or null
   /// over ocean / uncovered areas.
   GeoRegion? regionAt(double lng, double lat) {
+    // Before the map is in there is nothing to find, and nothing to keep.
+    if (!_loaded) return null;
+    final key = (lng, lat);
+    final known = _regionsAt[key];
+    if (known != null || _regionsAt.containsKey(key)) return known;
+    if (_regionsAt.length >= _maxRegionsAt) _regionsAt.clear();
+    return _regionsAt[key] = _findRegionAt(lng, lat);
+  }
+
+  /// [regionAt]'s answers so far. The map never changes once loaded, and the
+  /// globes ask about the same pins again and again — every post's globe, its
+  /// camera, its place line — each answer a scan of ~4,500 regions.
+  final _regionsAt = <(double, double), GeoRegion?>{};
+
+  /// Taps on the map ask about any point: past this many, start over.
+  static const _maxRegionsAt = 20000;
+
+  GeoRegion? _findRegionAt(double lng, double lat) {
     final pt = Offset(lng, lat);
     for (final region in _byIso.values) {
       if (!region.lngLatBounds.contains(pt)) continue;

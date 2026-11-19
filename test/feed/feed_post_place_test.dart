@@ -1,26 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:posts_repository/posts_repository.dart';
 import 'package:shared/shared.dart';
 import 'package:treepnet/feed/new_feed/feed_post_place.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/map/geo_regions.dart';
 
-class _MockPostsRepository extends Mock implements PostsRepository {}
-
-/// The new feed (a prototype): under the globe, where the buttons were, the
-/// globe's white pin and the post's country and city.
+/// The new feed: over the globe, in its bottom left corner, the globe's
+/// white pin and the post's country and city.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   // The country and the city come from the map data.
   setUpAll(() async => GeoRegions.instance.load());
 
-  late _MockPostsRepository posts;
-
-  setUp(() => posts = _MockPostsRepository());
+  /// The author's map as the globe has it: the post's pin, in Tashkent
+  /// unless [lat]/[lng] say otherwise.
+  late TravelMap map;
 
   PostLargeBlock post({String? location}) => PostLargeBlock(
     id: 'post-1',
@@ -31,15 +27,10 @@ void main() {
     location: location,
   );
 
-  /// The post's pin, in Tashkent unless [lat]/[lng] say otherwise.
   void pinNamed(String? name, {double lat = 41.31, double lng = 69.28}) =>
-      when(() => posts.travelMapOf(userId: 'author')).thenAnswer(
-        (_) async => TravelMap(
-          regions: const {},
-          pins: [
-            (postId: 'post-1', lat: lat, lng: lng, name: name, thumb: null),
-          ],
-        ),
+      map = TravelMap(
+        regions: const {},
+        pins: [(postId: 'post-1', lat: lat, lng: lng, name: name, thumb: null)],
       );
 
   Future<void> pump(
@@ -48,13 +39,12 @@ void main() {
     String lang = 'en',
   }) async {
     await tester.pumpWidget(
-      RepositoryProvider<PostsRepository>.value(
-        value: posts,
-        child: MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          locale: Locale(lang),
-          home: Scaffold(body: FeedPostPlace(block: block)),
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: Locale(lang),
+        home: Scaffold(
+          body: FeedPostPlace(block: block, map: map),
         ),
       ),
     );

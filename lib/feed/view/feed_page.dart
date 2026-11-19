@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:app_ui/app_ui.dart';
 import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 // `show`: the package also exports sqlite3's `Row`, which collides with the
@@ -77,13 +78,33 @@ class _FeedViewState extends State<FeedView> {
   /// The new feed's list (the usual one's is [_nestedScrollController]).
   final _globeScrollController = ScrollController();
 
-  ScrollController get _shownScroll =>
-      _mode == FeedMode.classic ? _nestedScrollController : _globeScrollController;
+  /// Each list is built the first time it is picked, then kept (where it was
+  /// left): the new feed's globes cost a call to the server and their scenes
+  /// for every post, for nothing the usual feed's readers ever see.
+  late bool _classicBuilt = _mode == FeedMode.classic;
+  late bool _globeBuilt = _mode == FeedMode.globe;
+
+  /// Whether the new feed is on screen (its side picked, the Posts tab
+  /// shown): a grown card's video plays only then.
+  late final _globeOnScreen = ValueNotifier(_mode == FeedMode.globe);
+
+  ScrollController get _shownScroll => _mode == FeedMode.classic
+      ? _nestedScrollController
+      : _globeScrollController;
+
+  /// Whether [controller]'s list is at its top (or not built yet).
+  static bool _atTop(ScrollController controller) =>
+      !controller.hasClients || controller.offset <= 48;
 
   void _onModeChanged() {
     final mode = FeedModeStore.mode.value;
     if (!mounted || mode == _mode) return;
-    setState(() => _mode = mode);
+    setState(() {
+      _mode = mode;
+      _classicBuilt |= mode == FeedMode.classic;
+      _globeBuilt |= mode == FeedMode.globe;
+    });
+    _globeOnScreen.value = _tab == 0 && mode == FeedMode.globe;
     _videoGate?.modeChanged(classic: mode == FeedMode.classic);
     // The Feed tab tapped again scrolls the list on screen.
     FeedPageController().usePostsScroll(_shownScroll);
@@ -166,6 +187,7 @@ class _FeedViewState extends State<FeedView> {
       ..detach(_globeScrollController);
     _nestedScrollController.dispose();
     _globeScrollController.dispose();
+    _globeOnScreen.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -194,26 +216,36 @@ class _FeedViewState extends State<FeedView> {
               controller: _tabController,
               onPageChanged: (tab) {
                 setState(() => _tab = tab);
+                _globeOnScreen.value = tab == 0 && _mode == FeedMode.globe;
                 _videoGate?.tabChanged(tab);
               },
               // Both tabs stay alive: coming back to Posts finds the list
               // where it was left, not rebuilt from the top.
               children: [
-                // The usual feed or the new one; the usual one stays alive
-                // behind the new one, where it was left.
+                // The usual feed or the new one; once built, each stays
+                // alive behind the other, where it was left.
                 FeedKeepAliveTab(
                   child: IndexedStack(
                     index: _mode == FeedMode.classic ? 0 : 1,
                     children: [
-                      FeedBody(
-                        scrollController: _nestedScrollController,
-                        isShown: () => _mode == FeedMode.classic,
-                      ),
-                      FeedBody(
-                        scrollController: _globeScrollController,
-                        globe: true,
-                        isShown: () => _mode == FeedMode.globe,
-                      ),
+                      if (_classicBuilt)
+                        FeedBody(
+                          scrollController: _nestedScrollController,
+                          isShown: () => _mode == FeedMode.classic,
+                          otherAtTop: () => _atTop(_globeScrollController),
+                        )
+                      else
+                        const SizedBox.shrink(),
+                      if (_globeBuilt)
+                        FeedBody(
+                          scrollController: _globeScrollController,
+                          globe: true,
+                          onScreen: _globeOnScreen,
+                          isShown: () => _mode == FeedMode.globe,
+                          otherAtTop: () => _atTop(_nestedScrollController),
+                        )
+                      else
+                        const SizedBox.shrink(),
                     ],
                   ),
                 ),
@@ -231,7 +263,9 @@ class FeedBody extends StatefulWidget {
   const FeedBody({
     this.scrollController,
     this.globe = false,
+    this.onScreen,
     this.isShown,
+    this.otherAtTop,
     super.key,
   });
 
@@ -239,13 +273,21 @@ class FeedBody extends StatefulWidget {
   /// shared, scroll it back to the top (FeedPageController).
   final ScrollController? scrollController;
 
-  /// The new feed (a prototype): the same posts, each with its author's
-  /// globe in place of the photos ([FeedGlobeMode]).
+  /// The new feed: the same posts, each with its author's globe in place of
+  /// the photos ([FeedGlobeMode]).
   final bool globe;
+
+  /// The new feed: whether it is on screen ([FeedGlobeMode.onScreen]).
+  final ValueListenable<bool>? onScreen;
 
   /// Whether this list is the one on screen (the usual feed and the new one
   /// are both kept): only that one looks for new posts.
   final bool Function()? isShown;
+
+  /// Whether the other list (kept behind this one) is at its top: new posts
+  /// refresh the feed in place only then, as the refresh takes both back to
+  /// the first page.
+  final bool Function()? otherAtTop;
 
   @override
   State<FeedBody> createState() => _FeedBodyState();
@@ -289,7 +331,10 @@ class _FeedBodyState extends State<FeedBody> {
 
   /// Whether the newest post is on screen; if not, refreshes in place at the
   /// top of the feed, or offers the "New posts" button further down (the
-  /// reader's place is left alone). An own new post is already at the top.
+  /// reader's place is left alone). The new feed always offers the button:
+  /// its reader may be turning the first post's globe, or watching its card
+  /// grown — a refresh in place slid that post down, away from them. An own
+  /// new post is already at the top.
   Future<void> _checkForNewPosts() async {
     if (_checking || _hasNewPosts || !mounted) return;
     if (!(widget.isShown?.call() ?? true)) return;
@@ -316,7 +361,7 @@ class _FeedBodyState extends State<FeedBody> {
       if (!mounted || newest.isEmpty) return;
       final id = newest.first.id;
       if (shown.any((block) => block is PostBlock && block.id == id)) return;
-      if (_atTop) {
+      if (!widget.globe && _atTop && (widget.otherAtTop?.call() ?? true)) {
         feed.add(const FeedRefreshRequested());
       } else {
         setState(() => _hasNewPosts = true);
@@ -366,7 +411,15 @@ class _FeedBodyState extends State<FeedBody> {
           child: NotificationListener<ScrollNotification>(
             onNotification: _trackScroll,
             child: widget.globe
-                ? FeedGlobeMode(child: _feedScrollView())
+                // How tall the list shows: a post too tall for it gets a
+                // shorter globe (its arrows on screen).
+                ? LayoutBuilder(
+                    builder: (context, constraints) => FeedGlobeMode(
+                      onScreen: widget.onScreen,
+                      viewportHeight: constraints.maxHeight,
+                      child: _feedScrollView(),
+                    ),
+                  )
                 : _feedScrollView(),
           ),
         ),
@@ -390,7 +443,7 @@ class _FeedBodyState extends State<FeedBody> {
   Widget _feedScrollView() {
     return InViewNotifierCustomScrollView(
       controller: widget.scrollController,
-      // The new feed scrolls by its buttons only (under each post): a drag
+      // The new feed scrolls by its arrows only (under each post): a drag
       // there turns the post's globe.
       physics: widget.globe ? const NeverScrollableScrollPhysics() : null,
       initialInViewIds: const ['0'],
@@ -730,21 +783,38 @@ class _FeedPageListViewState extends State<FeedPageListView> {
 
   /// Fetches the first photo of the next 3 posts into the image cache (the
   /// file only, not decoded), so it's there when the card scrolls in: on a
-  /// mobile connection a ~200 KB photo from Frankfurt showed up late.
-  void _prefetchAfter(int index) {
+  /// mobile connection a ~200 KB photo from Frankfurt showed up late. The
+  /// new feed shows each post's small photo on its card (the full one only
+  /// once grown): those of the next 3, and the next post's full photo.
+  void _prefetchAfter(BuildContext context, int index) {
+    final globe = FeedGlobeMode.maybeOf(context) != null;
     for (var i = index + 1; i <= index + 3 && i < blocks.length; i++) {
       final block = blocks[i];
-      if (block is! PostBlock || block.firstMedia is! ImageMedia) continue;
-      final url = block.firstMedia!.url;
-      if (url.isEmpty || url.startsWith('file://') || !_prefetched.add(url)) {
+      if (block is! PostBlock) continue;
+      final photo = block.firstMedia is ImageMedia
+          ? block.firstMedia!.url
+          : null;
+      if (!globe) {
+        _prefetch(photo);
         continue;
       }
-      unawaited(
-        postImageCacheManager
-            .getSingleFile(url, key: url)
-            .then<void>((_) {}, onError: (Object _) => _prefetched.remove(url)),
-      );
+      _prefetch(block.firstMediaThumbUrl);
+      if (i == index + 1) _prefetch(photo);
     }
+  }
+
+  void _prefetch(String? url) {
+    if (url == null ||
+        url.isEmpty ||
+        url.startsWith('file://') ||
+        !_prefetched.add(url)) {
+      return;
+    }
+    unawaited(
+      postImageCacheManager
+          .getSingleFile(url, key: url)
+          .then<void>((_) {}, onError: (Object _) => _prefetched.remove(url)),
+    );
   }
 
   @override
@@ -782,7 +852,7 @@ class _FeedPageListViewState extends State<FeedPageListView> {
         }
         final block = blocks[index];
         _askEarly(context, index);
-        _prefetchAfter(index);
+        _prefetchAfter(context, index);
         return _buildBlock(
           context: context,
           index: index,

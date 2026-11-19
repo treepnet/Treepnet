@@ -38,10 +38,4 @@ void main() {
       (lat: 40.0, lng: -40.0),
     );
   });
-
-  test('a region holds what regionAt puts in it', () {
-    final city = GeoRegions.instance.regionByIso('UZ-TK')!;
-    expect(city.containsPoint(a.lng, a.lat), isTrue);
-    expect(city.containsPoint(samarkand.lng, samarkand.lat), isFalse);
-  });
 }

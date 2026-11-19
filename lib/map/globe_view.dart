@@ -65,7 +65,7 @@ class GlobeView extends StatefulWidget {
     this.controller,
     this.faceTravels = false,
     this.showButtons = true,
-    this.interactive = true,
+    this.claimTap,
     this.borderRadius = 16,
     this.padding = EdgeInsets.zero,
     super.key,
@@ -122,10 +122,13 @@ class GlobeView extends StatefulWidget {
   /// draws its own).
   final bool showButtons;
 
-  /// False: a picture of the globe that takes no touches (the new feed's
-  /// cards, where a drag must scroll the feed). It claims every pointer
-  /// otherwise, so dragging turns it and never scrolls what it is in.
-  final bool interactive;
+  /// Asked about each single tap (where it landed, in the globe's box) before
+  /// the globe acts on it: true when what is over the globe used it — a post's
+  /// photo tapped, a grown card shrunk by a tap off it (the feed's globes).
+  /// The globe then opens nothing for it (and drops a single tap waiting to
+  /// open), but still counts it as one tap of a double tap: a second tap
+  /// right after it zooms, as ever.
+  final bool Function(Offset at)? claimTap;
 
   final double borderRadius;
 
@@ -142,13 +145,10 @@ class GlobeView extends StatefulWidget {
   /// How far above its spot a travel-map pin's icon starts.
   static const double pinIconTop = _pinIconTop;
 
-  /// The name the travel globe prints under the pin of [point]: the author's
-  /// own, or the region's in [lang] when the author gave none or only the
-  /// region's (in any language).
-  static String pinLabel(
-    ({double lat, double lng, String? name}) point,
-    String lang,
-  ) => _GlobeScene._pinLabel(point, lang);
+  /// Builds every level of detail of the world now (the map loaded first),
+  /// for golden tests: see [WorldLevels.buildAll].
+  @visibleForTesting
+  static Future<void> debugBuildAllLevels() => _GlobeData.levels.buildAll();
 
   /// Where the zoomed-out globe draws the pin of [point], one of [points]: a
   /// region's pins merge into one at their middle (see [_PinGroup]). The spot
@@ -160,14 +160,14 @@ class GlobeView extends StatefulWidget {
     final geo = GeoRegions.instance;
     final region = geo.isLoaded ? geo.regionAt(point.lng, point.lat) : null;
     if (region == null) return point;
-    // One pin per spot, as the scene keeps them.
+    // One pin per spot, grouped by region as the scene groups them.
     final spots = <String>{};
     var sx = 0.0;
     var sy = 0.0;
     var sz = 0.0;
     for (final p in points) {
       if (!spots.add(_pinKey(p.lat, p.lng))) continue;
-      if (!region.containsPoint(p.lng, p.lat)) continue;
+      if (!identical(geo.regionAt(p.lng, p.lat), region)) continue;
       final at = _Anchor(p.lng, p.lat);
       sx += at.x;
       sy += at.y;
@@ -235,14 +235,18 @@ class GlobeController extends ChangeNotifier {
   /// foot of the pin, in the globe's own box. Merged into its region's pin
   /// while zoomed out, and sliding out of it as the pins spread, as drawn.
   /// Null round the back of the globe, or before it is laid out.
-  Offset? pinAt(({double lat, double lng}) point) => _view?._drawnPinAt(point);
+  Offset? pinAt(({double lat, double lng}) point) {
+    final key = pinKeyOf(point);
+    return pinsAt({key})[key];
+  }
 
-  /// [pinAt] for many points at once (in one pass over the pins), keyed by
-  /// [pinKeyOf] each; a point round the back is not in it.
-  Map<String, Offset> pinsAt(Iterable<({double lat, double lng})> points) =>
-      _view?._drawnPinsAt(points) ?? const {};
+  /// [pinAt] for many pins at once (one pass over the globe's pins), by their
+  /// [pinKeyOf] keys — worked out once by the caller, not on every frame; a
+  /// pin round the back is not in the answer.
+  Map<String, Offset> pinsAt(Set<String> keys) =>
+      _view?._drawnPinsAt(keys) ?? const {};
 
-  /// The key [pinsAt] files [point] under.
+  /// The key [pinsAt] knows [point]'s pin by.
   static String pinKeyOf(({double lat, double lng}) point) =>
       _pinKey(point.lat, point.lng);
 
@@ -262,6 +266,122 @@ class GlobeController extends ChangeNotifier {
 /// [GlobeController.frames].
 class _Frames extends ChangeNotifier {
   void fire() => notifyListeners();
+}
+
+/// The pins a viewer opened on the travel map, and how much each held then:
+/// a pin stays white while it holds more posts + stories than when it was
+/// last opened, and dims once opened (the old flat map's store and rules).
+/// One per viewer, shared by every globe on screen. Each globe used to keep
+/// a copy of its own: a pin opened on one stayed white on the next (a feed
+/// shows many), and was dropped again when that one saved its stale copy.
+class _SeenPins extends ChangeNotifier {
+  /// [viewerId]'s store, loaded the first time it is asked for.
+  factory _SeenPins.of(String? viewerId) =>
+      _byViewer.putIfAbsent(viewerId ?? '', () => _SeenPins._(viewerId));
+
+  _SeenPins._(this._viewerId) {
+    unawaited(_load());
+  }
+
+  static final _byViewer = <String, _SeenPins>{};
+
+  static const _legacyKey = 'treepnet_seen_map_pins'; // legacy List<String>
+
+  /// The phone-wide store of before; the store is now per account
+  /// ([_ownKey]).
+  static const _sharedKey = 'treepnet_seen_map_counts'; // JSON {key: count}
+
+  /// How many opened pins are remembered (the flat map's cap, lost in the
+  /// move to the globe: the store grew without end).
+  static const _max = 2000;
+
+  final String? _viewerId;
+
+  String get _ownKey => '$_sharedKey:${_viewerId ?? ''}';
+
+  /// Pin key -> what it held when last opened; the last opened goes last.
+  final _counts = <String, int>{};
+
+  /// Legacy boolean "seen" keys written before counts were tracked. On first
+  /// sight they are snapshotted to their current count ([seedLegacy]).
+  final _legacy = <String>{};
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final legacy = prefs.getStringList(_legacyKey);
+    final own = _ownKey;
+    var raw = prefs.getString(own);
+    // The phone-wide store of before: the first account to open the map
+    // takes it over, and it goes.
+    final shared = prefs.getString(_sharedKey);
+    if (shared != null && _viewerId != null) {
+      if (raw == null) {
+        raw = shared;
+        await prefs.setString(own, shared);
+      }
+      await prefs.remove(_sharedKey);
+    }
+    if (legacy != null) _legacy.addAll(legacy);
+    if (raw != null && raw.isNotEmpty) {
+      // Pins opened while this loaded stay the newest, at what they held.
+      final opened = Map.of(_counts);
+      _counts.clear();
+      (json.decode(raw) as Map<String, dynamic>).forEach(
+        (k, v) => _remember(k, (v as num).toInt()),
+      );
+      opened.forEach(_remember);
+    }
+    notifyListeners();
+  }
+
+  /// Remembers that pin [key] was opened holding [count]. The last opened
+  /// goes last; past [_max] the longest-unopened drop off (they show as
+  /// unseen again).
+  void _remember(String key, int count) {
+    _counts
+      ..remove(key)
+      ..[key] = count;
+    while (_counts.length > _max) {
+      _counts.remove(_counts.keys.first);
+    }
+  }
+
+  Future<void> _save() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_ownKey, json.encode(_counts));
+  }
+
+  /// Whether pin [key], holding [count] now, was opened since it last grew.
+  bool isSeen(String key, int count) {
+    final seen = _counts[key];
+    if (seen == null) return _legacy.contains(key);
+    return seen >= count;
+  }
+
+  /// Pin [key] opened, holding [count]: it dims on every globe.
+  void opened(String key, int count) {
+    if (_counts[key] == count) return;
+    _remember(key, count);
+    _legacy.remove(key);
+    notifyListeners();
+    unawaited(_save());
+  }
+
+  /// Snapshots the legacy-seen pins among [pinCounts] (a scene's) to what
+  /// they hold now, so they stay dimmed until something new arrives, and
+  /// drops them from the legacy set. Nothing on screen changes, so no globe
+  /// is told (this runs while one builds).
+  void seedLegacy(Map<String, int> pinCounts) {
+    if (_legacy.isEmpty) return;
+    var changed = false;
+    for (final MapEntry(:key, :value) in pinCounts.entries) {
+      if (_legacy.remove(key) && !_counts.containsKey(key)) {
+        _remember(key, value);
+        changed = true;
+      }
+    }
+    if (changed) unawaited(_save());
+  }
 }
 
 const double _deg = math.pi / 180;
@@ -379,6 +499,9 @@ class _GlobeViewState extends State<GlobeView>
   Duration _lastTapTime = Duration.zero;
   Timer? _tapTimer;
 
+  /// The region labels' warm-up, a moment after the globe opens.
+  Timer? _labelsTimer;
+
   _GlobeScene? _scene;
 
   /// The opening view, once the globe has a size to frame it in; the "my
@@ -396,7 +519,9 @@ class _GlobeViewState extends State<GlobeView>
     widget.controller?._view = this;
     _cam.addListener(_syncSplit);
     _split.addListener(_onSplitFrame);
-    if (widget.look == GlobeLook.travelMap) unawaited(_loadSeenPoints());
+    if (widget.look == GlobeLook.travelMap) {
+      _seen = _SeenPins.of(widget.viewerId)..addListener(_onSeenChanged);
+    }
     // The two coarse levels, in the background, as soon as the map is in:
     // the whole-globe views need them first.
     unawaited(
@@ -406,7 +531,7 @@ class _GlobeViewState extends State<GlobeView>
     );
     // The region labels while the globe idles (their anchors and boxes were
     // computed when the map loaded).
-    Future<void>.delayed(const Duration(milliseconds: 500), () {
+    _labelsTimer = Timer(const Duration(milliseconds: 500), () {
       final geo = GeoRegions.instance;
       if (!mounted || !geo.isLoaded) return;
       _GlobeData.of(geo).regionLabels.length;
@@ -447,6 +572,8 @@ class _GlobeViewState extends State<GlobeView>
   @override
   void dispose() {
     _tapTimer?.cancel();
+    _labelsTimer?.cancel();
+    _seen?.removeListener(_onSeenChanged);
     if (identical(widget.controller?._view, this)) {
       widget.controller?._view = null;
     }
@@ -464,20 +591,14 @@ class _GlobeViewState extends State<GlobeView>
   /// The pins spread out or gather in a little more.
   void _onSplitFrame() => widget.controller?._frames.fire();
 
-  /// See [GlobeController.pinAt]: the painter's projection and pin merging.
-  Offset? _drawnPinAt(({double lat, double lng}) point) =>
-      _drawnPinsAt([point])[_pinKey(point.lat, point.lng)];
-
-  /// See [GlobeController.pinsAt]: one pass over the scene, by pin key.
-  Map<String, Offset> _drawnPinsAt(
-    Iterable<({double lat, double lng})> points,
-  ) {
+  /// See [GlobeController.pinsAt]: one pass over the scene, by pin key, with
+  /// the painter's own projection and pin merging (see [_GlobePainter.paint]),
+  /// so what follows a pin stays on it to the pixel.
+  Map<String, Offset> _drawnPinsAt(Set<String> wanted) {
     final scene = _scene;
     final view = _view;
     final found = <String, Offset>{};
-    if (scene == null || view.isEmpty) return found;
-    final wanted = {for (final p in points) _pinKey(p.lat, p.lng)};
-    if (wanted.isEmpty) return found;
+    if (scene == null || view.isEmpty || wanted.isEmpty) return found;
     final r = _radius;
     final c = view.center;
     final l0 = _cam.lon * _deg;
@@ -816,7 +937,11 @@ class _GlobeViewState extends State<GlobeView>
     _pinchZoom = _cam.zoom;
   }
 
+  // A gesture outlives its globe when the globe is built anew under the
+  // finger (a new map for it): what is left of it touches nothing.
+
   void _onPointerDown(PointerDownEvent e) {
+    if (!mounted) return;
     _pointers[e.pointer] = e.localPosition;
     _stopMotion();
     if (_ticker?.isActive ?? false) _ticker!.stop();
@@ -834,6 +959,7 @@ class _GlobeViewState extends State<GlobeView>
   }
 
   void _onPointerMove(PointerMoveEvent e) {
+    if (!mounted) return;
     if (!_pointers.containsKey(e.pointer)) return;
     final before = _focal;
     final r0 = _radius;
@@ -872,6 +998,7 @@ class _GlobeViewState extends State<GlobeView>
   }
 
   void _onPointerEnd(PointerEvent e) {
+    if (!mounted) return;
     if (_pointers.remove(e.pointer) == null) return;
     if (_pointers.length >= 2) {
       _startPinch();
@@ -886,7 +1013,10 @@ class _GlobeViewState extends State<GlobeView>
     if (e is PointerUpEvent &&
         _tapCandidate &&
         e.timeStamp - _downTime < const Duration(milliseconds: 350)) {
-      _onTap(e.localPosition, e.timeStamp);
+      // Used by what is over the globe (a photo grown, a grown card shrunk
+      // by it): still half of a double tap, but it opens nothing itself.
+      final claimed = widget.claimTap?.call(e.localPosition) ?? false;
+      _onTap(e.localPosition, e.timeStamp, open: !claimed);
     } else {
       final v = _velocity?.getVelocity().pixelsPerSecond;
       if (v != null && v.distance > 80) {
@@ -900,7 +1030,7 @@ class _GlobeViewState extends State<GlobeView>
   }
 
   void _onPointerSignal(PointerSignalEvent e) {
-    if (e is! PointerScrollEvent) return;
+    if (!mounted || e is! PointerScrollEvent) return;
     GestureBinding.instance.pointerSignalResolver.register(e, (event) {
       final scroll = event as PointerScrollEvent;
       _stopMotion();
@@ -911,9 +1041,10 @@ class _GlobeViewState extends State<GlobeView>
     });
   }
 
-  /// A single tap opens what is under it; it waits out the double-tap window
-  /// first, since a double tap zooms instead.
-  void _onTap(Offset at, Duration time) {
+  /// A single tap opens what is under it ([open]: unless what is over the
+  /// globe used it); it waits out the double-tap window first, since a
+  /// double tap zooms instead.
+  void _onTap(Offset at, Duration time, {bool open = true}) {
     final last = _lastTapAt;
     if (last != null &&
         time - _lastTapTime < kDoubleTapTimeout &&
@@ -926,6 +1057,8 @@ class _GlobeViewState extends State<GlobeView>
     _lastTapAt = at;
     _lastTapTime = time;
     _tapTimer?.cancel();
+    // One waiting goes too: a grown card's tap off it isn't a pin's.
+    if (!open) return;
     _tapTimer = Timer(kDoubleTapTimeout, () {
       _lastTapAt = null;
       if (mounted) _openAt(at);
@@ -1054,121 +1187,42 @@ class _GlobeViewState extends State<GlobeView>
     // Opening a pin shows all of its content, so catch its seen count up to
     // whatever it holds now. New posts/stories later push the count higher
     // and the pin goes white again.
-    final current = scene.pinCounts[hit.key] ?? 1;
-    if (_seenCounts[hit.key] != current) {
-      _rememberSeen(hit.key, current);
-      _legacySeen.remove(hit.key);
-      if (mounted) setState(() {});
-      unawaited(_persistSeenCounts());
-    }
+    // Every globe showing it dims it at once (they share the store).
+    _seen?.opened(hit.key, scene.pinCounts[hit.key] ?? 1);
   }
 
   // --- pin seen-state -------------------------------------------------------------
   //
-  // The old flat map's store and rules. A pin stays white while it holds more
-  // posts + stories than when it was last opened, and dims once opened.
+  // The old flat map's store and rules (see [_SeenPins]): one store per
+  // viewer, shared by every globe on screen.
 
-  static const _seenStoreKey = 'treepnet_seen_map_pins'; // legacy List<String>
+  /// [GlobeView.viewerId]'s opened pins (the travel map only).
+  _SeenPins? _seen;
 
-  /// The phone-wide store of before; the store is now per account
-  /// ([_ownSeenKey]).
-  static const _seenCountsKey = 'treepnet_seen_map_counts'; // JSON {key: count}
-
-  /// How many opened pins are remembered (the flat map's cap, lost in the
-  /// move to the globe: the store grew without end).
-  static const _maxSeenPins = 2000;
-
-  /// [GlobeView.viewerId]'s own store.
-  String get _ownSeenKey => '$_seenCountsKey:${widget.viewerId ?? ''}';
-
-  final _seenCounts = <String, int>{};
-
-  /// Legacy boolean "seen" keys written before counts were tracked. On first
-  /// sight they are snapshotted to their current count (see [_seedLegacySeen]).
-  final _legacySeen = <String>{};
-
-  /// The scene [_seedLegacySeen] last ran against.
+  /// The scene the legacy seen keys were last seeded against.
   _GlobeScene? _seededScene;
 
-  Future<void> _loadSeenPoints() async {
-    final prefs = await SharedPreferences.getInstance();
-    final legacy = prefs.getStringList(_seenStoreKey);
-    final own = _ownSeenKey;
-    var raw = prefs.getString(own);
-    // The phone-wide store of before: the first account to open the map
-    // takes it over, and it goes.
-    final shared = prefs.getString(_seenCountsKey);
-    if (shared != null && widget.viewerId != null) {
-      if (raw == null) {
-        raw = shared;
-        await prefs.setString(own, shared);
-      }
-      await prefs.remove(_seenCountsKey);
-    }
+  void _onSeenChanged() {
     if (!mounted) return;
-    setState(() {
-      if (legacy != null) _legacySeen.addAll(legacy);
-      if (raw != null && raw.isNotEmpty) {
-        (json.decode(raw) as Map<String, dynamic>).forEach(
-          (k, v) => _rememberSeen(k, (v as num).toInt()),
-        );
-      }
-      _seededScene = null; // re-seed against the state that just arrived
-    });
-  }
-
-  /// Remembers that pin [key] was opened holding [count]. The last opened
-  /// goes last; past [_maxSeenPins] the longest-unopened drop off (they show
-  /// as unseen again).
-  void _rememberSeen(String key, int count) {
-    _seenCounts
-      ..remove(key)
-      ..[key] = count;
-    while (_seenCounts.length > _maxSeenPins) {
-      _seenCounts.remove(_seenCounts.keys.first);
-    }
-  }
-
-  Future<void> _persistSeenCounts() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_ownSeenKey, json.encode(_seenCounts));
-  }
-
-  bool _isPinSeen(_GlobeScene scene, String key) {
-    final seen = _seenCounts[key];
-    if (seen == null) return _legacySeen.contains(key);
-    return seen >= (scene.pinCounts[key] ?? 0);
-  }
-
-  /// Snapshots legacy-seen pins to their current count so they stay dimmed
-  /// until genuinely new content arrives, then drops them from the legacy set.
-  void _seedLegacySeen(_GlobeScene scene) {
-    if (_legacySeen.isEmpty) return;
-    var changed = false;
-    for (final k in scene.pinCounts.keys.toList()) {
-      if (_legacySeen.remove(k) && !_seenCounts.containsKey(k)) {
-        _rememberSeen(k, scene.pinCounts[k]!);
-        changed = true;
-      }
-    }
-    if (changed) unawaited(_persistSeenCounts());
+    // Re-seed against what just arrived.
+    setState(() => _seededScene = null);
   }
 
   // --- build ---------------------------------------------------------------------
 
   _GlobeScene _sceneFor(String lang, String? fontFamily) {
-    final geoLoaded = GeoRegions.instance.isLoaded;
     final s = _scene;
     if (s != null &&
-        s.look == widget.look &&
-        s.lang == lang &&
-        s.fontFamily == fontFamily &&
-        s.geoLoaded == geoLoaded &&
-        identical(s.counts, widget.visitedCounts) &&
-        identical(s.points, widget.points)) {
+        s.isFor(
+          counts: widget.visitedCounts,
+          points: widget.points,
+          look: widget.look,
+          lang: lang,
+          fontFamily: fontFamily,
+        )) {
       return s;
     }
-    return _scene = _GlobeScene.build(
+    return _scene = _GlobeScene.of(
       counts: widget.visitedCounts,
       points: widget.points,
       look: widget.look,
@@ -1185,14 +1239,15 @@ class _GlobeViewState extends State<GlobeView>
     );
     // Only the old flat map dims opened pins; the picker's pins never change colour.
     var seen = const <String>{};
-    if (widget.look == GlobeLook.travelMap) {
+    final store = _seen;
+    if (store != null) {
       if (!identical(_seededScene, scene)) {
         _seededScene = scene;
-        _seedLegacySeen(scene);
+        store.seedLegacy(scene.pinCounts);
       }
       seen = {
         for (final pin in scene.pins)
-          if (_isPinSeen(scene, pin.key)) pin.key,
+          if (store.isSeen(pin.key, scene.pinCounts[pin.key] ?? 0)) pin.key,
       };
     }
     return ClipRRect(
@@ -1204,7 +1259,15 @@ class _GlobeViewState extends State<GlobeView>
           children: [
             LayoutBuilder(
               builder: (context, constraints) {
-                _size = constraints.biggest;
+                final size = constraints.biggest;
+                if (size != _size && !_size.isEmpty) {
+                  // Resized (a turn of the phone, split screen): what follows
+                  // a pin moves with it now, not at the next turn.
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) _notifyController();
+                  });
+                }
+                _size = size;
                 _applyInitialView();
                 final painted = RepaintBoundary(
                   child: CustomPaint(
@@ -1218,7 +1281,6 @@ class _GlobeViewState extends State<GlobeView>
                     ),
                   ),
                 );
-                if (!widget.interactive) return painted;
                 return RawGestureDetector(
                   behavior: HitTestBehavior.opaque,
                   gestures: <Type, GestureRecognizerFactory>{
@@ -1241,20 +1303,12 @@ class _GlobeViewState extends State<GlobeView>
             ),
             if (widget.showButtons)
               Positioned(
-                right: 8,
-                bottom: 8,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _GlobeButton(icon: Icons.add, onTap: () => _zoomBy(2)),
-                    const SizedBox(height: 8),
-                    _GlobeButton(
-                      icon: Icons.remove,
-                      onTap: () => _zoomBy(0.5),
-                    ),
-                    const SizedBox(height: 8),
-                    _GlobeButton(icon: Icons.my_location, onTap: _reset),
-                  ],
+                right: GlobeButtons.inset,
+                bottom: GlobeButtons.inset,
+                child: GlobeButtons._(
+                  onZoomIn: () => _zoomBy(2),
+                  onZoomOut: () => _zoomBy(0.5),
+                  onReset: _reset,
                 ),
               ),
           ],
@@ -1267,26 +1321,41 @@ class _GlobeViewState extends State<GlobeView>
 /// The globe's +, − and "my location" buttons, as [GlobeView.showButtons]
 /// draws them in its bottom right corner, for a globe drawn without them
 /// (showButtons false) that has things over it the buttons must stay above
-/// (the new feed's posts' photos).
+/// (Trends' photos on their pins).
 class GlobeButtons extends StatelessWidget {
-  const GlobeButtons({required this.controller, super.key});
+  /// [controller]'s globe's buttons: each zoom a flat-map level (×2, ÷2), as
+  /// the globe's own.
+  GlobeButtons({required GlobeController controller, super.key})
+    : onZoomIn = (() => controller.zoomBy(1)),
+      onZoomOut = (() => controller.zoomBy(-1)),
+      onReset = controller.reset;
 
-  final GlobeController controller;
+  const GlobeButtons._({
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.onReset,
+  });
 
-  /// Each button's side (as GlobeView's own).
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  final VoidCallback onReset;
+
+  /// Each button's side.
   static const double size = 36;
+
+  /// The column's margin to the globe's right and bottom edges.
+  static const double inset = 8;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Each a flat-map zoom level, as GlobeView's own (×2, ÷2).
-        _GlobeButton(icon: Icons.add, onTap: () => controller.zoomBy(1)),
+        _GlobeButton(icon: Icons.add, onTap: onZoomIn),
         const SizedBox(height: 8),
-        _GlobeButton(icon: Icons.remove, onTap: () => controller.zoomBy(-1)),
+        _GlobeButton(icon: Icons.remove, onTap: onZoomOut),
         const SizedBox(height: 8),
-        _GlobeButton(icon: Icons.my_location, onTap: controller.reset),
+        _GlobeButton(icon: Icons.my_location, onTap: onReset),
       ],
     );
   }
@@ -1418,6 +1487,44 @@ class _GlobeScene {
     required this.pinNames,
   });
 
+  /// The scene of these travels: one built lately for the same data (the
+  /// same lists, as the globes of one person's posts in a feed share them),
+  /// or a new one.
+  factory _GlobeScene.of({
+    required Map<String, int> counts,
+    required List<({double lat, double lng, String? name})> points,
+    required GlobeLook look,
+    required String lang,
+    required String? fontFamily,
+  }) {
+    for (var i = _recent.length - 1; i >= 0; i--) {
+      final scene = _recent[i];
+      if (!scene.isFor(
+        counts: counts,
+        points: points,
+        look: look,
+        lang: lang,
+        fontFamily: fontFamily,
+      )) {
+        continue;
+      }
+      _recent
+        ..removeAt(i)
+        ..add(scene);
+      return scene;
+    }
+    final scene = _GlobeScene.build(
+      counts: counts,
+      points: points,
+      look: look,
+      lang: lang,
+      fontFamily: fontFamily,
+    );
+    _recent.add(scene);
+    if (_recent.length > _kept) _recent.removeAt(0);
+    return scene;
+  }
+
   factory _GlobeScene.build({
     required Map<String, int> counts,
     required List<({double lat, double lng, String? name})> points,
@@ -1480,6 +1587,25 @@ class _GlobeScene {
       pinNames: pinNames,
     );
   }
+
+  /// Scenes built lately, the last used last.
+  static final _recent = <_GlobeScene>[];
+  static const _kept = 8;
+
+  /// Whether this scene shows these travels, as of the map data now.
+  bool isFor({
+    required Map<String, int> counts,
+    required List<({double lat, double lng, String? name})> points,
+    required GlobeLook look,
+    required String lang,
+    required String? fontFamily,
+  }) =>
+      this.look == look &&
+      this.lang == lang &&
+      this.fontFamily == fontFamily &&
+      geoLoaded == GeoRegions.instance.isLoaded &&
+      identical(this.counts, counts) &&
+      identical(this.points, points);
 
   /// Same rule as the flat map: the author's own name for the spot, else the
   /// region it falls in, in the app language.

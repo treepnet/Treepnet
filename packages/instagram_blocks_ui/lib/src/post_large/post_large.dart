@@ -87,10 +87,10 @@ class PostLarge extends StatefulWidget {
   /// Line under the author's name; see `PostHeader.authorSubtitle`.
   final Widget? authorSubtitle;
 
-  /// Shown in place of the photos (the new feed's globe): no carousel then.
-  /// It takes its own taps — a double tap to like included — so that its
-  /// buttons answer at once (a double tap around them would hold every
-  /// single tap back).
+  /// Shown in place of the photos (the globe lists' globe): no carousel
+  /// then, and no double tap to like around it — it takes its own taps, so
+  /// that its buttons answer at once (a double tap around them would hold
+  /// every single tap back).
   final Widget? mediaReplacement;
 
   /// Shown instead of the like, share, comment and save row under the post

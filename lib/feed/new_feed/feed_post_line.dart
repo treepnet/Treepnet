@@ -7,12 +7,11 @@ import 'package:shared/shared.dart';
 import 'package:treepnet/feed/new_feed/feed_post_globe.dart';
 import 'package:treepnet/feed/new_feed/feed_post_steps.dart';
 
-/// The line under a post's globe (the new feed and Trends' Maps tab,
-/// prototypes): the arrows to the next post and the one before at its
-/// right, and, on the new feed, at their left the post's description — its
-/// first line stopping short of the arrows, the rest under it the line's
-/// full width — or, with no description, when it was posted. Trends has the
-/// arrows alone.
+/// The line under a post's globe (the new feed and Trends' Maps tab): the
+/// arrows to the next post and the one before at its right, and, on the new
+/// feed, at their left the post's description — its first line stopping
+/// short of the arrows, the rest under it the line's full width — or, with
+/// no description, when it was posted. Trends has the arrows alone.
 class FeedPostLine extends StatelessWidget {
   const FeedPostLine({
     required this.block,
@@ -72,6 +71,11 @@ class FeedPostLine extends StatelessWidget {
   /// across the whole width.
   Widget _flowing(BuildContext context, String caption, FeedPostSteps? steps) {
     final style = DefaultTextStyle.of(context).style.merge(context.bodyMedium);
+    // Measured as the Text below draws it: bold with the phone's Bold Text
+    // on, in the app's language.
+    final measured = MediaQuery.boldTextOf(context)
+        ? style.merge(const TextStyle(fontWeight: FontWeight.bold))
+        : style;
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
@@ -82,9 +86,10 @@ class FeedPostLine extends StatelessWidget {
                 width - FeedPostSteps.widthOf(first: steps.first) - _gap,
               );
         final painter = TextPainter(
-          text: TextSpan(text: caption, style: style),
+          text: TextSpan(text: caption, style: measured),
           textDirection: Directionality.of(context),
           textScaler: MediaQuery.textScalerOf(context),
+          locale: Localizations.maybeLocaleOf(context),
         )..layout(maxWidth: beside);
         final end = painter
             .getLineBoundary(const TextPosition(offset: 0))

@@ -6,12 +6,12 @@ import 'package:flutter/rendering.dart';
 import 'package:treepnet/feed/new_feed/feed_post_globe.dart';
 import 'package:treepnet/map/globe_view.dart';
 
-/// The new feed's (a prototype) buttons to the next post and the one before,
-/// at the right of the line under each post, where the save button was: the
-/// down arrow on every post — right under the globe's +, − and back buttons,
-/// in their line — and the up arrow beside it, to its left, from the second
-/// post on. Each scrolls the feed so that post's top is at the top of the
-/// list.
+/// The globe lists' (the new feed's, Trends' Maps tab's) buttons to the next
+/// post and the one before, at the right of the line under each post, where
+/// the save button was: the down arrow on every post (on Trends right under
+/// the globe's +, − and back buttons, in their line), and the up arrow
+/// beside it, to its left, from the second post on. Each scrolls the list so
+/// that post's top is at the top of it — the lists scroll by them alone.
 class FeedPostSteps extends StatelessWidget {
   const FeedPostSteps({
     required this.first,

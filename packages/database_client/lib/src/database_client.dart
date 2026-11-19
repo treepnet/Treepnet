@@ -420,11 +420,16 @@ abstract class PostsBaseRepository {
   Stream<Map<String, int>> visitedRegionCountsOf({required String userId});
 
   /// [userId]'s travel globe from the server (regions and pins, each post's
-  /// pin with its id), for the new feed: it shows anyone's, followed or
-  /// not, and the phone keeps only followed people's posts. Null when the
-  /// server shows none (a private profile not followed) or can't be reached
-  /// and none was fetched before.
-  Future<TravelMap?> travelMapOf({required String userId});
+  /// pin with its id and photo), for the new feed and Trends: they show
+  /// anyone's, followed or not, and the phone keeps only followed people's
+  /// posts. Kept a few minutes; [fresh] asks the server again (a post newer
+  /// than the one kept). Null when the server shows none (a private profile
+  /// not followed). When the server can't be reached: the one fetched
+  /// before — or, with none, the error, for the caller to try again later.
+  Future<TravelMap?> travelMapOf({
+    required String userId,
+    bool fresh = false,
+  });
 
   /// Returns a real-time stream of the exact `(lat, lng)` of every post by
   /// [userId] that has a picked location — one marker per post on the map.
@@ -709,8 +714,11 @@ class PowerSyncDatabaseClient extends DatabaseClient {
   @override
   void forgetServerSnapshots() {
     _remotePosts.clear();
-    // Another account sees other globes (privacy, blocks).
+    // Another account sees other globes (privacy, blocks); one on its way
+    // for the last account isn't kept either.
     _travelCache.clear();
+    _travelFetching.clear();
+    _travelEpoch++;
     _pendingLikes.clear();
     _cardCache.clear();
     _viewsSent.clear();
@@ -964,24 +972,57 @@ SELECT * FROM profiles WHERE id = ?
             },
           );
 
-  /// Travel globes fetched, kept [_travelLife]; asked a few at a time.
+  /// Travel globes fetched, each kept [_travelLife]; the last fetched last,
+  /// at most [_travelKept].
   final _travelCache = <String, ({TravelMap map, DateTime at})>{};
+
+  /// Globes on their way: asked for again meanwhile, the same answer (one
+  /// call, not one per post of theirs on screen).
+  final _travelFetching = <String, Future<TravelMap?>>{};
+
+  /// Asked a few at a time.
   final _travelRequests = _Batcher<TravelMap?>(
     const Duration(milliseconds: 50),
   );
+
+  /// Counts sign-outs: an answer for the account before isn't kept.
+  int _travelEpoch = 0;
+
   static const _travelLife = Duration(minutes: 5);
+  static const _travelKept = 200;
 
   /// The most people `travel_maps` reads per call.
   static const _travelMax = 50;
 
   @override
-  Future<TravelMap?> travelMapOf({required String userId}) async {
-    if (!_uuidShape.hasMatch(userId)) return null;
+  Future<TravelMap?> travelMapOf({
+    required String userId,
+    bool fresh = false,
+  }) {
+    if (!_uuidShape.hasMatch(userId)) return Future.value();
     final cached = _travelCache[userId];
-    if (cached != null &&
+    if (!fresh &&
+        cached != null &&
         DateTime.now().difference(cached.at) < _travelLife) {
-      return cached.map;
+      return Future.value(cached.map);
     }
+    // One on its way is as fresh as any.
+    final fetching = _travelFetching[userId];
+    if (fetching != null) return fetching;
+    late final Future<TravelMap?> fetch;
+    fetch = _fetchTravelMap(userId, kept: cached?.map).whenComplete(() {
+      if (identical(_travelFetching[userId], fetch)) {
+        _travelFetching.remove(userId);
+      }
+    });
+    return _travelFetching[userId] = fetch;
+  }
+
+  Future<TravelMap?> _fetchTravelMap(
+    String userId, {
+    required TravelMap? kept,
+  }) async {
+    final epoch = _travelEpoch;
     try {
       final map = await _travelRequests.get(userId, (ids) async {
         final parts = await Future.wait([
@@ -998,17 +1039,28 @@ SELECT * FROM profiles WHERE id = ?
         ]);
         final found = <String, TravelMap?>{for (final id in ids) id: null};
         for (final part in parts) {
-          for (final row in part.cast<Map<String, dynamic>>()) {
-            found[row['user_id'] as String] = TravelMap.fromRow(row);
+          for (final row in part.whereType<Map<String, dynamic>>()) {
+            // One row that won't read costs that person's globe only.
+            try {
+              found[row['user_id'] as String] = TravelMap.fromRow(row);
+            } catch (_) {}
           }
         }
         return found;
       });
-      if (map != null) _travelCache[userId] = (map: map, at: DateTime.now());
+      if (map != null && epoch == _travelEpoch) {
+        _travelCache
+          ..remove(userId)
+          ..[userId] = (map: map, at: DateTime.now());
+        while (_travelCache.length > _travelKept) {
+          _travelCache.remove(_travelCache.keys.first);
+        }
+      }
       return map;
     } catch (_) {
       // Offline or the server busy: the last one fetched, if any.
-      return cached?.map;
+      if (kept != null) return kept;
+      rethrow;
     }
   }
 

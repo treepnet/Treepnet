@@ -41,15 +41,18 @@ class PostFooter extends StatelessWidget {
   final LikesCountBuilder? likesCountBuilder;
 
   /// Shown where the like, share, comment and save row goes, instead of it:
-  /// the new feed's post's place (its globe carries the buttons, on the
-  /// post's small card).
+  /// the globe lists' line under a post — the arrows to the next post and
+  /// the one before, and on the new feed its description (or its time)
+  /// beside them. The post's buttons are on its card, on the globe.
   final Widget? inPlaceOfActions;
 
-  /// The post's description (Trends' Maps tab has none).
+  /// The post's description under it (the new feed shows it beside the
+  /// arrows instead, Trends' Maps tab none).
   final bool showCaption;
 
-  /// When it was posted, under the description (Trends' Maps tab shows it
-  /// up beside its arrows, in [inPlaceOfActions]).
+  /// When it was posted, under the description (the new feed shows it
+  /// beside the arrows when there is no description, Trends' Maps tab
+  /// nowhere).
   final bool showTime;
 
   @override
