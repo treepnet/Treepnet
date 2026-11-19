@@ -73,10 +73,26 @@ class _TimelineViewState extends State<TimelineView>
   /// alive under the Maps tab, they would play unseen).
   final _gridShown = ValueNotifier(false);
 
+  /// The two tabs side by side, a swipe from one to the other (as the
+  /// feed's Posts and Stories); a tap on a tab's name slides there.
+  final _pages = PageController();
+
+  /// The page in view changed (swiped to, or slid to from the header).
   void _showTab(int tab) {
     if (tab == _tab) return;
     setState(() => _tab = tab);
     _gridShown.value = tab == TrendsTopBar.posts;
+  }
+
+  void _goTo(int tab) {
+    if (tab == _tab || !_pages.hasClients) return;
+    unawaited(
+      _pages.animateToPage(
+        tab,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      ),
+    );
   }
 
   @override
@@ -110,6 +126,7 @@ class _TimelineViewState extends State<TimelineView>
     _reselect?.cancel();
     _scroll.dispose();
     _mapsScroll.dispose();
+    _pages.dispose();
     _gridShown.dispose();
     _isNextPageLoading.dispose();
     super.dispose();
@@ -134,14 +151,19 @@ class _TimelineViewState extends State<TimelineView>
       releaseFocus: true,
       body: Column(
         children: [
-          TrendsTopBar(currentTab: _tab, onTabChanged: _showTab),
+          TrendsTopBar(currentTab: _tab, onTabChanged: _goTo),
           Expanded(
-            // Both kept: back on a tab, it is where it was left.
-            child: IndexedStack(
-              index: _tab,
+            // A swipe left or right goes from one tab to the other, as on
+            // the feed (a drag on a globe turns the globe). Both kept: back
+            // on a tab, it is where it was left.
+            child: PageView(
+              controller: _pages,
+              onPageChanged: _showTab,
               children: [
-                TimelineMapsView(scrollController: _mapsScroll),
-                _grid(context, hasMore: hasMore),
+                FeedKeepAliveTab(
+                  child: TimelineMapsView(scrollController: _mapsScroll),
+                ),
+                FeedKeepAliveTab(child: _grid(context, hasMore: hasMore)),
               ],
             ),
           ),

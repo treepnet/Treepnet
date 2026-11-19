@@ -11,8 +11,7 @@ import 'package:treepnet/feed/post/video/video.dart';
 import 'package:treepnet/stories/stories.dart';
 import 'package:treepnet/user_profile/user_profile.dart';
 import 'package:treepnet/feed/new_feed/feed_post_globe.dart';
-import 'package:treepnet/feed/new_feed/feed_post_place.dart';
-import 'package:treepnet/feed/new_feed/feed_post_steps.dart';
+import 'package:treepnet/feed/new_feed/feed_post_line.dart';
 import 'package:go_router/go_router.dart';
 import 'package:instagram_blocks_ui/instagram_blocks_ui.dart' hide VideoPlayer;
 import 'package:posts_repository/posts_repository.dart';
@@ -204,23 +203,20 @@ class _PostLargeViewState extends State<PostLargeView> {
       // Its place where the buttons were (they are on the globe's card), and
       // at the right, where save was, the steps to the next post and the
       // one before (not before the first).
-      // Its description, but on Trends' Maps tab.
-      showCaption: globeMode?.showCaption ?? true,
-      // Its time under it, but on Trends' Maps tab (as its place line).
-      showTime: globeMode?.showPlace ?? true,
+      // On a globe, the description goes up beside the arrows (below), or
+      // nowhere (Trends).
+      showCaption: !globe,
+      // Its time under its description; with none, up beside the arrows
+      // (below) instead; on Trends' Maps tab, nowhere.
+      showTime:
+          globeMode == null ||
+          (globeMode.showCaption && widget.block.caption.isNotEmpty),
       footerInPlaceOfActions: globe
-          ? Row(
-              children: [
-                // Its country and city (the new feed's); on Trends the
-                // arrows alone — no time either: the globe is about all the
-                // author's posts, not this one.
-                if (globeMode.showPlace)
-                  Expanded(child: FeedPostPlace(block: widget.block))
-                else
-                  const Spacer(),
-                if (widget.postIndex case final index?)
-                  FeedPostSteps(first: index == 0),
-              ],
+          // The arrows, and the description (or the time) beside them.
+          ? FeedPostLine(
+              block: widget.block,
+              mode: globeMode,
+              postIndex: widget.postIndex,
             )
           : null,
       postAuthorAvatarBuilder: (context, author, onAvatarTap) {

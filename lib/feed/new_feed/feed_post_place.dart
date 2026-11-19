@@ -13,9 +13,13 @@ import 'package:treepnet/map/geo_regions.dart';
 /// Before the map data is in, the post's region as saved. Nothing when
 /// there is no place.
 class FeedPostPlace extends StatefulWidget {
-  const FeedPostPlace({required this.block, super.key});
+  const FeedPostPlace({required this.block, this.onGlobe = false, super.key});
 
   final PostBlock block;
+
+  /// Over the globe (the new feed: its bottom left corner): white, shadowed
+  /// to read on land and sea.
+  final bool onGlobe;
 
   @override
   State<FeedPostPlace> createState() => _FeedPostPlaceState();
@@ -75,10 +79,16 @@ class _FeedPostPlaceState extends State<FeedPostPlace> {
       builder: (context, snapshot) {
         final line = _line(snapshot.data);
         if (line.isEmpty) return const SizedBox.shrink();
+        const shadow = [Shadow(color: Color(0x99000000), blurRadius: 4)];
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.location_on, color: AppColors.white, size: 20),
+            Icon(
+              Icons.location_on,
+              color: AppColors.white,
+              size: 20,
+              shadows: widget.onGlobe ? shadow : null,
+            ),
             const Gap.h(AppSpacing.xs),
             Expanded(
               child: Text(
@@ -87,6 +97,8 @@ class _FeedPostPlaceState extends State<FeedPostPlace> {
                 overflow: TextOverflow.ellipsis,
                 style: context.bodyLarge?.copyWith(
                   fontWeight: AppFontWeight.semiBold,
+                  color: widget.onGlobe ? AppColors.white : null,
+                  shadows: widget.onGlobe ? shadow : null,
                 ),
               ),
             ),

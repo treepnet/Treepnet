@@ -40,9 +40,10 @@ Finder _photo() => find.byWidgetPredicate(
   (w) => w is BlurHashImageThumbnail && w.id == 'post-1',
 );
 
-/// The new feed and Trends' Maps tab (prototypes): each post's author's
-/// globe, 4:5, facing the post's place, the post's small photo on its pin
-/// and the author's other posts' on theirs.
+/// Trends' Maps tab (a prototype): each post's author's globe, 4:5, facing
+/// the post's place, the post's small photo on its pin and the author's
+/// other posts' on theirs (FeedGlobeMode.photosOnPins). The new feed's
+/// card: feed_post_globe_card_test.dart.
 void main() {
   late _MockAppBloc app;
   late _MockPostsRepository posts;
@@ -82,7 +83,14 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           locale: const Locale('en'),
-          home: Scaffold(body: child),
+          home: Scaffold(
+            body: FeedGlobeMode(
+              photosOnPins: true,
+              showPlace: false,
+              showCaption: false,
+              child: child,
+            ),
+          ),
         ),
       ),
     ),
@@ -746,9 +754,17 @@ void main() {
           GoRoute(
             path: '/',
             builder: (context, state) => Scaffold(
-              body: Align(
-                alignment: Alignment.topLeft,
-                child: SizedBox(width: 300, child: FeedPostGlobe(block: _post)),
+              body: FeedGlobeMode(
+                photosOnPins: true,
+                showPlace: false,
+                showCaption: false,
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: SizedBox(
+                    width: 300,
+                    child: FeedPostGlobe(block: _post),
+                  ),
+                ),
               ),
             ),
             routes: [

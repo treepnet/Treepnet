@@ -11,6 +11,7 @@ import 'package:instagram_blocks_ui/instagram_blocks_ui.dart';
 import 'package:posts_repository/posts_repository.dart';
 import 'package:shared/shared.dart' hide NumDurationExtension;
 import 'package:treepnet/app/app.dart';
+import 'package:treepnet/feed/new_feed/feed_post_place.dart';
 import 'package:treepnet/feed/post/bloc/post_bloc.dart';
 import 'package:treepnet/feed/post/widgets/post_popup_dialog.dart'
     show LikeAnimatedIcon;
@@ -29,15 +30,23 @@ class FeedGlobeMode extends InheritedWidget {
     required super.child,
     this.showPlace = true,
     this.showCaption = true,
+    this.photosOnPins = false,
     super.key,
   });
 
-  /// The post's country and city under its globe (the new feed's); Trends'
-  /// Maps tab has the arrows alone.
+  /// Trends' Maps tab: every post of the author as its small photo on its
+  /// pin, any of them growing with its own buttons. Otherwise (the new feed)
+  /// this post alone, as its small card — photo, buttons, an arrow to its
+  /// pin. On both, the globe's pins open the author's posts there.
+  final bool photosOnPins;
+
+  /// The post's country and city (the new feed's): on its globe, in the
+  /// bottom left corner, level with the globe's back-to-the-post button.
+  /// Trends' Maps tab has none.
   final bool showPlace;
 
-  /// The post's description under it (the new feed's; not on Trends' Maps
-  /// tab).
+  /// The post's description (the new feed's): up beside the arrows under
+  /// the globe, its time under it. Trends' Maps tab has neither.
   final bool showCaption;
 
   /// The mode [context] is in, if any.
@@ -49,7 +58,9 @@ class FeedGlobeMode extends InheritedWidget {
 
   @override
   bool updateShouldNotify(FeedGlobeMode oldWidget) =>
-      showPlace != oldWidget.showPlace || showCaption != oldWidget.showCaption;
+      showPlace != oldWidget.showPlace ||
+      showCaption != oldWidget.showCaption ||
+      photosOnPins != oldWidget.photosOnPins;
 }
 
 /// A post's author's travel globe, 4:5, in place of the post's photos (the
@@ -453,8 +464,13 @@ class _FeedPostGlobeState extends State<FeedPostGlobe>
     widget.onLikeTap?.call();
   }
 
+  /// Trends' style ([FeedGlobeMode.photosOnPins]), or the new feed's card.
+  bool get _photos => FeedGlobeMode.maybeOf(context)?.photosOnPins ?? false;
+
   @override
   Widget build(BuildContext context) {
+    final photos = _photos;
+    final showPlace = FeedGlobeMode.maybeOf(context)?.showPlace ?? true;
     return AspectRatio(
       aspectRatio: 4 / 5,
       child: FutureBuilder<TravelMap?>(
@@ -472,6 +488,7 @@ class _FeedPostGlobeState extends State<FeedPostGlobe>
                 size: size,
                 pin: pin,
                 camera: _camera,
+                photo: photos,
               );
               if (pin != null) _camera ??= place.camera;
               // Grown: across the globe, in its middle (as high as fits).
@@ -505,23 +522,48 @@ class _FeedPostGlobeState extends State<FeedPostGlobe>
                       // No pin for the post (none fetched): their travels,
                       // as on their profile.
                       faceTravels: pin == null,
-                      // A pin tapped: the author's posts there, as on their
-                      // profile.
+                      // A pin tapped opens the author's posts there, as on
+                      // their profile (the new feed and Trends alike).
                       onTargetTap: _openPlace,
-                      // Its +, − and back-to-the-post buttons are drawn here
-                      // instead, over the photos.
-                      showButtons: false,
+                      // Trends draws its +, − and back-to-the-post buttons
+                      // over the photos (below); the new feed has the
+                      // globe's own.
+                      showButtons: !photos,
                       borderRadius: 0,
                     ),
                   ),
+                  // Its country and city, in the bottom left corner, level
+                  // with the globe's back-to-the-post button (the lowest of
+                  // its three) and clear of them. A label: touches go to
+                  // the globe; the card can go over it.
+                  if (showPlace)
+                    Positioned(
+                      left: FeedPostGlobe.buttonsInset,
+                      right: FeedPostGlobe.buttonsInset * 2 + GlobeButtons.size,
+                      bottom: FeedPostGlobe.buttonsInset,
+                      height: GlobeButtons.size,
+                      child: IgnorePointer(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: FeedPostPlace(
+                            block: widget.block,
+                            onGlobe: true,
+                          ),
+                        ),
+                      ),
+                    ),
                   // The posts' photos on their pins, wherever the globe takes
                   // them. Only this post's takes touches here; the rest is
                   // the globe's.
                   Positioned.fill(
                     child: AnimatedBuilder(
                       animation: Listenable.merge([_growCurve, _globe.frames]),
-                      builder: (context, _) =>
-                          _photosOver(place: place, grown: grown, spot: spot),
+                      builder: (context, _) => _photosOver(
+                        place: place,
+                        grown: grown,
+                        spot: spot,
+                        photos: photos,
+                      ),
                     ),
                   ),
                   // Taps on the small photos (see [_photoHits]): heard, not
@@ -537,21 +579,22 @@ class _FeedPostGlobeState extends State<FeedPostGlobe>
                   // +, − and back to the post's place, as on the profile, in
                   // the bottom right corner — over the photos the globe
                   // takes under them; gone while a post is grown there.
-                  Positioned(
-                    right: FeedPostGlobe.buttonsInset,
-                    bottom: FeedPostGlobe.buttonsInset,
-                    child: AnimatedBuilder(
-                      animation: _growCurve,
-                      builder: (context, child) {
-                        final t = _growCurve.value.clamp(0.0, 1.0);
-                        return IgnorePointer(
-                          ignoring: t > 0,
-                          child: Opacity(opacity: 1 - t, child: child),
-                        );
-                      },
-                      child: GlobeButtons(controller: _globe),
+                  if (photos)
+                    Positioned(
+                      right: FeedPostGlobe.buttonsInset,
+                      bottom: FeedPostGlobe.buttonsInset,
+                      child: AnimatedBuilder(
+                        animation: _growCurve,
+                        builder: (context, child) {
+                          final t = _growCurve.value.clamp(0.0, 1.0);
+                          return IgnorePointer(
+                            ignoring: t > 0,
+                            child: Opacity(opacity: 1 - t, child: child),
+                          );
+                        },
+                        child: GlobeButtons(controller: _globe),
+                      ),
                     ),
-                  ),
                   // How far they have travelled, as on their profile: over
                   // the card when the globe takes it under (it takes no
                   // touches, so the card under it still does).
@@ -577,6 +620,7 @@ class _FeedPostGlobeState extends State<FeedPostGlobe>
     required _PinCardPlace place,
     required Rect grown,
     required ({double lat, double lng})? spot,
+    required bool photos,
   }) {
     final t = _growCurve.value;
     final size = place.card.size;
@@ -584,17 +628,24 @@ class _FeedPostGlobeState extends State<FeedPostGlobe>
     final drawn = laidOut
         ? _globe.pinsAt([
             ?spot,
-            for (final pin in _others) (lat: pin.lat, lng: pin.lng),
+            if (photos)
+              for (final pin in _others) (lat: pin.lat, lng: pin.lng),
           ])
         : const <String, Offset>{};
     final at = spot == null ? null : drawn[GlobeController.pinKeyOf(spot)];
     final Rect? small;
-    if (spot == null) {
+    // The new feed's card hangs from an arrow on its pin.
+    Rect? arrow;
+    if (spot == null || !laidOut) {
+      // No pin, or not laid out yet: where it opens.
       small = place.card;
-    } else if (!laidOut) {
-      small = place.card;
+      if (spot != null) arrow = place.arrow;
+    } else if (at == null) {
+      small = null;
     } else {
-      small = at == null ? null : _PinCardPlace.over(at, size);
+      final onPin = _PinCardPlace.over(at, size, withArrow: !photos);
+      small = onPin.card;
+      arrow = onPin.arrow;
     }
 
     // The post grown, growing or shrinking: where it grows from.
@@ -605,34 +656,41 @@ class _FeedPostGlobeState extends State<FeedPostGlobe>
             lat: shownOther.pin.lat,
             lng: shownOther.pin.lng,
           ))]) {
-            final where? => _PinCardPlace.over(where, size),
+            final where? => _PinCardPlace.over(where, size).card,
             null => null,
           };
 
-    // The others, the newest first; one where another already is goes.
+    // The others (Trends only), the newest first; one where another already
+    // is goes.
     final taken = <Rect>[?small];
     final others = <(TravelPin, Rect)>[];
-    for (final pin in _others) {
+    for (final pin in photos ? _others : const <TravelPin>[]) {
       if (others.length >= _maxOthers) break;
       // Grown from its pin: drawn big below, not small here.
       if (pin.postId == _shownId) continue;
       final where =
           drawn[GlobeController.pinKeyOf((lat: pin.lat, lng: pin.lng))];
       if (where == null) continue;
-      final rect = _PinCardPlace.over(where, size);
+      final rect = _PinCardPlace.over(where, size).card;
       if (taken.any((other) => _covers(other, rect))) continue;
       taken.add(rect);
       others.add((pin, rect));
     }
 
     final thisShown = _shownId == widget.block.id;
+    // Trends' photos take no touches (a drag over one turns the globe; the
+    // listener over them tells their taps); the new feed's card takes its
+    // own (its buttons, its photo).
     _photoHits = [
-      for (final (pin, rect) in others) (pin.postId!, rect),
-      if (!thisShown && small != null) (widget.block.id, small),
+      if (photos) ...[
+        for (final (pin, rect) in others) (pin.postId!, rect),
+        if (!thisShown && small != null) (widget.block.id, small),
+      ],
     ];
     Widget thisCard({required double grown}) => _PostPinCard(
-      key: thisShown ? _cardKey : null,
+      key: thisShown || !photos ? _cardKey : null,
       block: widget.block,
+      photoOnly: photos,
       isLiked: widget.isLiked,
       isBookmarked: widget.isBookmarked,
       likesCount: widget.likesCount,
@@ -658,12 +716,27 @@ class _FeedPostGlobeState extends State<FeedPostGlobe>
             rect: rect,
             child: _OtherPhoto(url: pin.thumb!),
           ),
-        // This post on its pin, unless it is the one grown: a picture, as
-        // the others (its taps are told by the listener over them).
+        // The new feed's card hangs from its arrow, gone as it grows.
+        if (arrow != null && t < 1 && (thisShown || !_big))
+          Positioned.fromRect(
+            rect: arrow,
+            child: Opacity(
+              opacity: 1 - t.clamp(0.0, 1.0),
+              // The grey of the card's buttons' row it hangs from.
+              child: const CustomPaint(
+                painter: _ArrowPainter(_PostPinCard.footerColor),
+              ),
+            ),
+          ),
+        // This post on its pin, unless it is the one grown. On Trends a
+        // picture, as the others (its taps are told by the listener over
+        // them); on the new feed its card, taking its own taps.
         if (!thisShown && small != null)
           Positioned.fromRect(
             rect: small,
-            child: IgnorePointer(child: thisCard(grown: 0)),
+            child: photos
+                ? IgnorePointer(child: thisCard(grown: 0))
+                : thisCard(grown: 0),
           ),
         // The post grown, growing or shrinking back onto its pin.
         if (thisShown && (small != null || t > 0))
@@ -712,61 +785,145 @@ class _FeedPostGlobeState extends State<FeedPostGlobe>
   static const double _grownMargin = AppSpacing.md;
 }
 
-/// Where the post's small photo goes on a globe: standing on the post's pin,
-/// the globe turned to put the pin in its middle.
+/// Where the post goes on a globe, on its pin. On Trends (`photo`) its small
+/// photo, standing on the pin, the globe turned to put the pin in its
+/// middle. On the new feed its card, over an arrow to the pin, its top a
+/// little way down the box (below the travel count): the globe turns so the
+/// pin sits a little above the middle (up to 20°) for it, or a little below
+/// on a narrow phone — the card then covers less of the globe while the
+/// post's place stays in view.
 class _PinCardPlace {
-  const _PinCardPlace({required this.card, this.camera});
+  const _PinCardPlace({required this.card, this.arrow, this.camera});
 
   factory _PinCardPlace.of({
     required Size size,
     required ({double lat, double lng})? pin,
     required ({double lat, double lng})? camera,
+    required bool photo,
   }) {
-    final side = photoSide(size);
-    final photo = Size.square(side);
-    if (pin == null || GlobeView.wholeGlobeRadius(size) <= 0) {
-      // No pin to stand on: the photo a little way down the middle.
+    final r = GlobeView.wholeGlobeRadius(size);
+    final c = size.center(Offset.zero);
+    if (photo) {
+      final side = photoSide(size);
+      if (pin == null || r <= 0) {
+        // No pin to stand on: the photo a little way down the middle.
+        return _PinCardPlace(
+          card: Rect.fromLTWH((size.width - side) / 2, _noPinTop, side, side),
+        );
+      }
+      // Facing the pin: drawn in the middle (until the globe turns).
       return _PinCardPlace(
-        card: Rect.fromLTWH((size.width - side) / 2, _noPinTop, side, side),
+        card: over(c, Size.square(side)).card,
+        camera: camera ?? (lat: pin.lat.clamp(-85.0, 85.0), lng: pin.lng),
       );
     }
-    // Facing the pin: drawn in the middle (until the globe turns).
+
+    final width = (size.width * 0.34).clamp(96.0, 150.0);
+    final height = width + _PostPinCard.footerHeight;
+    // The card's top a little way down the box, clear of the travel count.
+    final top = math.max(_noPinTop, size.height * _topShare);
+    if (pin == null || r <= 0) {
+      // No pin to stand on: the card where it would stand.
+      return _PinCardPlace(
+        card: Rect.fromLTWH((size.width - width) / 2, top, width, height),
+      );
+    }
+    // The card's bottom over the pin's icon, the arrow between them.
+    const under = GlobeView.pinIconTop + _gap + _arrowHeight;
+    var turned = camera;
+    if (turned == null) {
+      final rise = ((c.dy - top - height - under) / r).clamp(
+        -math.sin(15 * _deg),
+        math.sin(20 * _deg),
+      );
+      turned = (
+        lat: (pin.lat - math.asin(rise) / _deg).clamp(-85.0, 85.0),
+        lng: pin.lng,
+      );
+    }
+    // Orthographic, as the globe draws it (north up).
+    final p0 = turned.lat * _deg;
+    final p = pin.lat * _deg;
+    final dl = (pin.lng - turned.lng) * _deg;
+    final at = Offset(
+      c.dx + r * math.cos(p) * math.sin(dl),
+      c.dy -
+          r *
+              (math.cos(p0) * math.sin(p) -
+                  math.sin(p0) * math.cos(p) * math.cos(dl)),
+    );
+    final onPin = over(at, Size(width, height), withArrow: true);
+    final left = onPin.card.left
+        .clamp(_margin, math.max(_margin, size.width - width - _margin))
+        .toDouble();
     return _PinCardPlace(
-      card: over(size.center(Offset.zero), photo),
-      camera: camera ?? (lat: pin.lat.clamp(-85.0, 85.0), lng: pin.lng),
+      card: onPin.card.translate(left - onPin.card.left, 0),
+      arrow: onPin.arrow,
+      camera: turned,
     );
   }
 
-  /// A photo's side on a [box] globe: small, a sixth of its width or so.
+  /// A photo's side on a [box] globe (Trends): small, a sixth of its width
+  /// or so.
   static double photoSide(Size box) => (box.width * 0.17).clamp(52.0, 76.0);
 
-  /// A [photo]-sized photo standing on the pin drawn [at]: its bottom just
-  /// over the pin's icon.
-  static Rect over(Offset at, Size photo) {
-    const under = GlobeView.pinIconTop + _gap;
-    return Rect.fromLTWH(
-      at.dx - photo.width / 2,
-      at.dy - under - photo.height,
-      photo.width,
-      photo.height,
+  /// A [size]d photo or card standing on the pin drawn [at]: its bottom just
+  /// over the pin's icon — or, [withArrow] (the new feed's card), over an
+  /// arrow down to it.
+  static ({Rect card, Rect? arrow}) over(
+    Offset at,
+    Size size, {
+    bool withArrow = false,
+  }) {
+    final under = GlobeView.pinIconTop + _gap + (withArrow ? _arrowHeight : 0);
+    final bottom = at.dy - under;
+    return (
+      card: Rect.fromLTWH(
+        at.dx - size.width / 2,
+        bottom - size.height,
+        size.width,
+        size.height,
+      ),
+      arrow: withArrow
+          ? Rect.fromLTWH(
+              at.dx - _arrowWidth / 2,
+              bottom - 0.5,
+              _arrowWidth,
+              _arrowHeight + 0.5,
+            )
+          : null,
     );
   }
 
-  /// The photo's top with no pin: below the travel count in the corner.
+  static const double _margin = 8;
+
+  /// How far down the box the new feed's card's top goes (a share of its
+  /// height), when the pin can be raised enough for it.
+  static const double _topShare = 0.08;
+
+  /// The top at least this far down: below the travel count in the corner.
   static const double _noPinTop = 44;
   static const double _gap = 2;
+  static const double _arrowWidth = 14;
+  static const double _arrowHeight = 7;
+  static const double _deg = math.pi / 180;
 
   final Rect card;
+
+  /// The new feed's card's arrow, its tip just over the pin's icon.
+  final Rect? arrow;
 
   /// Where the globe is turned to.
   final ({double lat, double lng})? camera;
 }
 
-/// The post: on its pin, its first photo alone (a video's first frame),
-/// small, white-edged; [grown] (0 on the pin, 1 across the globe) to the
-/// profile grid's long-press card, the feed card's buttons — like and
-/// comment with their counts, share, save — coming in under the photo, and,
-/// once [big], the full photo and the video playing.
+/// The post on its pin: on Trends ([photoOnly]) its first photo alone (a
+/// video's first frame), small, white-edged; on the new feed its card — the
+/// photo and the feed card's buttons under it (like and comment with their
+/// counts, share, save) on the switch's grey. [grown] (0 on the pin, 1
+/// across the globe) takes it to the profile grid's long-press card's size,
+/// the buttons coming in under a lone photo; once [big], the full photo and
+/// the video playing.
 class _PostPinCard extends StatelessWidget {
   const _PostPinCard({
     required this.block,
@@ -776,6 +933,7 @@ class _PostPinCard extends StatelessWidget {
     required this.commentsCount,
     this.grown = 0,
     this.big = false,
+    this.photoOnly = false,
     this.heart,
     this.playVideo = false,
     this.onPhotoTap,
@@ -798,6 +956,9 @@ class _PostPinCard extends StatelessWidget {
   /// Grown or growing: the full photo.
   final bool big;
 
+  /// On its pin, the photo alone (Trends'), not the card.
+  final bool photoOnly;
+
   /// The popping heart of a like.
   final AnimationController? heart;
   final bool playVideo;
@@ -806,6 +967,9 @@ class _PostPinCard extends StatelessWidget {
   final VoidCallback? onShareTap;
   final VoidCallback? onCommentsTap;
   final VoidCallback? onSaveTap;
+
+  /// The new feed's small card's buttons' row.
+  static const double footerHeight = 34;
 
   /// Behind the buttons: the grey of the feed switch's pill.
   static const Color footerColor = AppColors.inputSpace;
@@ -867,10 +1031,16 @@ class _PostPinCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = grown;
-    final radius = BorderRadius.circular(lerpDouble(10, 16, t)!);
-    final footer = lerpDouble(0, bigFooterHeight, t.clamp(0.0, 1.0))!;
-    // The white edge of the small photo, gone as it grows.
-    final edge = (1 - t).clamp(0.0, 1.0);
+    final radius = BorderRadius.circular(
+      lerpDouble(photoOnly ? 10 : 12, 16, t)!,
+    );
+    final footer = lerpDouble(
+      photoOnly ? 0 : footerHeight,
+      bigFooterHeight,
+      t.clamp(0.0, 1.0),
+    )!;
+    // Trends' small photo's white edge, gone as it grows.
+    final edge = photoOnly ? (1 - t).clamp(0.0, 1.0) : 0.0;
     final icon = lerpDouble(18, 28, t)!;
     final countSize = lerpDouble(12, 15, t)!;
     final video = block.firstMedia is VideoMedia;
@@ -920,7 +1090,7 @@ class _PostPinCard extends StatelessWidget {
                       else
                         BlurHashImageThumbnail(
                           id: block.id,
-                          decodeWidth: 240,
+                          decodeWidth: photoOnly ? 240 : 480,
                           url: block.firstMediaThumbUrl ?? '',
                           blurHash: block.firstMedia?.blurHash,
                         ),
@@ -940,12 +1110,13 @@ class _PostPinCard extends StatelessWidget {
                   ),
                 ),
               ),
-              // The buttons only as it grows: on the pin, the photo alone.
+              // The buttons: on the new feed's card always; on Trends only as
+              // it grows (on the pin, the photo alone).
               if (footer >= 1)
                 SizedBox(
                   height: footer,
                   child: Opacity(
-                    opacity: t.clamp(0.0, 1.0),
+                    opacity: photoOnly ? t.clamp(0.0, 1.0) : 1,
                     child: Row(
                       children: [
                         _button(
@@ -1043,6 +1214,7 @@ class _OtherCard extends StatelessWidget {
       bloc: other.bloc,
       builder: (context, state) => _PostPinCard(
         block: other.block,
+        photoOnly: true,
         isLiked: state.isLiked,
         isBookmarked: state.isBookmarked,
         likesCount: state.likes,
@@ -1108,4 +1280,24 @@ class _OtherPhoto extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The new feed's small card's arrow, pointing down at the pin.
+class _ArrowPainter extends CustomPainter {
+  const _ArrowPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width / 2, size.height)
+      ..close();
+    canvas.drawPath(path, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_ArrowPainter oldDelegate) => oldDelegate.color != color;
 }

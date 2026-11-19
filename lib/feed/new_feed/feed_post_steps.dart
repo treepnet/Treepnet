@@ -13,12 +13,28 @@ import 'package:treepnet/map/globe_view.dart';
 /// post on. Each scrolls the feed so that post's top is at the top of the
 /// list.
 class FeedPostSteps extends StatelessWidget {
-  const FeedPostSteps({required this.first, super.key});
+  const FeedPostSteps({
+    required this.first,
+    this.underGlobeButtons = false,
+    super.key,
+  });
 
   /// The feed's first post: nothing above it to go to.
   final bool first;
 
+  /// The down arrow in the line of the globe's +, − and back buttons above
+  /// it (Trends' Maps tab); otherwise at the line's own right edge.
+  final bool underGlobeButtons;
+
   static const double _size = 40;
+
+  /// The arrows' height: the line they sit in is at least this tall.
+  static const double height = _size;
+
+  /// How wide the arrows are: the down one alone under the [first] post,
+  /// with the up one beside it after.
+  static double widthOf({required bool first}) =>
+      first ? _size : _size * 2 + AppSpacing.xs;
 
   /// How far right of where the line under the post puts it (that line is
   /// padded [AppSpacing.md] from the right) the down arrow goes, for its
@@ -93,7 +109,7 @@ class FeedPostSteps extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Transform.translate(
-      offset: const Offset(_underGlobeButtons, 0),
+      offset: Offset(underGlobeButtons ? _underGlobeButtons : 0, 0),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

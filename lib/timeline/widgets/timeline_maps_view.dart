@@ -102,6 +102,8 @@ class _TimelineMapsViewState extends State<TimelineMapsView> {
       // (the grid's posts keep theirs).
       showPlace: false,
       showCaption: false,
+      // Every post of the author on its pin, as its small photo.
+      photosOnPins: true,
       child: CustomScrollView(
         controller: widget.scrollController,
         physics: const NeverScrollableScrollPhysics(),
