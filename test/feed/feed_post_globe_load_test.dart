@@ -244,11 +244,11 @@ void main() {
       );
       await wait(tester, const Duration(milliseconds: 100));
       double height() => tester.getSize(find.byType(FeedPostGlobe)).height;
-      expect(height(), 420 - (58 + 50) - 60);
+      expect(height(), 420 - (58 + 50) - 52);
 
       banner.value = 0;
       await wait(tester, const Duration(milliseconds: 100));
-      expect(height(), 420 - 50 - 60);
+      expect(height(), 420 - 50 - 52);
       await tester.pump(const Duration(seconds: 1));
     });
 
@@ -309,8 +309,8 @@ void main() {
       await harness.pump(tester, post(), viewportHeight: 420);
       await wait(tester, const Duration(milliseconds: 100));
       // The header (50) over it, measured; under it the gap over the line
-      // (8), its padding (4), the arrows (40) and a little room (8).
-      expect(globeHeight(tester), 420 - 50 - 60);
+      // (8), its padding (4) and the arrows (40).
+      expect(globeHeight(tester), 420 - 50 - 52);
       await tester.pump(const Duration(seconds: 1));
     });
   });

@@ -692,9 +692,10 @@ class _FeedPostGlobeState extends State<FeedPostGlobe>
   double? _viewportUsed;
   bool _measuring = false;
 
-  /// Under the globe, on screen: the gap over the line under the post (8),
-  /// its top padding (4), the arrows, and a little room (8).
-  static const double _below = 8 + 4 + FeedPostSteps.height + AppSpacing.sm;
+  /// Under the globe, down to the arrows' bottom: the gap over the line
+  /// under the post (8), its top padding (4), the arrows. A post that fits
+  /// so keeps its 4:5 globe, its arrows whole on screen.
+  static const double _below = 8 + 4 + FeedPostSteps.height;
 
   /// The least it is made, however short the screen.
   static const double _minHeight = 160;
