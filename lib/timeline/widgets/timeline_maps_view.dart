@@ -56,79 +56,84 @@ class _TimelineMapsViewState extends State<TimelineMapsView> {
     _indexOf = {for (final (i, block) in _blocks.indexed) block.id: i};
   }
 
+  /// How tall the list shows (a post too tall for it gets a shorter globe,
+  /// its arrows on screen).
+  final _viewport = GlobeListHeight();
+
   @override
   Widget build(BuildContext context) {
+    // Built once: a new height reaches only the globes.
+    final list = _list();
     return LayoutBuilder(
-      builder: (context, constraints) => _list(constraints.maxHeight),
+      builder: (context, constraints) => FeedGlobeMode(
+        // Every post of the author on its pin, as its small photo; the
+        // arrows alone under each post (the grid's posts keep their
+        // descriptions).
+        style: FeedGlobeStyle.photos,
+        onScreen: widget.onScreen,
+        viewportHeight: _viewport.of(context, constraints),
+        child: list,
+      ),
     );
   }
 
-  /// The list, [viewportHeight] tall (a post too tall for it gets a shorter
-  /// globe, its arrows on screen).
-  Widget _list(double viewportHeight) {
-    return FeedGlobeMode(
-      // Every post of the author on its pin, as its small photo; the arrows
-      // alone under each post (the grid's posts keep their descriptions).
-      style: FeedGlobeStyle.photos,
-      onScreen: widget.onScreen,
-      viewportHeight: viewportHeight,
-      child: CustomScrollView(
-        controller: widget.scrollController,
-        physics: const NeverScrollableScrollPhysics(),
-        slivers: [
-          BlocBuilder<TimelineBloc, TimelineState>(
-            buildWhen: (previous, current) =>
-                previous.status != current.status ||
-                previous.timeline.hasMore != current.timeline.hasMore ||
-                // A page that brought nothing new still moves the end on.
-                previous.timeline.page != current.timeline.page ||
-                !const ListEquality<InstaBlock>().equals(
-                  previous.timeline.blocks,
-                  current.timeline.blocks,
-                ),
-            builder: (context, state) {
-              _remix(state.timeline.blocks.whereType<PostBlock>().toList());
-              final blocks = _blocks;
-              if (blocks.isEmpty) {
-                if (state.status.isFailure) return const TimelineError();
-                if (state.status.isPopulated && !state.timeline.hasMore) {
-                  return const TimelineEmpty();
-                }
-                return const SliverToBoxAdapter(
-                  child: Column(
-                    children: [
-                      FeedLoadingBlock(),
-                      Gap.v(AppSpacing.md),
-                      FeedLoadingBlock(),
-                    ],
-                  ),
-                );
+  Widget _list() {
+    return CustomScrollView(
+      controller: widget.scrollController,
+      physics: const NeverScrollableScrollPhysics(),
+      slivers: [
+        BlocBuilder<TimelineBloc, TimelineState>(
+          buildWhen: (previous, current) =>
+              previous.status != current.status ||
+              previous.timeline.hasMore != current.timeline.hasMore ||
+              // A page that brought nothing new still moves the end on.
+              previous.timeline.page != current.timeline.page ||
+              !const ListEquality<InstaBlock>().equals(
+                previous.timeline.blocks,
+                current.timeline.blocks,
+              ),
+          builder: (context, state) {
+            _remix(state.timeline.blocks.whereType<PostBlock>().toList());
+            final blocks = _blocks;
+            if (blocks.isEmpty) {
+              if (state.status.isFailure) return const TimelineError();
+              if (state.status.isPopulated && !state.timeline.hasMore) {
+                return const TimelineEmpty();
               }
-              return SliverList.builder(
-                // +1: the end of the list, where the next page is asked for.
-                itemCount: blocks.length + 1,
-                // A post that goes (hidden, deleted) leaves the ones below
-                // it as they were, globes turned and all.
-                findChildIndexCallback: (key) =>
-                    key is ValueKey<String> ? _indexOf[key.value] : null,
-                itemBuilder: (context, index) {
-                  if (index == blocks.length) {
-                    return _MapsEnd(state: state);
-                  }
-                  final block = blocks[index];
-                  return PostView(
-                    key: ValueKey(block.id),
-                    block: block,
-                    postIndex: index,
-                    // Its globe in place of the media: no video to play.
-                    withInViewNotifier: false,
-                  );
-                },
+              return const SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    FeedLoadingBlock(),
+                    Gap.v(AppSpacing.md),
+                    FeedLoadingBlock(),
+                  ],
+                ),
               );
-            },
-          ),
-        ],
-      ),
+            }
+            return SliverList.builder(
+              // +1: the end of the list, where the next page is asked for.
+              itemCount: blocks.length + 1,
+              // A post that goes (hidden, deleted) leaves the ones below
+              // it as they were, globes turned and all.
+              findChildIndexCallback: (key) =>
+                  key is ValueKey<String> ? _indexOf[key.value] : null,
+              itemBuilder: (context, index) {
+                if (index == blocks.length) {
+                  return _MapsEnd(state: state);
+                }
+                final block = blocks[index];
+                return PostView(
+                  key: ValueKey(block.id),
+                  block: block,
+                  postIndex: index,
+                  // Its globe in place of the media: no video to play.
+                  withInViewNotifier: false,
+                );
+              },
+            );
+          },
+        ),
+      ],
     );
   }
 }

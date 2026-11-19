@@ -302,6 +302,11 @@ class _FeedBodyState extends State<FeedBody> {
   /// Posts newer than any on screen came in (shown as a button).
   bool _hasNewPosts = false;
 
+  /// The newest post when the button went up: once the list holds it (the
+  /// other list's refresh brought it, both reading one feed), the button
+  /// goes, and this list looks for new posts again.
+  String? _newestId;
+
   /// The feed's scroll position, from its scroll notifications.
   ScrollPosition? _position;
 
@@ -364,7 +369,10 @@ class _FeedBodyState extends State<FeedBody> {
       if (!widget.globe && _atTop && (widget.otherAtTop?.call() ?? true)) {
         feed.add(const FeedRefreshRequested());
       } else {
-        setState(() => _hasNewPosts = true);
+        setState(() {
+          _hasNewPosts = true;
+          _newestId = id;
+        });
       }
     } catch (_) {
       // Only a hint: the next sync round looks again.
@@ -374,7 +382,10 @@ class _FeedBodyState extends State<FeedBody> {
   }
 
   Future<void> _showNewPosts() async {
-    setState(() => _hasNewPosts = false);
+    setState(() {
+      _hasNewPosts = false;
+      _newestId = null;
+    });
     final position = _position;
     if (position != null && position.hasPixels) {
       await position.animateTo(0, duration: 300.ms, curve: Curves.easeOut);
@@ -384,7 +395,10 @@ class _FeedBodyState extends State<FeedBody> {
   }
 
   Future<void> _onPullToRefresh() async {
-    setState(() => _hasNewPosts = false);
+    setState(() {
+      _hasNewPosts = false;
+      _newestId = null;
+    });
     final feed = context.read<FeedBloc>()..add(const FeedRefreshRequested());
     context.read<StoriesBloc>().add(const StoriesFetchUserFollowingsStories());
     // The spinner stays until the new page is in. It used to wait a fixed
@@ -402,25 +416,29 @@ class _FeedBodyState extends State<FeedBody> {
     return false;
   }
 
+  /// The newest post the button stood for is in the list now: no button.
+  void _onFeed(BuildContext context, FeedState state) {
+    final newest = _newestId;
+    if (newest == null) return;
+    final blocks = state.feed.feedPage.blocks;
+    if (!blocks.any((block) => block is PostBlock && block.id == newest)) {
+      return;
+    }
+    setState(() {
+      _hasNewPosts = false;
+      _newestId = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Stack(
+    final list = Stack(
       children: [
         RefreshIndicator.adaptive(
           onRefresh: _onPullToRefresh,
           child: NotificationListener<ScrollNotification>(
             onNotification: _trackScroll,
-            child: widget.globe
-                // How tall the list shows: a post too tall for it gets a
-                // shorter globe (its arrows on screen).
-                ? LayoutBuilder(
-                    builder: (context, constraints) => FeedGlobeMode(
-                      onScreen: widget.onScreen,
-                      viewportHeight: constraints.maxHeight,
-                      child: _feedScrollView(),
-                    ),
-                  )
-                : _feedScrollView(),
+            child: widget.globe ? _globeList() : _feedScrollView(),
           ),
         ),
         Positioned(
@@ -438,7 +456,33 @@ class _FeedBodyState extends State<FeedBody> {
         ),
       ],
     );
+    return BlocListener<FeedBloc, FeedState>(
+      listenWhen: (previous, current) =>
+          _hasNewPosts &&
+          previous.feed.feedPage.blocks != current.feed.feedPage.blocks,
+      listener: _onFeed,
+      child: list,
+    );
   }
+
+  /// The new feed's list, telling its posts how tall it shows (a post too
+  /// tall for it gets a shorter globe, its arrows on screen) and when the
+  /// upload banner over its first post comes or goes. Built once: a new
+  /// height reaches only the globes.
+  Widget _globeList() {
+    final list = _feedScrollView();
+    final uploads = context.read<MediaUploadQueue>().status;
+    return LayoutBuilder(
+      builder: (context, constraints) => FeedGlobeMode(
+        onScreen: widget.onScreen,
+        viewportHeight: _viewport.of(context, constraints),
+        aboveFirstPost: uploads,
+        child: list,
+      ),
+    );
+  }
+
+  final _viewport = GlobeListHeight();
 
   Widget _feedScrollView() {
     return InViewNotifierCustomScrollView(

@@ -4,6 +4,7 @@ import 'package:instagram_blocks_ui/instagram_blocks_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:posts_repository/posts_repository.dart';
 import 'package:shared/shared.dart';
+import 'package:treepnet/feed/new_feed/feed_globe_mode.dart';
 import 'package:treepnet/feed/new_feed/feed_post_globe.dart';
 import 'package:treepnet/feed/new_feed/post_pin_card.dart';
 import 'package:treepnet/map/globe_view.dart';
@@ -208,6 +209,80 @@ void main() {
   });
 
   group('a screen too short for the whole post', () {
+    testWidgets('the first post makes room for what is over it too', (
+      tester,
+    ) async {
+      // The upload banner over the list's first post, 58 tall, then gone.
+      final banner = ValueNotifier<double>(58);
+      addTearDown(banner.dispose);
+      await harness.pump(
+        tester,
+        ValueListenableBuilder<double>(
+          valueListenable: banner,
+          builder: (context, height, _) => CustomScrollView(
+            physics: const NeverScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(child: SizedBox(height: height)),
+              SliverList.list(
+                children: [
+                  Column(
+                    children: [
+                      const SizedBox(height: 50),
+                      SizedBox(
+                        width: 300,
+                        child: FeedPostGlobe(block: globePost),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        viewportHeight: 420,
+        aboveFirstPost: banner,
+      );
+      await wait(tester, const Duration(milliseconds: 100));
+      double height() => tester.getSize(find.byType(FeedPostGlobe)).height;
+      expect(height(), 420 - (58 + 50) - 60);
+
+      banner.value = 0;
+      await wait(tester, const Duration(milliseconds: 100));
+      expect(height(), 420 - 50 - 60);
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('the keyboard over the list is no short screen', (
+      tester,
+    ) async {
+      final listHeight = GlobeListHeight();
+      final seen = <double>[];
+      Future<void> lay(double height) => tester.pumpWidget(
+        Center(
+          child: SizedBox(
+            height: height,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                seen.add(listHeight.of(context, constraints));
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        ),
+      );
+      await lay(600);
+      // The keyboard comes up: the list's height shrinks, the globes' not.
+      tester.view.viewInsets = const FakeViewPadding(bottom: 900);
+      addTearDown(tester.view.resetViewInsets);
+      await lay(320);
+      await lay(310);
+      // It goes: the list's own height again.
+      tester.view.resetViewInsets();
+      await lay(600);
+      await lay(500);
+      expect(seen, [600, 600, 600, 600, 500]);
+    });
+
     /// A post as a list has it: a 50-tall header over the globe.
     Widget post() => globeList(ScrollController(), [
       Column(
@@ -233,9 +308,9 @@ void main() {
     ) async {
       await harness.pump(tester, post(), viewportHeight: 420);
       await wait(tester, const Duration(milliseconds: 100));
-      // The header (50) over it, measured; the arrows' line (4 + 40) and a
-      // little room (8) under it.
-      expect(globeHeight(tester), 420 - 50 - 52);
+      // The header (50) over it, measured; under it the gap over the line
+      // (8), its padding (4), the arrows (40) and a little room (8).
+      expect(globeHeight(tester), 420 - 50 - 60);
       await tester.pump(const Duration(seconds: 1));
     });
   });

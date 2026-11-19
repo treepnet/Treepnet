@@ -221,10 +221,16 @@ class _FeedPostGlobeState extends State<FeedPostGlobe>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final onScreen = FeedGlobeMode.maybeOf(context)?.onScreen;
+    final mode = FeedGlobeMode.maybeOf(context);
+    final onScreen = mode?.onScreen;
     if (!identical(onScreen, _onScreen)) {
       _onScreen?.removeListener(_onScreenChanged);
       _onScreen = onScreen?..addListener(_onScreenChanged);
+    }
+    final above = mode?.aboveFirstPost;
+    if (!identical(above, _aboveFirstPost)) {
+      _aboveFirstPost?.removeListener(_measureAboveSoon);
+      _aboveFirstPost = above?..addListener(_measureAboveSoon);
     }
   }
 
@@ -249,6 +255,7 @@ class _FeedPostGlobeState extends State<FeedPostGlobe>
   void dispose() {
     _again?.cancel();
     _onScreen?.removeListener(_onScreenChanged);
+    _aboveFirstPost?.removeListener(_measureAboveSoon);
     _listenForTapsOff(false);
     _listenForScroll(false);
     _closeOther();
@@ -667,20 +674,27 @@ class _FeedPostGlobeState extends State<FeedPostGlobe>
 
   // --- its height -----------------------------------------------------------
 
-  /// How far below its post's top the globe starts (the post's header):
-  /// the same for every post, so the first one measured does for all; a
-  /// guess until then.
-  static double _above = 60;
+  /// How far below its post's top a globe starts (the post's header), as
+  /// last measured on any: a first guess for a globe not measured yet.
+  static double _lastAbove = 60;
+
+  /// How far below the list's top this globe starts with its post at the
+  /// top: its own header — and, for the list's first post, what the list
+  /// shows above it (the upload banner). Null until measured.
+  double? _above;
+
+  /// Fires when what is above the list's first post changes.
+  Listenable? _aboveFirstPost;
 
   /// What this globe's height was last worked out with.
-  double _aboveUsed = _above;
+  double _aboveUsed = _lastAbove;
   double _naturalUsed = 0;
   double? _viewportUsed;
   bool _measuring = false;
 
-  /// Under the globe, on screen: the line's top padding, the arrows, a
-  /// little room.
-  static const double _below = 4 + FeedPostSteps.height + AppSpacing.sm;
+  /// Under the globe, on screen: the gap over the line under the post (8),
+  /// its top padding (4), the arrows, and a little room (8).
+  static const double _below = 8 + 4 + FeedPostSteps.height + AppSpacing.sm;
 
   /// The least it is made, however short the screen.
   static const double _minHeight = 160;
@@ -690,17 +704,19 @@ class _FeedPostGlobeState extends State<FeedPostGlobe>
   /// that takes.
   double _heightFor(double width, double? viewport) {
     final natural = width / (4 / 5);
-    _aboveUsed = _above;
+    final above = _above ?? _lastAbove;
+    _aboveUsed = above;
     _naturalUsed = natural;
     _viewportUsed = viewport;
     if (viewport == null) return natural;
-    final room = viewport - _above - _below;
+    final room = viewport - above - _below;
     return room >= natural ? natural : math.max(room, _minHeight);
   }
 
-  /// Measures, once laid out, how far down its post the globe starts: if
-  /// that isn't what its height was worked out with, and it matters (the
-  /// post doesn't fit with either), works it out again.
+  /// Measures, once laid out, how far down the list the globe starts with
+  /// its post at the top: if that isn't what its height was worked out
+  /// with, and it matters (the post doesn't fit with either), works it out
+  /// again.
   void _measureAboveSoon() {
     if (_measuring) return;
     _measuring = true;
@@ -715,13 +731,20 @@ class _FeedPostGlobeState extends State<FeedPostGlobe>
         post = list;
         list = list.parent;
       }
-      if (list == null || post is! RenderBox) return;
-      final above = box.localToGlobal(Offset.zero, ancestor: post).dy;
+      if (list is! RenderSliverMultiBoxAdaptor || post is! RenderBox) return;
+      final header = box.localToGlobal(Offset.zero, ancestor: post).dy;
+      _lastAbove = header;
+      // The first post: below what the list shows over it.
+      final data = post.parentData;
+      final first = data is SliverMultiBoxAdaptorParentData && data.index == 0;
+      final above =
+          header + (first ? list.constraints.precedingScrollExtent : 0);
+      final was = _aboveUsed;
       _above = above;
       final viewport = _viewportUsed;
-      if (viewport == null || (above - _aboveUsed).abs() < 0.5) return;
+      if (viewport == null || (above - was).abs() < 0.5) return;
       bool fits(double a) => viewport - a - _below >= _naturalUsed;
-      if (fits(above) && fits(_aboveUsed)) return;
+      if (fits(above) && fits(was)) return;
       setState(() {});
     });
   }

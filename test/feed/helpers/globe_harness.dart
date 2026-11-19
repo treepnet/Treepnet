@@ -1,5 +1,5 @@
 import 'package:bloc_test/bloc_test.dart';
-import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/foundation.dart' show Listenable, ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,6 +63,7 @@ class GlobeHarness {
     FeedGlobeStyle style = FeedGlobeStyle.card,
     ValueListenable<bool>? onScreen,
     double? viewportHeight,
+    Listenable? aboveFirstPost,
   }) => tester.pumpWidget(
     MultiBlocProvider(
       providers: [BlocProvider<AppBloc>.value(value: app)],
@@ -80,6 +81,7 @@ class GlobeHarness {
               style: style,
               onScreen: onScreen,
               viewportHeight: viewportHeight,
+              aboveFirstPost: aboveFirstPost,
               child: child,
             ),
           ),

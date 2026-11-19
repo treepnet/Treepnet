@@ -33,6 +33,7 @@ class FeedGlobeMode extends InheritedWidget {
     this.style = FeedGlobeStyle.card,
     this.onScreen,
     this.viewportHeight,
+    this.aboveFirstPost,
     super.key,
   });
 
@@ -48,6 +49,11 @@ class FeedGlobeMode extends InheritedWidget {
   /// made as much shorter as that takes: the arrows, the list's only way
   /// on, would be off its bottom. Null: always 4:5.
   final double? viewportHeight;
+
+  /// Fires when what the list shows above its first post changes (the
+  /// upload banner coming or going): the first post's globe, made shorter
+  /// for a short screen, makes room for it too.
+  final Listenable? aboveFirstPost;
 
   bool get photosOnPins => style.photosOnPins;
   bool get showPlace => style.showPlace;
@@ -67,5 +73,23 @@ class FeedGlobeMode extends InheritedWidget {
   bool updateShouldNotify(FeedGlobeMode oldWidget) =>
       style != oldWidget.style ||
       onScreen != oldWidget.onScreen ||
-      viewportHeight != oldWidget.viewportHeight;
+      viewportHeight != oldWidget.viewportHeight ||
+      aboveFirstPost != oldWidget.aboveFirstPost;
+}
+
+/// How tall a globe list shows, for [FeedGlobeMode.viewportHeight]: its
+/// height — but not one the keyboard takes away (a comment being typed in a
+/// sheet over the list): that is no short screen, and the globes keep their
+/// size (made shorter and taller again on every frame of the keyboard
+/// coming, they each laid their whole world out again).
+class GlobeListHeight {
+  double? _last;
+
+  /// The height for a list laid out in [constraints].
+  double of(BuildContext context, BoxConstraints constraints) {
+    final keyboard = View.of(context).viewInsets.bottom > 0;
+    final last = _last;
+    if (keyboard && last != null) return last;
+    return _last = constraints.maxHeight;
+  }
 }
