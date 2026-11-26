@@ -1677,19 +1677,47 @@ class _GlobeScene {
 
   static final pinGlyph = String.fromCharCode(Icons.location_on.codePoint);
 
-  /// White while a pin holds content you haven't opened yet.
+  /// White while a pin holds content you haven't opened yet. Drawn over
+  /// [pinBorderStyle], a black border a little thicker than the 1 px outline
+  /// it had, so it stands out more.
   static final pinStyle = TextStyle(
     fontFamily: Icons.location_on.fontFamily,
     package: Icons.location_on.fontPackage,
     color: AppColors.white,
     fontSize: 26,
     height: 1,
-    shadows: _outline,
   );
 
+  /// A pin glyph stroked in [color]: the border drawn under a pin.
+  static TextStyle _pinBorder(Color color, double fontSize, double width) =>
+      TextStyle(
+        fontFamily: Icons.location_on.fontFamily,
+        package: Icons.location_on.fontPackage,
+        fontSize: fontSize,
+        height: 1,
+        foreground: Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = width
+          ..strokeJoin = StrokeJoin.round
+          ..color = color,
+      );
+
+  /// The black border under a white pin (1.5 px outside it).
+  static final pinBorderStyle = _pinBorder(AppColors.black, 26, 3);
+
+  /// The same under the location picker's smaller pin.
+  static final pickerPinBorderStyle = _pinBorder(AppColors.black, 22, 3);
+
   /// Dimmed once you have opened everything behind it (the flat map's
-  /// `_seenPinColor`).
-  static final seenPinStyle = pinStyle.copyWith(color: const Color(0xFF414141));
+  /// `_seenPinColor`). Drawn over [seenPinBorderStyle], which rings it in
+  /// white: a dark pin on the dark globe was hard to see.
+  static final seenPinStyle = pinStyle.copyWith(
+    color: const Color(0xFF414141),
+    shadows: const <Shadow>[],
+  );
+
+  /// The white border under a dimmed pin: the same glyph, stroked.
+  static final seenPinBorderStyle = _pinBorder(AppColors.white, 26, 3);
 
   /// The location picker's smaller pin.
   static final pickerPinStyle = pinStyle.copyWith(fontSize: 22);
@@ -2181,11 +2209,23 @@ class _GlobePainter extends CustomPainter {
         picker ? _GlobeScene.pickerPinStyle : _GlobeScene.pinStyle,
       );
       final seenGlyph = _text(_GlobeScene.pinGlyph, _GlobeScene.seenPinStyle);
+      final border = _text(
+        _GlobeScene.pinGlyph,
+        picker ? _GlobeScene.pickerPinBorderStyle : _GlobeScene.pinBorderStyle,
+      );
+      final seenBorder = _text(
+        _GlobeScene.pinGlyph,
+        _GlobeScene.seenPinBorderStyle,
+      );
       final iconTop = picker ? _pickerPinIconTop : _pinIconTop;
       final nameTop = picker ? _pickerPinNameTop : _pinNameTop;
       void drawIcon(Offset at, {required bool dimmed}) {
         final g = dimmed ? seenGlyph : glyph;
-        g.paint(canvas, at.translate(-g.width / 2, -iconTop));
+        final topLeft = at.translate(-g.width / 2, -iconTop);
+        // The border first (white round a dimmed pin, black round a white
+        // one), the pin over it.
+        (dimmed ? seenBorder : border).paint(canvas, topLeft);
+        g.paint(canvas, topLeft);
       }
 
       final spread = Curves.easeOutCubic.transform(split?.value ?? 1);
