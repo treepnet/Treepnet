@@ -42,5 +42,9 @@ api:
   # parameter result per stream that uses it — the defaults (1,000 each)
   # would cut off someone following a few hundred people.
   parameters:
+    # Concurrent sync streams for the whole service (default 200, which caps
+    # v1 at ~175 people online / ~5,600 registered). Past it every phone gets
+    # 429. Audit 3 (powersync-05): 1,000 fits the 1 GB heap and the 2-OCPU VM.
+    max_concurrent_connections: 1000
     max_buckets_per_connection: 3000
     max_parameter_query_results: 10000

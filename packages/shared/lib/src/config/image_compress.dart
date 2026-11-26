@@ -9,7 +9,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 class ImageCompress {
   const ImageCompress._();
 
-  /// Re-encodes a post photo as a JPEG of at most ~1440px, whatever its size
+  /// Re-encodes a post photo as a JPEG of at most ~1080px, whatever its size
   /// or kind. Small files used to go up untouched, with their EXIF — the GPS
   /// spot where the photo was taken among it — and their rotation unapplied.
   /// The encoder writes no metadata and turns the picture upright.
@@ -19,11 +19,13 @@ class ImageCompress {
       // Cap the resolution. A phone camera shot is often 4000px+ on its long
       // edge; uploading that full size is what made sharing a post slow, and
       // no screen in the app ever shows more than a fraction of it. Scaling
-      // to ~1440 keeps it sharp while cutting several MB down to a few
+      // to ~1080 keeps it sharp while cutting several MB down to a few
       // hundred KB. (The previous rule did the opposite — the biggest files
       // were compressed the *least*, at quality 90 and full resolution.)
-      minWidth: 1440,
-      minHeight: 1440,
+      // 1080, not 1440: no screen shows a post photo wider than 1080 px (the
+      // feed decodes at 1080), so the extra ~40% of every download went unused.
+      minWidth: 1080,
+      minHeight: 1080,
       quality: 80,
     );
   }
