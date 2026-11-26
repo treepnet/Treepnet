@@ -88,31 +88,31 @@ void main() {
     }
   }
 
-  testWidgets('a swipe left goes to Posts, a swipe right back to Maps', (
-    tester,
-  ) async {
+  testWidgets('it opens on Posts; a swipe right goes to Maps, a swipe left '
+      'back to Posts', (tester) async {
     await pump(tester);
-    expect(shownTab(tester), TrendsTopBar.maps);
-    final page = tester.getRect(find.byType(PageView));
-
-    await tester.flingFrom(page.center, const Offset(-400, 0), 1500);
-    await slide(tester);
     expect(shownTab(tester), TrendsTopBar.posts);
+    expect(tester.widget<PageView>(find.byType(PageView)).controller!.page, 1);
+    final page = tester.getRect(find.byType(PageView));
 
     await tester.flingFrom(page.center, const Offset(400, 0), 1500);
     await slide(tester);
     expect(shownTab(tester), TrendsTopBar.maps);
+
+    await tester.flingFrom(page.center, const Offset(-400, 0), 1500);
+    await slide(tester);
+    expect(shownTab(tester), TrendsTopBar.posts);
   });
 
   testWidgets("a tap on a tab's name slides there", (tester) async {
     await pump(tester);
-    await tester.tap(find.byKey(const ValueKey('trendsPostsTab')));
-    await slide(tester);
-    expect(shownTab(tester), TrendsTopBar.posts);
-    expect(tester.widget<PageView>(find.byType(PageView)).controller!.page, 1);
-
     await tester.tap(find.byKey(const ValueKey('trendsMapsTab')));
     await slide(tester);
     expect(shownTab(tester), TrendsTopBar.maps);
+    expect(tester.widget<PageView>(find.byType(PageView)).controller!.page, 0);
+
+    await tester.tap(find.byKey(const ValueKey('trendsPostsTab')));
+    await slide(tester);
+    expect(shownTab(tester), TrendsTopBar.posts);
   });
 }

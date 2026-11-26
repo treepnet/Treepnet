@@ -60,23 +60,24 @@ class _TimelineViewState extends State<TimelineView>
   StreamSubscription<int>? _reselect;
 
   /// The tab shown: Maps (the posts on their authors' globes) or Posts (the
-  /// grid). Maps, the first, at first. Only the header follows it: a swipe
-  /// rebuilds nothing else.
-  final _tab = ValueNotifier(TrendsTopBar.maps);
+  /// grid). Posts at first, though Maps stays the first tab on the left.
+  /// Only the header follows it: a swipe rebuilds nothing else.
+  final _tab = ValueNotifier(TrendsTopBar.posts);
 
   /// The Maps tab's list, to its top as the grid is.
   final _mapsScroll = ScrollController();
 
   /// Whether the grid is the tab shown: its videos play only then (kept
   /// alive under the Maps tab, they would play unseen).
-  final _gridShown = ValueNotifier(false);
+  final _gridShown = ValueNotifier(true);
 
   /// Whether the Maps tab is shown: a grown card's video plays only then.
-  final _mapsShown = ValueNotifier(true);
+  final _mapsShown = ValueNotifier(false);
 
   /// The two tabs side by side, a swipe from one to the other (as the
-  /// feed's Posts and Stories); a tap on a tab's name slides there.
-  final _pages = PageController();
+  /// feed's Posts and Stories); a tap on a tab's name slides there. It opens
+  /// on Posts.
+  final _pages = PageController(initialPage: TrendsTopBar.posts);
 
   /// The page in view changed (swiped to, or slid to from the header).
   void _showTab(int tab) {
