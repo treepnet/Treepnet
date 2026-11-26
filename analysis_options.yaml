@@ -8,6 +8,11 @@ analyzer:
     - lib/**/*.g.dart
     - assets/**/*.gen.dart
     - packages/**/*.gen.dart
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
 linter:
   rules:
     public_member_api_docs: false

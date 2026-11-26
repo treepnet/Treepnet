@@ -73,6 +73,30 @@
 	<string>Treepnet needs access to your photos so you can choose images to share as posts and stories, and pin them to places on your travel map.</string>
 	<key>NSAppleMusicUsageDescription</key>
 	<string>Treepnet accesses your media library only to browse and choose photos to share; it does not play or use your music.</string>
+	<!-- UIScene lifecycle: an app built with the iOS 27 SDK closes at launch
+	     without it. FlutterSceneDelegate owns the window; AppDelegate sets up
+	     plugins and channels in didInitializeImplicitFlutterEngine. -->
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>UIWindowScene</string>
+					<key>UISceneDelegateClassName</key>
+					<string>FlutterSceneDelegate</string>
+					<key>UISceneConfigurationName</key>
+					<string>flutter</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>
