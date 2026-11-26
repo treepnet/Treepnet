@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.treepnet.application",
+      "sha256_cert_fingerprints": [
+        "5B:90:01:6D:B5:75:78:6F:60:8D:B1:28:E0:5D:5B:B7:ED:CD:A1:98:6E:AB:8C:FA:53:F0:F2:04:11:2E:5B:7C",
+        "REPLACE_WITH_PLAY_APP_SIGNING_SHA256"
+      ]
+    }
+  }
+]
