@@ -142,23 +142,62 @@ function createCleanup({ pool, admin, storage: storageClient = null }) {
 
   // A media URL is the bucket's own or the media.treepnet.com CDN in front of
   // it (oci-backend/media-cdn), which serves <object> from the same bucket.
-  function objectOf(url) {
-    const cdn = /^https:\/\/media\.treepnet\.com\/([^?#]+)/.exec(String(url || ''));
+  // The object [url] names and the path exactly as written in it, or null.
+  function parseMedia(url) {
+    const s = String(url || '');
+    let path;
+    let target;
+    const cdn = /^https:\/\/media\.treepnet\.com\/([^?#]+)/.exec(s);
     if (cdn) {
-      return { namespaceName: MEDIA_NAMESPACE, bucketName: MEDIA_BUCKET, objectName: decodeURIComponent(cdn[1]) };
+      path = cdn[1];
+      target = { namespaceName: MEDIA_NAMESPACE, bucketName: MEDIA_BUCKET };
+    } else {
+      const m = /^https:\/\/objectstorage\.[a-z0-9-]+\.oraclecloud\.com\/n\/([^/]+)\/b\/([^/]+)\/o\/([^?#]+)/.exec(s);
+      if (!m || m[2] !== MEDIA_BUCKET) return null;
+      path = m[3];
+      target = { namespaceName: m[1], bucketName: m[2] };
     }
-    const m = /^https:\/\/objectstorage\.[a-z0-9-]+\.oraclecloud\.com\/n\/([^/]+)\/b\/([^/]+)\/o\/([^?#]+)/.exec(
-      String(url || ''),
-    );
-    if (!m || m[2] !== MEDIA_BUCKET) return null;
-    return { namespaceName: m[1], bucketName: m[2], objectName: decodeURIComponent(m[3]) };
+    let objectName;
+    try {
+      objectName = decodeURIComponent(path);
+    } catch (_) {
+      return null; // a malformed %-sequence names no object we can trust
+    }
+    return { object: { ...target, objectName }, path };
   }
 
-  // The link to object [name] the way the app writes it: the bucket URL, each
-  // path segment percent-encoded (an avatar's ':' as %3A).
+  function objectOf(url) {
+    const p = parseMedia(url);
+    return p ? p.object : null;
+  }
+
+  // Each path segment percent-encoded, the way the app writes links (an
+  // avatar's ':' as %3A).
+  function encodeName(name) {
+    return String(name).split('/').map(encodeURIComponent).join('/');
+  }
+
+  // The object a queued or account URL names, but only when the URL spells it
+  // the way the app writes it. media_in_use() compares URL text, so a URL
+  // spelled another way (one character percent-encoded differently) would look
+  // unused while naming a file someone else's post, story or avatar uses
+  // (audit 3, db-security-01). Such a URL is never deleted, only reported; the
+  // weekly sweep (media-sweep.js) still clears truly orphaned files.
+  function canonicalObject(url) {
+    const p = parseMedia(url);
+    if (!p || p.path !== encodeName(p.object.objectName)) return null;
+    return p.object;
+  }
+
+  // A link into the media bucket or its CDN, whatever its spelling.
+  function looksLikeMedia(url) {
+    const s = String(url || '');
+    return s.startsWith('https://media.treepnet.com/') || s.includes(`/b/${MEDIA_BUCKET}/o/`);
+  }
+
+  // The link to object [name] the way the app writes it: the bucket URL.
   function mediaUrl(name) {
-    const encoded = String(name).split('/').map(encodeURIComponent).join('/');
-    return `https://objectstorage.${MEDIA_REGION}.oraclecloud.com/n/${MEDIA_NAMESPACE}/b/${MEDIA_BUCKET}/o/${encoded}`;
+    return `https://objectstorage.${MEDIA_REGION}.oraclecloud.com/n/${MEDIA_NAMESPACE}/b/${MEDIA_BUCKET}/o/${encodeName(name)}`;
   }
 
   // Whether something still uses object [name]: asked for its link as the app
@@ -230,11 +269,22 @@ function createCleanup({ pool, admin, storage: storageClient = null }) {
   // The account's rows are gone by now, so a file still used by a post, a
   // story, a highlight cover or an avatar belongs to someone else (its links
   // are written by the app): it stays.
+  // The check is made on the decoded object name, the same name the delete
+  // uses, so no spelling of a URL can get another person's file deleted.
   async function deleteAccountMedia(urls) {
     const unused = [];
+    let skipped = 0;
     for (const url of urls || []) {
-      const inUse = await pool.query('select media_in_use($1) as used', [url]); // eslint-disable-line no-await-in-loop
-      if (!inUse.rows[0].used) unused.push(url);
+      const object = canonicalObject(url);
+      if (!object) {
+        if (looksLikeMedia(url)) skipped += 1; // file:// placeholders and the like are just ignored
+        continue;
+      }
+      if (!(await nameInUse(object.objectName))) unused.push(url); // eslint-disable-line no-await-in-loop
+    }
+    if (skipped) {
+      console.error(`[cleanup] ${skipped} account media URL(s) not in canonical form, kept`);
+      await alert(`Account deletion kept ${skipped} media file(s) whose link is not in canonical form (check the URLs).`);
     }
     await deleteMedia(unused);
   }
@@ -308,8 +358,17 @@ function createCleanup({ pool, admin, storage: storageClient = null }) {
   // retried later, backing off, and reported once it keeps failing.
   async function processQueuedMedia(row) {
     try {
-      const inUse = await pool.query('select media_in_use($1) as used', [row.url]);
-      if (!inUse.rows[0].used) await deleteMedia([row.url]);
+      const object = canonicalObject(row.url);
+      if (!object) {
+        // Not the app's spelling of a link (or not one of our files at all):
+        // dropped without deleting anything, and reported.
+        if (looksLikeMedia(row.url)) {
+          console.error('[cleanup] queued media URL not in canonical form, not deleted');
+          await alert('A queued media link is not in canonical form; it was dropped and the file kept.');
+        }
+      } else if (!(await nameInUse(object.objectName))) {
+        await deleteMedia([row.url]);
+      }
       await pool.query('delete from media_deletion_queue where url = $1', [row.url]);
     } catch (e) {
       const attempts = row.attempts + 1;

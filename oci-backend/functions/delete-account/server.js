@@ -212,8 +212,19 @@ async function findUser(username) {
   return r.rows[0] || null;
 }
 
+// A text field of the request body: trimmed, or '' when it is missing, not a
+// string, or longer than any real value (a malformed request gets a 400, not
+// a crash of this process and of the cleanup worker it runs; audit 3,
+// website-x1).
+function field(body, name, max) {
+  const v = body[name];
+  if (typeof v !== 'string') return '';
+  const t = v.trim();
+  return t.length <= max ? t : '';
+}
+
 async function requestCode(res, body) {
-  const username = (body.username || '').trim();
+  const username = field(body, 'username', 64);
   if (!username) return send(res, 400, { error: 'Username is required.' });
   try {
     const user = await findUser(username);
@@ -268,8 +279,8 @@ async function codeJustSent(email) {
 }
 
 async function confirm(res, body) {
-  const username = (body.username || '').trim();
-  const code = (body.code || '').trim();
+  const username = field(body, 'username', 64);
+  const code = field(body, 'code', 16);
   if (!username || !code)
     return send(res, 400, { error: 'Username and code are required.' });
   try {
@@ -335,8 +346,16 @@ const server = http.createServer((req, res) => {
     req.on('end', async () => {
       let body;
       try { body = JSON.parse(data || '{}'); } catch { return send(res, 400, { error: 'Bad request.' }); }
-      if (path === '/api/request-code') return requestCode(res, body);
-      return confirm(res, body);
+      if (!body || typeof body !== 'object' || Array.isArray(body)) {
+        return send(res, 400, { error: 'Bad request.' });
+      }
+      try {
+        if (path === '/api/request-code') await requestCode(res, body);
+        else await confirm(res, body);
+      } catch (e) {
+        console.error('delete-account: request failed:', e && e.message);
+        if (!res.headersSent) send(res, 500, { error: 'Something went wrong. Please try again.' });
+      }
     });
     return;
   }
@@ -367,5 +386,12 @@ function shutdown(signal) {
     .then(() => Promise.allSettled([pool.end(), cleanup.chatPool?.end()]))
     .finally(() => process.exit(0));
 }
+// A promise nobody awaited must not take this process down: it also runs the
+// cleanup worker that finishes every account deletion. Logged and reported.
+process.on('unhandledRejection', (reason) => {
+  const message = String((reason && reason.message) || reason).slice(0, 300);
+  console.error('delete-account: unhandled rejection:', message);
+  alertErrorBot(`delete-account: unhandled rejection: ${message}`);
+});
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
