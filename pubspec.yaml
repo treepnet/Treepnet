@@ -110,7 +110,7 @@ dev_dependencies:
     sdk: flutter
   http: ^1.5.0
   json_serializable: ^6.11.1
-  mocktail: ^1.0.4
+  mocktail: ^1.0.5
   very_good_analysis: ^9.0.0
 
 flutter_launcher_icons:
