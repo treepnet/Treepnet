@@ -21,9 +21,9 @@ dependencies:
   cached_network_image: ^3.4.1
   # Story camera. Deliberately its own dependency: the story viewfinder is a
   # separate screen from the New post one, so neither can break the other.
-  # Vendored from pub camera 0.11.0+2 so the plugin can't shift under us.
-  camera:
-    path: packages/camera
+  # Pinned to one exact version so the plugin can't shift under us (it was
+  # a byte-for-byte vendored copy of 0.11.0+2 in packages/camera).
+  camera: 0.12.2
   collection: ^1.18.0
   database_client:
     path: packages/database_client
