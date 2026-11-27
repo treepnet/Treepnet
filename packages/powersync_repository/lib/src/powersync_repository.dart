@@ -167,6 +167,9 @@ class SyncConnector extends PowerSyncBackendConnector {
       _postgrestUrl,
       headers: {'Authorization': 'Bearer $token'},
       httpClient: _uploadClient,
+      // postgrest 2.7+ retries failed reads on its own; PowerSync already
+      // retries uploads, so keep one attempt per request.
+      retryEnabled: false,
     );
     CrudEntry? lastOp;
     try {
@@ -359,6 +362,10 @@ class PowerSyncRepository {
   late final _rest = PostgrestClient(
     _postgrestUrl,
     httpClient: _restHttpClient,
+    // postgrest 2.7+ retries failed reads (GET) up to 3 times by default: the
+    // sign-up username check would take ~1 minute to fail on a bad network
+    // instead of its 15 s timeout. Callers handle failures themselves.
+    retryEnabled: false,
   );
 
   /// One shared connection for every [postgrest] call.

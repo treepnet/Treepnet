@@ -2,69 +2,28 @@ PODS:
   - blurhash (0.0.1):
     - Flutter
   - Flutter (1.0.0)
-  - flutter_image_compress_common (1.0.0):
-    - Flutter
-    - Mantle
-    - SDWebImage
-    - SDWebImageWebPCoder
-  - fluttertoast (0.0.2):
-    - Flutter
   - insta_assets_crop (0.0.1):
     - Flutter
-  - libwebp (1.6.0):
-    - libwebp/demux (= 1.6.0)
-    - libwebp/mux (= 1.6.0)
-    - libwebp/sharpyuv (= 1.6.0)
-    - libwebp/webp (= 1.6.0)
-  - libwebp/demux (1.6.0):
-    - libwebp/webp
-  - libwebp/mux (1.6.0):
-    - libwebp/demux
-  - libwebp/sharpyuv (1.6.0)
-  - libwebp/webp (1.6.0):
-    - libwebp/sharpyuv
-  - Mantle (2.2.0):
-    - Mantle/extobjc (= 2.2.0)
-  - Mantle/extobjc (2.2.0)
   - messenger_chat (0.0.1):
     - Flutter
   - native_exif (0.0.1):
     - Flutter
-  - SDWebImage (5.21.7):
-    - SDWebImage/Core (= 5.21.7)
-  - SDWebImage/Core (5.21.7)
-  - SDWebImageWebPCoder (0.15.0):
-    - libwebp (~> 1.0)
-    - SDWebImage/Core (~> 5.17)
   - video_compress (0.3.0):
     - Flutter
 
 DEPENDENCIES:
   - blurhash (from `.symlinks/plugins/blurhash/ios`)
   - Flutter (from `Flutter`)
-  - flutter_image_compress_common (from `.symlinks/plugins/flutter_image_compress_common/ios`)
-  - fluttertoast (from `.symlinks/plugins/fluttertoast/ios`)
   - insta_assets_crop (from `.symlinks/plugins/insta_assets_crop/ios`)
   - messenger_chat (from `.symlinks/plugins/messenger_chat/ios`)
   - native_exif (from `.symlinks/plugins/native_exif/ios`)
   - video_compress (from `.symlinks/plugins/video_compress/ios`)
-
-SPEC REPOS:
-  trunk:
-    - libwebp
-    - Mantle
-    - SDWebImage
-    - SDWebImageWebPCoder
 
 EXTERNAL SOURCES:
   blurhash:
     :path: ".symlinks/plugins/blurhash/ios"
   Flutter:
     :path: Flutter
-  flutter_image_compress_common:
-    :path: ".symlinks/plugins/flutter_image_compress_common/ios"
-  fluttertoast:
-    :path: ".symlinks/plugins/fluttertoast/ios"
   insta_assets_crop:
     :path: ".symlinks/plugins/insta_assets_crop/ios"
   messenger_chat:
@@ -77,15 +36,9 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   blurhash: 7d0156d68a21f3d4276b71c2fae094d9c0753959
   Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
-  flutter_image_compress_common: 1697a328fd72bfb335507c6bca1a65fa5ad87df1
-  fluttertoast: 2c67e14dce98bbdb200df9e1acf610d7a6264ea1
   insta_assets_crop: 960856014dc16c08c92b02caf56d197fdea56051
-  libwebp: af5937a13536ef73f3784d69cc342b98961acf33
-  Mantle: c5aa8794a29a022dfbbfc9799af95f477a69b62d
   messenger_chat: f26cbce526b8ff770e079af3ea5de4e54c494906
   native_exif: 0eb73d3d5b3ca892719228df8d2d1b13d1ae396c
-  SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
-  SDWebImageWebPCoder: 0e06e365080397465cc73a7a9b472d8a3bd0f377
   video_compress: f2133a07762889d67f0711ac831faa26f956980e
 
 PODFILE CHECKSUM: cc98eecbc1c61f73419ec65fd56c1f1059b2d9ed

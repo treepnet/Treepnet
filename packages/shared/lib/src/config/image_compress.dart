@@ -50,17 +50,26 @@ class ImageCompress {
   /// data saw a black screen for seconds before each one appeared. A story is
   /// an opaque full-screen picture, so JPEG loses nothing visible and the file
   /// shrinks roughly tenfold. Width 1080 is the widest common phone screen.
-  static Future<XFile?> compressStory(File file) {
+  ///
+  /// Null when the encoder can't re-encode it: the caller then uploads the
+  /// original rather than lose the story. (flutter_image_compress 2.5 throws
+  /// CompressError there, where it used to return null.)
+  static Future<XFile?> compressStory(File file) async {
     final filePath = file.absolute.path;
     final dot = filePath.lastIndexOf('.');
     final base = dot == -1 ? filePath : filePath.substring(0, dot);
-    return FlutterImageCompress.compressAndGetFile(
-      filePath,
-      '${base}_story.jpg',
-      minWidth: 1080,
-      minHeight: 1920,
-      quality: 82,
-    );
+    try {
+      return await FlutterImageCompress.compressAndGetFile(
+        filePath,
+        '${base}_story.jpg',
+        minWidth: 1080,
+        minHeight: 1920,
+        quality: 82,
+      );
+      // ignore: avoid_catching_errors
+    } on CompressError {
+      return null;
+    }
   }
 
   /// Re-encodes a picked avatar as a JPEG of at most 512px on its shorter
