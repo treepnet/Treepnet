@@ -61,7 +61,7 @@ dependencies:
       # The commit in use: a git dependency without a ref takes whatever
       # the branch holds at the next install.
       ref: 8b27aa2dcfda32af8b0da76f8230c3ca1af3cb6c
-  json_annotation: ^4.9.0
+  json_annotation: ^4.12.0
   lottie: ^3.1.2
   path_provider: ^2.1.5
   persistent_storage:
