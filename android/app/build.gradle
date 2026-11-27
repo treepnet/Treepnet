@@ -32,7 +32,9 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace "com.treepnet.application"
-    compileSdk 36
+    // 37: flutter_local_notifications 23 builds against it. targetSdk stays
+    // 36, so the app runs with Android 16 behaviour as before.
+    compileSdk 37
     ndkVersion "28.2.13676358"
     buildToolsVersion "36.0.0"
 
