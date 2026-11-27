@@ -7,11 +7,11 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:powersync/powersync.dart' show PowerSyncDatabase, SyncStatus;
+import 'package:powersync/powersync.dart' show PowerSyncDatabase;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:treepnet/app/services/media_upload_queue.dart';
 
-class _MockDb extends Mock implements PowerSyncDatabase {}
+import '../helpers/powersync_test_db.dart';
 
 PendingPost _post(String id, String userId) => PendingPost(
   postId: id,
@@ -32,7 +32,7 @@ PendingStory _story(String id, String userId, {String? url}) => PendingStory(
 );
 
 void main() {
-  late _MockDb db;
+  late PowerSyncDatabase db;
   late MediaUploadQueue queue;
   String? me;
   final createdPosts = <String>[];
@@ -50,10 +50,8 @@ void main() {
         for (final s in stories) json.encode(s.toJson()),
       ],
     });
-    db = _MockDb();
-    when(() => db.statusStream).thenAnswer((_) => const Stream.empty());
-    when(() => db.currentStatus).thenReturn(const SyncStatus());
-    when(() => db.getOptional(any(), any())).thenAnswer((_) async => null);
+    // Offline, nothing created on the server yet: an empty local database.
+    db = await openTestPowerSyncDb();
     queue =
         MediaUploadQueue(
             db: db,

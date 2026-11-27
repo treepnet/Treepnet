@@ -1,7 +1,3 @@
-// The app reaches PowerSync through powersync_repository; the database type
-// is only needed here to fake it.
-// ignore_for_file: depend_on_referenced_packages
-
 import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
@@ -10,13 +6,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:insta_blocks/insta_blocks.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:posts_repository/posts_repository.dart';
-import 'package:powersync/powersync.dart' show PowerSyncDatabase;
 import 'package:powersync_repository/powersync_repository.dart';
 import 'package:treepnet/timeline/bloc/timeline_bloc.dart';
 
-class _MockPowerSyncRepository extends Mock implements PowerSyncRepository {}
+import '../helpers/powersync_test_db.dart';
 
-class _MockDb extends Mock implements PowerSyncDatabase {}
+class _MockPowerSyncRepository extends Mock implements PowerSyncRepository {}
 
 class _MockPostsRepository extends Mock implements PostsRepository {}
 
@@ -45,48 +40,34 @@ void main() {
   });
 
   group('PowerSyncDatabaseClient.postRemovals', () {
-    late _MockDb db;
     late PowerSyncDatabaseClient client;
 
-    setUp(() {
-      db = _MockDb();
+    // A real local database (an empty one, never connected): the client's
+    // own SQL runs.
+    setUp(() async {
+      final db = await openTestPowerSyncDb();
+      await db.execute("INSERT INTO posts (id) VALUES ('p1')");
       final repo = _MockPowerSyncRepository();
       when(repo.db).thenReturn(db);
       client = PowerSyncDatabaseClient(powerSyncRepository: repo);
     });
 
     test('a deleted post is announced', () async {
-      when(() => db.execute(any(), any())).thenAnswer(
-        (_) async => ResultSet(
-          ['id'],
-          null,
-          [
-            ['p1'],
-          ],
-        ),
-      );
       final next = client.postRemovals.first;
       await client.deletePost(id: 'p1');
       expect(await next, const PostRemoval.post('p1'));
     });
 
     test('nothing deleted, nothing announced', () async {
-      when(
-        () => db.execute(any(), any()),
-      ).thenAnswer((_) async => ResultSet(['id'], null, []));
       final seen = <PostRemoval>[];
       final sub = client.postRemovals.listen(seen.add);
-      await client.deletePost(id: 'p1');
+      await client.deletePost(id: 'p9');
       await Future<void>.delayed(Duration.zero);
       expect(seen, isEmpty);
       await sub.cancel();
     });
 
     test('a block announces the author', () async {
-      when(() => db.getOptional(any(), any())).thenAnswer((_) async => null);
-      when(
-        () => db.execute(any(), any()),
-      ).thenAnswer((_) async => ResultSet([], null, []));
       const me = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
       const author = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
       final next = client.postRemovals.first;

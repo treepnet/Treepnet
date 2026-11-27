@@ -16,14 +16,16 @@ dependencies:
   http: ^1.5.0
   path: any
   path_provider: ^2.1.5
-  # 1.16.x only: 1.17+ (powersync_core 1.7+) uses @Deprecated.subclass,
-  # which Dart 3.9 (Flutter 3.35.7) can't compile, and analyze doesn't show
-  # it. 1.16 is also what the Rust sync client (Sync Streams) is opt-in on.
-  # Move with the Flutter SDK, not alone.
-  powersync: '>=1.16.1 <1.17.0'
+  # 2.x: one package for the whole SDK (powersync_core and
+  # powersync_flutter_libs are gone); its native SQLite core comes through
+  # build hooks, downloaded and hash-checked at build time. Only the Rust
+  # sync client remains, the one Sync Streams need.
+  powersync: ^2.6.2
   postgrest: ^2.4.2
   shared:
     path: ../shared
+  # Reads a database PowerSync can't open (DatabaseWipe), read-only.
+  sqlite3: ^3.9.2
   token_storage:
     path: ../authentication_client/token_storage
 

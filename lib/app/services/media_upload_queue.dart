@@ -435,7 +435,9 @@ class MediaUploadQueue {
     Future<List<shared.MediaUploadLink>> Function(
       List<({String bucket, String path, String contentType})> files,
     )? linksOf,
+    bool Function()? syncConnected,
   })  : _db = db,
+        _syncConnected = syncConnected ?? (() => db.currentStatus.connected),
         _prefs = sharedPreferences,
         _storageFor = storageFor ?? shared.MediaStorage.instance.from,
         _linksOf = linksOf ?? shared.MediaStorage.instance.uploadLinks;
@@ -481,6 +483,11 @@ class MediaUploadQueue {
   static const Duration _postGrace = Duration(minutes: 10);
 
   final PowerSyncDatabase _db;
+
+  /// Whether PowerSync is connected right now, i.e. the phone is online
+  /// (a test passes its own: PowerSyncDatabase can't be faked since
+  /// powersync 2.0).
+  final bool Function() _syncConnected;
   final SharedPreferences _prefs;
 
   /// Creates a ready [PendingPost]; returns false when it can't yet (e.g.
@@ -1237,7 +1244,7 @@ class MediaUploadQueue {
             // PowerSync connected means the phone is online: then it is the
             // storage that can't be reached, a failure like any other (so it
             // ends in Retry / Cancel, not in waiting forever).
-            if (_isNoConnection(error) && !_db.currentStatus.connected) {
+            if (_isNoConnection(error) && !_syncConnected()) {
               noConnection = true;
               await _waitForNetwork(task, error);
             } else {

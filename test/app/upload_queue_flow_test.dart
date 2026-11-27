@@ -12,13 +12,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
-import 'package:powersync/powersync.dart' show PowerSyncDatabase, SyncStatus;
+import 'package:powersync/powersync.dart' show PowerSyncDatabase;
 import 'package:shared/shared.dart'
     show MediaBucket, MediaFileOptions, MediaUploadLink;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:treepnet/app/services/media_upload_queue.dart';
 
-class _MockDb extends Mock implements PowerSyncDatabase {}
+import '../helpers/powersync_test_db.dart';
 
 class _Paths extends Fake
     with MockPlatformInterfaceMixin
@@ -113,7 +113,10 @@ PendingStory _story(String id, {String? url}) => PendingStory(
 
 void main() {
   late Directory root;
-  late _MockDb db;
+  late PowerSyncDatabase db;
+
+  /// PowerSync connected, i.e. the phone online (the queue's own check).
+  var connected = true;
   late _Bucket bucket;
 
   /// The link calls made, each with the files it asked for; null makes the
@@ -180,16 +183,15 @@ void main() {
         for (final t in tasks) json.encode(t.toJson()),
       ],
     });
-    db = _MockDb();
+    // Nothing is created on the server yet: an empty local database.
+    db = await openTestPowerSyncDb();
+    connected = true;
     bucket = _Bucket();
-    when(() => db.statusStream).thenAnswer((_) => const Stream.empty());
-    when(() => db.currentStatus).thenReturn(const SyncStatus(connected: true));
-    // Nothing is created on the server yet.
-    when(() => db.getOptional(any(), any())).thenAnswer((_) async => null);
     queue =
         MediaUploadQueue(
             db: db,
             sharedPreferences: await SharedPreferences.getInstance(),
+            syncConnected: () => connected,
             storageFor: (_) => bucket,
             linksOf: (files) async {
               linkCalls.add([for (final f in files) '${f.bucket}/${f.path}']);
@@ -415,7 +417,7 @@ void main() {
 
   test('PowerSync disconnected: the files still go up', () async {
     await open(posts: [_post('p1')], tasks: [task('p1', 0)]);
-    when(() => db.currentStatus).thenReturn(const SyncStatus());
+    connected = false;
     await run();
 
     expect(bucket.uploaded, ['p1/image_0']);
@@ -426,7 +428,7 @@ void main() {
     'no connection: waits for the network, not counted as a failure',
     () async {
       await open(posts: [_post('p1')], tasks: [task('p1', 0, attempts: 2)]);
-      when(() => db.currentStatus).thenReturn(const SyncStatus());
+      connected = false;
       bucket.offline = true;
       await run();
 

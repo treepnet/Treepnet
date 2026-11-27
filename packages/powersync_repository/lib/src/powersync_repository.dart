@@ -6,7 +6,7 @@ import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:postgrest/postgrest.dart';
 import 'package:powersync/powersync.dart';
-import 'package:powersync/sqlite3.dart' as raw_sqlite;
+import 'package:sqlite3/sqlite3.dart' as raw_sqlite;
 import 'package:powersync_repository/src/fresh_token_client.dart';
 import 'package:powersync_repository/src/sync_scope.dart';
 import 'package:powersync_repository/src/upload_errors.dart';

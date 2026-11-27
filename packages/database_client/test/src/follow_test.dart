@@ -6,7 +6,7 @@ import 'package:database_client/database_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:powersync/powersync.dart' show PowerSyncDatabase;
-import 'package:powersync/sqlite_async.dart' show SqliteWriteContext;
+import 'package:sqlite_async/sqlite_async.dart' show SqliteWriteContext;
 import 'package:powersync_repository/powersync_repository.dart';
 import 'package:user_repository/user_repository.dart';
 

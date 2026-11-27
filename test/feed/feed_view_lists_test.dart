@@ -5,7 +5,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:posts_repository/posts_repository.dart';
-import 'package:powersync/powersync.dart' show PowerSyncDatabase, SyncStatus;
 import 'package:powersync_repository/powersync_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:treepnet/app/app.dart';
@@ -16,14 +15,14 @@ import 'package:treepnet/feed/new_feed/feed_globe_mode.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:user_repository/user_repository.dart';
 
+import '../helpers/powersync_test_db.dart';
+
 class _MockAppBloc extends MockBloc<AppEvent, AppState> implements AppBloc {}
 
 class _MockFeedBloc extends MockBloc<FeedEvent, FeedState>
     implements FeedBloc {}
 
 class _MockPowerSync extends Mock implements PowerSyncRepository {}
-
-class _MockDb extends Mock implements PowerSyncDatabase {}
 
 class _MockUserRepository extends Mock implements UserRepository {}
 
@@ -42,7 +41,7 @@ void main() {
   late _MockPostsRepository posts;
   late _MockUploadQueue uploads;
 
-  setUp(() {
+  setUp(() async {
     SharedPreferences.setMockInitialValues({});
     FeedModeStore.mode.value = FeedMode.classic;
     app = _MockAppBloc();
@@ -61,11 +60,9 @@ void main() {
       const Stream<FeedState>.empty(),
       initialState: const FeedState.initial(),
     );
-    final db = _MockDb();
+    // Offline and not synced yet: a real, empty, never-connected database.
+    final db = await openTestPowerSyncDb();
     when(() => powerSync.db()).thenReturn(db);
-    // ignore: invalid_use_of_internal_member
-    when(() => db.currentStatus).thenReturn(const SyncStatus());
-    when(() => db.statusStream).thenAnswer((_) => const Stream.empty());
     when(
       () => users.unreadNotificationsCount(userId: any(named: 'userId')),
     ).thenAnswer((_) => Stream.value(0));

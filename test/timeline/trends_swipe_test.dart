@@ -4,12 +4,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:posts_repository/posts_repository.dart';
-import 'package:powersync/powersync.dart' show PowerSyncDatabase, SyncStatus;
 import 'package:powersync_repository/powersync_repository.dart';
 import 'package:treepnet/app/app.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/timeline/timeline.dart';
 import 'package:user_repository/user_repository.dart' show User;
+
+import '../helpers/powersync_test_db.dart';
 
 class _MockAppBloc extends MockBloc<AppEvent, AppState> implements AppBloc {}
 
@@ -20,8 +21,6 @@ class _MockPostsRepository extends Mock implements PostsRepository {}
 
 class _MockPowerSync extends Mock implements PowerSyncRepository {}
 
-class _MockDb extends Mock implements PowerSyncDatabase {}
-
 /// Trends' Maps and Posts tabs: a swipe left or right goes from one to the
 /// other, as the feed's Posts and Stories; a tap on a tab's name slides
 /// there.
@@ -31,12 +30,13 @@ void main() {
   late _MockPostsRepository posts;
   late _MockPowerSync powerSync;
 
-  setUp(() {
+  setUp(() async {
     app = _MockAppBloc();
     timeline = _MockTimelineBloc();
     posts = _MockPostsRepository();
     powerSync = _MockPowerSync();
-    final db = _MockDb();
+    // Offline and not synced yet: a real, empty, never-connected database.
+    final db = await openTestPowerSyncDb();
     whenListen(
       app,
       const Stream<AppState>.empty(),
@@ -49,9 +49,6 @@ void main() {
       initialState: const TimelineState.initial(),
     );
     when(() => powerSync.db()).thenReturn(db);
-    // ignore: invalid_use_of_internal_member
-    when(() => db.currentStatus).thenReturn(const SyncStatus());
-    when(() => db.statusStream).thenAnswer((_) => const Stream.empty());
   });
 
   Future<void> pump(WidgetTester tester) async {
