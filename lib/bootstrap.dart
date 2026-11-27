@@ -20,6 +20,7 @@ import 'package:treepnet/app/services/media_upload_queue.dart';
 import 'package:treepnet/feed/feed_mode.dart';
 import 'package:treepnet/map/geo_regions.dart';
 import 'package:treepnet/monitoring/crash_reporter.dart';
+import 'package:treepnet/navigation/view/nav_bar_inset.dart';
 import 'package:treepnet/notifications/push/push_notifications.dart';
 
 typedef AppBuilder =
@@ -146,11 +147,14 @@ Future<void> bootstrap(
       SystemUiOverlayTheme.setPortraitOrientation();
 
       boot('9 builder + runApp (start)');
+      await LiquidGlassSetup.initialize();
       runApp(
-        await builder(
-          powerSyncRepository,
-          sharedPreferences,
-          mediaUploadQueue,
+        LiquidGlassSetup.wrap(
+          await builder(
+            powerSyncRepository,
+            sharedPreferences,
+            mediaUploadQueue,
+          ),
         ),
       );
       boot('10 runApp (done)');

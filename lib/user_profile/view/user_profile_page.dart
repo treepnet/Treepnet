@@ -24,6 +24,7 @@ import 'package:search_repository/search_repository.dart';
 import 'package:shared/shared.dart';
 import 'package:sliver_tools/sliver_tools.dart';
 import 'package:user_repository/user_repository.dart';
+import 'package:treepnet/navigation/view/nav_bar_inset.dart';
 
 class UserProfilePage extends StatelessWidget {
   const UserProfilePage({
@@ -612,6 +613,9 @@ class _PostsPageState extends State<PostsPage>
             );
           },
         ),
+        // Room for the floating bottom bar after the last row (none on
+        // someone else's profile, which has no bar).
+        SliverToBoxAdapter(child: SizedBox(height: NavBarInset.of(context))),
       ],
     );
   }

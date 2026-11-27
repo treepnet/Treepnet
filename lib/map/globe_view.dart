@@ -1304,7 +1304,9 @@ class _GlobeViewState extends State<GlobeView>
             if (widget.showButtons)
               Positioned(
                 right: GlobeButtons.inset,
-                bottom: GlobeButtons.inset,
+                // Above what covers the bottom of the area (the profile's
+                // floating bottom bar), as the globe itself is.
+                bottom: GlobeButtons.inset + widget.padding.bottom,
                 child: GlobeButtons._(
                   onZoomIn: () => _zoomBy(2),
                   onZoomOut: () => _zoomBy(0.5),

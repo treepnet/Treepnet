@@ -17,6 +17,7 @@ import 'package:treepnet/navigation/tab_reselect.dart';
 import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:search_repository/search_repository.dart';
 import 'package:user_repository/user_repository.dart';
+import 'package:treepnet/navigation/view/nav_bar_inset.dart';
 
 /// The chat inbox — two tabs matching the app design:
 ///   • Type  ("Написать") — people to start a new chat with (follows +
@@ -470,7 +471,13 @@ class _TypeListState extends State<_TypeList> {
       },
       child: ListView.separated(
         controller: _scroll,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        // The last row ends above the floating bottom bar.
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          0,
+          AppSpacing.md,
+          NavBarInset.of(context),
+        ),
         itemCount: users.length + (_loadingMore ? 1 : 0),
         separatorBuilder: (_, __) => Divider(
           height: 1,
@@ -838,7 +845,13 @@ class _ChatsListState extends State<_ChatsList> {
       },
       child: ListView.separated(
         controller: _scroll,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        // The last row ends above the floating bottom bar.
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          0,
+          AppSpacing.md,
+          NavBarInset.of(context),
+        ),
         itemCount: conversations.length + (_loadingMore ? 1 : 0),
         separatorBuilder: (_, __) => Divider(
           height: 1,

@@ -44,6 +44,9 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_animate: ^4.5.2
+  # The floating Liquid Glass bottom bar (iOS 26/27 style, drawn by Flutter
+  # on both platforms).
+  liquid_glass_widgets: ^1.22.0
   flutter_bloc: ^9.1.1
   flutter_localizations:
     sdk: flutter

@@ -11,6 +11,7 @@ import 'package:treepnet/home/home.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/navigation/tab_reselect.dart';
 import 'package:go_router/go_router.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:user_repository/user_repository.dart';
 
 /// {@template main_bottom_navigation_bar}
@@ -28,8 +29,6 @@ class BottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final videoPlayer = VideoPlayerInheritedWidget.of(context);
-
     final navigationBarItems = mainNavigationBarItems(
       isSelected: (index) => navigationShell.currentIndex == index,
       homeLabel: context.l10n.homeNavBarItemLabel,
@@ -46,72 +45,57 @@ class BottomNavBar extends StatelessWidget {
                   : Assets.icons.profileLined)
               .svg(width: 24, height: 24),
     );
-
-    return DecoratedBox(
-      // Foreground: the nav bar's opaque background would otherwise paint over
-      // a background-positioned border and hide it.
-      position: DecorationPosition.foreground,
-      decoration: const BoxDecoration(
-        border: Border(
-          top: BorderSide(color: AppColors.borderOutline, width: 1),
-        ),
-      ),
-      child: BottomNavigationBar(
-      currentIndex: navigationShell.currentIndex,
-      onTap: (index) {
-        // Never enable the swipe for the feed — it swipes its own tabs now.
-        HomeProvider().togglePageView(enable: false);
-        if ([0, 1, 2, 3].contains(index)) {
-          if (index case 0) videoPlayer.videoPlayerState.playFeed();
-          if (index case 1) videoPlayer.videoPlayerState.playTimeline();
-          if (index case 2) {
-            // New post: jump to the camera page programmatically, but keep the
-            // swipe DISABLED. Enabling it let a horizontal drag on New post
-            // slide over to the profile/feed page. Back still returns via the
-            // PopScope's animateToPage(1), so no swipe is needed here.
-            HomeProvider().animateToPage(0);
-          }
-          // Tab 3 is now Chat (no video) — make sure any player is stopped.
-          if (index case 3) videoPlayer.videoPlayerState.stopAll();
-        } else {
-          videoPlayer.videoPlayerState.stopAll();
-        }
-        if (index != 2) {
-          navigationShell.goBranch(
-            index,
-            initialLocation: index == navigationShell.currentIndex,
-          );
-        }
-        if (index == 0) {
-          if (!(index == navigationShell.currentIndex)) return;
-          FeedPageController().scrollToTop();
-        } else if (index != 2 && index == navigationShell.currentIndex) {
-          // Trends, Chat and the profile go back to their top too.
-          TabReselect.tapped(index);
-        }
-      },
-      // The Figma icons are drawn at their native 24x24.
-      iconSize: 24,
-      showSelectedLabels: false,
-      showUnselectedLabels: false,
-      items: navigationBarItems
-          .asMap()
-          .entries
-          .map(
-            (entry) => BottomNavigationBarItem(
-              // The Chat tab (index 3) shows an unread-messages count badge.
-              icon: entry.key == 3
-                  ? _ChatTabIcon(
-                      child: entry.value.child ?? Icon(entry.value.icon),
-                    )
-                  : entry.value.child ?? Icon(entry.value.icon),
-              label: entry.value.label,
-              tooltip: entry.value.tooltip,
-            ),
-          )
-          .toList(),
-      ),
+    // The Chat tab (index 3) shows an unread-messages count badge.
+    final icons = [
+      for (final (index, item) in navigationBarItems.indexed)
+        index == 3
+            ? _ChatTabIcon(child: item.child ?? Icon(item.icon))
+            : item.child ?? Icon(item.icon),
+    ];
+    // iOS 26/27's floating Liquid Glass capsule, icons only as before. The
+    // tab pages run on underneath it (see NavBarInset).
+    return GlassTabBar.bottom(
+      selectedIndex: navigationShell.currentIndex,
+      onTabSelected: (index) => _onTap(context, index),
+      tabs: [
+        for (final (index, icon) in icons.indexed)
+          GlassTab(icon: icon, semanticLabel: navigationBarItems[index].label),
+      ],
     );
+  }
+
+  void _onTap(BuildContext context, int index) {
+    final videoPlayer = VideoPlayerInheritedWidget.of(context);
+    // Never enable the swipe for the feed — it swipes its own tabs now.
+    HomeProvider().togglePageView(enable: false);
+    if ([0, 1, 2, 3].contains(index)) {
+      if (index case 0) videoPlayer.videoPlayerState.playFeed();
+      if (index case 1) videoPlayer.videoPlayerState.playTimeline();
+      if (index case 2) {
+        // New post: jump to the camera page programmatically, but keep the
+        // swipe DISABLED. Enabling it let a horizontal drag on New post
+        // slide over to the profile/feed page. Back still returns via the
+        // PopScope's animateToPage(1), so no swipe is needed here.
+        HomeProvider().animateToPage(0);
+      }
+      // Tab 3 is now Chat (no video) — make sure any player is stopped.
+      if (index case 3) videoPlayer.videoPlayerState.stopAll();
+    } else {
+      videoPlayer.videoPlayerState.stopAll();
+    }
+    if (index != 2) {
+      navigationShell.goBranch(
+        index,
+        initialLocation: index == navigationShell.currentIndex,
+      );
+    }
+    if (index == 0) {
+      if (!(index == navigationShell.currentIndex)) return;
+      FeedPageController().scrollToTop();
+    } else if (index != 2 && index == navigationShell.currentIndex) {
+      // Trends, Chat and the profile go back to their top too.
+      TabReselect.tapped(index);
+    }
   }
 }
 

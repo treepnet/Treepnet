@@ -9,6 +9,7 @@ import 'package:treepnet/app/app.dart';
 import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/map/map.dart';
 import 'package:treepnet/navigation/tab_reselect.dart';
+import 'package:treepnet/navigation/view/nav_bar_inset.dart';
 
 /// Profile tab showing the user's "travel map": every ISO 3166-2 region they
 /// have posted from is highlighted on an interactive globe. Nothing else.
@@ -200,6 +201,11 @@ class _UserProfileTravelMapState extends State<UserProfileTravelMap>
       faceTravels: true,
       padding: EdgeInsets.only(
         top: math.max(0, _overlap - UserProfileTravelMap._inset),
+        // The floating bottom bar covers the bottom of the tab.
+        bottom: math.max(
+          0,
+          NavBarInset.of(context) - UserProfileTravelMap._inset,
+        ),
       ),
       onTargetTap: (target) => LocationPostsPage.push(
         context,

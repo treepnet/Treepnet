@@ -19,6 +19,7 @@ import 'package:powersync_repository/powersync_repository.dart'
 import 'package:shared/shared.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:sliver_tools/sliver_tools.dart';
+import 'package:treepnet/navigation/view/nav_bar_inset.dart';
 
 class TimelinePage extends StatelessWidget {
   const TimelinePage({super.key});
@@ -330,6 +331,8 @@ class _TimelineViewState extends State<TimelineView>
               ),
             ),
           ),
+          // Room for the floating bottom bar after the last row.
+          SliverToBoxAdapter(child: SizedBox(height: NavBarInset.of(context))),
         ],
       ),
     );

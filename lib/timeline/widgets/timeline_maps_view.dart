@@ -10,6 +10,7 @@ import 'package:treepnet/feed/new_feed/feed_globe_mode.dart';
 import 'package:treepnet/feed/post/post.dart';
 import 'package:treepnet/feed/widgets/widgets.dart';
 import 'package:treepnet/timeline/timeline.dart';
+import 'package:treepnet/navigation/view/nav_bar_inset.dart';
 
 /// Trends' Maps tab: Trends' posts, each on its author's globe as in the
 /// new feed (the photos on the pins, the arrows to the next post and the
@@ -71,7 +72,10 @@ class _TimelineMapsViewState extends State<TimelineMapsView> {
         // descriptions).
         style: FeedGlobeStyle.photos,
         onScreen: widget.onScreen,
-        viewportHeight: _viewport.of(context, constraints),
+        // What the floating bar leaves of it: a post's arrows must stay
+        // above the bar.
+        viewportHeight:
+            _viewport.of(context, constraints) - NavBarInset.of(context),
         child: list,
       ),
     );
@@ -133,6 +137,8 @@ class _TimelineMapsViewState extends State<TimelineMapsView> {
             );
           },
         ),
+        // Room for the floating bottom bar after the last post.
+        SliverToBoxAdapter(child: SizedBox(height: NavBarInset.of(context))),
       ],
     );
   }

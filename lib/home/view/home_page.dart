@@ -195,7 +195,27 @@ class _HomeViewState extends State<HomeView> {
                             )
                           : const Scaffold(body: SizedBox()),
                     _ => AppScaffold(
-                      body: widget.navigationShell,
+                      // The bar floats (Liquid Glass): the tab pages run on
+                      // underneath it, so the glass has them behind it.
+                      extendBody: true,
+                      bottom: false,
+                      // The Builder's context is inside the scaffold, where
+                      // the bottom inset is the bar's height and the top one
+                      // is already used by the SafeArea (the page's own
+                      // context brought it back and pushed every page down).
+                      // The pages get no bottom inset of their own, or their
+                      // SafeAreas would stop them above the bar; each leaves
+                      // NavBarInset of room after its last row instead.
+                      body: Builder(
+                        builder: (context) => NavBarInset(
+                          height: MediaQuery.paddingOf(context).bottom,
+                          child: MediaQuery.removePadding(
+                            context: context,
+                            removeBottom: true,
+                            child: widget.navigationShell,
+                          ),
+                        ),
+                      ),
                       bottomNavigationBar: BottomNavBar(
                         navigationShell: widget.navigationShell,
                       ),

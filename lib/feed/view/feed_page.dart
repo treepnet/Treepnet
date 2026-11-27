@@ -25,6 +25,7 @@ import 'package:instagram_blocks_ui/instagram_blocks_ui.dart'
 import 'package:shared/shared.dart';
 import 'package:sliver_tools/sliver_tools.dart';
 import 'package:stories_repository/stories_repository.dart';
+import 'package:treepnet/navigation/view/nav_bar_inset.dart';
 
 class FeedPage extends StatelessWidget {
   const FeedPage({super.key});
@@ -475,7 +476,10 @@ class _FeedBodyState extends State<FeedBody> {
     return LayoutBuilder(
       builder: (context, constraints) => FeedGlobeMode(
         onScreen: widget.onScreen,
-        viewportHeight: _viewport.of(context, constraints),
+        // What the floating bar leaves of it: a post's arrows (the list's
+        // only way on) must stay above the bar.
+        viewportHeight:
+            _viewport.of(context, constraints) - NavBarInset.of(context),
         aboveFirstPost: uploads,
         child: list,
       ),
@@ -549,6 +553,8 @@ class _FeedBodyState extends State<FeedBody> {
             );
           },
         ),
+        // Room for the floating bottom bar after the last post.
+        SliverToBoxAdapter(child: SizedBox(height: NavBarInset.of(context))),
       ],
     );
   }

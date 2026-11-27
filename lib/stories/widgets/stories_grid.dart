@@ -10,6 +10,7 @@ import 'package:treepnet/l10n/l10n.dart';
 import 'package:treepnet/settings/view/referral_badge.dart';
 import 'package:treepnet/stories/stories.dart';
 import 'package:user_repository/user_repository.dart';
+import 'package:treepnet/navigation/view/nav_bar_inset.dart';
 
 /// The `Stories` tab of the feed. Unlike the usual horizontal ring of avatars,
 /// the design lays stories out as a two-column grid of cover cards, with a
@@ -103,12 +104,13 @@ class _GridState extends State<_Grid> {
                   // Always overscrollable so pull-to-refresh works even when the
                   // few story cards fit the screen without needing to scroll.
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(
+                  padding: EdgeInsets.fromLTRB(
                     AppSpacing.md,
                     AppSpacing.sm,
                     AppSpacing.md,
-                    // room for the floating Share button
-                    AppSpacing.xxxlg + AppSpacing.lg,
+                    // room for the floating Share button, above the
+                    // floating bottom bar
+                    AppSpacing.xxxlg + AppSpacing.lg + NavBarInset.of(context),
                   ),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
@@ -127,11 +129,14 @@ class _GridState extends State<_Grid> {
                   ),
                 ),
               ),
-            const Align(
+            Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
-                padding: EdgeInsets.only(bottom: AppSpacing.lg),
-                child: _ShareStoryButton(),
+                // Above the floating bottom bar.
+                padding: EdgeInsets.only(
+                  bottom: AppSpacing.lg + NavBarInset.of(context),
+                ),
+                child: const _ShareStoryButton(),
               ),
             ),
           ],
