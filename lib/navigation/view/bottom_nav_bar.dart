@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app_ui/app_ui.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:treepnet/app/bloc/app_bloc.dart';
@@ -54,15 +55,45 @@ class BottomNavBar extends StatelessWidget {
     ];
     // iOS 26/27's floating Liquid Glass capsule, icons only as before. The
     // tab pages run on underneath it (see NavBarInset).
-    return GlassTabBar.bottom(
-      selectedIndex: navigationShell.currentIndex,
-      onTabSelected: (index) => _onTap(context, index),
-      tabs: [
-        for (final (index, icon) in icons.indexed)
-          GlassTab(icon: icon, semanticLabel: navigationBarItems[index].label),
-      ],
+    return _ChatSessionStarter(
+      child: Padding(
+        padding: EdgeInsets.only(bottom: _aboveSystemButtons(context)),
+        child: GlassTabBar.bottom(
+          selectedIndex: navigationShell.currentIndex,
+          onTabSelected: (index) => _onTap(context, index),
+          tabs: [
+            for (final (index, icon) in icons.indexed)
+              GlassTab(
+                icon: icon,
+                semanticLabel: navigationBarItems[index].label,
+              ),
+          ],
+        ),
+      ),
     );
   }
+
+  /// The glass bar always keeps 20 below its capsule and, unlike the
+  /// Material bar it replaced, leaves no room for the system's own bar. That
+  /// is right for iOS's home indicator and Android's gesture handle, which
+  /// the capsule sits just above. Android 15+ draws the app under its
+  /// navigation bar, though, and the three-button one (◁ ○ □) is ~48 tall:
+  /// the capsule's lower half went under the buttons. Lifted clear of them,
+  /// with a small gap.
+  static double _aboveSystemButtons(BuildContext context) {
+    if (defaultTargetPlatform != TargetPlatform.android) return 0;
+    final system = MediaQuery.viewPaddingOf(context).bottom;
+    // A gesture handle's inset is well under this; button bars are 40+.
+    if (system < _buttonBarMinHeight) return 0;
+    return system - _glassBottomGap + _gapAboveButtons;
+  }
+
+  static const double _buttonBarMinHeight = 32;
+
+  /// GlassTabBar.bottom's default verticalPadding, below the capsule.
+  static const double _glassBottomGap = 20;
+
+  static const double _gapAboveButtons = 6;
 
   void _onTap(BuildContext context, int index) {
     final videoPlayer = VideoPlayerInheritedWidget.of(context);
@@ -99,22 +130,24 @@ class BottomNavBar extends StatelessWidget {
   }
 }
 
-/// The Chat tab icon with a live unread-messages badge.
+/// Starts the chat session right after login, once.
 ///
-/// Also the app-wide trigger that starts the chat session right after login:
-/// the nav bar is present whenever the user is authenticated, so starting here
-/// connects the socket and warms the conversation list so the badge is live
-/// even before the inbox is first opened.
-class _ChatTabIcon extends StatefulWidget {
-  const _ChatTabIcon({required this.child});
+/// The bar is present whenever the user is signed in, so starting here
+/// connects the socket and warms the conversation list, and the Chat tab's
+/// badge is live before the inbox is first opened. It used to be the badge's
+/// own job, but the glass bar builds each icon twice (again in the lens over
+/// the selected tab, which comes and goes as the selection moves): every new
+/// copy looked the user's name up and asked again.
+class _ChatSessionStarter extends StatefulWidget {
+  const _ChatSessionStarter({required this.child});
 
   final Widget child;
 
   @override
-  State<_ChatTabIcon> createState() => _ChatTabIconState();
+  State<_ChatSessionStarter> createState() => _ChatSessionStarterState();
 }
 
-class _ChatTabIconState extends State<_ChatTabIcon> {
+class _ChatSessionStarterState extends State<_ChatSessionStarter> {
   @override
   void initState() {
     super.initState();
@@ -137,6 +170,16 @@ class _ChatTabIconState extends State<_ChatTabIcon> {
   }
 
   @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+/// The Chat tab icon with a live unread-messages badge.
+class _ChatTabIcon extends StatelessWidget {
+  const _ChatTabIcon({required this.child});
+
+  final Widget child;
+
+  @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<int>(
       valueListenable: ChatSession.instance.unreadTotal,
@@ -148,7 +191,7 @@ class _ChatTabIconState extends State<_ChatTabIcon> {
         // only saturated colour left in the bar.
         backgroundColor: AppColors.white,
         textColor: AppColors.black,
-        child: widget.child,
+        child: child,
       ),
     );
   }
