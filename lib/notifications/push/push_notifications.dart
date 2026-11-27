@@ -81,7 +81,10 @@ class PushNotifications {
       // The app shows no notifications of its own (pushes are drawn by the
       // phone), so there is no tap of ours to handle here.
       await _local.initialize(
-        const InitializationSettings(android: androidInit, iOS: iosInit),
+        settings: const InitializationSettings(
+          android: androidInit,
+          iOS: iosInit,
+        ),
       );
       await _local
           .resolvePlatformSpecificImplementation<
