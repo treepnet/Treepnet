@@ -23,7 +23,7 @@ dependencies:
     path: ../../powersync_repository
   shared:
     path: ../../shared
-  sign_in_with_apple: ^7.0.1
+  sign_in_with_apple: ^8.2.0
   token_storage:
     path: ../token_storage
 

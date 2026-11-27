@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:android_play_install_referrer/android_play_install_referrer.dart';
+import 'package:play_install_referrer/play_install_referrer.dart';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -123,7 +123,7 @@ class _ReferralLinkListenerState extends State<ReferralLinkListener> {
     try {
       final prefs = await SharedPreferences.getInstance();
       if (prefs.getBool(_kPlayReferrerChecked) ?? false) return;
-      final details = await AndroidPlayInstallReferrer.installReferrer;
+      final details = await PlayInstallReferrer.installReferrer;
       // Read successfully: never again for this install.
       await prefs.setBool(_kPlayReferrerChecked, true);
       final handle = ReferralConfig.handleFromReferrer(details.installReferrer);

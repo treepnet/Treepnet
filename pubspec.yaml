@@ -8,7 +8,7 @@ environment:
   flutter: ">=3.50.1"
 
 dependencies:
-  geolocator: ^13.0.1
+  geolocator: ^14.1.2
   exif: ^3.3.0
   animations: ^2.0.11
   # 7.0.x: UIScene support. 7.1+ needs Android Gradle Plugin 9; it comes
@@ -16,11 +16,11 @@ dependencies:
   app_links: '>=7.0.0 <7.1.0'
   # Android deferred deep link: reads the Play Store install referrer so an
   # invite works even when the app wasn't installed when the link was tapped.
-  android_play_install_referrer: ^0.4.0
+  play_install_referrer: ^0.5.0
   app_ui:
     path: packages/app_ui
   bloc: ^9.1.0
-  cached_network_image: ^3.4.1
+  cached_network_image: ^4.0.7
   # Story camera. Deliberately its own dependency: the story viewfinder is a
   # separate screen from the New post one, so neither can break the other.
   # Pinned to one exact version so the plugin can't shift under us (it was
@@ -31,8 +31,8 @@ dependencies:
     path: packages/database_client
   # Crash logger context (app version + device model/OS). Already resolved
   # transitively; pinned here as direct deps for the reporter.
-  device_info_plus: ^11.3.0
-  package_info_plus: ^9.0.0
+  device_info_plus: ^13.3.0
+  package_info_plus: ^10.2.2
   # Chat backend transport (messenger_chat plugin talks to our OCI Node/Socket.IO
   # service through these). Versions match what the plugin already resolves.
   dio: ^5.8.0+1
