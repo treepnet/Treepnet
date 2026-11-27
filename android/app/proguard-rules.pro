@@ -33,3 +33,8 @@
 # those gone it isn't on the classpath, so R8 must not fail on the reference.
 -dontwarn androidx.appcompat.content.res.AppCompatResources
 -dontwarn androidx.appcompat.view.ContextThemeWrapper
+
+# AGP 9 only accepts proguard-android-optimize.txt as the default file. It
+# turns on R8's optimizations; keep them off so release builds behave as they
+# did with proguard-android.txt (shrinking and obfuscation only).
+-dontoptimize

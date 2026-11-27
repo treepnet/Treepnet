@@ -5,7 +5,7 @@ allprojects {
     }
 }
 
-rootProject.buildDir = '../build'
+rootProject.layout.buildDirectory.value(rootProject.layout.projectDirectory.dir('../build'))
 subprojects {
     // Guard: newer plugins finish evaluating before this root hook runs, and
     // registering afterEvaluate on an already-evaluated project throws. The
@@ -39,19 +39,19 @@ subprojects {
                 }
             }
             project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-                kotlinOptions {
-                    jvmTarget = "17"
+                compilerOptions {
+                    jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
                 }
             }
         }
       }
     }
 
-    project.buildDir = "${rootProject.buildDir}/${project.name}"
+    project.layout.buildDirectory.value(rootProject.layout.buildDirectory.dir(project.name))
     if (!project.state.executed) {
       project.evaluationDependsOn(":app")
     }
 }
 tasks.register("clean", Delete) {
-    delete rootProject.buildDir
+    delete rootProject.layout.buildDirectory
 }
