@@ -221,6 +221,9 @@ class AppRouter {
       ),
       StatefulShellRoute.indexedStack(
         parentNavigatorKey: _rootNavigatorKey,
+        // go_router 17 reports the tabs' own navigation to the router's
+        // observers (the crash reporter) by default; kept as before.
+        notifyRootObserver: false,
         builder: (context, state, navigationShell) {
           return HomePage(navigationShell: navigationShell);
         },
