@@ -137,6 +137,66 @@ class CustomCameraDisplayState extends State<CustomCameraDisplay> {
     if (mounted) setState(() {});
   }
 
+  /// A front/back swap is under way: the switch and the shutter wait for it.
+  bool _switching = false;
+
+  /// Swaps to the phone's next camera (back <-> front), as the story camera
+  /// does.
+  ///
+  /// The old controller goes first, and only once its preview has left the
+  /// screen: Android hands the sensor to one controller at a time (overlapping
+  /// them leaves the viewfinder black), and a preview still showing a disposed
+  /// controller throws.
+  Future<void> _flip() async {
+    final all = cameras;
+    if (all == null || all.length < 2 || _switching) return;
+    final previousIndex = selectedCamera;
+    final previous = controller;
+    setState(() {
+      _switching = true;
+      controller = null;
+    });
+    await WidgetsBinding.instance.endOfFrame;
+    await previous?.dispose();
+
+    var opened = await _open(all[(previousIndex + 1) % all.length]);
+    if (opened != null) {
+      selectedCamera = (previousIndex + 1) % all.length;
+    } else {
+      // The other lens wouldn't start: go back to the one that worked.
+      opened = await _open(all[previousIndex]);
+    }
+    if (!mounted) {
+      await opened?.dispose();
+      return;
+    }
+    setState(() {
+      controller = opened;
+      _switching = false;
+    });
+  }
+
+  /// A started controller for [camera], or null if it wouldn't start.
+  Future<CameraController?> _open(CameraDescription camera) async {
+    final created = CameraController(
+      camera,
+      ResolutionPreset.veryHigh,
+      enableAudio: false,
+    );
+    try {
+      await created.initialize();
+    } catch (_) {
+      await created.dispose().catchError((Object _) {});
+      return null;
+    }
+    try {
+      await created.setFlashMode(FlashMode.off);
+    } on CameraException {
+      // Front lenses have no lamp — nothing to turn off.
+    }
+    return created;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -285,15 +345,40 @@ class CustomCameraDisplayState extends State<CustomCameraDisplay> {
               ),
             ),
             const Spacer(),
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 40),
-                  child: cameraButton(context),
-                ),
-                Positioned(bottom: 100, child: videoStatusAnimation),
-              ],
+            // Full width, so the switch can sit at the right edge while the
+            // shutter stays centred.
+            SizedBox(
+              width: double.infinity,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 40),
+                    child: cameraButton(context),
+                  ),
+                  Positioned(bottom: 100, child: videoStatusAnimation),
+                  // Front/back switch, beside the shutter as on the story
+                  // camera. Not while a shot is on screen to be cropped.
+                  if ((cameras?.length ?? 0) > 1 &&
+                      widget.selectedCameraImage.value == null)
+                    Positioned(
+                      right: 24,
+                      // Centred on the 80-high shutter above its 40 padding.
+                      bottom: 40 + (80 - 48) / 2,
+                      child: IconButton(
+                        onPressed: _switching ? null : _flip,
+                        icon: const Icon(
+                          Icons.flip_camera_ios_rounded,
+                          color: Colors.white,
+                          size: 30,
+                          shadows: [
+                            Shadow(color: Colors.black54, blurRadius: 8),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
             const Spacer(),
           ],

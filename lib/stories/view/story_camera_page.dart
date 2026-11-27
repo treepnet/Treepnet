@@ -207,10 +207,6 @@ class _StoryCameraPageState extends State<StoryCameraPage>
     }
   }
 
-  bool get _isFront =>
-      _cameras.isNotEmpty &&
-      _cameras[_cameraIndex].lensDirection == CameraLensDirection.front;
-
   Future<void> _flip() async {
     if (_cameras.length < 2 || _capturing || _switching) return;
     setState(() {
@@ -394,8 +390,13 @@ class _StoryCameraPageState extends State<StoryCameraPage>
     // Cover, not contain: the sensor is narrower than the screen, so fitting
     // leaves dark bands. Filling crops the sides, which is what a camera looks
     // like. Same call the New post viewfinder makes — arrived at separately.
+    //
+    // No mirroring of our own for the front camera: the camera plugin already
+    // shows it as a mirror on both platforms (camera_avfoundation always did;
+    // camera_android_camerax does since 0.7). Flipping it here as well turned
+    // the selfie preview back the wrong way round.
     final preview = controller.value.previewSize;
-    final viewfinder = ClipRect(
+    return ClipRect(
       child: FittedBox(
         fit: BoxFit.cover,
         child: SizedBox(
@@ -405,11 +406,6 @@ class _StoryCameraPageState extends State<StoryCameraPage>
         ),
       ),
     );
-    if (!_isFront) return viewfinder;
-    // The front sensor hands back what it sees, so raising your right hand
-    // moves it to the left of frame. Flip horizontally to make the preview
-    // behave like a mirror, which is what everyone expects of a selfie.
-    return Transform.flip(flipX: true, child: viewfinder);
   }
 
   Widget _barButton({
