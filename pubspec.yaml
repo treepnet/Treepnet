@@ -97,7 +97,7 @@ dependencies:
     path: packages/messenger_chat
   token_storage:
     path: packages/authentication_client/token_storage
-  url_launcher: ^6.3.2
+  url_launcher: ^6.3.3
   user_repository:
     path: packages/user_repository
 
